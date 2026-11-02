@@ -97,6 +97,81 @@ Chưa live vẫn test được bằng các nút **Giả lập sự kiện** (ho�
 
 Có thể ghép: `/overlay?sky=night&hints=0`.
 
+## Triển khai lên VPS & phát live 24/7
+
+Có 2 cách dùng VPS:
+
+| Cách | Ai phát lên TikTok | Khi nào dùng |
+|---|---|---|
+| **A. Phát 24/7 từ VPS** | VPS tự mở Chrome ẩn hiển thị chánh điện, ffmpeg quay lại và đẩy RTMP lên TikTok | Muốn chùa live liên tục, tắt máy tính vẫn chạy |
+| **B. VPS chỉ chạy server** | OBS trên máy bạn (Browser Source trỏ tới VPS) | Muốn ghép camera/micro, chỉnh cảnh trong OBS |
+
+Hai cách dùng chung một bộ cài; cách B chỉ không bật dịch vụ phát.
+
+```
+VPS ─┬─ chua-app     (Node: nghe TikTok, tính công đức, phục vụ /chanhdien, /admin)
+     └─ chua-stream  (Xvfb + Chrome hiển thị /chanhdien + PulseAudio + ffmpeg ──RTMP──► TikTok)
+```
+
+### 1. Chuẩn bị
+
+- **VPS**: Ubuntu 22.04/24.04. Phát 1080×1920@30fps cần **4 vCPU / 4 GB RAM** (x264 mã hoá bằng CPU). VPS 2 vCPU thì đặt `STREAM_WIDTH=720`, `STREAM_HEIGHT=1280`, `VIDEO_BITRATE=2500k`. Upload ổn định ≥ 6 Mbps. Nên chọn VPS ở Singapore/Việt Nam cho gần máy chủ TikTok.
+- **Stream key TikTok**: mở TikTok LIVE Studio / LIVE Producer, chọn phát bằng phần mềm bên thứ ba (OBS), copy **Server URL** và **Stream Key**.
+  - Không phải tài khoản nào cũng được TikTok cấp stream key (tuỳ khu vực, số follower, lịch sử tài khoản).
+  - Stream key thường **đổi mỗi phiên live**: lần nào tạo phiên mới thì cập nhật `.env` rồi khởi động lại dịch vụ phát.
+
+### 2. Cài đặt (Ubuntu + systemd)
+
+```bash
+ssh root@IP_VPS
+git clone https://github.com/luutruongtadev/livestreamobs.git /opt/livestreamobs
+cd /opt/livestreamobs
+sudo bash deploy/install-ubuntu.sh      # cài Node 22, Chrome, ffmpeg, Xvfb, PulseAudio, font, tạo dịch vụ
+nano .env                               # điền TIKTOK_USERNAME, ADMIN_TOKEN, STREAM_SERVER, STREAM_KEY
+systemctl restart chua-app
+systemctl enable --now chua-stream      # bắt đầu phát (bỏ qua bước này nếu dùng cách B)
+journalctl -u chua-stream -f            # xem log phát
+```
+
+### 2'. Hoặc dùng Docker
+
+```bash
+curl -fsSL https://get.docker.com | sh
+git clone https://github.com/luutruongtadev/livestreamobs.git && cd livestreamobs
+cp .env.example .env && nano .env
+docker compose up -d --build            # cách B: docker compose up -d --build app
+docker compose logs -f streamer
+```
+
+### 3. Điều khiển từ xa (trang admin)
+
+Server chỉ mở trên `127.0.0.1` của VPS, không lộ ra internet. Vào admin bằng SSH tunnel từ máy bạn:
+
+```bash
+ssh -L 8686:127.0.0.1:8686 root@IP_VPS
+```
+
+Rồi mở <http://localhost:8686/admin?token=ADMIN_TOKEN> trên máy bạn. Trang này dùng để kết nối TikTok, giả lập sự kiện và xem trước.
+
+**Cách B (OBS ở nhà)**: giữ SSH tunnel đó và đặt Browser Source trong OBS là `http://localhost:8686/chanhdien`.
+
+### 4. Vận hành hằng ngày
+
+| Việc | Lệnh (systemd) | Lệnh (Docker) |
+|---|---|---|
+| Đổi stream key | sửa `.env` → `systemctl restart chua-stream` | sửa `.env` → `docker compose up -d` |
+| Dừng phát | `systemctl stop chua-stream` | `docker compose stop streamer` |
+| Sửa `config.json` | `systemctl restart chua-app` | `docker compose restart app` |
+| Cập nhật code | `git pull && npm ci --omit=dev && systemctl restart chua-app chua-stream` | `git pull && docker compose up -d --build` |
+| Thử luồng phát, ghi ra file 20 giây | `sudo -u chua env TEST_OUTPUT=/tmp/test.flv CHROME_BIN=/usr/bin/google-chrome bash deploy/stream.sh` | |
+
+Dịch vụ phát tự nối lại khi RTMP rớt (5 giây), tự khởi động lại toàn bộ khi Chrome bị tắt, và tự chạy lại khi VPS reboot.
+
+### Lưu ý khi phát 24/7
+
+- TikTok có thể hạn chế phòng live chạy lặp hoặc không có người dẫn ("unoriginal / static content"). Nên có người trực tương tác, đổi cảnh/âm thanh định kỳ, và không để phòng trống hàng giờ.
+- Âm thanh lấy trực tiếp từ trang (tiếng mõ, chuông, nhạc nền nếu đặt `sounds.ambient`). Muốn có tiếng tụng kinh nền thì đặt file vào `public/assets/` và khai báo trong `config.json`.
+
 ## Cấu hình (`config.json`)
 
 Muốn chỉnh mà không sửa file gốc, tạo `config.local.json` (đã gitignore) chỉ chứa phần cần ghi đè, ví dụ:
@@ -143,6 +218,9 @@ public/
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
+deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
+deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd
+Dockerfile, docker-compose.yml  Chạy bằng Docker (app + streamer)
 ```
 
 ## Khi TikTok đổi giao thức
