@@ -69,10 +69,17 @@
         <button data-sim='{"type":"comment","text":"cầu an cho gia đình"}'>🏮 Cầu an</button>
         <button data-sim='{"type":"share"}'>↗️ Chia sẻ</button>
         <button data-sim='{"type":"follow"}'>➕ Theo dõi</button>
+        <button data-sim='{"type":"comment","text":"Nam mô A Di Đà Phật"}'>🏮 Nam mô…</button>
+        <button data-sim='{"type":"comment","text":"xin xăm"}'>🎋 Xin xăm</button>
+        <button data-sim='{"type":"member"}'>🚪 Vào phòng (member)</button>
+        <button id="btnCrowd" class="ghost">👥 Thêm 30 phật tử</button>
       </div>
       <div class="grid" style="margin-bottom:10px">
         <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":5}'>🌹 5× Rose (1💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Finger Heart","diamonds":5}'>🫰 Finger Heart (5💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Love you so much","diamonds":1}'>💕 Love you so much</button>
         <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍩 Doughnut (30💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Hand Hearts","diamonds":100}'>🫶 Hand Hearts (100💎)</button>
         <button class="gold" data-sim='{"type":"gift","giftName":"Galaxy","diamonds":1000}'>🌌 Galaxy (1000💎)</button>
         <button class="gold" data-sim='{"type":"gift","giftName":"Lion","diamonds":29999}'>🦁 Lion (29999💎)</button>
       </div>
@@ -99,10 +106,16 @@
   <div class="col preview">
     <section>
       <h2>Xem trước overlay</h2>
-      <iframe id="preview" src="/overlay?hints=1" title="Overlay preview"></iframe>
+      <div class="row" style="margin-bottom:10px">
+        <button class="ghost" data-view="/chanhdien">🛕 Chánh điện</button>
+        <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
+      </div>
+      <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
       <div class="links muted">
         <div>OBS Browser Source (1080×1920): <code id="obsUrl"></code></div>
-        <div>Tuỳ chọn: <code>?sky=day|dusk|night</code> <code>?transparent=1</code> <code>?scene=0</code> <code>?mute=1</code> <code>?hints=0</code></div>
+        <div>Chánh điện: <code>?tts=1</code> đọc tên người dâng quà · <code>?bg=assets/anh.jpg</code> ảnh nền riêng · <code>?guide=0</code> <code>?board=0</code></div>
+        <div>Xây chùa: <code>?sky=day|dusk|night</code> <code>?transparent=1</code> <code>?scene=0</code> <code>?hints=0</code></div>
+        <div>Chung: <code>?mute=1</code> <code>?debug=1</code></div>
       </div>
     </section>
   </div>
@@ -112,7 +125,11 @@
   if (token) localStorage.setItem('chua-token', token);
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat('vi-VN');
-  $('obsUrl').textContent = location.origin + '/overlay';
+  $('obsUrl').textContent = location.origin + '/chanhdien';
+  document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => {
+    $('preview').src = b.dataset.view + '?mute=1';
+    $('obsUrl').textContent = location.origin + b.dataset.view;
+  }));
 
   function log(msg) {
     const el = $('log');
@@ -172,11 +189,15 @@
   $('simText').onkeydown = (e) => { if (e.key === 'Enter') $('btnComment').click(); };
   $('btnManual').onclick = () => sim({ type: 'manual', merit: Number($('manualMerit').value) || 0, text: 'Công đức thủ công' });
 
-  const names = ['Minh Anh', 'Tuấn', 'Hà Linh', 'Bảo Ngọc', 'Quang Huy', 'Thu Trang', 'Đức Phúc', 'Lan Chi', 'Hoàng Nam', 'Mai Phương'];
+  const names = ['Minh Anh', 'Tuấn', 'Hà Linh', 'Bảo Ngọc', 'Quang Huy', 'Thu Trang', 'Đức Phúc', 'Lan Chi', 'Hoàng Nam', 'Mai Phương',
+    'Tịnh Tâm', 'Mỹ Quỳnh', 'Ngọc Vy', 'Dũng', 'Thương Thư', 'Hồng Thái', 'Khánh', 'Yến', 'Sơn', 'Trang', 'Bình', 'Quân', 'Nhi', 'Hải', 'Long'];
+  $('btnCrowd').onclick = async () => {
+    for (let i = 0; i < 30; i++) await sim({ type: 'like', count: 1, name: 'Phật tử ' + Math.floor(Math.random() * 900 + 100) });
+  };
   const randomEvents = [
     { type: 'like', count: 3 }, { type: 'like', count: 8 }, { type: 'comment', text: 'gõ mõ' },
     { type: 'comment', text: 'thắp nhang' }, { type: 'comment', text: 'cầu bình an' }, { type: 'comment', text: 'xin quẻ' },
-    { type: 'comment', text: 'Nam mô A Di Đà Phật' }, { type: 'share' }, { type: 'follow' },
+    { type: 'comment', text: 'Nam mô A Di Đà Phật' }, { type: 'comment', text: 'con chào cả nhà ạ' }, { type: 'share' }, { type: 'follow' },
     { type: 'gift', giftName: 'Rose', diamonds: 1, repeatCount: 3 }, { type: 'gift', giftName: 'Finger Heart', diamonds: 5 },
   ];
   let timer = null;

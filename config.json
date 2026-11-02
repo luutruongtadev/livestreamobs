@@ -18,28 +18,190 @@
   },
   "commentCooldownSec": 3,
   "commands": [
-    { "action": "mo", "label": "Gõ mõ", "keywords": ["go mo", "mo", "gomo", "cốc cốc", "coc"] },
-    { "action": "incense", "label": "Thắp nhang", "keywords": ["thap nhang", "nhang", "thap huong", "huong"] },
-    { "action": "bell", "label": "Thỉnh chuông", "keywords": ["thinh chuong", "chuong", "danh chuong"] },
-    { "action": "fortune", "label": "Xin quẻ", "keywords": ["xin que", "que", "gieo que"] },
-    { "action": "prayer", "label": "Cầu nguyện", "keywords": ["cau an", "cau nguyen", "cau cho", "nguyen cho", "cau binh an", "cau tai loc"] }
+    {
+      "action": "mo",
+      "label": "Gõ mõ",
+      "keywords": [
+        "go mo",
+        "mo",
+        "gomo",
+        "cốc cốc",
+        "coc"
+      ]
+    },
+    {
+      "action": "incense",
+      "label": "Thắp hương",
+      "keywords": [
+        "thap huong",
+        "thap nhang",
+        "nhang",
+        "huong",
+        "dang huong"
+      ]
+    },
+    {
+      "action": "bell",
+      "label": "Thỉnh chuông",
+      "keywords": [
+        "thinh chuong",
+        "chuong",
+        "danh chuong"
+      ]
+    },
+    {
+      "action": "fortune",
+      "label": "Xin quẻ",
+      "keywords": [
+        "xin que",
+        "que",
+        "gieo que",
+        "xin xam",
+        "rut que",
+        "xam"
+      ]
+    },
+    {
+      "action": "prayer",
+      "label": "Cầu nguyện",
+      "keywords": [
+        "nam mo",
+        "cau an",
+        "cau nguyen",
+        "cau cho",
+        "nguyen cho",
+        "cau binh an",
+        "cau tai loc",
+        "cau mong",
+        "cau xin",
+        "cau phuc",
+        "cau suc khoe"
+      ]
+    }
   ],
   "levels": [
-    { "name": "Đất phát tâm", "merit": 0 },
-    { "name": "Am tranh", "merit": 300 },
-    { "name": "Chùa gỗ", "merit": 1500 },
-    { "name": "Chùa ngói", "merit": 5000 },
-    { "name": "Chùa có gác chuông", "merit": 15000 },
-    { "name": "Chùa có bảo tháp", "merit": 40000 },
-    { "name": "Đại chùa ba tầng mái", "merit": 100000 },
-    { "name": "Đại tùng lâm", "merit": 250000 }
+    {
+      "name": "Đất phát tâm",
+      "merit": 0
+    },
+    {
+      "name": "Am tranh",
+      "merit": 300
+    },
+    {
+      "name": "Chùa gỗ",
+      "merit": 1500
+    },
+    {
+      "name": "Chùa ngói",
+      "merit": 5000
+    },
+    {
+      "name": "Chùa có gác chuông",
+      "merit": 15000
+    },
+    {
+      "name": "Chùa có bảo tháp",
+      "merit": 40000
+    },
+    {
+      "name": "Đại chùa ba tầng mái",
+      "merit": 100000
+    },
+    {
+      "name": "Đại tùng lâm",
+      "merit": 250000
+    }
   ],
   "giftTiers": [
-    { "minDiamonds": 1, "effect": "petals", "verb": "dâng hoa" },
-    { "minDiamonds": 10, "effect": "lotus", "verb": "dâng hương hoa" },
-    { "minDiamonds": 100, "effect": "golden", "verb": "cúng dường" },
-    { "minDiamonds": 1000, "effect": "buddha", "verb": "đại cúng dường" }
+    {
+      "minDiamonds": 1,
+      "effect": "petals",
+      "verb": "dâng hoa"
+    },
+    {
+      "minDiamonds": 10,
+      "effect": "lotus",
+      "verb": "dâng hương hoa"
+    },
+    {
+      "minDiamonds": 100,
+      "effect": "golden",
+      "verb": "cúng dường"
+    },
+    {
+      "minDiamonds": 1000,
+      "effect": "buddha",
+      "verb": "đại cúng dường"
+    }
   ],
+  "giftEffects": {
+    "Rose": "lotus",
+    "Love you so much": "lotus",
+    "Finger Heart": "petals"
+  },
+  "hall": {
+    "maxWorshippers": 60,
+    "presenceMinutes": 15,
+    "joinOnMember": false,
+    "background": "",
+    "leaderboardTitle": "BẢNG CÔNG ĐỨC",
+    "leaderboardSubtitle": "Tặng quà để ghi danh",
+    "guide": [
+      {
+        "icon": "💬",
+        "title": "Bình luận bất kỳ",
+        "desc": "vào chùa, lời hiện trên đầu"
+      },
+      {
+        "icon": "🙏",
+        "title": "“thắp hương”",
+        "desc": "dâng hương lễ Phật"
+      },
+      {
+        "icon": "🎋",
+        "title": "“xin xăm”",
+        "desc": "rút quẻ, nghe lời giải"
+      },
+      {
+        "icon": "🏮",
+        "title": "“Nam mô…”, “cầu…”",
+        "desc": "thả đèn ghi lời khấn"
+      },
+      {
+        "icon": "❤️",
+        "title": "Thả tim · Follow",
+        "desc": "gõ mõ · thỉnh chuông"
+      }
+    ],
+    "giftGuide": [
+      {
+        "icon": "🕯️",
+        "title": "Mọi món quà",
+        "desc": "lên bàn thờ dâng hương"
+      },
+      {
+        "icon": "🌸",
+        "title": "Rose · Love you so much",
+        "desc": "hoa sen dâng lên Phật"
+      },
+      {
+        "icon": "🌺",
+        "title": "Finger Heart",
+        "desc": "mưa hoa khắp chánh điện"
+      },
+      {
+        "icon": "✨",
+        "title": "Từ 100 xu",
+        "desc": "hào quang vàng rực rỡ"
+      },
+      {
+        "icon": "📣",
+        "title": "Người dâng quà",
+        "desc": "được xướng tên, ghi danh"
+      }
+    ]
+  },
   "giftNames": {
     "Rose": "Hoa hồng",
     "TikTok": "TikTok",

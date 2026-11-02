@@ -26,7 +26,7 @@ test('nhận diện lệnh bình luận', () => {
 test('like cộng công đức và tạo hiệu ứng mõ', () => {
   const t = new Temple(config);
   const fx = t.handle({ type: 'like', user: u('a'), count: 5 });
-  assert.equal(fx[0].type, 'mo');
+  assert.deepEqual(fx.map((e) => e.type), ['join', 'mo']);
   assert.equal(t.state.total, 5 * config.merit.like);
   assert.equal(t.snapshot().leaderboard[0].merit, 5);
 });
@@ -34,8 +34,10 @@ test('like cộng công đức và tạo hiệu ứng mõ', () => {
 test('quà tính theo kim cương × số lượng và lên cấp', () => {
   const t = new Temple(config);
   const fx = t.handle({ type: 'gift', user: u('b'), giftName: 'Rose', diamonds: 1, repeatCount: 30 });
-  assert.equal(fx[0].merit, 30 * config.merit.perDiamond);
-  assert.equal(fx[0].giftName, 'Hoa hồng');
+  const gift = fx.find((e) => e.type === 'gift');
+  assert.equal(gift.merit, 30 * config.merit.perDiamond);
+  assert.equal(gift.giftName, 'Hoa hồng');
+  assert.equal(gift.effect, 'lotus'); // giftEffects: Rose -> hoa sen
   assert.ok(fx.some((e) => e.type === 'levelup' && e.level === 1));
   assert.equal(t.snapshot().level, 1);
 });
@@ -44,7 +46,7 @@ test('lên nhiều cấp một lúc phát nhiều levelup', () => {
   const t = new Temple(config);
   const fx = t.handle({ type: 'gift', user: u('c'), giftName: 'Lion', diamonds: 29999 });
   assert.equal(fx.filter((e) => e.type === 'levelup').length, config.levels.length - 1);
-  assert.equal(fx[0].effect, 'buddha');
+  assert.equal(fx.find((e) => e.type === 'gift').effect, 'buddha');
 });
 
 test('cooldown bình luận chống spam công đức', () => {
@@ -83,4 +85,31 @@ test('lưu và nạp lại state', () => {
   const t2 = new Temple(config, { statePath: p });
   assert.equal(t2.state.total, config.merit.share);
   fs.rmSync(p);
+});
+
+test('chánh điện: phật tử vào, xếp theo công đức, rời đi khi lâu không tương tác', () => {
+  let now = 0;
+  const t = new Temple(config, { now: () => now });
+  t.handle({ type: 'comment', user: u('a'), text: 'Nam mô A Di Đà Phật' });
+  t.handle({ type: 'gift', user: u('b'), giftName: 'Rose', diamonds: 1 });
+  const snap = t.snapshot();
+  assert.equal(snap.present, 2);
+  assert.deepEqual(snap.worshippers.map((w) => w.id), ['b', 'a']);
+  assert.equal(snap.lastGift.name, 'b');
+  // lần thứ hai không phát 'join'
+  assert.ok(!t.handle({ type: 'like', user: u('a'), count: 1 }).some((e) => e.type === 'join'));
+  // member chỉ vào chùa khi bật joinOnMember
+  assert.deepEqual(t.handle({ type: 'member', user: u('c') }), []);
+  now = 16 * 60000;
+  t.handle({ type: 'like', user: u('a'), count: 1 });
+  assert.ok(t.prunePresence());
+  assert.deepEqual(t.snapshot().worshippers.map((w) => w.id), ['a']);
+});
+
+test('lệnh chánh điện: Nam mô, xin xăm, thắp hương', () => {
+  const m = createCommandMatcher(config.commands);
+  assert.equal(m('Nam mô A Di Đà Phật')?.action, 'prayer');
+  assert.equal(m('xin xăm')?.action, 'fortune');
+  assert.equal(m('thắp hương')?.action, 'incense');
+  assert.equal(m('cậu ơi'), null);
 });

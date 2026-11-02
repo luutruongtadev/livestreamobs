@@ -131,6 +131,7 @@ export class TikTokBridge extends EventEmitter {
     conn.on(WebcastEvent.SHARE, (d) => emit({ type: 'share', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.FOLLOW, (d) => emit({ type: 'follow', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.GIFT, (d) => emit(normalizeGift(d)));
+    conn.on(WebcastEvent.MEMBER, (d) => emit({ type: 'member', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.ROOM_USER, (d) => {
       if (this.conn === conn) this.setStatus({ viewers: Number(d.viewerCount) || 0 });
     });

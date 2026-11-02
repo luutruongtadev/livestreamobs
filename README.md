@@ -33,6 +33,28 @@ TikTok Live ──(WebSocket, tiktok-live-connector)──► Node.js server ─
 - Công đức **lưu vào `data/state.json`**, tắt máy mở lại vẫn còn.
 - Tự kết nối lại khi rớt mạng / khi live kết thúc / khi chủ kênh chưa lên live.
 
+## Hai giao diện
+
+| Trang | Mô tả |
+|---|---|
+| `/chanhdien` | **Chánh điện**: tượng Phật lớn, bàn thờ, lư hương. Mỗi người xem tương tác thành một phật tử chibi quỳ trên sàn, có thẻ tên + avatar, bình luận hiện thành bong bóng trên đầu. Bảng công đức bên trái, bảng "Cách tham gia" bên phải, dòng "N phật tử đang lễ Phật trong chánh điện". |
+| `/overlay` | **Xây chùa**: chùa ngoài trời được xây qua 8 cấp theo tổng công đức. |
+
+### Chánh điện hoạt động thế nào
+
+- **Bình luận bất kỳ** → vào chùa (đi từ dưới lên chỗ ngồi), lời bình luận hiện trên đầu 6 giây.
+- **Thắp hương** → cúi lạy, nén hương bay lên cắm vào lư, khói bốc lên trước tượng.
+- **Xin xăm / xin quẻ** → thẻ quẻ hiện giữa màn hình (có thể đọc to với `?tts=1`).
+- **Nam mô… / cầu…** → thả đèn lồng mang lời khấn bay lên.
+- **Thả tim** → gõ mõ, **Follow / Chia sẻ** → thỉnh chuông.
+- **Mọi món quà** → nén hương lên bàn thờ + thông báo "Xướng danh công đức". **Rose / Love you so much** → hoa sen bay lên đặt dưới toà sen. **Finger Heart** → mưa hoa. **≥100 xu** → hào quang vàng. **≥1000 xu** → hào quang rực rỡ + mưa hoa sen.
+- Phật tử **xếp chỗ theo công đức**: người đứng đầu ngồi **đài sen vàng** ngay trước bàn thờ ("Đệ nhất công đức"), các hàng trên gần Phật hơn.
+- Ai không tương tác quá `hall.presenceMinutes` phút (mặc định 15) sẽ lặng lẽ rời chánh điện. Tối đa `hall.maxWorshippers` người (mặc định 60).
+
+Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`.
+
+Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
+
 ## Cài đặt
 
 Yêu cầu: **Node.js 20+**, OBS Studio.
@@ -47,7 +69,8 @@ npm start
 Mở:
 
 - Bảng điều khiển: <http://127.0.0.1:8686/admin>
-- Overlay: <http://127.0.0.1:8686/overlay>
+- Chánh điện: <http://127.0.0.1:8686/chanhdien>
+- Xây chùa: <http://127.0.0.1:8686/overlay>
 
 Ở trang admin, nhập TikTok username (không cần `@`) và bấm **Kết nối** — tài khoản phải **đang phát live**.
 Chưa live vẫn test được bằng các nút **Giả lập sự kiện** (hoặc bật *Tự động bắn sự kiện ngẫu nhiên*).
@@ -56,7 +79,7 @@ Chưa live vẫn test được bằng các nút **Giả lập sự kiện** (ho�
 
 1. OBS → *Settings → Video*: Base/Output resolution **1080×1920** (dọc).
 2. *Sources → + → Browser*:
-   - URL: `http://127.0.0.1:8686/overlay`
+   - URL: `http://127.0.0.1:8686/chanhdien` (hoặc `/overlay`)
    - Width **1080**, Height **1920**
    - Tích **Control audio via OBS** (để thu tiếng mõ/chuông vào live).
 3. Phát lên TikTok: dùng **TikTok LIVE Studio** (thêm nguồn từ OBS Virtual Camera / cửa sổ OBS) hoặc dùng **Stream Key (RTMP)** nếu tài khoản được cấp: *OBS → Settings → Stream → Custom*, dán Server URL và Stream Key lấy từ TikTok.
@@ -91,6 +114,7 @@ Muốn chỉnh mà không sửa file gốc, tạo `config.local.json` (đã giti
 | `tiktokUsername`, `autoConnect` | Tự kết nối khi khởi động server |
 | `signApiKey` | API key Euler Stream (không bắt buộc, giúp kết nối ổn định hơn khi bị giới hạn) |
 | `server.host` / `server.port` | Mặc định `127.0.0.1:8686`. Chạy VPS thì đặt `0.0.0.0` **và** đặt `adminToken` |
+| `hall` | Cấu hình chánh điện (xem phần trên); `joinOnMember: true` để người vừa vào phòng live cũng hiện trong chánh điện (dễ quá tải với phòng đông) |
 | `server.adminToken` | Bảo vệ API admin. Mở admin bằng `/admin?token=...` |
 | `merit` | Điểm công đức cho từng loại tương tác |
 | `commentCooldownSec` | Giãn cách cộng công đức bình luận / người |
@@ -115,6 +139,8 @@ public/
   overlay.html, js/overlay.js   Vòng lặp vẽ, hiệu ứng, HUD
   js/scene.js                   Vẽ trời, núi, chùa 8 cấp, lư hương, mõ, chuông
   js/sound.js                   Âm thanh WebAudio
+  chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
+  js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 ```

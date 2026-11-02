@@ -63,6 +63,7 @@ function publicConfig() {
     levels: config.levels.map((l) => l.name),
     commands: config.commands.map((c) => ({ action: c.action, label: c.label, keyword: c.keywords[0] })),
     merit: config.merit,
+    hall: config.hall || {},
   };
 }
 
@@ -85,6 +86,7 @@ tiktok.on('status', (status) => {
 
 setInterval(() => {
   temple.pruneCooldowns();
+  if (temple.prunePresence()) scheduleState();
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
 }, 5000).unref();
 
@@ -92,6 +94,7 @@ setInterval(() => {
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 app.get('/', (_req, res) => res.redirect('/admin'));
+app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -123,7 +126,7 @@ app.post('/api/simulate', requireAdmin, (req, res) => {
   const name = String(b.name || 'Thí chủ ' + (++simCounter % 50)).slice(0, 40);
   const user = { id: 'sim:' + name, name, avatar: b.avatar || null };
   const ev = { ...b, user };
-  if (!['like', 'comment', 'share', 'follow', 'gift', 'manual'].includes(ev.type)) {
+  if (!['like', 'comment', 'share', 'follow', 'gift', 'manual', 'member'].includes(ev.type)) {
     return res.status(400).json({ error: 'type không hợp lệ' });
   }
   res.json({ ok: true, effects: ingest(ev) });

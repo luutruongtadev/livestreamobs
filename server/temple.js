@@ -16,6 +16,7 @@ export class Temple {
     this.levels = [...config.levels].sort((a, b) => a.merit - b.merit);
     this.giftTiers = [...config.giftTiers].sort((a, b) => a.minDiamonds - b.minDiamonds);
     this.lastComment = new Map(); // userId -> timestamp, chống spam công đức
+    this.presence = new Map(); // userId -> phật tử đang có mặt trong chánh điện
     this.dirty = false;
     this.reset();
     if (statePath) this.load();
@@ -29,7 +30,44 @@ export class Temple {
       startedAt: this.now(),
     };
     this.lastComment.clear();
+    this.presence?.clear();
     this.dirty = true;
+  }
+
+  get hall() {
+    return { maxWorshippers: 60, presenceMinutes: 15, joinOnMember: false, ...(this.config.hall || {}) };
+  }
+
+  /** Ghi nhận người xem vào chánh điện. Trả về true nếu là người mới vào. */
+  touch(user) {
+    if (!user?.id) return false;
+    const t = this.now();
+    const p = this.presence.get(user.id);
+    if (p) {
+      p.lastSeen = t;
+      if (user.name) p.name = user.name;
+      if (user.avatar) p.avatar = user.avatar;
+      return false;
+    }
+    this.presence.set(user.id, { id: user.id, name: user.name, avatar: user.avatar, joinedAt: t, lastSeen: t });
+    return true;
+  }
+
+  /** Bỏ những người đã lâu không tương tác. Trả về true nếu có thay đổi. */
+  prunePresence() {
+    const limit = this.now() - this.hall.presenceMinutes * 60000;
+    let changed = false;
+    for (const [k, p] of this.presence) if (p.lastSeen < limit) { this.presence.delete(k); changed = true; }
+    return changed;
+  }
+
+  worshippers() {
+    const donors = this.state.donors;
+    return [...this.presence.values()]
+      .map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, merit: donors[p.id]?.merit || 0, joinedAt: p.joinedAt }))
+      .sort((a, b) => b.merit - a.merit || a.joinedAt - b.joinedAt)
+      .slice(0, this.hall.maxWorshippers)
+      .map(({ joinedAt, ...w }) => w);
   }
 
   // Dọn map cooldown để không phình bộ nhớ khi live dài
@@ -81,6 +119,10 @@ export class Temple {
       nextLevelName: next ? next.name : null,
       leaderboard,
       counts,
+      donorCount: Object.keys(this.state.donors).length,
+      present: this.presence.size,
+      worshippers: this.worshippers(),
+      lastGift: this.state.lastGift || null,
     };
   }
 
@@ -118,6 +160,12 @@ export class Temple {
     const user = ev.user || null;
     const c = this.state.counts;
     const effects = [];
+
+    if (ev.type === 'member') {
+      if (!this.hall.joinOnMember || !this.touch(user)) return [];
+      return [{ type: 'join', user }];
+    }
+    if (this.touch(user)) effects.push({ type: 'join', user });
 
     switch (ev.type) {
       case 'like': {
@@ -182,6 +230,7 @@ export class Temple {
           d.diamonds += diamonds;
         }
         const giftName = this.config.giftNames?.[ev.giftName] || ev.giftName || 'Quà';
+        this.state.lastGift = { name: user?.name || 'Thí chủ', giftName, repeatCount: repeat, at: this.now() };
         effects.push({
           type: 'gift',
           user,
@@ -190,7 +239,7 @@ export class Temple {
           repeatCount: repeat,
           diamonds,
           merit,
-          effect: tier?.effect || 'petals',
+          effect: this.config.giftEffects?.[ev.giftName] || tier?.effect || 'petals',
           verb: tier?.verb || 'cúng dường',
         });
         effects.push(...this.addMerit(user, merit));
