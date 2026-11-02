@@ -63,6 +63,24 @@ Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọn
 
 Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
 
+## 🪢 Game Kéo co (`/keoco`)
+
+Game kéo co hai đội, mỗi ván 3 phút, dùng chung server / admin / cách triển khai với Chánh điện.
+
+| Người xem làm | Kết quả |
+|---|---|
+| Bình luận **"đỏ"** / **"xanh"** | Vào đội (đổi được khi chưa kéo lần nào) |
+| Thả tim | Kéo 1 lực / tim. Chưa chọn đội thì được xếp vào đội ít người hơn |
+| Chia sẻ / Follow | Kéo 15 / 25 lực |
+| Tặng quà | Kéo mạnh: **1 xu = 5 lực**. Mỗi món quà kéo tối đa nửa quãng đường nên ván không kết thúc ngay |
+| Tặng nhiều xu nhất ván | Lên **👑 Ngai vàng** giữa màn hình; bị vượt thì bị "hất khỏi ngai" |
+
+- Dây qua vạch đích là thắng ngay; hết giờ thì đội đang kéo lệch về phía mình thắng (đứng giữa là hoà). Màn hình kết thúc hiện đội thắng và **MVP**, nghỉ 15 giây rồi tự sang ván mới.
+- Tỉ số các ván lưu trong `data/tugwar.json`.
+- Trang admin có nút giả lập vào đội, kéo, tặng quà và điều khiển ván (kết thúc / chơi lại / xoá tỉ số).
+- Đổi tên đội, màu, từ khoá, thời gian ván, lực của từng tương tác trong `config.json` → `tugwar` (ví dụ đội "Phở" / "Bún": đổi `name` và `keywords`).
+- Phát bằng OBS: Browser Source `http://localhost:8686/keoco?phone=0`. Phát bằng điện thoại: `https://<tên miền>/keoco?phone=1`.
+
 ## Cài đặt
 
 Yêu cầu: **Node.js 22+** (bản cũ hơn sẽ báo lỗi `Invalid regular expression flags`), OBS Studio.
@@ -319,6 +337,7 @@ public/
   js/sound.js                   Âm thanh WebAudio
   chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
+  keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP

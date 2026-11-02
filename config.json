@@ -238,5 +238,42 @@
     "levelup": "",
     "ambient": ""
   },
-  "ambientVolume": 0.25
+  "ambientVolume": 0.25,
+  "tugwar": {
+    "roundSeconds": 180,
+    "breakSeconds": 15,
+    "winDistance": 100,
+    "pullFactor": 0.12,
+    "maxMovePerGift": 50,
+    "power": {
+      "like": 1,
+      "share": 15,
+      "follow": 25,
+      "perDiamond": 5
+    },
+    "teams": [
+      {
+        "id": "red",
+        "name": "Đội Đỏ",
+        "color": "#e0392b",
+        "keywords": [
+          "do",
+          "doi do",
+          "red",
+          "phe do"
+        ]
+      },
+      {
+        "id": "blue",
+        "name": "Đội Xanh",
+        "color": "#2b7de0",
+        "keywords": [
+          "xanh",
+          "doi xanh",
+          "blue",
+          "phe xanh"
+        ]
+      }
+    ]
+  }
 }

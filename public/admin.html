@@ -95,6 +95,22 @@
     </section>
 
     <section>
+      <h2>🪢 Kéo co</h2>
+      <div class="grid" style="margin-bottom:10px">
+        <button data-sim='{"type":"comment","text":"đỏ"}' style="background:#c0392b">🔴 Vào đội Đỏ</button>
+        <button data-sim='{"type":"comment","text":"xanh"}' style="background:#1f6fd0;border-color:#5aa0ff">🔵 Vào đội Xanh</button>
+        <button data-sim='{"type":"like","count":10}'>❤️ 10 tim (kéo)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":10}'>🌹 10× Rose</button>
+      </div>
+      <div class="row">
+        <button class="ghost" data-tug="next">⏭ Kết thúc ván / sang ván mới</button>
+        <button class="ghost" data-tug="restart">↺ Chơi lại ván này</button>
+        <button class="ghost" data-tug="reset">⟲ Xoá tỉ số</button>
+      </div>
+      <p class="muted">Dùng ô "Tên thí chủ" ở trên để giả lập nhiều người. Người chưa chọn đội mà thả tim / tặng quà sẽ được xếp vào đội ít người hơn.</p>
+    </section>
+
+    <section>
       <h2>Quản trị</h2>
       <div class="row">
         <button id="btnReset" class="ghost">⟲ Reset toàn bộ công đức</button>
@@ -109,6 +125,7 @@
       <div class="row" style="margin-bottom:10px">
         <button class="ghost" data-view="/chanhdien">🛕 Chánh điện</button>
         <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
+        <button class="ghost" data-view="/keoco">🪢 Kéo co</button>
       </div>
       <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
       <div class="links muted">
@@ -184,6 +201,10 @@
 
   const simName = () => $('simName').value.trim() || undefined;
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
+  document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {
+    if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
+    api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
+  }));
   document.querySelectorAll('[data-sim]').forEach((b) => (b.onclick = () => sim(JSON.parse(b.dataset.sim))));
   $('btnComment').onclick = () => { const t = $('simText').value.trim(); if (t) sim({ type: 'comment', text: t }); };
   $('simText').onkeydown = (e) => { if (e.key === 'Enter') $('btnComment').click(); };

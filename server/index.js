@@ -6,6 +6,7 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { Temple } from './temple.js';
 import { TikTokBridge } from './tiktok.js';
+import { TugWar } from './tugwar.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -53,6 +54,7 @@ if (process.env.REQUIRE_ADMIN_TOKEN === '1') {
   }
 }
 const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
+const tug = new TugWar(config.tugwar || {}, { statePath: path.join(ROOT, 'data', 'tugwar.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 
 // ---------------- WebSocket hub ----------------
@@ -90,15 +92,33 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot() });
 });
 
 function ingest(ev) {
   const effects = temple.handle(ev);
   if (effects.length) broadcast({ type: 'fx', effects });
   scheduleState();
+  tugBroadcast(tug.handle(ev));
   return effects;
 }
+
+// ---------------- Kéo co ----------------
+let tugTimer = null;
+function tugBroadcast(effects) {
+  if (effects?.length) broadcast({ type: 'tugfx', effects });
+  if (tugTimer) return;
+  tugTimer = setTimeout(() => {
+    tugTimer = null;
+    broadcast({ type: 'tug', tug: tug.snapshot() });
+  }, 150);
+}
+let lastRemaining = -1;
+setInterval(() => {
+  const fx = tug.tick();
+  const rem = tug.snapshot().remaining;
+  if (fx.length || rem !== lastRemaining) { lastRemaining = rem; tugBroadcast(fx); }
+}, 250).unref();
 
 tiktok.on('event', ingest);
 tiktok.on('status', (status) => {
@@ -110,6 +130,7 @@ setInterval(() => {
   temple.pruneCooldowns();
   if (temple.prunePresence()) scheduleState();
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
+  try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -117,6 +138,7 @@ app.use(express.json({ limit: '64kb' }));
 app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
+app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -154,6 +176,15 @@ app.post('/api/simulate', requireAdmin, (req, res) => {
   res.json({ ok: true, effects: ingest(ev) });
 });
 
+app.post('/api/tug/:action', requireAdmin, (req, res) => {
+  const a = req.params.action;
+  if (a === 'next') tugBroadcast(tug.phase === 'playing' ? tug.finish() : tug.startRound());
+  else if (a === 'restart') tugBroadcast(tug.startRound());
+  else if (a === 'reset') { tug.resetAll(); tugBroadcast([{ type: 'tug_start', round: tug.roundNo }]); }
+  else return res.status(400).json({ error: 'action: next | restart | reset' });
+  res.json({ ok: true, tug: tug.snapshot() });
+});
+
 app.post('/api/reset', requireAdmin, (_req, res) => {
   temple.reset();
   temple.save();
@@ -178,7 +209,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); } catch { /* bỏ qua */ }
+  try { temple.save(); tug.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }
