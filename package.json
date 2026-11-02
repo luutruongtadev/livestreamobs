@@ -1,0 +1,29 @@
+{
+  "name": "livestream-chua-online",
+  "version": "1.0.0",
+  "description": "Chùa Online - TikTok Live interactive temple overlay cho OBS",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luutruongtadev/livestreamobs.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/luutruongtadev/livestreamobs/issues"
+  },
+  "homepage": "https://github.com/luutruongtadev/livestreamobs#readme",
+  "dependencies": {
+    "express": "^5.3.0",
+    "tiktok-live-connector": "^2.5.0",
+    "ws": "^8.22.1"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}

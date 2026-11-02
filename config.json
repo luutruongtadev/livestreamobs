@@ -1,0 +1,74 @@
+{
+  "tiktokUsername": "",
+  "signApiKey": "",
+  "autoConnect": true,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8686,
+    "adminToken": ""
+  },
+  "templeName": "Chùa Online",
+  "merit": {
+    "like": 1,
+    "comment": 1,
+    "command": 3,
+    "share": 10,
+    "follow": 20,
+    "perDiamond": 10
+  },
+  "commentCooldownSec": 3,
+  "commands": [
+    { "action": "mo", "label": "Gõ mõ", "keywords": ["go mo", "mo", "gomo", "cốc cốc", "coc"] },
+    { "action": "incense", "label": "Thắp nhang", "keywords": ["thap nhang", "nhang", "thap huong", "huong"] },
+    { "action": "bell", "label": "Thỉnh chuông", "keywords": ["thinh chuong", "chuong", "danh chuong"] },
+    { "action": "fortune", "label": "Xin quẻ", "keywords": ["xin que", "que", "gieo que"] },
+    { "action": "prayer", "label": "Cầu nguyện", "keywords": ["cau an", "cau nguyen", "cau cho", "nguyen cho", "cau binh an", "cau tai loc"] }
+  ],
+  "levels": [
+    { "name": "Đất phát tâm", "merit": 0 },
+    { "name": "Am tranh", "merit": 300 },
+    { "name": "Chùa gỗ", "merit": 1500 },
+    { "name": "Chùa ngói", "merit": 5000 },
+    { "name": "Chùa có gác chuông", "merit": 15000 },
+    { "name": "Chùa có bảo tháp", "merit": 40000 },
+    { "name": "Đại chùa ba tầng mái", "merit": 100000 },
+    { "name": "Đại tùng lâm", "merit": 250000 }
+  ],
+  "giftTiers": [
+    { "minDiamonds": 1, "effect": "petals", "verb": "dâng hoa" },
+    { "minDiamonds": 10, "effect": "lotus", "verb": "dâng hương hoa" },
+    { "minDiamonds": 100, "effect": "golden", "verb": "cúng dường" },
+    { "minDiamonds": 1000, "effect": "buddha", "verb": "đại cúng dường" }
+  ],
+  "giftNames": {
+    "Rose": "Hoa hồng",
+    "TikTok": "TikTok",
+    "Heart Me": "Trái tim",
+    "Finger Heart": "Tim tay",
+    "Doughnut": "Bánh vòng",
+    "Hand Hearts": "Tim đôi tay",
+    "Galaxy": "Thiên hà",
+    "Lion": "Sư tử",
+    "Universe": "Vũ trụ"
+  },
+  "fortunes": [
+    "Quẻ Thượng Thượng — Vạn sự hanh thông, tài lộc đầy nhà.",
+    "Quẻ Thượng — Gieo nhân lành, gặt quả ngọt. Công việc thuận lợi.",
+    "Quẻ Trung Bình — Tâm an thì cảnh an. Giữ bình tĩnh mọi việc sẽ qua.",
+    "Quẻ Thượng — Quý nhân phù trợ, đi xa gặp may.",
+    "Quẻ Trung — Nên tiết kiệm, tránh tiêu xài hoang phí tháng này.",
+    "Quẻ Thượng Thượng — Gia đạo bình an, sức khỏe dồi dào.",
+    "Quẻ Trung — Đừng nóng vội. Chậm mà chắc, việc lớn sẽ thành.",
+    "Quẻ Thượng — Tình duyên khởi sắc, người thương ở gần.",
+    "Quẻ Trung Bình — Bớt lo nghĩ, ngủ sớm, uống nhiều nước.",
+    "Quẻ Thượng — Học hành tấn tới, thi cử đỗ đạt."
+  ],
+  "sounds": {
+    "mo": "",
+    "bell": "",
+    "chime": "",
+    "levelup": "",
+    "ambient": ""
+  },
+  "ambientVolume": 0.25
+}

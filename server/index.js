@@ -1,0 +1,161 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { Temple } from './temple.js';
+import { TikTokBridge } from './tiktok.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function deepMerge(a, b) {
+  if (Array.isArray(b) || typeof b !== 'object' || b === null) return b;
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = k in out && typeof out[k] === 'object' && !Array.isArray(out[k]) ? deepMerge(out[k], v) : v;
+  return out;
+}
+
+function loadConfig() {
+  let cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
+  const local = path.join(ROOT, 'config.local.json');
+  if (fs.existsSync(local)) cfg = deepMerge(cfg, JSON.parse(fs.readFileSync(local, 'utf8')));
+  const env = process.env;
+  if (env.TIKTOK_USERNAME) cfg.tiktokUsername = env.TIKTOK_USERNAME;
+  if (env.SIGN_API_KEY) cfg.signApiKey = env.SIGN_API_KEY;
+  if (env.HOST) cfg.server.host = env.HOST;
+  if (env.PORT) cfg.server.port = Number(env.PORT);
+  if (env.ADMIN_TOKEN) cfg.server.adminToken = env.ADMIN_TOKEN;
+  return cfg;
+}
+
+const config = loadConfig();
+const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
+const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
+
+// ---------------- WebSocket hub ----------------
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+function send(ws, msg) {
+  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+}
+function broadcast(msg) {
+  const data = JSON.stringify(msg);
+  for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(data);
+}
+
+let stateTimer = null;
+function scheduleState() {
+  if (stateTimer) return;
+  stateTimer = setTimeout(() => {
+    stateTimer = null;
+    broadcast({ type: 'state', state: temple.snapshot() });
+  }, 200);
+}
+
+function publicConfig() {
+  return {
+    templeName: config.templeName,
+    sounds: config.sounds,
+    ambientVolume: config.ambientVolume,
+    levels: config.levels.map((l) => l.name),
+    commands: config.commands.map((c) => ({ action: c.action, label: c.label, keyword: c.keywords[0] })),
+    merit: config.merit,
+  };
+}
+
+wss.on('connection', (ws) => {
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status });
+});
+
+function ingest(ev) {
+  const effects = temple.handle(ev);
+  if (effects.length) broadcast({ type: 'fx', effects });
+  scheduleState();
+  return effects;
+}
+
+tiktok.on('event', ingest);
+tiktok.on('status', (status) => {
+  console.log(`[tiktok] ${status.state}: ${status.message}`);
+  broadcast({ type: 'status', status });
+});
+
+setInterval(() => {
+  temple.pruneCooldowns();
+  try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
+}, 5000).unref();
+
+// ---------------- HTTP API ----------------
+app.use(express.json({ limit: '64kb' }));
+app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
+app.get('/', (_req, res) => res.redirect('/admin'));
+
+function requireAdmin(req, res, next) {
+  const token = config.server.adminToken;
+  if (!token) return next();
+  if (req.get('x-admin-token') === token || req.query.token === token) return next();
+  res.status(401).json({ error: 'Sai admin token' });
+}
+
+app.get('/api/status', (_req, res) => res.json({ status: tiktok.status, state: temple.snapshot(), config: publicConfig() }));
+
+app.post('/api/connect', requireAdmin, async (req, res) => {
+  try {
+    const username = req.body?.username || config.tiktokUsername;
+    await tiktok.connect(username);
+    res.json({ ok: true, status: tiktok.status });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/disconnect', requireAdmin, async (_req, res) => {
+  await tiktok.disconnect();
+  res.json({ ok: true, status: tiktok.status });
+});
+
+let simCounter = 0;
+app.post('/api/simulate', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || 'Thí chủ ' + (++simCounter % 50)).slice(0, 40);
+  const user = { id: 'sim:' + name, name, avatar: b.avatar || null };
+  const ev = { ...b, user };
+  if (!['like', 'comment', 'share', 'follow', 'gift', 'manual'].includes(ev.type)) {
+    return res.status(400).json({ error: 'type không hợp lệ' });
+  }
+  res.json({ ok: true, effects: ingest(ev) });
+});
+
+app.post('/api/reset', requireAdmin, (_req, res) => {
+  temple.reset();
+  temple.save();
+  broadcast({ type: 'reset' });
+  scheduleState();
+  res.json({ ok: true });
+});
+
+// ---------------- Start ----------------
+const { host, port } = config.server;
+server.listen(port, host, () => {
+  const base = `http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`;
+  console.log('==============================================');
+  console.log(`  ${config.templeName} đang chạy`);
+  console.log(`  Overlay (OBS Browser Source): ${base}/overlay`);
+  console.log(`  Bảng điều khiển:              ${base}/admin`);
+  console.log('==============================================');
+  if (config.autoConnect && config.tiktokUsername) {
+    tiktok.connect(config.tiktokUsername).catch((e) => console.warn('[tiktok]', e.message));
+  }
+});
+
+async function shutdown() {
+  console.log('\nĐang lưu công đức và tắt...');
+  try { temple.save(); } catch { /* bỏ qua */ }
+  await tiktok.disconnect().catch(() => {});
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chùa Online — Điều khiển</title>
+  <style>
+    :root { --bg: #160b06; --card: #26140c; --line: #4a2a18; --gold: #f5c542; --text: #f6ead6; --muted: #b9a58c; --red: #b3241a; --ok: #49c26b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, 'Segoe UI', sans-serif; }
+    main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 380px; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } .preview { order: -1; } }
+    h1 { grid-column: 1 / -1; margin: 0; font-size: 24px; color: var(--gold); }
+    h2 { margin: 0 0 12px; font-size: 16px; color: var(--gold); }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .col { display: grid; gap: 16px; align-content: start; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input, select { background: #120804; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; min-width: 0; }
+    input[type=text] { flex: 1 1 160px; }
+    button { background: var(--red); color: #fff; border: 1px solid #e0573f; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+    button:hover { filter: brightness(1.15); }
+    button.ghost { background: transparent; border-color: var(--line); color: var(--text); }
+    button.gold { background: var(--gold); border-color: #ffe08a; color: #3a1a00; }
+    .status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #777; flex: none; }
+    .dot.connected { background: var(--ok); } .dot.connecting, .dot.retrying { background: var(--gold); }
+    .muted { color: var(--muted); font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+    .stat { background: #120804; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+    .stat b { display: block; font-size: 20px; color: var(--gold); font-variant-numeric: tabular-nums; }
+    code { background: #120804; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+    .preview iframe { width: 100%; aspect-ratio: 9 / 16; border: 1px solid var(--line); border-radius: 10px; background: #000; }
+    .links { display: grid; gap: 6px; margin-top: 10px; }
+    #log { max-height: 220px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>☸ Chùa Online — Bảng điều khiển</h1>
+  <div class="col">
+    <section>
+      <h2>Kết nối TikTok Live</h2>
+      <div class="status"><span id="dot" class="dot"></span><span id="statusText">Đang tải…</span></div>
+      <div class="row">
+        <input id="username" type="text" placeholder="TikTok username (không cần @)">
+        <button id="btnConnect">Kết nối</button>
+        <button id="btnDisconnect" class="ghost">Ngắt</button>
+      </div>
+      <p class="muted">Chủ kênh phải đang phát live. Nếu chưa live, hệ thống sẽ tự thử lại. Người xem: <b id="viewers">0</b></p>
+    </section>
+
+    <section>
+      <h2>Thống kê công đức</h2>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section>
+      <h2>Giả lập sự kiện (test không cần live)</h2>
+      <div class="row" style="margin-bottom:10px">
+        <input id="simName" type="text" placeholder="Tên thí chủ (để trống = ngẫu nhiên)">
+      </div>
+      <div class="grid" style="margin-bottom:10px">
+        <button data-sim='{"type":"like","count":5}'>❤️ 5 tim (gõ mõ)</button>
+        <button data-sim='{"type":"comment","text":"gõ mõ"}'>🪵 Gõ mõ</button>
+        <button data-sim='{"type":"comment","text":"thắp nhang"}'>🕯️ Thắp nhang</button>
+        <button data-sim='{"type":"comment","text":"thỉnh chuông"}'>🔔 Thỉnh chuông</button>
+        <button data-sim='{"type":"comment","text":"xin quẻ"}'>🎋 Xin quẻ</button>
+        <button data-sim='{"type":"comment","text":"cầu an cho gia đình"}'>🏮 Cầu an</button>
+        <button data-sim='{"type":"share"}'>↗️ Chia sẻ</button>
+        <button data-sim='{"type":"follow"}'>➕ Theo dõi</button>
+      </div>
+      <div class="grid" style="margin-bottom:10px">
+        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":5}'>🌹 5× Rose (1💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍩 Doughnut (30💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Galaxy","diamonds":1000}'>🌌 Galaxy (1000💎)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Lion","diamonds":29999}'>🦁 Lion (29999💎)</button>
+      </div>
+      <div class="row">
+        <input id="simText" type="text" placeholder="Nội dung bình luận tuỳ ý…">
+        <button id="btnComment">Gửi bình luận</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="manualMerit" type="number" value="1000" style="width:120px">
+        <button id="btnManual" class="ghost">Cộng công đức thủ công</button>
+        <label class="muted"><input id="auto" type="checkbox"> Tự động bắn sự kiện ngẫu nhiên</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Quản trị</h2>
+      <div class="row">
+        <button id="btnReset" class="ghost">⟲ Reset toàn bộ công đức</button>
+      </div>
+      <div id="log" style="margin-top:12px"></div>
+    </section>
+  </div>
+
+  <div class="col preview">
+    <section>
+      <h2>Xem trước overlay</h2>
+      <iframe id="preview" src="/overlay?hints=1" title="Overlay preview"></iframe>
+      <div class="links muted">
+        <div>OBS Browser Source (1080×1920): <code id="obsUrl"></code></div>
+        <div>Tuỳ chọn: <code>?sky=day|dusk|night</code> <code>?transparent=1</code> <code>?scene=0</code> <code>?mute=1</code> <code>?hints=0</code></div>
+      </div>
+    </section>
+  </div>
+</main>
+<script>
+  const token = new URLSearchParams(location.search).get('token') || localStorage.getItem('chua-token') || '';
+  if (token) localStorage.setItem('chua-token', token);
+  const $ = (id) => document.getElementById(id);
+  const fmt = new Intl.NumberFormat('vi-VN');
+  $('obsUrl').textContent = location.origin + '/overlay';
+
+  function log(msg) {
+    const el = $('log');
+    el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + el.textContent.slice(0, 5000);
+  }
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-token': token },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  function renderStatus(s) {
+    if (!s) return;
+    $('dot').className = 'dot ' + s.state;
+    $('statusText').textContent = s.message;
+    $('viewers').textContent = fmt.format(s.viewers || 0);
+    if (s.username && !$('username').value) $('username').value = s.username;
+  }
+
+  function renderState(st) {
+    const c = st.counts;
+    const items = [
+      ['Tổng công đức', st.total], ['Cấp', `${st.level} · ${st.levelName}`],
+      ['Tim', c.likes], ['Bình luận', c.comments], ['Chia sẻ', c.shares], ['Theo dõi', c.follows],
+      ['Quà', c.gifts], ['Kim cương', c.diamonds], ['Nhang', c.incense], ['Mõ', c.mo],
+    ];
+    $('stats').innerHTML = items.map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${typeof v === 'number' ? fmt.format(v) : v}</b></div>`).join('');
+  }
+
+  function ws() {
+    const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    s.onmessage = (m) => {
+      const msg = JSON.parse(m.data);
+      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); }
+      if (msg.type === 'state') renderState(msg.state);
+      if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }
+      if (msg.type === 'fx') for (const e of msg.effects) log(`${e.type} · ${e.user?.name || ''} ${e.text ? '“' + e.text + '”' : ''} +${e.merit ?? 0}`);
+    };
+    s.onclose = () => { renderStatus({ state: 'idle', message: 'Mất kết nối server — đang thử lại…' }); setTimeout(ws, 2000); };
+  }
+  ws();
+
+  $('btnConnect').onclick = () => api('/api/connect', { username: $('username').value }).then(() => log('Đang kết nối…')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnDisconnect').onclick = () => api('/api/disconnect').catch((e) => log('Lỗi: ' + e.message));
+  $('btnReset').onclick = () => { if (confirm('Xoá toàn bộ công đức và bảng vàng?')) api('/api/reset').then(() => log('Đã reset')).catch((e) => log('Lỗi: ' + e.message)); };
+
+  const simName = () => $('simName').value.trim() || undefined;
+  const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
+  document.querySelectorAll('[data-sim]').forEach((b) => (b.onclick = () => sim(JSON.parse(b.dataset.sim))));
+  $('btnComment').onclick = () => { const t = $('simText').value.trim(); if (t) sim({ type: 'comment', text: t }); };
+  $('simText').onkeydown = (e) => { if (e.key === 'Enter') $('btnComment').click(); };
+  $('btnManual').onclick = () => sim({ type: 'manual', merit: Number($('manualMerit').value) || 0, text: 'Công đức thủ công' });
+
+  const names = ['Minh Anh', 'Tuấn', 'Hà Linh', 'Bảo Ngọc', 'Quang Huy', 'Thu Trang', 'Đức Phúc', 'Lan Chi', 'Hoàng Nam', 'Mai Phương'];
+  const randomEvents = [
+    { type: 'like', count: 3 }, { type: 'like', count: 8 }, { type: 'comment', text: 'gõ mõ' },
+    { type: 'comment', text: 'thắp nhang' }, { type: 'comment', text: 'cầu bình an' }, { type: 'comment', text: 'xin quẻ' },
+    { type: 'comment', text: 'Nam mô A Di Đà Phật' }, { type: 'share' }, { type: 'follow' },
+    { type: 'gift', giftName: 'Rose', diamonds: 1, repeatCount: 3 }, { type: 'gift', giftName: 'Finger Heart', diamonds: 5 },
+  ];
+  let timer = null;
+  $('auto').onchange = (e) => {
+    clearInterval(timer);
+    if (e.target.checked) timer = setInterval(() => {
+      const ev = randomEvents[Math.floor(Math.random() * randomEvents.length)];
+      sim({ ...ev, name: names[Math.floor(Math.random() * names.length)] });
+    }, 900);
+  };
+
+  fetch('/api/status').then((r) => r.json()).then((d) => { renderStatus(d.status); renderState(d.state); });
+</script>
+</body>
+</html>
