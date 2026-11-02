@@ -102,7 +102,9 @@ export class TikTokBridge extends EventEmitter {
     this.setStatus({ state: 'connecting', message: `Đang kết nối @${this.username}...` });
     const conn = new TikTokLiveConnection(this.username, {
       signApiKey: this.signApiKey,
-      enableExtendedGiftInfo: true,
+      // false: tải danh sách quà (gift/list) phải ký qua Euler gói Business trả phí.
+      // Sự kiện quà vẫn có sẵn tên + số kim cương trong giftDetails / gift.
+      enableExtendedGiftInfo: false,
       processInitialData: false,
     });
     this.conn = conn;

@@ -3,3 +3,8 @@ data/*.json
 .git
 .env
 *.flv
+data
+.github
+*.md
+!README.md
+test

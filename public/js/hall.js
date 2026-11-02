@@ -5,7 +5,7 @@ import {
 } from './hall-scene.js';
 import { SoundBoard } from './sound.js';
 
-// ?mute=1  ?debug=1  ?tts=1 (đọc tên người dâng quà)  ?bg=assets/anh.jpg (ảnh nền riêng)  ?guide=0  ?board=0
+// ?phone=1|0 (bật/tắt chế độ điện thoại)  ?mute=1  ?debug=1  ?tts=1 (đọc tên người dâng quà)  ?bg=assets/anh.jpg (ảnh nền riêng)  ?guide=0  ?board=0
 const qs = new URLSearchParams(location.search);
 const opt = {
   mute: qs.get('mute') === '1',
@@ -15,7 +15,8 @@ const opt = {
   guide: qs.get('guide') !== '0',
   board: qs.get('board') !== '0',
   // Điện thoại: ?phone=1 hoặc mở từ biểu tượng ngoài màn hình chính
-  phone: qs.get('phone') === '1' || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches,
+  // ?phone=0 tắt hẳn (Chrome --kiosk trên VPS cũng khớp display-mode: fullscreen)
+  phone: qs.get('phone') === '1' || (qs.get('phone') !== '0' && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches),
 };
 if (opt.phone) document.body.classList.add('phone');
 

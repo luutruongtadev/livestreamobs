@@ -51,7 +51,7 @@ TikTok Live ──(WebSocket, tiktok-live-connector)──► Node.js server ─
 - Phật tử **xếp chỗ theo công đức**: người đứng đầu ngồi **đài sen vàng** ngay trước bàn thờ ("Đệ nhất công đức"), các hàng trên gần Phật hơn.
 - Ai không tương tác quá `hall.presenceMinutes` phút (mặc định 15) sẽ lặng lẽ rời chánh điện. Tối đa `hall.maxWorshippers` người (mặc định 60).
 
-Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`.
+Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`, `?phone=1` / `?phone=0` (bật / tắt hẳn chế độ điện thoại; trang tự bật khi mở toàn màn hình nên OBS/Chrome kiosk trên VPS cần `?phone=0`).
 
 Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
 
@@ -133,15 +133,25 @@ systemctl enable --now chua-stream      # bắt đầu phát (bỏ qua bước n
 journalctl -u chua-stream -f            # xem log phát
 ```
 
-### 2'. Hoặc dùng Docker
+### 2'. Hoặc dùng Docker (khuyên dùng)
 
 ```bash
-curl -fsSL https://get.docker.com | sh
 git clone https://github.com/luutruongtadev/livestreamobs.git && cd livestreamobs
-cp .env.example .env && nano .env
-docker compose up -d --build            # cách B: docker compose up -d --build app
-docker compose logs -f streamer
+TIKTOK_USERNAME=ten_kenh bash deploy/docker-init.sh phone    # hoặc: server | stream
 ```
+
+`docker-init.sh` tự cài Docker nếu thiếu, tạo `.env`, sinh `ADMIN_TOKEN`, rồi chạy `docker compose`:
+
+| Chế độ | Container | Dùng khi |
+|---|---|---|
+| `phone` | `app` + `caddy` (HTTPS, tên miền miễn phí `IP.sslip.io` hoặc `DOMAIN` riêng) | Phát bằng điện thoại |
+| `server` | `app` (chỉ mở `127.0.0.1:8686`) | OBS / LIVE Studio ở máy khác qua SSH tunnel |
+| `stream` | `app` + `streamer` (Chromium + ffmpeg → RTMP) | Có stream key, VPS tự phát 24/7 |
+
+- Image `app` chỉ có Node (nhẹ); `streamer` mới cài Chromium/ffmpeg.
+- Công đức lưu trong volume `chua-data` (không mất khi cập nhật). Sửa `config.json` rồi `docker compose restart app`.
+- Container `app` không chạy nếu `ADMIN_TOKEN` trống/yếu (vì trang admin có thể lộ ra internet qua HTTPS).
+- Cập nhật: `git pull && bash deploy/docker-init.sh <chế độ>`. Xem log: `docker compose logs -f app`.
 
 ### Phát bằng điện thoại (không cần stream key, không cần Windows)
 
@@ -308,7 +318,7 @@ deploy/bootstrap.sh             Cài trọn gói một lệnh (mặc định: ch
 deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd (--phone: chỉ server)
 deploy/setup-https.sh           Caddy + HTTPS (tên miền miễn phí sslip.io) cho điện thoại
 deploy/windows/                 Cài và chạy trên VPS Windows (install.bat, start-chua.bat, disconnect-keep-live.bat)
-Dockerfile, docker-compose.yml  Chạy bằng Docker (app + streamer)
+Dockerfile, docker-compose.yml  Docker: app (nhẹ) / caddy (HTTPS) / streamer (RTMP), xem deploy/docker-init.sh
 ```
 
 ## Khi TikTok đổi giao thức

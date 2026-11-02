@@ -43,6 +43,15 @@ function loadConfig() {
 }
 
 const config = loadConfig();
+
+// Docker/HTTPS: trang admin lộ ra internet nên bắt buộc có mật khẩu mạnh
+if (process.env.REQUIRE_ADMIN_TOKEN === '1') {
+  const t = config.server.adminToken || '';
+  if (t.length < 12 || t === 'doi-mat-khau-nay') {
+    console.error('[chua] ADMIN_TOKEN trong .env đang trống/yếu (cần ≥ 12 ký tự, khác mặc định). Sửa .env rồi chạy lại.');
+    process.exit(1);
+  }
+}
 const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 

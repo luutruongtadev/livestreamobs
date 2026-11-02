@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Temple } from '../server/temple.js';
 import { createCommandMatcher, normalize } from '../server/text.js';
 import { normalizeGift, normalizeUser } from '../server/tiktok.js';
@@ -77,7 +78,7 @@ test('normalizeUser với profilePicture.urls', () => {
 });
 
 test('lưu và nạp lại state', () => {
-  const p = new URL('../data/test-state.json', import.meta.url).pathname;
+  const p = fileURLToPath(new URL('../data/test-state.json', import.meta.url));
   const t = new Temple(config, { statePath: p });
   t.reset();
   t.handle({ type: 'share', user: u('e') });

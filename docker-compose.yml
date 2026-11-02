@@ -1,33 +1,63 @@
+# Chùa Online — Docker
+#   Chỉ server (OBS ở máy khác qua SSH tunnel):   docker compose up -d --build
+#   + HTTPS cho điện thoại (cần DOMAIN trong .env): docker compose --profile https up -d --build
+#   + VPS tự phát RTMP 24/7 (cần STREAM_KEY):       docker compose --profile stream up -d --build
+name: chua-online
+
+x-env: &env
+  env_file:
+    - path: .env
+      required: false
+
 services:
-  # Server: nghe TikTok Live, tính công đức, phục vụ overlay + trang admin
+  # Server: nghe TikTok Live, tính công đức, phục vụ /chanhdien, /overlay, /admin
   app:
-    build: .
+    <<: *env
+    build: { context: ., target: app }
+    image: chua-online:app
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
-    # chạy root để ghi được thư mục ./data trên VPS
-    user: "0:0"
     environment:
       HOST: 0.0.0.0
-    # Chỉ mở trên localhost của VPS. Vào admin qua SSH tunnel (xem README).
+      PORT: "8686"
+      REQUIRE_ADMIN_TOKEN: "1"
     ports:
-      - "127.0.0.1:8686:8686"
+      - "127.0.0.1:8686:8686"   # chỉ mở trong VPS; ra internet qua Caddy (HTTPS)
     volumes:
-      - ./data:/app/data
-      - ./config.json:/app/config.json:ro
-      - ./public/assets:/app/public/assets:ro
+      - chua-data:/app/data                       # công đức, bảng vàng (giữ khi cập nhật)
+      - ./config.json:/app/config.json:ro         # sửa config.json rồi: docker compose restart app
+      - ./public/assets:/app/public/assets:ro     # ảnh nền, âm thanh riêng
 
-  # Máy phát: Chromium ẩn hiển thị overlay -> ffmpeg -> RTMP TikTok
-  streamer:
-    build: .
+  # HTTPS tự động (Let's Encrypt). DOMAIN: tên miền riêng hoặc <ip-gạch-ngang>.sslip.io
+  caddy:
+    image: caddy:2.8.4-alpine
+    profiles: [https]
     restart: unless-stopped
     depends_on: [app]
-    env_file:
-      - path: .env
-        required: false
     environment:
-      PAGE_URL: http://app:8686/${PAGE:-chanhdien}?debug=0
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # Máy phát 24/7: Chromium ẩn hiển thị chánh điện -> ffmpeg -> RTMP TikTok
+  streamer:
+    <<: *env
+    build: { context: ., target: streamer }
+    image: chua-online:streamer
+    profiles: [stream]
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      PAGE_URL: http://app:8686/${PAGE:-chanhdien}?phone=0
       CHROME_FLAGS: --no-sandbox
     shm_size: 1gb
-    command: ["bash", "deploy/stream.sh"]
+
+volumes:
+  chua-data:
+  caddy-data:
+  caddy-config:

@@ -3,7 +3,7 @@
 # + PulseAudio (thu tiếng mõ/chuông) + ffmpeg đẩy RTMP lên TikTok.
 set -uo pipefail
 
-PAGE_URL="${PAGE_URL:-http://127.0.0.1:8686/${PAGE:-chanhdien}}"
+PAGE_URL="${PAGE_URL:-http://127.0.0.1:8686/${PAGE:-chanhdien}?phone=0}"
 W="${STREAM_WIDTH:-1080}"
 H="${STREAM_HEIGHT:-1920}"
 FPS="${STREAM_FPS:-30}"
