@@ -26,6 +26,11 @@ export function normalizeUser(u) {
   };
 }
 
+/** Nội dung bình luận: bản v2 để trong `content`, bản cũ trong `comment`. */
+export function normalizeComment(data) {
+  return { type: 'comment', user: normalizeUser(data.user), text: String(first(data.content, data.comment) ?? '') };
+}
+
 /** Trả về null nếu là quà combo đang chạy (chỉ tính khi kết thúc chuỗi). */
 export function normalizeGift(data) {
   const details = data.giftDetails || {};
@@ -128,7 +133,7 @@ export class TikTokBridge extends EventEmitter {
   #wire(conn) {
     const emit = (ev) => { if (ev && this.conn === conn) this.emit('event', ev); };
 
-    conn.on(WebcastEvent.CHAT, (d) => emit({ type: 'comment', user: normalizeUser(d.user), text: d.comment || '' }));
+    conn.on(WebcastEvent.CHAT, (d) => emit(normalizeComment(d)));
     conn.on(WebcastEvent.LIKE, (d) => emit({ type: 'like', user: normalizeUser(d.user), count: Number(d.likeCount) || 1 }));
     conn.on(WebcastEvent.SHARE, (d) => emit({ type: 'share', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.FOLLOW, (d) => emit({ type: 'follow', user: normalizeUser(d.user) }));

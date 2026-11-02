@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Temple } from '../server/temple.js';
 import { createCommandMatcher, normalize } from '../server/text.js';
-import { normalizeGift, normalizeUser } from '../server/tiktok.js';
+import { normalizeComment, normalizeGift, normalizeUser } from '../server/tiktok.js';
 
 const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url)));
 const u = (id) => ({ id, name: id, avatar: null });
@@ -75,6 +75,12 @@ test('quà combo đang chạy bị bỏ qua, kết thúc combo được tính', 
 
 test('normalizeUser với profilePicture.urls', () => {
   assert.deepEqual(normalizeUser({ uniqueId: 'z', nickname: 'Zed', profilePicture: { urls: ['u'] } }), { id: 'z', name: 'Zed', avatar: 'u' });
+});
+
+test('normalizeComment đọc content (v2) và comment (bản cũ)', () => {
+  assert.equal(normalizeComment({ user: { uniqueId: 'a' }, content: 'Xin xăm' }).text, 'Xin xăm');
+  assert.equal(normalizeComment({ user: { uniqueId: 'a' }, comment: 'gõ mõ' }).text, 'gõ mõ');
+  assert.equal(normalizeComment({ user: { uniqueId: 'a' } }).text, '');
 });
 
 test('lưu và nạp lại state', () => {
