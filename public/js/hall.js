@@ -14,7 +14,10 @@ const opt = {
   bg: qs.get('bg') || '',
   guide: qs.get('guide') !== '0',
   board: qs.get('board') !== '0',
+  // Điện thoại: ?phone=1 hoặc mở từ biểu tượng ngoài màn hình chính
+  phone: qs.get('phone') === '1' || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches,
 };
+if (opt.phone) document.body.classList.add('phone');
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -262,7 +265,7 @@ function handleEffect(e) {
       sound.play('chime', { pitch: 0.9 });
       const h = p ? headOf(p) : { x: W / 2, y: 1500 };
       if (fx.lanterns.length > 8) fx.lanterns.shift();
-      fx.lanterns.push({ x: h.x, y: h.y - 30, life: 1, ph: Math.random() * 6, name: nm(e.user), text: clip(e.text, 34) });
+      fx.lanterns.push({ x: Math.max(120, Math.min(W - 120, h.x + (Math.random() - 0.5) * 360)), y: h.y - 30 - Math.random() * 120, life: 1, ph: Math.random() * 6, name: nm(e.user), text: clip(e.text, 34) });
       break;
     }
     case 'chat':
@@ -326,7 +329,8 @@ function connect() {
       if (first) {
         sound = new SoundBoard({ muted: opt.mute, files: cfg.sounds, ambientVolume: cfg.ambientVolume });
         sound.init();
-        setTimeout(() => { if (!opt.mute && sound.suspended) soundBtn.style.display = 'block'; }, 800);
+        if (started) sound.resume();
+        setTimeout(() => { if (!opt.mute && !opt.phone && sound.suspended) soundBtn.style.display = 'block'; }, 800);
         const bg = opt.bg || cfg.hall?.background;
         if (bg) { const img = new Image(); img.onload = () => { bgImg = img; }; img.src = bg; }
         // người đã có mặt: đặt thẳng vào chỗ, không đi bộ vào
@@ -346,6 +350,27 @@ function connect() {
 }
 const soundBtn = document.getElementById('sound');
 soundBtn.onclick = () => { sound.resume(); soundBtn.style.display = 'none'; };
+
+// ---------------- chế độ điện thoại ----------------
+let started = false;
+let wakeLock = null;
+async function keepAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* cần HTTPS */ }
+}
+const startEl = document.getElementById('start');
+if (opt.phone) startEl.hidden = false;
+startEl.querySelector('button').onclick = async () => {
+  started = true;
+  sound.resume();
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch { /* bỏ qua */ }
+  try { await screen.orientation?.lock?.('portrait'); } catch { /* bỏ qua */ }
+  keepAwake();
+  startEl.hidden = true;
+  soundBtn.style.display = 'none';
+};
+document.addEventListener('visibilitychange', () => {
+  if (started && document.visibilityState === 'visible') { keepAwake(); sound.resume(); }
+});
 
 // ---------------- HUD ----------------
 function panelBg(x, y, w, h) {

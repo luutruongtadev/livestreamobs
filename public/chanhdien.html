@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="google" content="notranslate">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a0603">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="chanhdien.webmanifest">
+  <link rel="icon" href="assets/icon-192.png">
   <title>Chùa Online — Chánh điện</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,11 +23,32 @@
       background: rgba(120, 20, 10, .85); border: 2px solid #f5c542; border-radius: 999px;
       padding: 10px 20px; cursor: pointer; display: none;
     }
+    /* Chế độ điện thoại: nền tối lấp phần thừa trên/dưới, nút Bắt đầu */
+    body.phone { background: #1a0603; }
+    #start {
+      position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; gap: 18px;
+      align-items: center; justify-content: center; padding: 24px; text-align: center;
+      background: rgba(20, 6, 2, .88); color: #f6ead6; font: 500 16px/1.5 'Be Vietnam Pro', system-ui, sans-serif;
+    }
+    #start[hidden] { display: none; }
+    #start button {
+      font: 800 22px 'Be Vietnam Pro', system-ui, sans-serif; color: #3a1a00; background: #f5c542;
+      border: 0; border-radius: 999px; padding: 16px 34px; cursor: pointer;
+    }
+    #start ul { margin: 0; padding: 0; list-style: none; max-width: 340px; color: #d9c6a8; font-size: 14px; }
   </style>
 </head>
 <body>
   <canvas id="c" width="1080" height="1920"></canvas>
   <button id="sound">🔔 Bấm để bật âm thanh</button>
+  <div id="start" hidden>
+    <button type="button">🙏 Bắt đầu</button>
+    <ul>
+      <li>Bật toàn màn hình, bật âm thanh và giữ màn hình luôn sáng.</li>
+      <li>Sau đó mở app TikTok → LIVE → chia sẻ màn hình, rồi quay lại đây.</li>
+      <li>Nhớ bật "Không làm phiền" và cắm sạc.</li>
+    </ul>
+  </div>
   <script type="module" src="js/hall.js"></script>
 </body>
 </html>

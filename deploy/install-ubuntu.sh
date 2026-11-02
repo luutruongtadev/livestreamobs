@@ -3,18 +3,23 @@
 set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_USER=chua
+# --phone: chỉ cài server (phát bằng điện thoại), bỏ Chrome/ffmpeg/Xvfb/PulseAudio
+PHONE=0
+[[ "${1:-}" == "--phone" ]] && PHONE=1
 
-echo "==> Gói hệ thống: Node.js 22, ffmpeg, Xvfb, PulseAudio, font"
+echo "==> Gói hệ thống"
 apt-get update
-apt-get install -y curl ca-certificates gnupg ffmpeg xvfb pulseaudio pulseaudio-utils \
-  fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk
+apt-get install -y curl ca-certificates gnupg openssl
+if [[ $PHONE == 0 ]]; then
+  apt-get install -y ffmpeg xvfb pulseaudio pulseaudio-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk
+fi
 if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
 
 echo "==> Google Chrome (bản .deb, không dùng snap)"
-if ! command -v google-chrome >/dev/null; then
+if [[ $PHONE == 0 ]] && ! command -v google-chrome >/dev/null; then
   curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
   apt-get install -y /tmp/chrome.deb
   rm -f /tmp/chrome.deb
@@ -72,5 +77,9 @@ systemctl enable --now chua-app.service
 echo
 echo "Xong. Việc tiếp theo:"
 echo "  1) nano $APP_DIR/.env       # điền TIKTOK_USERNAME, ADMIN_TOKEN, STREAM_SERVER, STREAM_KEY"
-echo "  2) systemctl restart chua-app && systemctl enable --now chua-stream"
+if [[ $PHONE == 1 ]]; then
+  echo "  2) sudo bash $APP_DIR/deploy/setup-https.sh    # mở HTTPS cho điện thoại"
+else
+  echo "  2) systemctl restart chua-app && systemctl enable --now chua-stream"
+fi
 echo "  3) Xem log: journalctl -u chua-stream -f"

@@ -143,6 +143,36 @@ docker compose up -d --build            # cách B: docker compose up -d --build 
 docker compose logs -f streamer
 ```
 
+### Phát bằng điện thoại (không cần stream key, không cần Windows)
+
+VPS Linux chạy server và mở trang chánh điện qua HTTPS. Điện thoại Android mở trang đó toàn màn hình, rồi dùng app TikTok chia sẻ màn hình lên live.
+
+**Cài đặt bằng một lệnh**, SSH vào VPS bằng root rồi chạy:
+
+```bash
+export TIKTOK_USERNAME=ten_kenh            # không cần @
+export GITHUB_TOKEN=github_pat_xxx         # chỉ cần khi repo đang private
+curl -fsSL -H "Authorization: token $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/luutruongtadev/livestreamobs/master/deploy/bootstrap.sh | bash
+```
+
+Lệnh này lần lượt:
+- tải code về `/opt/livestreamobs`,
+- cài Node.js và dịch vụ `chua-app`,
+- cài Caddy và xin chứng chỉ HTTPS cho tên miền miễn phí `IP-VPS.sslip.io` (muốn dùng tên miền riêng thì thêm `export DOMAIN=chua.vidu.com`),
+- tạo mật khẩu admin.
+
+Cuối cùng lệnh in ra hai đường link: link cho điện thoại và link trang admin. Nhà cung cấp VPS phải mở cổng **80 và 443**.
+
+**Trên điện thoại** (Android):
+
+1. Mở Chrome vào `https://IP-VPS.sslip.io/chanhdien?phone=1`. Bấm menu ⋮ → **Thêm vào màn hình chính** để trang chạy toàn màn hình, không có thanh địa chỉ.
+2. Mở trang từ biểu tượng *Chánh điện* vừa tạo, rồi bấm **🙏 Bắt đầu**. Nút này bật toàn màn hình, bật âm thanh và giữ màn hình luôn sáng.
+3. Bật **Không làm phiền** và cắm sạc.
+4. Mở app TikTok → **LIVE** → chọn **Mobile gaming / Chia sẻ màn hình** → Go LIVE, rồi quay lại trang Chánh điện.
+
+Có thể thu được tiếng mõ/chuông qua chia sẻ màn hình hay không là tuỳ máy và phiên bản Android. Nếu live không có tiếng, bật loa ngoài để micro thu lại.
+
 ### VPS Windows (dùng TikTok LIVE Studio, không cần stream key)
 
 Trên Windows, mọi thứ chạy trên cùng một VPS:
@@ -274,7 +304,9 @@ public/
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
-deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd
+deploy/bootstrap.sh             Cài trọn gói một lệnh (mặc định: chế độ điện thoại)
+deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd (--phone: chỉ server)
+deploy/setup-https.sh           Caddy + HTTPS (tên miền miễn phí sslip.io) cho điện thoại
 deploy/windows/                 Cài và chạy trên VPS Windows (install.bat, start-chua.bat, disconnect-keep-live.bat)
 Dockerfile, docker-compose.yml  Chạy bằng Docker (app + streamer)
 ```
