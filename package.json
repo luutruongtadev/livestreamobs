@@ -4,6 +4,7 @@
   "description": "Chùa Online - TikTok Live interactive temple overlay cho OBS",
   "main": "server/index.js",
   "scripts": {
+    "prestart": "node scripts/check-node.cjs",
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test test/*.test.js"
@@ -24,6 +25,6 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

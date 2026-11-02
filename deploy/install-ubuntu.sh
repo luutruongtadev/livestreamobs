@@ -13,7 +13,7 @@ apt-get install -y curl ca-certificates gnupg openssl
 if [[ $PHONE == 0 ]]; then
   apt-get install -y ffmpeg xvfb pulseaudio pulseaudio-utils fonts-noto-core fonts-noto-color-emoji fonts-noto-cjk
 fi
-if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]]; then
+if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 22 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi

@@ -57,7 +57,7 @@ Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào r
 
 ## Cài đặt
 
-Yêu cầu: **Node.js 20+**, OBS Studio.
+Yêu cầu: **Node.js 22+** (bản cũ hơn sẽ báo lỗi `Invalid regular expression flags`), OBS Studio.
 
 ```bash
 git clone https://github.com/luutruongtadev/livestreamobs.git

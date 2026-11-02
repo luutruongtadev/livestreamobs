@@ -19,7 +19,7 @@ foreach ($svc in 'AudioEndpointBuilder', 'Audiosrv') {
 function Get-NodeMajor {
   try { return [int]((& node -v).TrimStart('v').Split('.')[0]) } catch { return 0 }
 }
-if ((Get-NodeMajor) -lt 20) {
+if ((Get-NodeMajor) -lt 22) {
   Write-Host '==> Cai Node.js 22 LTS'
   $rel = (Invoke-RestMethod 'https://nodejs.org/dist/index.json') | Where-Object { $_.lts -and $_.version -like 'v22.*' } | Select-Object -First 1
   $msi = "node-$($rel.version)-x64.msi"
