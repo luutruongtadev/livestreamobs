@@ -143,6 +143,61 @@ docker compose up -d --build            # cách B: docker compose up -d --build 
 docker compose logs -f streamer
 ```
 
+### VPS Windows (dùng TikTok LIVE Studio, không cần stream key)
+
+Trên Windows, mọi thứ chạy trên cùng một VPS:
+
+```
+Server Node (công đức, /chanhdien)
+  → OBS Browser Source 1080×1920
+  → OBS Virtual Camera + âm thanh qua VB-CABLE
+  → TikTok LIVE Studio
+  → TikTok
+```
+
+**Cấu hình VPS**: Windows Server 2019/2022 hoặc Windows 10/11, tối thiểu **4 vCPU / 8 GB RAM**. VPS không có GPU thì OBS và LIVE Studio phải dựng hình bằng CPU, có thể giật. Nếu OBS báo *"Failed to initialize video"* thì cần VPS có GPU.
+
+**1. Cài đặt** (đăng nhập VPS bằng Remote Desktop):
+
+1. Cài [Google Chrome](https://www.google.com/chrome/) và [Git](https://git-scm.com/download/win). Có thể bỏ qua Git nếu tải repo dạng ZIP: trên GitHub bấm *Code → Download ZIP*.
+2. Lấy code: `git clone https://github.com/luutruongtadev/livestreamobs.git C:\livestreamobs`
+3. Vào thư mục `C:\livestreamobs\deploy\windows`, chuột phải **`install.bat` → Run as administrator**. Script sẽ:
+   - bật dịch vụ âm thanh,
+   - cài Node.js 22,
+   - chạy `npm ci`,
+   - tạo file `.env`,
+   - đặt server tự chạy khi đăng nhập Windows.
+4. Mở `C:\livestreamobs\.env` bằng Notepad, điền `TIKTOK_USERNAME` và `ADMIN_TOKEN`.
+5. Chạy **`start-chua.bat`** (giữ cửa sổ này mở). Kiểm tra bằng cách mở `http://localhost:8686/admin?token=...` trong Chrome.
+   - Khi có `TIKTOK_USERNAME`, server tự kết nối và tự thử lại cho tới khi kênh lên live.
+
+**2. OBS: dựng hình chánh điện**
+
+1. Cài [OBS Studio](https://obsproject.com/) và [VB-CABLE](https://vb-audio.com/Cable/). Cài VB-CABLE xong thì khởi động lại VPS.
+2. OBS → *Settings → Video*: Base và Output đều là **1080x1920**, FPS 30.
+3. Thêm **Browser Source**:
+   - URL `http://localhost:8686/chanhdien`
+   - Width 1080, Height 1920
+   - tích **Control audio via OBS**
+4. Đưa âm thanh sang LIVE Studio:
+   - *Settings → Audio → Advanced → Monitoring Device* = **CABLE Input**.
+   - Trong Audio Mixer, bấm ⚙ của Browser Source → *Advanced Audio Properties* → *Audio Monitoring* = **Monitor and Output**.
+5. Bấm **Start Virtual Camera**.
+
+**3. TikTok LIVE Studio: phát lên TikTok**
+
+1. Tải từ nút *Get LIVE Studio* trong LIVE Center rồi đăng nhập.
+2. Chọn khung **dọc (Portrait)**.
+3. Thêm nguồn **Camera / Video capture device → OBS Virtual Camera**, kéo cho đầy khung.
+4. Thêm âm thanh: chọn micro là **CABLE Output (VB-Audio Virtual Cable)**. Tắt micro thật nếu không dùng.
+5. Đặt tiêu đề rồi bấm **Go LIVE**.
+
+Tài khoản đã có stream key thì bỏ qua LIVE Studio: dùng OBS → *Settings → Stream → Custom*, dán Server URL + Stream Key, rồi *Start Streaming*.
+
+**4. Thoát Remote Desktop mà vẫn giữ live**
+
+Đừng bấm X để đóng Remote Desktop. Hãy chuột phải **`deploy\windows\disconnect-keep-live.bat` → Run as administrator**. Script này ngắt kết nối nhưng giữ màn hình VPS hoạt động, để OBS và LIVE Studio không bị đen hình. Lần sau cứ Remote Desktop vào lại bình thường.
+
 ### 3. Điều khiển từ xa (trang admin)
 
 Server chỉ mở trên `127.0.0.1` của VPS, không lộ ra internet. Vào admin bằng SSH tunnel từ máy bạn:
@@ -220,6 +275,7 @@ public/
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
 deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd
+deploy/windows/                 Cài và chạy trên VPS Windows (install.bat, start-chua.bat, disconnect-keep-live.bat)
 Dockerfile, docker-compose.yml  Chạy bằng Docker (app + streamer)
 ```
 

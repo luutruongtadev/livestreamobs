@@ -16,7 +16,20 @@ function deepMerge(a, b) {
   return out;
 }
 
+function loadEnvFile() {
+  // Nạp .env nếu có (Windows / chạy tay). Biến môi trường đã đặt sẵn được ưu tiên.
+  const file = path.join(ROOT, '.env');
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!m || line.trimStart().startsWith('#')) continue;
+    const val = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    if (process.env[m[1]] === undefined && val !== '') process.env[m[1]] = val;
+  }
+}
+
 function loadConfig() {
+  loadEnvFile();
   let cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config.json'), 'utf8'));
   const local = path.join(ROOT, 'config.local.json');
   if (fs.existsSync(local)) cfg = deepMerge(cfg, JSON.parse(fs.readFileSync(local, 'utf8')));
