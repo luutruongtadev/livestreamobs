@@ -5,7 +5,7 @@ import {
 } from './hall-scene.js';
 import { SoundBoard } from './sound.js';
 
-// ?phone=1|0 (bật/tắt chế độ điện thoại)  ?mute=1  ?debug=1  ?tts=1 (đọc tên người dâng quà)  ?bg=assets/anh.jpg (ảnh nền riêng)  ?guide=0  ?board=0
+// ?buddha=draw (dùng tượng vẽ bằng code)  ?phone=1|0 (bật/tắt chế độ điện thoại)  ?mute=1  ?debug=1  ?tts=1 (đọc tên người dâng quà)  ?bg=assets/anh.jpg (ảnh nền riêng)  ?guide=0  ?board=0
 const qs = new URLSearchParams(location.search);
 const opt = {
   mute: qs.get('mute') === '1',
@@ -36,6 +36,7 @@ let S = null;
 let wsOk = false;
 let sound = new SoundBoard({ muted: opt.mute });
 let bgImg = null;
+let buddhaImg = null; // ảnh tượng Phật (config hall.buddhaImage), thay cho tượng vẽ bằng code
 
 const fx = {
   particles: [], floaters: [], lanterns: [], projectiles: [], alerts: [], alert: null,
@@ -334,6 +335,8 @@ function connect() {
         setTimeout(() => { if (!opt.mute && !opt.phone && sound.suspended) soundBtn.style.display = 'block'; }, 800);
         const bg = opt.bg || cfg.hall?.background;
         if (bg) { const img = new Image(); img.onload = () => { bgImg = img; }; img.src = bg; }
+        const bi = cfg.hall?.buddhaImage;
+        if (bi?.src && qs.get('buddha') !== 'draw') { const img = new Image(); img.onload = () => { buddhaImg = img; }; img.src = bi.src; }
         // người đã có mặt: đặt thẳng vào chỗ, không đi bộ vào
         assignSlots();
         for (const p of people.values()) { p.x = p.tx; p.y = p.ty; p.s = p.ts; }
@@ -766,9 +769,11 @@ function frame(now) {
     ctx.drawImage(bgImg, (W - bgImg.width * sc) / 2, (H - bgImg.height * sc) / 2, bgImg.width * sc, bgImg.height * sc);
     if (fx.rays > 0) drawRays(t, Math.min(1, fx.rays / 1.5));
   } else {
-    drawInterior(ctx, t, Math.min(1, fx.glow));
-    if (fx.rays > 0) drawRays(t, Math.min(1, fx.rays / 1.5));
-    drawGreatBuddha(ctx, t, Math.min(1, fx.glow));
+    // ảnh tượng vốn đã sáng: giảm hào quang cộng thêm để không bị trắng xoá
+    const glowK = buddhaImg ? 0.3 : 1;
+    drawInterior(ctx, t, Math.min(1, fx.glow) * glowK, buddhaImg, cfg.hall?.buddhaImage);
+    if (fx.rays > 0) drawRays(t, Math.min(1, fx.rays / 1.5) * (buddhaImg ? 0.45 : 1));
+    if (!buddhaImg) drawGreatBuddha(ctx, t, Math.min(1, fx.glow));
     drawFloor(ctx, t);
     drawAltar(ctx, t, fx.lotus);
     drawSideDecor(ctx, t);

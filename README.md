@@ -53,6 +53,14 @@ TikTok Live ──(WebSocket, tiktok-live-connector)──► Node.js server ─
 
 Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`, `?phone=1` / `?phone=0` (bật / tắt hẳn chế độ điện thoại; trang tự bật khi mở toàn màn hình nên OBS/Chrome kiosk trên VPS cần `?phone=0`).
 
+**Ảnh tượng Phật**: mặc định dùng ảnh `public/assets/buddha.webp`, đặt trong khung vòm sau bàn thờ (tường, bàn thờ, phật tử, hiệu ứng vẫn vẽ bằng code). Đổi ảnh khác: chép ảnh vào `public/assets/` rồi sửa `config.json` → `hall.buddhaImage`:
+
+```json
+"buddhaImage": { "src": "assets/anh-cua-ban.jpg", "headTop": 0.264, "base": 0.765, "centerX": 0.5 }
+```
+
+`headTop`, `base`, `centerX` là vị trí (tỉ lệ 0–1 theo chiều cao/rộng ảnh) của đỉnh đầu tượng, chân toà sen và tâm tượng, để ảnh tự căn đúng chỗ. Xoá `buddhaImage` hoặc thêm `?buddha=draw` vào URL để quay lại tượng vẽ bằng code.
+
 Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
 
 ## Cài đặt

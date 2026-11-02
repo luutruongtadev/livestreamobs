@@ -20,7 +20,39 @@ function vgrad(ctx, y0, y1, stops) {
 }
 
 // ---------------- tường, trần, cột ----------------
-export function drawInterior(ctx, t, glow = 0) {
+/** Khung vòm khám thờ phía sau tượng (dùng cho nền, ảnh tượng và viền). */
+function archPath(ctx, bottom = FLOOR_Y - 105) {
+  const ax = BUDDHA.x;
+  ctx.beginPath();
+  ctx.moveTo(ax - 270, bottom);
+  ctx.lineTo(ax - 270, 520);
+  ctx.bezierCurveTo(ax - 270, 330, ax - 120, 250, ax, 230);
+  ctx.bezierCurveTo(ax + 120, 250, ax + 270, 330, ax + 270, 520);
+  ctx.lineTo(ax + 270, bottom);
+}
+
+// Vị trí trên canvas mà ảnh tượng được căn vào: đỉnh đầu và chân toà sen
+export const BUDDHA_IMG_TARGET = { headTop: 400, base: 915 };
+
+/**
+ * Vẽ ảnh tượng Phật vào trong khung vòm.
+ * a = { headTop, base, centerX }: vị trí (tỉ lệ 0..1 theo chiều cao/rộng ảnh) của đỉnh đầu, chân toà sen, tâm tượng.
+ */
+function drawBuddhaImage(ctx, img, a = {}) {
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  const headTop = a.headTop ?? 0.26, base = a.base ?? 0.77, cx = a.centerX ?? 0.5;
+  const s = (BUDDHA_IMG_TARGET.base - BUDDHA_IMG_TARGET.headTop) / ((base - headTop) * ih);
+  const w = iw * s, h = ih * s;
+  ctx.drawImage(img, BUDDHA.x - cx * w, BUDDHA_IMG_TARGET.headTop - headTop * ih * s, w, h);
+  // viền tối nhẹ bên trong khung cho ảnh hoà vào tường
+  const v = ctx.createRadialGradient(BUDDHA.x, 600, 220, BUDDHA.x, 600, 480);
+  v.addColorStop(0, 'rgba(40,10,2,0)');
+  v.addColorStop(1, 'rgba(40,10,2,0.55)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, FLOOR_Y);
+}
+
+export function drawInterior(ctx, t, glow = 0, buddhaImg = null, buddhaAnchors = null) {
   // tường sau
   ctx.fillStyle = vgrad(ctx, 0, FLOOR_Y, ['#1f0703', '#4a1407', '#6e2a0c', '#4a1a07']);
   ctx.fillRect(0, 0, W, FLOOR_Y + 2);
@@ -47,12 +79,7 @@ export function drawInterior(ctx, t, glow = 0) {
   // khám thờ vòm vàng phía sau tượng
   const ax = BUDDHA.x;
   ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(ax - 270, FLOOR_Y - 120);
-  ctx.lineTo(ax - 270, 520);
-  ctx.bezierCurveTo(ax - 270, 330, ax - 120, 250, ax, 230);
-  ctx.bezierCurveTo(ax + 120, 250, ax + 270, 330, ax + 270, 520);
-  ctx.lineTo(ax + 270, FLOOR_Y - 120);
+  archPath(ctx);
   ctx.closePath();
   const ng = ctx.createRadialGradient(ax, 560, 40, ax, 560, 420);
   ng.addColorStop(0, '#ffe7a0');
@@ -62,24 +89,23 @@ export function drawInterior(ctx, t, glow = 0) {
   ctx.fillStyle = ng;
   ctx.fill();
   ctx.clip();
-  // hoa văn chạm khắc: vòng tròn đồng tâm và tia
-  ctx.strokeStyle = 'rgba(140,70,10,0.35)';
-  ctx.lineWidth = 2;
-  for (let r = 60; r < 460; r += 26) { ctx.beginPath(); ctx.arc(ax, 520, r, 0, Math.PI * 2); ctx.stroke(); }
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2;
-    ctx.beginPath(); ctx.moveTo(ax + Math.cos(a) * 120, 520 + Math.sin(a) * 120); ctx.lineTo(ax + Math.cos(a) * 480, 520 + Math.sin(a) * 480); ctx.stroke();
+  if (buddhaImg) {
+    drawBuddhaImage(ctx, buddhaImg, buddhaAnchors || {});
+  } else {
+    // hoa văn chạm khắc: vòng tròn đồng tâm và tia
+    ctx.strokeStyle = 'rgba(140,70,10,0.35)';
+    ctx.lineWidth = 2;
+    for (let r = 60; r < 460; r += 26) { ctx.beginPath(); ctx.arc(ax, 520, r, 0, Math.PI * 2); ctx.stroke(); }
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(ax + Math.cos(a) * 120, 520 + Math.sin(a) * 120); ctx.lineTo(ax + Math.cos(a) * 480, 520 + Math.sin(a) * 480); ctx.stroke();
+    }
   }
   ctx.restore();
   // viền khám
   ctx.strokeStyle = '#ffd36b';
   ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(ax - 270, FLOOR_Y - 120);
-  ctx.lineTo(ax - 270, 520);
-  ctx.bezierCurveTo(ax - 270, 330, ax - 120, 250, ax, 230);
-  ctx.bezierCurveTo(ax + 120, 250, ax + 270, 330, ax + 270, 520);
-  ctx.lineTo(ax + 270, FLOOR_Y - 120);
+  archPath(ctx);
   ctx.stroke();
   // ngọn lửa trang trí viền vòm
   ctx.fillStyle = '#ffcf5a';

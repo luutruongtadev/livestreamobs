@@ -145,6 +145,12 @@
     "presenceMinutes": 15,
     "joinOnMember": false,
     "background": "",
+    "buddhaImage": {
+      "src": "assets/buddha.webp",
+      "headTop": 0.264,
+      "base": 0.765,
+      "centerX": 0.5
+    },
     "leaderboardTitle": "BẢNG CÔNG ĐỨC",
     "leaderboardSubtitle": "Tặng quà để ghi danh",
     "guide": [
