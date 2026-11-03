@@ -309,6 +309,10 @@
   },
   "wordgame": {
     "model": "claude-opus-5-5",
+    "generatorModel": "claude-opus-5-5",
+    "batchSize": 100,
+    "minRemaining": 10,
+    "autoGenerate": true,
     "scorer": "claude",
     "roundSeconds": 300,
     "breakSeconds": 12,

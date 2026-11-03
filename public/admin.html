@@ -97,6 +97,11 @@
     <section>
       <h2>🔤 Đoán từ</h2>
       <p class="muted" id="wgSecret">Từ bí mật: (đang tải…)</p>
+      <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
+      <div class="row" style="margin-bottom:10px">
+        <input id="wgTheme" type="text" placeholder="Chủ đề cho lô từ mới (để trống = trộn nhiều chủ đề)">
+        <button id="btnWgGen" class="gold">✨ Tạo 100 từ mới bằng Claude</button>
+      </div>
       <div class="row" style="margin-bottom:10px">
         <input id="wgGuess" type="text" placeholder="Giả lập bình luận đoán từ…">
         <button id="btnWgGuess">Đoán</button>
@@ -223,12 +228,26 @@
 
   const simName = () => $('simName').value.trim() || undefined;
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
-  const wgShow = (r) => { if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · Từ bí mật: ${r.wg.secret}`; };
+  let wgPoll = null;
+  const wgShow = (r) => {
+    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · Từ bí mật: ${r.wg.secret}`;
+    const b = r?.bank;
+    if (!b) return;
+    $('wgBank').textContent = b.canGenerate
+      ? `Kho từ: ${b.remaining} chưa dùng / ${b.total} từ (${b.batches} lô, ${b.model})` + (b.generating ? ' · ⏳ đang tạo lô mới…' : '') + (b.lastError ? ` · ⚠ lỗi lần trước: ${b.lastError}` : '')
+      : `Kho từ: chưa có ANTHROPIC_API_KEY → dùng ${b.fallback} từ trong config.json`;
+    $('btnWgGen').disabled = !b.canGenerate || b.generating;
+    clearTimeout(wgPoll);
+    if (b.generating) wgPoll = setTimeout(() => wgApi('peek').catch(() => {}), 3000);
+  };
   const wgApi = (a, body) => api('/api/wg/' + a, body).then((r) => { wgShow(r); return r; });
   document.querySelectorAll('[data-wg]').forEach((b) => (b.onclick = () => {
     if (b.dataset.wg === 'reset' && !confirm('Xoá bảng cao thủ đoán từ?')) return;
     wgApi(b.dataset.wg).then(() => log('Đoán từ: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
+  $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
+    .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
+    .catch((e) => log('Lỗi: ' + e.message));
   $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then(() => log('Đoán từ: đặt từ mới')).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgGuess').onclick = () => { const t = $('wgGuess').value.trim(); if (t) sim({ type: 'comment', text: t }); };
   $('wgGuess').onkeydown = (e) => { if (e.key === 'Enter') $('btnWgGuess').click(); };

@@ -32,8 +32,9 @@ export function parseGuess(text, cfg = WG_DEFAULTS) {
  * Trò chơi đoán từ theo nghĩa. Phát sự kiện 'effects' (mảng hiệu ứng) khi có kết quả chấm điểm bất đồng bộ.
  */
 export class WordGame extends EventEmitter {
-  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random } = {}) {
+  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null } = {}) {
     super();
+    this.wordBank = wordBank; // kho từ do Claude sinh (tuỳ chọn)
     this.cfg = { ...WG_DEFAULTS, ...config };
     this.scorer = scorer;
     this.now = now;
@@ -72,6 +73,7 @@ export class WordGame extends EventEmitter {
   }
 
   pickWord() {
+    if (this.wordBank) return this.wordBank.next(this.recent);
     const words = this.cfg.words.filter((w) => w?.word);
     const fresh = words.filter((w) => !this.recent.includes(canon(w.word)));
     const pool = fresh.length ? fresh : words;

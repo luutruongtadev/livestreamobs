@@ -79,7 +79,8 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Mỗi vòng 5 phút; hết giờ lộ từ, 12 giây sau sang vòng mới. Bảng 🥇🥈🥉 cao thủ đếm số vòng thắng.
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
-- Danh sách từ + chủ đề trong `config.json` → `wordgame.words` (40 từ mẫu).
+- **Từ bí mật do Claude sinh theo lô 100 từ** (kèm chủ đề gợi ý), lưu ở `data/wordbank.json`, không lặp lại từ đã chơi. Kho còn dưới 10 từ chưa dùng thì tự tạo lô mới. Tạo thủ công: trang admin → ô chủ đề (ví dụ "Tết", "Đồ ăn", để trống = trộn) → **✨ Tạo 100 từ mới**, hoặc `npm run gen-words -- "Tết" 100`. Model sinh từ: `WORDGAME_GEN_MODEL` / `wordgame.generatorModel` (mặc định `claude-opus-5-5`).
+- Không có API key → dùng 40 từ mẫu trong `config.json` → `wordgame.words`.
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
 ## 🪢 Game Kéo co (`/keoco`)
@@ -385,7 +386,7 @@ public/
   chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
-  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm bằng Claude)
+  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ bằng Claude)
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP

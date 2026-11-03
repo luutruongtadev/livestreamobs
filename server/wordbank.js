@@ -1,0 +1,174 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import Anthropic from '@anthropic-ai/sdk';
+import { canon } from './scorer.js';
+
+const SYSTEM = `Bạn soạn từ bí mật cho trò chơi đoán từ theo nghĩa trên livestream TikTok tiếng Việt.
+Người xem bình luận từ đoán, hệ thống chấm độ gần nghĩa, ai đoán trúng thì thắng.
+
+Yêu cầu cho mỗi từ:
+- Danh từ hoặc khái niệm tiếng Việt quen thuộc với đa số người Việt (đồ vật, con vật, món ăn, nghề nghiệp, địa điểm, thiên nhiên, cảm xúc, hoạt động, lễ hội…), có nhiều từ liên quan để người chơi đoán dần.
+- Viết đúng chính tả, có dấu, chữ thường, 1 đến 3 tiếng, không dấu câu, không số.
+- Không dùng tên riêng (người, thương hiệu, địa danh cụ thể), không chính trị, không tôn giáo gây tranh cãi, không tục tĩu, không chủ đề nhạy cảm.
+- Độ khó vừa phải: đoán được trong vài phút.
+- Đa dạng chủ đề; không trùng nhau và không trùng danh sách đã có.
+"hint" là chủ đề ngắn 1-4 tiếng dùng làm gợi ý đầu tiên (ví dụ "Động vật", "Món ăn", "Đồ dùng học tập"), không được chứa chính từ bí mật.`;
+
+const SCHEMA = {
+  type: 'object',
+  properties: {
+    words: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { word: { type: 'string' }, hint: { type: 'string' } },
+        required: ['word', 'hint'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['words'],
+  additionalProperties: false,
+};
+
+/** Từ hợp lệ: chỉ chữ cái + khoảng trắng, 1-3 tiếng, ≤ 20 ký tự. */
+export function validWord(w) {
+  const t = canon(w);
+  if (!t || t.length > 20) return false;
+  if (!/^[\p{L} ]+$/u.test(t)) return false;
+  return t.split(' ').length <= 3;
+}
+
+/**
+ * Kho từ bí mật: các lô từ do Claude sinh, lưu ở data/wordbank.json.
+ * next() lấy một từ chưa dùng; hết thì dùng danh sách dự phòng (config.json).
+ */
+export class WordBank {
+  constructor({ filePath = null, fallbackWords = [], client = null, model = 'claude-opus-5-5', batchSize = 100, minRemaining = 10, autoGenerate = true, random = Math.random, log = console } = {}) {
+    this.filePath = filePath;
+    this.fallback = fallbackWords.filter((w) => w?.word);
+    this.client = client;
+    this.model = model;
+    this.batchSize = batchSize;
+    this.minRemaining = minRemaining;
+    this.autoGenerate = autoGenerate;
+    this.random = random;
+    this.log = log;
+    this.data = { batches: [], used: [] };
+    this.generating = null;
+    this.lastError = null;
+    this.load();
+  }
+
+  load() {
+    if (!this.filePath) return;
+    try { this.data = { batches: [], used: [], ...JSON.parse(fs.readFileSync(this.filePath, 'utf8')) }; } catch { /* chưa có */ }
+  }
+
+  save() {
+    if (!this.filePath) return;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const tmp = this.filePath + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 1));
+    fs.renameSync(tmp, this.filePath);
+  }
+
+  allWords() { return this.data.batches.flatMap((b) => b.words); }
+
+  unused() {
+    const used = new Set(this.data.used);
+    return this.allWords().filter((w) => !used.has(canon(w.word)));
+  }
+
+  stats() {
+    return {
+      batches: this.data.batches.length,
+      total: this.allWords().length,
+      remaining: this.unused().length,
+      fallback: this.fallback.length,
+      generating: !!this.generating,
+      canGenerate: !!this.client,
+      model: this.model,
+      lastError: this.lastError,
+    };
+  }
+
+  /** Lấy một từ cho vòng mới. avoid: các từ vừa chơi (khi dùng danh sách dự phòng). */
+  next(avoid = []) {
+    const pool = this.unused();
+    if (pool.length <= this.minRemaining && this.client && this.autoGenerate && !this.generating) {
+      this.generate().catch(() => {}); // tạo nền, không chặn vòng chơi
+    }
+    if (pool.length) {
+      const w = pool[Math.floor(this.random() * pool.length)];
+      this.data.used.push(canon(w.word));
+      this.save();
+      return { word: w.word, hint: w.hint, source: 'bank' };
+    }
+    const fresh = this.fallback.filter((w) => !avoid.includes(canon(w.word)));
+    const list = fresh.length ? fresh : this.fallback;
+    if (!list.length) return { word: 'mặt trời', hint: 'Thiên nhiên', source: 'default' };
+    const w = list[Math.floor(this.random() * list.length)];
+    return { word: w.word, hint: w.hint, source: 'config' };
+  }
+
+  /** Sinh một lô từ mới bằng Claude. theme: chủ đề cho cả lô (tuỳ chọn). */
+  generate({ theme = '', count = this.batchSize } = {}) {
+    if (!this.client) return Promise.reject(new Error('Chưa có ANTHROPIC_API_KEY'));
+    if (this.generating) return this.generating;
+    this.generating = this.#generate(String(theme || '').slice(0, 80), Math.max(10, Math.min(200, count | 0)))
+      .finally(() => { this.generating = null; });
+    return this.generating;
+  }
+
+  async #generate(theme, count) {
+    const existing = new Set([...this.allWords().map((w) => canon(w.word)), ...this.fallback.map((w) => canon(w.word)), ...this.data.used]);
+    const avoidList = [...existing].slice(-600);
+    try {
+      const response = await this.client.beta.messages.create({
+        model: this.model,
+        max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+        system: SYSTEM,
+        messages: [{
+          role: 'user',
+          content: [
+            `Soạn ${count} từ bí mật mới.`,
+            theme ? `Chủ đề chung của cả lô: ${theme}.` : 'Trộn nhiều chủ đề khác nhau.',
+            avoidList.length ? `Không dùng các từ đã có: ${avoidList.join(', ')}.` : '',
+          ].filter(Boolean).join('\n'),
+        }],
+      });
+      if (response.stop_reason === 'refusal') throw new Error('Claude từ chối yêu cầu');
+      const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      const data = JSON.parse(text);
+      const words = [];
+      for (const it of data.words || []) {
+        const w = canon(it.word);
+        const hint = String(it.hint || '').trim().slice(0, 40);
+        if (!validWord(w) || existing.has(w) || !hint || canon(hint).includes(w)) continue;
+        existing.add(w);
+        words.push({ word: w, hint });
+      }
+      if (!words.length) throw new Error('Không nhận được từ hợp lệ nào');
+      const batch = { id: Date.now(), createdAt: new Date().toISOString(), theme, model: this.model, words };
+      this.data.batches.push(batch);
+      this.save();
+      this.lastError = null;
+      this.log.log?.(`[wordbank] Đã tạo lô ${words.length} từ${theme ? ` (chủ đề: ${theme})` : ''}`);
+      return { added: words.length, batch };
+    } catch (e) {
+      this.lastError = `${e?.status || ''} ${e?.message || e}`.trim();
+      this.log.warn?.(`[wordbank] Tạo từ lỗi: ${this.lastError}`);
+      throw e;
+    }
+  }
+}
+
+/** Tạo client Claude nếu có thông tin đăng nhập trong môi trường. */
+export function claudeClientFromEnv() {
+  const has = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE;
+  return has ? new Anthropic() : null;
+}

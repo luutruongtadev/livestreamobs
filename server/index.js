@@ -9,6 +9,7 @@ import { TikTokBridge } from './tiktok.js';
 import { TugWar } from './tugwar.js';
 import { WordGame } from './wordgame.js';
 import { ClaudeScorer, SimpleScorer } from './scorer.js';
+import { WordBank, claudeClientFromEnv } from './wordbank.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,7 +64,16 @@ const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
   ? new SimpleScorer()
   : new ClaudeScorer({ model: process.env.WORDGAME_MODEL || wgCfg.model || 'claude-opus-5-5', cachePath: path.join(ROOT, 'data', 'wordscore-cache.json') });
 if (wgScorer instanceof SimpleScorer) console.warn('[wordgame] Chưa có ANTHROPIC_API_KEY → chấm điểm đơn giản theo chữ (không hiểu nghĩa).');
-const wg = new WordGame(wgCfg, { scorer: wgScorer, statePath: path.join(ROOT, 'data', 'wordgame.json') });
+const wordBank = new WordBank({
+  filePath: path.join(ROOT, 'data', 'wordbank.json'),
+  fallbackWords: wgCfg.words || [],
+  client: claudeClientFromEnv(),
+  model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5',
+  batchSize: wgCfg.batchSize || 100,
+  minRemaining: wgCfg.minRemaining ?? 10,
+  autoGenerate: wgCfg.autoGenerate !== false,
+});
+const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 
 // ---------------- WebSocket hub ----------------
@@ -230,8 +240,12 @@ app.post('/api/wg/:action', requireAdmin, (req, res) => {
     wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || '') }));
   } else if (a === 'reset') wgBroadcast(wg.resetAll());
   else if (a === 'peek') { /* chỉ xem từ bí mật */ }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek' });
-  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.secret } });
+  else if (a === 'generate') {
+    // trả lời ngay, tạo nền (mất khoảng 20-60 giây); xem tiến độ bằng 'peek'
+    wordBank.generate({ theme: req.body?.theme, count: req.body?.count }).catch(() => {});
+  }
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate' });
+  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.secret }, bank: wordBank.stats() });
 });
 
 app.post('/api/reset', requireAdmin, (_req, res) => {
