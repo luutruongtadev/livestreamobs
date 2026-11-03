@@ -42,7 +42,9 @@ export const RACE_DEFAULTS = {
     perDiamond: 12,
     maxGift: 320, // một món quà đẩy tối đa ~1/3 đường
   },
-  banana: { minDiamonds: 30, stunSeconds: 2.5 }, // quà ≥ 30 xu: ném chuối vào con dẫn đầu (không phải con mình)
+  // Chướng ngại vật: quà đủ lớn ném vào con dẫn đầu (không phải con mình). Lấy mức cao nhất đạt được.
+  banana: { minDiamonds: 30, stunSeconds: 2.5, knockback: 0 }, // 🍌 trượt chân
+  bomb: { minDiamonds: 99, stunSeconds: 3.5, knockback: 60 }, // 💣 nổ tung, bị hất lùi
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
 };
 
@@ -60,6 +62,7 @@ export class Race {
       ...config,
       boost: { ...RACE_DEFAULTS.boost, ...(config.boost || {}) },
       banana: { ...RACE_DEFAULTS.banana, ...(config.banana || {}) },
+      bomb: { ...RACE_DEFAULTS.bomb, ...(config.bomb || {}) },
     };
     this.cfg.maxRacers = Math.max(2, Math.min(6, this.cfg.maxRacers | 0 || 6));
     this.joinWords = new Set(this.cfg.joinKeywords.map(normalize));
@@ -300,17 +303,26 @@ export class Race {
         const diamonds = Math.max(1, Number(ev.diamonds) || 1) * Math.max(1, ev.repeatCount | 0 || 1);
         r.diamonds += diamonds;
         const fx = this.push(r, Math.min(b.maxGift, diamonds * b.perDiamond), user, 'gift', { diamonds, giftName: ev.giftName, giftImage: ev.giftImage || null, repeatCount: ev.repeatCount || 1 });
-        if (diamonds >= this.cfg.banana.minDiamonds) {
-          const leader = this.racers.filter((x) => x !== r && x.finishedAt == null).sort((x, y) => y.pos - x.pos)[0];
-          if (leader) {
-            leader.stunUntil = t + this.cfg.banana.stunSeconds * 1000;
-            fx.push({ type: 'race_banana', by: pub(user), from: this.pubRacer(r), target: this.pubRacer(leader), seconds: this.cfg.banana.stunSeconds });
-          }
-        }
+        const kind = diamonds >= this.cfg.bomb.minDiamonds ? 'bomb' : diamonds >= this.cfg.banana.minDiamonds ? 'banana' : null;
+        if (kind) fx.push(...this.throwObstacle(kind, user, r));
         return fx;
       }
       default: return [];
     }
+  }
+
+  /** Ném chướng ngại vật vào con dẫn đầu (trừ con mình): đứng yên vài giây, bom còn hất lùi. */
+  throwObstacle(kind, user, from) {
+    const o = this.cfg[kind];
+    const target = this.racers.filter((x) => x !== from && x.finishedAt == null).sort((x, y) => y.pos - x.pos)[0];
+    if (!target) return [];
+    const t = this.clock();
+    target.stunUntil = Math.max(target.stunUntil, t + o.stunSeconds * 1000);
+    target.stunKind = kind;
+    target.pending = 0; // mất đà đang phóng
+    if (o.knockback) target.pos = Math.max(0, target.pos - o.knockback);
+    this.dirty = true;
+    return [{ type: 'race_obstacle', kind, by: pub(user), from: this.pubRacer(from), target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 }];
   }
 
   enqueue(user, why) {
@@ -336,6 +348,7 @@ export class Race {
       racers: this.racers.map((r) => ({
         ...this.pubRacer(r),
         stunned: r.stunUntil > t,
+        stunKind: r.stunUntil > t ? r.stunKind || 'banana' : null,
         finished: r.finishedAt != null,
         power: Math.round(r.power),
         diamonds: r.diamonds,
@@ -346,6 +359,7 @@ export class Race {
       queueCount: this.queue.length,
       podium: this.podium,
       bananaMin: this.cfg.banana.minDiamonds,
+      bombMin: this.cfg.bomb.minDiamonds,
       champions: Object.values(this.stats).sort((a, b) => b.wins - a.wins || b.podiums - a.podiums).slice(0, 5),
     };
   }

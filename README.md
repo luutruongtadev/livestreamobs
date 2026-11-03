@@ -118,7 +118,9 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
 - Sảnh chờ 45 giây, cần ≥ 2 người để xuất phát; đủ 6 người thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
 - **Người đua**: mỗi bình luận = chạy một đoạn (1 lần / giây), thả tim = tăng tốc, tặng quà = phóng nhanh
-  (1 xu = 12 đơn vị, đường dài 1000, một món tối đa 320). Quà **≥ 30 xu** còn **ném chuối** làm con dẫn đầu (không phải con mình) trượt ngã 2,5 giây.
+  (1 xu = 12 đơn vị, đường dài 1000, một món tối đa 320). Quà lớn còn ném **chướng ngại vật** vào con dẫn đầu (không phải con mình):
+  **🍌 ≥ 30 xu** trượt chân, xoay vòng 2,5 giây; **💣 ≥ 99 xu** nổ tung (hất lên, cháy đen, bị đẩy lùi 6% đường) và choáng 3,5 giây.
+- Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
 - **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để cổ vũ (đẩy nhẹ); tim / quà sau đó đều tính cho con mình đang cổ vũ.
 - Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
 - **Lưu thành tích theo người** (số lần thắng, lên bục, số vòng đã đua) vào `data/race.json` → bảng 🏆 Vua tốc độ, không mất khi deploy.

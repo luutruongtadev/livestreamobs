@@ -71,7 +71,8 @@ test('quà ≥ 30 xu ném chuối làm con dẫn đầu (không phải con mình
   run(g, clock, 2000);
   const a = g.racers.find((r) => r.id === 'a');
   const fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
-  const ban = fx.find((e) => e.type === 'race_banana');
+  const ban = fx.find((e) => e.type === 'race_obstacle');
+  assert.equal(ban.kind, 'banana');
   assert.equal(ban.target.id, 'a');
   const before = a.pos;
   run(g, clock, 2000);
@@ -105,4 +106,22 @@ test('tạm dừng giữa cuộc đua: không ai di chuyển, chạy lại tiế
   g.resume();
   assert.equal(g.phase, 'racing');
   assert.equal(g.snapshot().remaining, 59);
+});
+
+test('quà ≥ 99 xu ném bom: hất lùi con dẫn đầu và đứng yên lâu hơn', () => {
+  const { g, clock } = mk();
+  say(g, 'a', 'ok'); say(g, 'b', 'ok');
+  g.skip(); g.skip();
+  g.handle({ type: 'gift', user: u('a'), diamonds: 20 });
+  run(g, clock, 3000);
+  const a = g.racers.find((r) => r.id === 'a');
+  const before = a.pos;
+  const fx = g.handle({ type: 'gift', user: u('b'), diamonds: 99 });
+  const bomb = fx.find((e) => e.type === 'race_obstacle');
+  assert.equal(bomb.kind, 'bomb');
+  assert.equal(bomb.target.id, 'a');
+  assert.equal(a.pos, before - 60);
+  assert.equal(g.snapshot().racers.find((r) => r.id === 'a').stunKind, 'bomb');
+  run(g, clock, 3000);
+  assert.equal(a.pos, before - 60);
 });

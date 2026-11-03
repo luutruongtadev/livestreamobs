@@ -279,7 +279,8 @@
     "raceSeconds": 90,
     "breakSeconds": 12,
     "boost": { "comment": 14, "cheer": 8, "like": 2, "perDiamond": 12, "maxGift": 320 },
-    "banana": { "minDiamonds": 30, "stunSeconds": 2.5 }
+    "banana": { "minDiamonds": 30, "stunSeconds": 2.5 },
+    "bomb": { "minDiamonds": 99, "stunSeconds": 3.5, "knockback": 60 }
   },
   "tugwar": {
     "roundSeconds": 180,
