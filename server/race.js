@@ -42,9 +42,14 @@ export const RACE_DEFAULTS = {
     perDiamond: 12,
     maxGift: 320, // một món quà đẩy tối đa ~1/3 đường
   },
-  // Chướng ngại vật: quà đủ lớn ném vào con dẫn đầu (không phải con mình). Lấy mức cao nhất đạt được.
+  // Các mức quà (theo giá MỘT món, tặng combo nhiều món thì nhân lên). Mức cao nhất đạt được sẽ áp dụng.
+  rose: { boost: 25, comboEvery: 10, comboBoost: 120 }, // 🌹 1 xu: tăng tốc; đủ mỗi 10 bông → mưa hoa
+  heart: { minDiamonds: 5, boost: 90 }, // 💖 5 xu: tăng tốc + hồi phục ngay nếu đang choáng
+  shield: { minDiamonds: 10, seconds: 20 }, // 🛡️ 10 xu: khiên chặn 1 chướng ngại vật
+  // Chướng ngại vật: ném vào con dẫn đầu (không phải con mình)
   banana: { minDiamonds: 30, stunSeconds: 2.5, knockback: 0 }, // 🍌 trượt chân
   bomb: { minDiamonds: 99, stunSeconds: 3.5, knockback: 60 }, // 💣 nổ tung, bị hất lùi
+  rocket: { minDiamonds: 299, seconds: 6, boost: 450 }, // 🚀 siêu tốc: phóng mạnh, miễn nhiễm chướng ngại vật
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
 };
 
@@ -63,6 +68,10 @@ export class Race {
       boost: { ...RACE_DEFAULTS.boost, ...(config.boost || {}) },
       banana: { ...RACE_DEFAULTS.banana, ...(config.banana || {}) },
       bomb: { ...RACE_DEFAULTS.bomb, ...(config.bomb || {}) },
+      rose: { ...RACE_DEFAULTS.rose, ...(config.rose || {}) },
+      heart: { ...RACE_DEFAULTS.heart, ...(config.heart || {}) },
+      shield: { ...RACE_DEFAULTS.shield, ...(config.shield || {}) },
+      rocket: { ...RACE_DEFAULTS.rocket, ...(config.rocket || {}) },
     };
     this.cfg.maxRacers = Math.max(2, Math.min(6, this.cfg.maxRacers | 0 || 6));
     this.joinWords = new Set(this.cfg.joinKeywords.map(normalize));
@@ -176,9 +185,10 @@ export class Race {
     for (const r of this.racers) {
       if (r.finishedAt != null) continue;
       if (r.stunUntil > t) continue;
-      const dash = Math.min(r.pending, this.cfg.dashSpeed * dt);
+      const turbo = r.turboUntil > t ? 2 : 1; // siêu tốc: xả tăng tốc nhanh gấp đôi
+      const dash = Math.min(r.pending, this.cfg.dashSpeed * turbo * dt);
       r.pending -= dash;
-      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * dt * (0.6 + this.random() * 0.8) + dash);
+      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * turbo * 2 ** (turbo - 1) * dt * (0.6 + this.random() * 0.8) + dash);
       if (r.pos >= this.cfg.track) {
         r.finishedAt = t;
         fx.push({ type: 'race_arrive', racer: this.pubRacer(r), place: this.racers.filter((x) => x.finishedAt != null).length });
@@ -194,7 +204,7 @@ export class Race {
 
   /** Chạy lại sau tạm dừng: dời thời gian bị choáng / chờ bình luận. */
   onResume(d) {
-    for (const r of this.racers) if (r.stunUntil) r.stunUntil += d;
+    for (const r of this.racers) for (const k of ['stunUntil', 'shieldUntil', 'turboUntil']) if (r[k]) r[k] += d;
     for (const [id, t] of this.lastAct) this.lastAct.set(id, t + d);
   }
 
@@ -212,7 +222,7 @@ export class Race {
     const animal = free[Math.floor(this.random() * free.length)];
     const lanes = new Set(this.racers.map((r) => r.lane));
     let lane = 1; while (lanes.has(lane)) lane++;
-    const r = { ...pub(user), lane, animal, pos: 0, pending: 0, stunUntil: 0, finishedAt: null, power: 0, diamonds: 0, cheers: 0 };
+    const r = { ...pub(user), lane, animal, pos: 0, pending: 0, stunUntil: 0, shieldUntil: 0, turboUntil: 0, roses: 0, finishedAt: null, power: 0, diamonds: 0, cheers: 0 };
     this.racers.push(r);
     this.racers.sort((a, b) => a.lane - b.lane);
     this.dirty = true;
@@ -299,16 +309,64 @@ export class Race {
       }
       case 'share': return this.push(r, b.share, user, 'share');
       case 'follow': return this.push(r, b.follow, user, 'follow');
-      case 'gift': {
-        const diamonds = Math.max(1, Number(ev.diamonds) || 1) * Math.max(1, ev.repeatCount | 0 || 1);
-        r.diamonds += diamonds;
-        const fx = this.push(r, Math.min(b.maxGift, diamonds * b.perDiamond), user, 'gift', { diamonds, giftName: ev.giftName, giftImage: ev.giftImage || null, repeatCount: ev.repeatCount || 1 });
-        const kind = diamonds >= this.cfg.bomb.minDiamonds ? 'bomb' : diamonds >= this.cfg.banana.minDiamonds ? 'banana' : null;
-        if (kind) fx.push(...this.throwObstacle(kind, user, r));
-        return fx;
-      }
+      case 'gift': return this.gift(ev, user, r, t);
       default: return [];
     }
+  }
+
+  /** Mức quà theo giá một món. */
+  tierOf(unit) {
+    const c = this.cfg;
+    if (unit >= c.rocket.minDiamonds) return 'rocket';
+    if (unit >= c.bomb.minDiamonds) return 'bomb';
+    if (unit >= c.banana.minDiamonds) return 'banana';
+    if (unit >= c.shield.minDiamonds) return 'shield';
+    if (unit >= c.heart.minDiamonds) return 'heart';
+    return 'rose';
+  }
+
+  gift(ev, user, r, t) {
+    const c = this.cfg;
+    const unit = Math.max(1, Number(ev.diamonds) || 1);
+    const count = Math.max(1, ev.repeatCount | 0 || 1);
+    const diamonds = unit * count;
+    const tier = this.tierOf(unit);
+    r.diamonds += diamonds;
+    const perUnit = Math.max(unit * c.boost.perDiamond, tier === 'rose' ? c.rose.boost : tier === 'heart' ? c.heart.boost : 0);
+    const info = { diamonds, tier, giftName: ev.giftName, giftImage: ev.giftImage || null, repeatCount: count };
+    const fx = this.push(r, Math.min(c.boost.maxGift, perUnit * count), user, 'gift', info);
+    const by = pub(user);
+    switch (tier) {
+      case 'rose': {
+        const before = r.roses;
+        r.roses += count;
+        const combos = Math.floor(r.roses / c.rose.comboEvery) - Math.floor(before / c.rose.comboEvery);
+        if (combos > 0) {
+          fx.push({ type: 'race_combo', racer: this.pubRacer(r), by, roses: r.roses, combos });
+          fx.push(...this.push(r, c.rose.comboBoost * combos, user, 'combo').map((e) => ({ ...e, silent: true })));
+        }
+        break;
+      }
+      case 'heart':
+        if (r.stunUntil > t) { r.stunUntil = t; fx.push({ type: 'race_heal', racer: this.pubRacer(r), by }); }
+        break;
+      case 'shield':
+        r.shieldUntil = Math.max(r.shieldUntil, t) + c.shield.seconds * 1000;
+        fx.push({ type: 'race_shield', racer: this.pubRacer(r), by, seconds: c.shield.seconds });
+        break;
+      case 'banana':
+      case 'bomb':
+        fx.push(...this.throwObstacle(tier, user, r));
+        break;
+      case 'rocket':
+        r.turboUntil = Math.max(r.turboUntil, t) + c.rocket.seconds * 1000;
+        r.stunUntil = Math.min(r.stunUntil, t); // đang choáng cũng bật dậy
+        r.pending += c.rocket.boost;
+        fx.push({ type: 'race_turbo', racer: this.pubRacer(r), by, seconds: c.rocket.seconds, boost: c.rocket.boost });
+        break;
+    }
+    this.dirty = true;
+    return fx;
   }
 
   /** Ném chướng ngại vật vào con dẫn đầu (trừ con mình): đứng yên vài giây, bom còn hất lùi. */
@@ -317,6 +375,13 @@ export class Race {
     const target = this.racers.filter((x) => x !== from && x.finishedAt == null).sort((x, y) => y.pos - x.pos)[0];
     if (!target) return [];
     const t = this.clock();
+    const base = { type: 'race_obstacle', kind, by: pub(user), from: this.pubRacer(from), target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 };
+    if (target.turboUntil > t) return [{ ...base, blocked: 'turbo', seconds: 0, knockback: 0 }]; // siêu tốc: né được
+    if (target.shieldUntil > t) { // khiên chặn rồi vỡ
+      target.shieldUntil = 0;
+      this.dirty = true;
+      return [{ ...base, blocked: 'shield', seconds: 0, knockback: 0 }];
+    }
     target.stunUntil = Math.max(target.stunUntil, t + o.stunSeconds * 1000);
     target.stunKind = kind;
     target.pending = 0; // mất đà đang phóng
@@ -349,6 +414,9 @@ export class Race {
         ...this.pubRacer(r),
         stunned: r.stunUntil > t,
         stunKind: r.stunUntil > t ? r.stunKind || 'banana' : null,
+        shielded: r.shieldUntil > t,
+        turbo: r.turboUntil > t,
+        roses: r.roses,
         finished: r.finishedAt != null,
         power: Math.round(r.power),
         diamonds: r.diamonds,
@@ -360,6 +428,14 @@ export class Race {
       podium: this.podium,
       bananaMin: this.cfg.banana.minDiamonds,
       bombMin: this.cfg.bomb.minDiamonds,
+      giftTiers: [
+        { id: 'rose', icon: '🌹', min: 1, label: `Tăng tốc · ${this.cfg.rose.comboEvery} bông = mưa hoa` },
+        { id: 'heart', icon: '💖', min: this.cfg.heart.minDiamonds, label: 'Tăng tốc + hồi phục' },
+        { id: 'shield', icon: '🛡️', min: this.cfg.shield.minDiamonds, label: 'Khiên chặn chướng ngại' },
+        { id: 'banana', icon: '🍌', min: this.cfg.banana.minDiamonds, label: 'Ném chuối con dẫn đầu' },
+        { id: 'bomb', icon: '💣', min: this.cfg.bomb.minDiamonds, label: 'Ném bom: nổ, hất lùi' },
+        { id: 'rocket', icon: '🚀', min: this.cfg.rocket.minDiamonds, label: 'Siêu tốc, miễn nhiễm' },
+      ],
       champions: Object.values(this.stats).sort((a, b) => b.wins - a.wins || b.podiums - a.podiums).slice(0, 5),
     };
   }

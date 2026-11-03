@@ -112,7 +112,7 @@ test('quà ≥ 99 xu ném bom: hất lùi con dẫn đầu và đứng yên lâu
   const { g, clock } = mk();
   say(g, 'a', 'ok'); say(g, 'b', 'ok');
   g.skip(); g.skip();
-  g.handle({ type: 'gift', user: u('a'), diamonds: 20 });
+  g.handle({ type: 'gift', user: u('a'), diamonds: 4, repeatCount: 5 });
   run(g, clock, 3000);
   const a = g.racers.find((r) => r.id === 'a');
   const before = a.pos;
@@ -124,4 +124,39 @@ test('quà ≥ 99 xu ném bom: hất lùi con dẫn đầu và đứng yên lâu
   assert.equal(g.snapshot().racers.find((r) => r.id === 'a').stunKind, 'bomb');
   run(g, clock, 3000);
   assert.equal(a.pos, before - 60);
+});
+
+test('các mức quà: hoa hồng tăng tốc + mưa hoa mỗi 10 bông, tim hồi phục, khiên chặn, siêu tốc né', () => {
+  const { g, clock } = mk();
+  say(g, 'a', 'ok'); say(g, 'b', 'ok');
+  g.skip(); g.skip();
+  const a = g.racers.find((r) => r.id === 'a');
+  // 🌹 1 bông vẫn đẩy 25 (hơn 1 xu × 12)
+  assert.equal(g.handle({ type: 'gift', user: u('a'), diamonds: 1, giftName: 'Rose' })[0].amount, 25);
+  // thêm 9 bông → đủ 10 → mưa hoa
+  let fx = g.handle({ type: 'gift', user: u('fan'), diamonds: 1, repeatCount: 9 }); // fan chưa cổ vũ ai → không tính
+  assert.deepEqual(fx, []);
+  fx = g.handle({ type: 'gift', user: u('a'), diamonds: 1, repeatCount: 9, giftName: 'Rose' });
+  assert.equal(fx[0].tier, 'rose');
+  assert.ok(fx.some((e) => e.type === 'race_combo' && e.roses === 10));
+  // 🛡️ 10 xu: khiên cho a; b ném chuối vào a (đang dẫn đầu) → bị chặn
+  run(g, clock, 3000);
+  assert.equal(g.handle({ type: 'gift', user: u('a'), diamonds: 10 }).at(-1).type, 'race_shield');
+  assert.equal(g.snapshot().racers.find((r) => r.id === 'a').shielded, true);
+  fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
+  assert.equal(fx.find((e) => e.type === 'race_obstacle').blocked, 'shield');
+  assert.equal(a.stunUntil <= clock.t, true);
+  // lần 2 không còn khiên → trúng; 💖 5 xu hồi phục ngay
+  fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
+  assert.equal(fx.find((e) => e.type === 'race_obstacle').blocked, undefined);
+  assert.ok(a.stunUntil > clock.t);
+  fx = g.handle({ type: 'gift', user: u('a'), diamonds: 5, giftName: 'Finger Heart' });
+  assert.ok(fx.some((e) => e.type === 'race_heal'));
+  assert.equal(a.stunUntil, clock.t);
+  // 🚀 299 xu: siêu tốc, bom ném vào bị né
+  fx = g.handle({ type: 'gift', user: u('a'), diamonds: 299 });
+  assert.ok(fx.some((e) => e.type === 'race_turbo'));
+  fx = g.handle({ type: 'gift', user: u('b'), diamonds: 99 });
+  assert.equal(fx.find((e) => e.type === 'race_obstacle').blocked, 'turbo');
+  assert.equal(g.snapshot().giftTiers.length, 6);
 });

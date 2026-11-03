@@ -117,9 +117,18 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
   người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
 - Sảnh chờ 45 giây, cần ≥ 2 người để xuất phát; đủ 6 người thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
-- **Người đua**: mỗi bình luận = chạy một đoạn (1 lần / giây), thả tim = tăng tốc, tặng quà = phóng nhanh
-  (1 xu = 12 đơn vị, đường dài 1000, một món tối đa 320). Quà lớn còn ném **chướng ngại vật** vào con dẫn đầu (không phải con mình):
-  **🍌 ≥ 30 xu** trượt chân, xoay vòng 2,5 giây; **💣 ≥ 99 xu** nổ tung (hất lên, cháy đen, bị đẩy lùi 6% đường) và choáng 3,5 giây.
+- **Người đua**: mỗi bình luận = chạy một đoạn (1 lần / giây), thả tim = tăng tốc. **Tặng quà theo mức** (tính theo giá một món, combo thì nhân lên):
+
+  | Quà | Tác dụng |
+  |---|---|
+  | 🌹 1 xu (Rose…) | Tăng tốc (+25 / bông). Mỗi **10 bông** cho cùng một con → **🌹 Mưa hoa** phóng thêm 120 |
+  | 💖 5 xu (Finger Heart…) | Tăng tốc mạnh hơn + **hồi phục** ngay nếu đang bị choáng |
+  | 🛡️ 10 xu | **Khiên** 20 giây: chặn 1 chướng ngại vật (khiên vỡ) |
+  | 🍌 30 xu | Ném **chuối** vào con dẫn đầu (không phải con mình): trượt chân, xoay vòng 2,5 giây |
+  | 💣 99 xu | Ném **bom**: nổ tung, hất lên, cháy đen, bị đẩy lùi 6% đường, choáng 3,5 giây |
+  | 🚀 299 xu | **Siêu tốc** 6 giây: chạy nhanh gấp đôi, bật dậy nếu đang choáng, **né** mọi chướng ngại vật |
+
+  Mọi quà đều đẩy thêm quãng đường (1 xu = 12 đơn vị, đường dài 1000, một lần tặng tối đa 320). Mức xu chỉnh trong khối `race` của `config.json`.
 - Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
 - **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để cổ vũ (đẩy nhẹ); tim / quà sau đó đều tính cho con mình đang cổ vũ.
 - Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.

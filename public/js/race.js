@@ -139,11 +139,34 @@ function burst(x, y, n, opts) {
   if (fx.parts.length > 600) fx.parts.splice(0, fx.parts.length - 600);
 }
 
+const TIER_FX = {
+  rose: { icon: '🌹', color: '#fb7185', parts: ['#fb7185', '#fda4af', '#f43f5e'], verb: 'tăng tốc' },
+  heart: { icon: '💖', color: '#f472b6', parts: ['#f9a8d4', '#ec4899', '#fff'], verb: 'tăng tốc + hồi phục' },
+  shield: { icon: '🛡️', color: '#38bdf8', parts: ['#7dd3fc', '#e0f2fe', '#38bdf8'], verb: 'bật khiên' },
+  banana: { icon: '🍌', color: '#facc15', parts: ['#fde68a', '#fff'], verb: 'ném chuối' },
+  bomb: { icon: '💣', color: '#fb923c', parts: ['#fde68a', '#fb923c'], verb: 'ném bom' },
+  rocket: { icon: '🚀', color: '#f97316', parts: ['#fde047', '#f97316', '#ef4444'], verb: 'SIÊU TỐC' },
+};
+
 /** Chướng ngại vật bay tới mục tiêu rồi nổ / làm trượt chân. */
 function impact(pr) {
   const r = racerById(pr.targetId);
   if (!r) return;
   const { x, y, s } = racerXY(r);
+  if (pr.blocked === 'shield') { // khiên vỡ tan, con vật không sao
+    fx.shake = Math.max(fx.shake, 0.5);
+    burst(x, y - 20 * s, 40, { speed: 420 * s, color: ['#7dd3fc', '#e0f2fe', '#38bdf8', '#fff'], size: 11 * s, g: 500, decay: 1.2, kind: 'rock' });
+    fx.rings = (fx.rings || []).concat({ x, y: y + 10 * s, s, t0: nowS(), color: '#7dd3fc' });
+    floater('🛡️ CHẶN ĐƯỢC!', x, y - 120 * s, '#7dd3fc', 44);
+    sound.play('chime', { pitch: 2 }); sound.play('bell', { pitch: 1.5 });
+    return;
+  }
+  if (pr.blocked === 'turbo') { // siêu tốc: vật bay trượt qua đầu
+    floater('💨 NÉ ĐƯỢC!', x, y - 120 * s, '#fdba74', 44);
+    burst(x + 60 * s, y - 40 * s, 10, { speed: 200 * s, color: '#fde68a', size: 8 * s, g: 600, decay: 1.4 });
+    sound.play('chime', { pitch: 1.8 });
+    return;
+  }
   hits.set(r.id, { kind: pr.kind, t0: nowS(), dur: Math.max(1.2, pr.seconds) });
   if (pr.kind === 'bomb') {
     fx.shake = 1.6; fx.flash = Math.max(fx.flash, 0.45);
@@ -197,13 +220,18 @@ function handle(e) {
       if (e.silent) break;
       const { x, y, s } = racerXY(r);
       if (e.source === 'gift') {
-        sound.play(e.diamonds >= 30 ? 'bell' : 'chime');
-        floater(`🚀 +${fmt.format(e.amount)}`, x, y - 90 * s, '#ffe28a', 40);
-        burst(x - 50 * s, y + 20 * s, 14, { speed: 260 * s, color: ['#fde68a', '#fff'], size: 8 * s, g: 0, angle: Math.PI, spread: 0.8, decay: 1.6 });
-        queueAlert({
-          user: e.by, color: r.animal?.color, prio: Math.min(6, 2 + Math.log10(Math.max(1, e.diamonds))),
-          title: `${clip(e.by?.name, 18)} tiếp sức ${r.animal?.emoji || ''} ${clip(r.name, 14)}`,
-          sub: `${e.repeatCount > 1 ? e.repeatCount + ' × ' : ''}${e.giftName || 'Quà'} · phóng +${fmt.format(e.amount)}`,
+        const tf = TIER_FX[e.tier] || TIER_FX.rose;
+        sound.play(e.diamonds >= 30 ? 'bell' : 'chime', { pitch: e.tier === 'rose' ? 1.4 : 1 });
+        floater(`${tf.icon} +${fmt.format(e.amount)}`, x, y - 90 * s, tf.color, e.tier === 'rose' ? 34 : 40);
+        // hạt theo mức quà: cánh hoa / tim / tia sáng
+        const n = Math.min(40, 8 + (e.repeatCount || 1) * 3);
+        burst(x, y - 30 * s, n, { speed: 240 * s, color: tf.parts, size: (e.tier === 'rose' ? 12 : 9) * s, g: e.tier === 'rose' ? 120 : 300, decay: 0.9, kind: e.tier === 'rose' ? 'petal' : 'spark' });
+        if (e.tier === 'heart') burst(x, y - 40 * s, 6, { speed: 160 * s, color: '#ec4899', size: 30 * s, g: -120, decay: 0.8, kind: 'text', text: '💖' });
+        // quà nhỏ (hoa / tim) chỉ hiện thông báo khi combo nhiều; quà lớn luôn hiện
+        if (e.tier !== 'rose' || (e.repeatCount || 1) >= 5) queueAlert({
+          user: e.by, color: tf.color, prio: Math.min(6, 2 + Math.log10(Math.max(1, e.diamonds))),
+          title: `${clip(e.by?.name, 18)} ${tf.verb} cho ${r.animal?.emoji || ''} ${clip(r.name, 14)}`,
+          sub: `${e.repeatCount > 1 ? e.repeatCount + ' × ' : ''}${e.giftName || 'Quà'} ${tf.icon} · phóng +${fmt.format(e.amount)}`,
           giftImage: e.giftImage, dur: e.diamonds >= 100 ? 5 : 3,
         });
       } else if (e.source === 'like') {
@@ -224,16 +252,56 @@ function handle(e) {
       floater(`📣 ${clip(e.by?.name, 10)}`, x, y - 90 * s, r.animal?.color || '#fff', 24);
       break;
     }
+    case 'race_combo': {
+      const r = racerById(e.racer.id) || e.racer;
+      const { x, y, s } = racerXY(r);
+      floater(`🌹 ×${e.roses} MƯA HOA!`, x, y - 150 * s, '#fb7185', 46);
+      // mưa cánh hoa trên cả làn
+      for (let i = 0; i < 60; i++) fx.parts.push({ x: x - 250 + Math.random() * 500, y: y - 300 - Math.random() * 200, vx: (Math.random() - 0.5) * 60, vy: 120 + Math.random() * 120, g: 40, life: 1, decay: 0.5, size: 14 * s, color: ['#fb7185', '#fda4af', '#f43f5e'][i % 3], kind: 'petal', grow: 0, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 8 });
+      sound.play('chime', { pitch: 1.6 }); sound.play('chime', { pitch: 2 });
+      queueAlert({ user: e.by, color: '#fb7185', prio: 6, dur: 3.2, title: `🌹 MƯA HOA cho ${r.animal?.emoji || ''} ${clip(r.name, 14)}!`, sub: `Đủ ${e.roses} bông hồng · phóng thêm` });
+      break;
+    }
+    case 'race_heal': {
+      const r = racerById(e.racer.id) || e.racer;
+      const { x, y, s } = racerXY(r);
+      hits.delete(r.id);
+      floater('💖 HỒI PHỤC!', x, y - 130 * s, '#f9a8d4', 44);
+      burst(x, y - 30 * s, 30, { speed: 200 * s, color: ['#bbf7d0', '#f9a8d4', '#fff'], size: 10 * s, g: -200, decay: 1 });
+      sound.play('levelup');
+      break;
+    }
+    case 'race_shield': {
+      const r = racerById(e.racer.id) || e.racer;
+      const { x, y, s } = racerXY(r);
+      floater(`🛡️ KHIÊN ${e.seconds}s`, x, y - 130 * s, '#7dd3fc', 40);
+      fx.rings = (fx.rings || []).concat({ x, y: y - 20 * s, s, t0: nowS(), color: '#7dd3fc' });
+      sound.play('bell', { pitch: 1.6 });
+      break;
+    }
+    case 'race_turbo': {
+      const r = racerById(e.racer.id) || e.racer;
+      const { x, y, s } = racerXY(r);
+      hits.delete(r.id);
+      fx.flash = Math.max(fx.flash, 0.4); fx.shake = Math.max(fx.shake, 0.8);
+      floater('🚀 SIÊU TỐC!', x, y - 140 * s, '#fdba74', 56);
+      burst(x - 60 * s, y, 40, { speed: 500 * s, color: TIER_FX.rocket.parts, size: 12 * s, g: 0, angle: Math.PI, spread: 0.7, decay: 1.2 });
+      sound.play('levelup'); sound.play('bell', { pitch: 0.8 });
+      queueAlert({ user: e.by, color: '#f97316', prio: 9, dur: 5, title: `🚀 ${clip(e.by?.name, 16)} bật SIÊU TỐC!`, sub: `${r.animal?.emoji || ''} ${clip(r.name, 14)} phóng như tên lửa ${e.seconds}s · miễn nhiễm chướng ngại` });
+      break;
+    }
     case 'race_obstacle': {
       const from = racerById(e.from?.id) || e.from;
       const a = from?.lane ? racerXY(from) : { x: W / 2, y: TRACK_BOT + 100, s: 1 };
-      fx.projectiles.push({ kind: e.kind, x0: a.x, y0: a.y - 40 * a.s, targetId: e.target.id, t0: nowS(), dur: e.kind === 'bomb' ? 0.9 : 0.7, seconds: e.seconds });
+      fx.projectiles.push({ kind: e.kind, x0: a.x, y0: a.y - 40 * a.s, targetId: e.target.id, t0: nowS(), dur: e.kind === 'bomb' ? 0.9 : 0.7, seconds: e.seconds, blocked: e.blocked || null });
       sound.play('chime', { pitch: e.kind === 'bomb' ? 0.7 : 1.4 });
       const bomb = e.kind === 'bomb';
       queueAlert({
         user: e.by, color: bomb ? '#fb923c' : '#facc15', prio: bomb ? 8 : 7, dur: 3.5,
         title: bomb ? `💣 ${clip(e.by?.name, 16)} ném BOM!` : `🍌 ${clip(e.by?.name, 16)} ném chuối!`,
-        sub: bomb ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} nổ tung, bị hất lùi · choáng ${e.seconds}s` : `${e.target.animal.emoji} ${clip(e.target.name, 16)} trượt ngã ${e.seconds}s`,
+        sub: e.blocked === 'shield' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} có khiên 🛡️ — chặn được!`
+          : e.blocked === 'turbo' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} đang siêu tốc 🚀 — né được!`
+          : bomb ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} nổ tung, bị hất lùi · choáng ${e.seconds}s` : `${e.target.animal.emoji} ${clip(e.target.name, 16)} trượt ngã ${e.seconds}s`,
       });
       break;
     }
@@ -450,6 +518,11 @@ function drawRacer(r, t, dt) {
   if (running && Math.random() < 0.25 + speed * 40) {
     burst(g.x - 40 * s, g.y - 6 * s, 1, { speed: 80 * s, color: 'rgba(214,170,120,.55)', size: 16 * s, g: -20, angle: Math.PI, spread: 0.9, decay: 1.6, kind: 'smoke', grow: 26 * s });
   }
+  // siêu tốc: lửa phụt sau đuôi
+  if (r.turbo && running) {
+    burst(g.x - 55 * s, g.y - 40 * s, 2, { speed: 260 * s, color: TIER_FX.rocket.parts, size: 16 * s, g: -40, angle: Math.PI, spread: 0.5, decay: 2.2, grow: -10 });
+    trail.set(r.id, 1);
+  }
   // vệt tăng tốc
   if (tr > 0.05 && running) {
     ctx.strokeStyle = `rgba(255,255,255,${tr * 0.8})`; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
@@ -498,6 +571,17 @@ function drawRacer(r, t, dt) {
     }
   }
   ctx.fillStyle = '#000'; // emoji màu vẫn nhận độ trong suốt của fillStyle
+  if (r.shielded) { // bong bóng khiên lung linh
+    const cy2 = g.y - 50 * s - lift;
+    ctx.save();
+    const grd = ctx.createRadialGradient(g.x, cy2, 20 * s, g.x, cy2, 78 * s);
+    grd.addColorStop(0, 'rgba(125,211,252,0)'); grd.addColorStop(0.8, 'rgba(125,211,252,.18)'); grd.addColorStop(1, 'rgba(186,230,253,.55)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.ellipse(g.x, cy2, 78 * s, 70 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(224,242,254,${0.6 + 0.3 * Math.sin(t * 6)})`; ctx.lineWidth = 3 * s; ctx.stroke();
+    ctx.beginPath(); ctx.arc(g.x - 30 * s, cy2 - 34 * s, 10 * s, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fill();
+    ctx.restore();
+  }
   if (r.finished) { ctx.font = font(900, Math.round(46 * s)); ctx.textAlign = 'center'; ctx.fillText('👑', g.x, g.y - 120 * s); }
 
   // thẻ tên phía trên đầu
@@ -512,9 +596,9 @@ function drawRacer(r, t, dt) {
   avatar(r, g.x - tw / 2 + 19 * s, ty, 15 * s, r.animal.color);
   ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(fitText(label, tw - 48 * s), g.x - tw / 2 + 40 * s, ty + 1);
-  if (r.supporters || r.diamonds) {
+  if (r.supporters || r.diamonds || r.roses) {
     ctx.font = font(800, Math.round(17 * s)); ctx.textAlign = 'center';
-    outlined(`${r.supporters ? '📣' + r.supporters : ''}${r.supporters && r.diamonds ? ' · ' : ''}${r.diamonds ? '💎' + r.diamonds : ''}`, g.x, ty - 30 * s, '#fde68a', 'rgba(0,0,0,.85)', 4);
+    outlined([r.supporters && '📣' + r.supporters, r.roses && '🌹' + r.roses, r.diamonds && '💎' + r.diamonds].filter(Boolean).join(' · '), g.x, ty - 30 * s, '#fde68a', 'rgba(0,0,0,.85)', 4);
   }
 }
 
@@ -566,7 +650,9 @@ function drawEffects(dt) {
     q.size += q.grow * dt;
     ctx.globalAlpha = Math.max(0, Math.min(1, q.life * (q.kind === 'smoke' ? 0.9 : 1.6)));
     ctx.fillStyle = q.color;
-    if (q.kind === 'rock') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.fillRect(-q.size / 2, -q.size / 2, q.size, q.size * 0.7); ctx.restore(); }
+    if (q.kind === 'petal') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.beginPath(); ctx.ellipse(0, 0, q.size / 2, q.size / 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+    else if (q.kind === 'text') { ctx.font = `${Math.round(q.size)}px 'Noto Color Emoji', sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000'; ctx.fillText(q.text, q.x, q.y); }
+    else if (q.kind === 'rock') { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.fillRect(-q.size / 2, -q.size / 2, q.size, q.size * 0.7); ctx.restore(); }
     else { ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(0.5, q.size / 2), 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore();
@@ -576,7 +662,7 @@ function drawEffects(dt) {
     const k = (tn - ring.t0) / 0.6;
     if (k > 1) continue;
     ctx.save(); ctx.globalAlpha = 1 - k;
-    ctx.strokeStyle = '#fff7d6'; ctx.lineWidth = 10 * (1 - k) + 2;
+    ctx.strokeStyle = ring.color || '#fff7d6'; ctx.lineWidth = 10 * (1 - k) + 2;
     ctx.beginPath(); ctx.ellipse(ring.x, ring.y, 40 + 260 * k * ring.s, (40 + 260 * k * ring.s) * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
@@ -655,7 +741,7 @@ function drawCountdown() {
 function drawGuide() {
   const chips = [
     `💬 "${R.joinWord}" = vào đua (tối đa ${R.maxRacers})`, '💬 Bình luận = chạy', '❤️ Tim = tăng tốc',
-    '🔢 Gõ số làn = cổ vũ', '🎁 Quà = phóng nhanh', `🍌 ${R.bananaMin} xu chuối · 💣 ${R.bombMin} xu bom`,
+    '🔢 Gõ số làn = cổ vũ',
   ];
   ctx.save();
   ctx.font = font(700, 23); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
@@ -675,6 +761,27 @@ function drawGuide() {
       cx += w + 10;
     }
     y += 54;
+  }
+  // bảng mức quà: mỗi mức một tác dụng
+  const tiers = R.giftTiers || [];
+  if (tiers.length) {
+    const pw = W - 80, ph = 44 + Math.ceil(tiers.length / 2) * 50, px = 40, py = y - 18;
+    rr(px, py, pw, ph, 24); ctx.fillStyle = 'rgba(10,14,40,.82)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(250,204,21,.7)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = font(900, 24); ctx.fillStyle = '#fde68a'; ctx.textAlign = 'center';
+    ctx.fillText('🎁 TẶNG QUÀ — MỖI MỨC MỘT TÁC DỤNG', W / 2, py + 24);
+    tiers.forEach((tr, i) => {
+      const cx = px + 16 + (i % 2) * (pw / 2), cy = py + 70 + Math.floor(i / 2) * 50;
+      const tf = TIER_FX[tr.id] || {};
+      rr(cx, cy - 20, pw / 2 - 24, 42, 21); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fill();
+      ctx.font = font(900, 22); ctx.textAlign = 'left'; ctx.fillStyle = tf.color || '#fff';
+      const head = `${tr.icon} ${tr.min} xu`;
+      ctx.fillText(head, cx + 12, cy + 1);
+      const hw = ctx.measureText(head).width;
+      ctx.font = font(700, 19); ctx.fillStyle = '#e5e7eb';
+      ctx.fillText(fitText(tr.label, pw / 2 - 60 - hw), cx + 22 + hw, cy + 1);
+    });
+    y = py + ph + 30;
   }
   // vua tốc độ (lưu qua các vòng)
   const champs = (R.champions || []).filter((c) => c.wins > 0);
@@ -731,7 +838,7 @@ function drawAlert(dt) {
   const k = Math.min(ease(a.age / 0.35), ease((a.dur - a.age) / 0.35));
   ctx.save();
   ctx.globalAlpha = k;
-  ctx.translate(W / 2, 1540);
+  ctx.translate(W / 2, 1700);
   ctx.scale(0.85 + 0.15 * k, 0.85 + 0.15 * k);
   const bw = 900, bh = a.user ? 130 : 110;
   rr(-bw / 2, -bh / 2, bw, bh, 26);
