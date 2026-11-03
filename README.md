@@ -103,7 +103,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Không có API key → dùng 40 từ mẫu trong `config.json` → `wordgame.words`.
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
-### ⏸ Tạm dừng game (Đoán từ & Kéo co)
+### ⏸ Tạm dừng game (Đoán từ, Kéo co & Đua thú)
 
 - **Tự tạm dừng khi chưa live**: khi server chưa kết nối được phiên live TikTok, cả hai game đứng yên —
   đồng hồ không chạy, không tự mở gợi ý, không sang vòng mới nên **không tốn từ bí mật**. Kênh lên live là game tự chạy tiếp
@@ -111,6 +111,19 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Nút trong admin** (mục Kết nối TikTok Live): ⏸ Tạm dừng game / ▶ Tiếp tục — dùng bất cứ lúc nào, kể cả đang live.
   Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
 - Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
+
+## 🏁 Game Đua thú (`/duathu`)
+
+- **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
+  người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
+- Sảnh chờ 45 giây, cần ≥ 2 người để xuất phát; đủ 6 người thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
+- **Người đua**: mỗi bình luận = chạy một đoạn (1 lần / giây), thả tim = tăng tốc, tặng quà = phóng nhanh
+  (1 xu = 12 đơn vị, đường dài 1000, một món tối đa 320). Quà **≥ 30 xu** còn **ném chuối** làm con dẫn đầu (không phải con mình) trượt ngã 2,5 giây.
+- **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để cổ vũ (đẩy nhẹ); tim / quà sau đó đều tính cho con mình đang cổ vũ.
+- Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
+- **Lưu thành tích theo người** (số lần thắng, lên bục, số vòng đã đua) vào `data/race.json` → bảng 🏆 Vua tốc độ, không mất khi deploy.
+- Tự tạm dừng khi chưa live như Đoán từ / Kéo co. Admin có nút giả lập (OK, bình luận, cổ vũ, tim, quà, chuối) và ⏭ xuất phát ngay / kết thúc / vòng mới.
+- Phát bằng OBS: `http://localhost:8686/duathu?phone=0`. Điện thoại: `https://<tên miền>/duathu?phone=1`. Chỉnh luật trong khối `race` của `config.json`.
 
 ## 🪢 Game Kéo co (`/keoco`)
 
@@ -415,6 +428,7 @@ public/
   chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
+  duathu.html, js/race.js       Game đua thú (server/race.js là luật chơi)
   doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ,
                                 server/setgen.js tạo bộ / gợi ý bằng Claude, server/wordsets.js lưu bộ từ)
   admin.html                    Bảng điều khiển

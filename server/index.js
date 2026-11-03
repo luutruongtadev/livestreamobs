@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { Temple } from './temple.js';
 import { TikTokBridge } from './tiktok.js';
 import { TugWar } from './tugwar.js';
+import { Race } from './race.js';
 import { WordGame } from './wordgame.js';
 import { ClaudeScorer, SimpleScorer } from './scorer.js';
 import { WordBank, claudeClientFromEnv } from './wordbank.js';
@@ -61,6 +62,7 @@ if (process.env.REQUIRE_ADMIN_TOKEN === '1') {
 }
 const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
 const tug = new TugWar(config.tugwar || {}, { statePath: path.join(ROOT, 'data', 'tugwar.json') });
+const race = new Race(config.race || {}, { statePath: path.join(ROOT, 'data', 'race.json') });
 const wgCfg = config.wordgame || {};
 const hasClaudeCreds = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
 const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
@@ -84,7 +86,7 @@ let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
-const pauser = new PauseController([wg, tug], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
+const pauser = new PauseController([wg, tug, race], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -121,7 +123,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), pause: pauser.status() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), pause: pauser.status() });
 });
 
 function ingest(ev) {
@@ -129,12 +131,32 @@ function ingest(ev) {
   if (effects.length) broadcast({ type: 'fx', effects });
   scheduleState();
   tugBroadcast(tug.handle(ev));
+  raceBroadcast(race.handle(ev));
   const wgFx = wg.handle(ev);
   wgBroadcast(wgFx);
   lastWg = { effects: wgFx, reject: wg.lastReject };
   return effects;
 }
 let lastWg = null;
+
+// ---------------- Đua thú ----------------
+let raceTimer = null;
+function raceBroadcast(effects) {
+  if (effects?.length) broadcast({ type: 'racefx', effects });
+  if (raceTimer) return;
+  raceTimer = setTimeout(() => {
+    raceTimer = null;
+    broadcast({ type: 'race', race: race.snapshot() });
+  }, 120);
+}
+let raceLast = '';
+setInterval(() => {
+  const fx = race.tick();
+  const s = race.snapshot();
+  // đang đua: gửi vị trí liên tục; lúc khác chỉ khi đổi giây
+  const key = s.phase === 'racing' ? Math.random() : `${s.phase}${s.remaining}${s.paused}`;
+  if (fx.length || key !== raceLast) { raceLast = key; raceBroadcast(fx); }
+}, 250).unref();
 
 // ---------------- Đoán từ ----------------
 let wgTimer = null;
@@ -184,6 +206,7 @@ function pauseBroadcast() {
   broadcast({ type: 'pause', pause: p });
   wgBroadcast([]);
   tugBroadcast([]);
+  raceBroadcast([]);
 }
 
 app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
@@ -201,6 +224,7 @@ setInterval(() => {
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
   try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
   try { wg.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
+  try { race.save(); } catch (e) { console.warn('[race] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -216,6 +240,7 @@ app.use(express.static(path.join(ROOT, 'public'), {
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
+app.get('/dua-thu', (_req, res) => res.redirect('/duathu'));
 app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
 
 function requireAdmin(req, res, next) {
@@ -262,6 +287,15 @@ app.post('/api/tug/:action', requireAdmin, (req, res) => {
   else if (a === 'reset') { tug.resetAll(); tugBroadcast([{ type: 'tug_start', round: tug.roundNo }]); }
   else return res.status(400).json({ error: 'action: next | restart | reset' });
   res.json({ ok: true, tug: tug.snapshot() });
+});
+
+app.post('/api/race/:action', requireAdmin, (req, res) => {
+  const a = req.params.action;
+  if (a === 'next') raceBroadcast(race.skip());
+  else if (a === 'lobby') raceBroadcast(race.newLobby());
+  else if (a === 'reset') raceBroadcast(race.resetAll());
+  else return res.status(400).json({ error: 'action: next | lobby | reset' });
+  res.json({ ok: true, race: race.snapshot() });
 });
 
 app.post('/api/wg/:action', requireAdmin, async (req, res) => {
@@ -353,7 +387,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); tug.save(); wg.save(); } catch { /* bỏ qua */ }
+  try { temple.save(); tug.save(); wg.save(); race.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

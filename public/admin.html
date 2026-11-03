@@ -53,7 +53,7 @@
         <button id="btnPause" class="ghost">⏸ Tạm dừng game</button>
         <button id="btnResume">▶ Tiếp tục</button>
       </div>
-      <p class="muted">Đoán từ &amp; Kéo co tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
+      <p class="muted">Đoán từ, Kéo co &amp; Đua thú tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
     </section>
 
     <section>
@@ -160,6 +160,24 @@
     </section>
 
     <section>
+      <h2>🏁 Đua thú</h2>
+      <div class="grid" style="margin-bottom:10px">
+        <button data-sim='{"type":"comment","text":"ok"}'>💬 OK (vào đua)</button>
+        <button data-sim='{"type":"comment","text":"chạy đi"}'>💬 Bình luận (chạy)</button>
+        <button data-sim='{"type":"comment","text":"1"}'>🔢 Cổ vũ làn 1</button>
+        <button data-sim='{"type":"like","count":15}'>❤️ 15 tim</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":5}'>🌹 5× Rose</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍌 30 xu (ném chuối)</button>
+      </div>
+      <div class="row">
+        <button class="ghost" data-race="next">⏭ Xuất phát ngay / kết thúc / vòng mới</button>
+        <button class="ghost" data-race="lobby">↺ Mở đăng ký lại</button>
+        <button class="ghost" data-race="reset">⟲ Xoá bảng Vua tốc độ</button>
+      </div>
+      <p class="muted">Đổi ô "Tên thí chủ" ở trên rồi bấm OK để giả lập nhiều người đua (tối đa 6 con / vòng; người đến sau được đăng ký vòng sau). Cần ≥ 2 người để tự xuất phát; nút ⏭ cho xuất phát ngay cả khi 1 người.</p>
+    </section>
+
+    <section>
       <h2>🪢 Kéo co</h2>
       <div class="grid" style="margin-bottom:10px">
         <button data-sim='{"type":"comment","text":"đỏ"}' style="background:#c0392b">🔴 Vào đội Đỏ</button>
@@ -191,6 +209,7 @@
         <button class="ghost" data-view="/chanhdien">🛕 Chánh điện</button>
         <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
         <button class="ghost" data-view="/keoco">🪢 Kéo co</button>
+        <button class="ghost" data-view="/duathu">🏁 Đua thú</button>
         <button class="ghost" data-view="/doantu">🔤 Đoán từ</button>
       </div>
       <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
@@ -366,6 +385,10 @@
   document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {
     if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
     api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
+  }));
+  document.querySelectorAll('[data-race]').forEach((b) => (b.onclick = () => {
+    if (b.dataset.race === 'reset' && !confirm('Xoá bảng Vua tốc độ (số lần thắng đua thú)?')) return;
+    api('/api/race/' + b.dataset.race).then(() => log('Đua thú: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
   document.querySelectorAll('[data-sim]').forEach((b) => (b.onclick = () => sim(JSON.parse(b.dataset.sim))));
   $('btnComment').onclick = () => { const t = $('simText').value.trim(); if (t) sim({ type: 'comment', text: t }); };

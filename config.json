@@ -271,6 +271,16 @@
     "ambient": ""
   },
   "ambientVolume": 0.25,
+  "race": {
+    "maxRacers": 6,
+    "minRacers": 2,
+    "joinKeywords": ["ok", "oke", "okay", "oki", "okie"],
+    "lobbySeconds": 45,
+    "raceSeconds": 90,
+    "breakSeconds": 12,
+    "boost": { "comment": 14, "cheer": 8, "like": 2, "perDiamond": 12, "maxGift": 320 },
+    "banana": { "minDiamonds": 30, "stunSeconds": 2.5 }
+  },
   "tugwar": {
     "roundSeconds": 180,
     "breakSeconds": 15,

@@ -18,8 +18,9 @@ export const PausableMixin = {
   resume() {
     if (!this.paused) return false;
     const d = this.now() - this.pausedAt;
-    for (const k of ['startedAt', 'endsAt', 'nextAt']) if (typeof this[k] === 'number') this[k] += d;
+    for (const k of ['startedAt', 'endsAt', 'nextAt', 'lastTickAt']) if (typeof this[k] === 'number') this[k] += d;
     if (this.lastGuessAt instanceof Map) for (const [id, t] of this.lastGuessAt) this.lastGuessAt.set(id, t + d);
+    this.onResume?.(d);
     this.paused = false;
     this.pausedAt = null;
     this.pauseReason = null;
