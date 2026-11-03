@@ -250,15 +250,16 @@ function drawSecret(t) {
   const boxTop = y + 62, boxBottom = boxTop + cell * 1.05;
   // vị trí các dòng gợi ý, dòng "gợi ý tiếp", hàng chip — xếp nối tiếp nhau
   const hints = G.hints || [];
-  let cy = boxBottom + 30;
-  const hintYs = hints.map((_, i) => cy + i * 34);
-  cy += hints.length * 34;
+  // khoảng cách rộng rãi để chữ không chạm nhau trên mọi máy
+  let cy = boxBottom + 40;
+  const hintYs = hints.map((_, i) => cy + i * 42);
+  cy += hints.length * 42;
   const showNext = G.nextHintIn != null && hints.length < 3 && G.phase === 'playing';
   const nextY = cy;
-  if (showNext) cy += 30;
+  if (showNext) cy += 36;
   const chips = chipLayout();
-  const chipY0 = cy + 6; // tâm hàng chip đầu
-  const h = Math.max(220, chipY0 + Math.max(0, chips.rows.length - 1) * 40 + 30 - y);
+  const chipY0 = cy + (hints.length || showNext ? 18 : 4); // tâm hàng chip đầu
+  const h = Math.max(230, chipY0 + Math.max(0, chips.rows.length - 1) * 46 + 40 - y);
   L.secretBottom = y + h;
 
   ctx.save();
@@ -319,12 +320,12 @@ function drawUnlockMenu({ items, ws, rows, gap }, y0) {
   rows.forEach((row, ri) => {
     const total = row.reduce((a, i) => a + ws[i], 0) + gap * (row.length - 1);
     let x = (W - total) / 2;
-    const y = y0 + ri * 40;
+    const y = y0 + ri * 46;
     row.forEach((i) => {
       const it = items[i];
       const flash = fx.unlockFlash.get(it.id);
       const k = flash ? Math.max(0, 1 - (now - flash) / 1200) : 0;
-      rr(x, y - 16, ws[i], 32, 16);
+      rr(x, y - 17, ws[i], 34, 17);
       ctx.fillStyle = k > 0 ? `rgba(250,204,21,${0.3 + k * 0.5})` : it.active ? 'rgba(244,114,182,.3)' : 'rgba(255,255,255,.08)'; ctx.fill();
       ctx.strokeStyle = it.active || k > 0 ? '#fbcfe8' : 'rgba(165,180,252,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = '#fff';
@@ -336,8 +337,8 @@ function drawUnlockMenu({ items, ws, rows, gap }, y0) {
 }
 
 function drawRanking(t) {
-  const top = L.secretBottom + 22, rowH = 60, x = 40, w = W - 80;
-  const list = (G.ranked || []).slice(0, L.secretBottom > 740 ? 7 : 8);
+  const top = L.secretBottom + 26, rowH = 60, x = 40, w = W - 80;
+  const list = (G.ranked || []).slice(0, L.secretBottom > 800 ? 6 : L.secretBottom > 740 ? 7 : 8);
   L.rankTop = top;
   L.rankBottom = top + 56 + Math.max(1, list.length) * rowH + 14;
   ctx.save();
@@ -386,7 +387,7 @@ function drawFeed() {
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.font = font(700, 20); ctx.fillStyle = 'rgba(199,210,254,.8)'; ctx.textAlign = 'left';
-  if (list.length) ctx.fillText('VỪA ĐOÁN', 60, y0 - 26);
+  if (list.length) ctx.fillText('VỪA ĐOÁN', 60, y0 - 44);
   list.forEach((f, i) => {
     const y = y0 + i * 58;
     ctx.globalAlpha = 1 - i * 0.18;

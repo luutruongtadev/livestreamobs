@@ -182,7 +182,14 @@ setInterval(() => {
 
 // ---------------- HTTP API ----------------
 app.use(express.json({ limit: '64kb' }));
-app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(ROOT, 'public'), {
+  extensions: ['html'],
+  // HTML/JS/CSS: luôn hỏi lại server (ETag) để điện thoại / OBS nhận ngay bản mới sau mỗi lần deploy
+  setHeaders(res, file) {
+    if (/\.(html|js|css|webmanifest|json)$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
+    else res.setHeader('Cache-Control', 'public, max-age=86400');
+  },
+}));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
