@@ -12,6 +12,7 @@ import { ClaudeScorer, SimpleScorer } from './scorer.js';
 import { WordBank, claudeClientFromEnv } from './wordbank.js';
 import { WordSetStore } from './wordsets.js';
 import { SetGenerator } from './setgen.js';
+import { PauseController } from './pause.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -82,6 +83,8 @@ const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.
 let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
+// Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
+const pauser = new PauseController([wg, tug], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -118,7 +121,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), pause: pauser.status() });
 });
 
 function ingest(ev) {
@@ -172,7 +175,20 @@ tiktok.on('event', ingest);
 tiktok.on('status', (status) => {
   console.log(`[tiktok] ${status.state}: ${status.message}`);
   broadcast({ type: 'status', status });
+  if (pauser.setOnline(status.state === 'connected')) pauseBroadcast();
 });
+
+function pauseBroadcast() {
+  const p = pauser.status();
+  console.log(`[pause] ${p.paused ? 'tạm dừng (' + p.reason + ')' : 'đang chạy'}`);
+  broadcast({ type: 'pause', pause: p });
+  wgBroadcast([]);
+  tugBroadcast([]);
+}
+
+app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
+app.post('/api/resume', requireAdmin, (_req, res) => { if (pauser.resume()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
+app.get('/api/pause', (_req, res) => res.json(pauser.status()));
 
 setInterval(() => {
   const fx = temple.prunePlatforms();

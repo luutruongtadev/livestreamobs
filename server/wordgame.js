@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { canon, isExact } from './scorer.js';
+import { makePausable } from './pause.js';
 
 /** Tên hiển thị → chuỗi ô chữ: bỏ dấu nháy, chấm, & ... thành khoảng trắng ("Kai'Sa" → "kai sa"). */
 export const toSecret = (name) => canon(String(name || '').replace(/[^\p{L}\p{N} ]+/gu, ' '));
@@ -144,7 +145,7 @@ export class WordGame extends EventEmitter {
     this.hintLevel = 0;
     this.revealedIdx = new Set(); // vị trí chữ cái đã lộ (đánh số liên tục, bỏ khoảng trắng)
     this.giftCounters = {}; // id luật quà → số món đã gom trong vòng
-    this.startedAt = this.now();
+    this.startedAt = this.clock();
     this.endsAt = this.startedAt + this.cfg.roundSeconds * 1000;
     this.guesses = new Map(); // canon -> { word, score, pending, by, at, count, source }
     this.feed = [];
@@ -190,8 +191,12 @@ export class WordGame extends EventEmitter {
 
   handle(ev) {
     this.lastReject = null; // lý do bỏ qua bình luận gần nhất (để trang admin hiển thị)
+    if (this.paused) {
+      if (ev.type === 'comment') this.lastReject = this.pauseReason === 'offline' ? 'Game đang tạm dừng vì chưa live (bấm ▶ Tiếp tục để thử)' : 'Game đang tạm dừng';
+      return [];
+    }
     if (this.phase !== 'playing') {
-      if (ev.type === 'comment') this.lastReject = `Đang nghỉ giữa hai vòng (còn ${Math.max(0, Math.ceil((this.nextAt - this.now()) / 1000))} giây)`;
+      if (ev.type === 'comment') this.lastReject = `Đang nghỉ giữa hai vòng (còn ${Math.max(0, Math.ceil((this.nextAt - this.clock()) / 1000))} giây)`;
       return [];
     }
     const user = ev.user;
@@ -202,7 +207,7 @@ export class WordGame extends EventEmitter {
       this.lastReject = `Không tính là từ đoán: tối đa ${this.cfg.maxGuessWords} tiếng / ${this.cfg.maxGuessChars} ký tự, phải có chữ cái, không chứa link`;
       return [];
     }
-    const t = this.now();
+    const t = this.clock();
     if (t - (this.lastGuessAt.get(user.id) ?? -Infinity) < this.cfg.cooldownSec * 1000) {
       this.lastReject = `Người này vừa đoán, mỗi người 1 từ / ${this.cfg.cooldownSec} giây`;
       return [];
@@ -294,7 +299,7 @@ export class WordGame extends EventEmitter {
     }
     if (rule.action === 'time') {
       const add = (rule.seconds || 60) * 1000;
-      this.endsAt = Math.min(this.endsAt + add, this.now() + this.cfg.roundSeconds * 1000);
+      this.endsAt = Math.min(this.endsAt + add, this.clock() + this.cfg.roundSeconds * 1000);
       this.dirty = true;
       return [{ ...base, seconds: rule.seconds || 60 }];
     }
@@ -317,7 +322,7 @@ export class WordGame extends EventEmitter {
   }
 
   pushFeed(fx) {
-    this.feed.unshift({ ...fx, at: this.now() });
+    this.feed.unshift({ ...fx, at: this.clock() });
     this.feed.length = Math.min(this.feed.length, 8);
   }
 
@@ -328,20 +333,26 @@ export class WordGame extends EventEmitter {
     w.wins++;
     if (by.name) w.name = by.name;
     if (by.avatar) w.avatar = by.avatar;
-    this.guesses.set(this.secret, { word: this.secret, score: 100, pending: false, by, at: this.now(), count: 1, source: 'exact' });
-    this.nextAt = this.now() + this.cfg.breakSeconds * 1000;
+    this.guesses.set(this.secret, { word: this.secret, score: 100, pending: false, by, at: this.clock(), count: 1, source: 'exact' });
+    this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, seconds: Math.round((this.now() - this.startedAt) / 1000) }];
+    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
   }
 
   /** Admin: đang chơi thì kết thúc vòng (lộ từ), đang nghỉ thì sang vòng mới. */
   skip() {
-    if (this.phase === 'playing') { this.endsAt = this.now(); return this.tick(); }
+    if (this.phase === 'playing') { this.endsAt = this.clock(); return this.step(); }
     return this.startRound();
   }
 
   tick() {
-    const t = this.now();
+    if (this.paused) return [];
+    return this.step();
+  }
+
+  /** Một bước của đồng hồ (skip của admin vẫn chạy được khi đang tạm dừng). */
+  step() {
+    const t = this.clock();
     if (this.phase === 'playing') {
       if (t >= this.endsAt) {
         this.phase = 'ended';
@@ -359,7 +370,7 @@ export class WordGame extends EventEmitter {
   }
 
   snapshot() {
-    const t = this.now();
+    const t = this.clock();
     const ranked = [...this.guesses.values()]
       .filter((g) => !g.pending)
       .sort((a, b) => b.score - a.score || a.at - b.at)
@@ -369,6 +380,8 @@ export class WordGame extends EventEmitter {
     return {
       round: this.roundNo,
       phase: this.phase,
+      paused: !!this.paused,
+      pauseReason: this.pauseReason || null,
       remaining: Math.max(0, Math.ceil(((ended ? this.nextAt : this.endsAt) - t) / 1000)),
       // độ dài từng tiếng của từ bí mật (không lộ chữ), lộ hẳn khi hết vòng
       pattern: this.secret.split(' ').map((s) => [...s].length),
@@ -402,3 +415,4 @@ export class WordGame extends EventEmitter {
   }
 }
 
+makePausable(WordGame);

@@ -213,9 +213,9 @@ function drawHeader() {
   ctx.textAlign = 'left'; ctx.font = font(900, 32); ctx.fillStyle = '#c7d2fe';
   ctx.fillText(fitText(`🔤 ${(G.title || 'Đoán từ').toUpperCase()} · VÒNG ${G.round}`, W - 400), 76, y + 37);
   const m = Math.floor(G.remaining / 60), s = String(G.remaining % 60).padStart(2, '0');
-  const label = G.phase === 'playing' ? `⏱ ${m}:${s}` : `Vòng mới sau ${G.remaining}s`;
+  const label = G.paused ? `⏸ ${m}:${s}` : G.phase === 'playing' ? `⏱ ${m}:${s}` : `Vòng mới sau ${G.remaining}s`;
   ctx.font = font(800, 30);
-  const urgent = G.phase === 'playing' && G.remaining <= 20;
+  const urgent = !G.paused && G.phase === 'playing' && G.remaining <= 20;
   ctx.fillStyle = urgent ? (Math.floor(performance.now() / 300) % 2 ? '#f87171' : '#fff') : '#fff';
   ctx.textAlign = 'right'; ctx.fillText(label, W - 76, y + 37);
   ctx.restore();
@@ -563,12 +563,32 @@ function frame(now) {
   drawEnd(t);
   drawBanner(dt);
   drawConfetti(dt);
+  drawPaused(t);
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.5})`; ctx.fillRect(0, 0, W, H); }
   if (opt.debug) {
     ctx.font = font(700, 20); ctx.textAlign = 'left';
     outlined(`${Math.round(fps)} fps · ws ${wsOk ? 'OK' : 'mất'}`, 20, 40, wsOk ? '#9f9' : '#f88', '#000', 4);
   }
   requestAnimationFrame(frame);
+}
+
+// Game tạm dừng (chưa live / admin bấm dừng): phủ mờ + thẻ thông báo, đồng hồ đứng yên
+function drawPaused(t) {
+  if (!G?.paused) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(5,8,25,.55)'; ctx.fillRect(0, 0, W, H);
+  const w = 760, h = 230, x = (W - w) / 2, y = H / 2 - h / 2;
+  rr(x, y, w, h, 40);
+  ctx.fillStyle = 'rgba(15,18,60,.95)'; ctx.fill();
+  ctx.strokeStyle = '#facc15'; ctx.lineWidth = 4; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.75 + 0.25 * Math.sin(t * 3);
+  ctx.font = font(900, 64); ctx.fillStyle = '#facc15';
+  ctx.fillText('⏸ TẠM DỪNG', W / 2, y + 85);
+  ctx.globalAlpha = 1;
+  ctx.font = font(700, 32); ctx.fillStyle = '#e0e7ff';
+  ctx.fillText(G.pauseReason === 'offline' ? 'Chờ kênh lên live…' : 'Tạm nghỉ một chút, quay lại ngay!', W / 2, y + 165);
+  ctx.restore();
 }
 
 connect();

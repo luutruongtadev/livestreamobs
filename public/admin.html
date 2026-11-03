@@ -48,6 +48,12 @@
         <button id="btnDisconnect" class="ghost">Ngắt</button>
       </div>
       <p class="muted">Chủ kênh phải đang phát live. Nếu chưa live, hệ thống sẽ tự thử lại. Người xem: <b id="viewers">0</b></p>
+      <div class="row" style="margin-top:8px;align-items:center">
+        <b id="pauseText">Game: …</b>
+        <button id="btnPause" class="ghost">⏸ Tạm dừng game</button>
+        <button id="btnResume">▶ Tiếp tục</button>
+      </div>
+      <p class="muted">Đoán từ &amp; Kéo co tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
     </section>
 
     <section>
@@ -232,6 +238,12 @@
     if (s.username && !$('username').value) $('username').value = s.username;
   }
 
+  function renderPause(p) {
+    if (!p) return;
+    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
+    $('pauseText').style.color = p.paused ? '#facc15' : '#4ade80';
+  }
+
   function renderState(st) {
     const c = st.counts;
     const items = [
@@ -246,7 +258,8 @@
     const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     s.onmessage = (m) => {
       const msg = JSON.parse(m.data);
-      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); }
+      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); renderPause(msg.pause); }
+      if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
       if (msg.type === 'state') renderState(msg.state);
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }
       if (msg.type === 'fx') for (const e of msg.effects) log(`${e.type} · ${e.user?.name || ''} ${e.text ? '“' + e.text + '”' : ''} +${e.merit ?? 0}`);
@@ -256,6 +269,8 @@
   ws();
 
   $('btnConnect').onclick = () => api('/api/connect', { username: $('username').value }).then(() => log('Đang kết nối…')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnPause').onclick = () => api('/api/pause').then((r) => renderPause(r.pause)).catch((e) => log('Lỗi: ' + e.message));
+  $('btnResume').onclick = () => api('/api/resume').then((r) => renderPause(r.pause)).catch((e) => log('Lỗi: ' + e.message));
   $('btnDisconnect').onclick = () => api('/api/disconnect').catch((e) => log('Lỗi: ' + e.message));
   $('btnReset').onclick = () => { if (confirm('Xoá toàn bộ công đức và bảng vàng?')) api('/api/reset').then(() => log('Đã reset')).catch((e) => log('Lỗi: ' + e.message)); };
 

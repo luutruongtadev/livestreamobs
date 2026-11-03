@@ -103,6 +103,15 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Không có API key → dùng 40 từ mẫu trong `config.json` → `wordgame.words`.
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
+### ⏸ Tạm dừng game (Đoán từ & Kéo co)
+
+- **Tự tạm dừng khi chưa live**: khi server chưa kết nối được phiên live TikTok, cả hai game đứng yên —
+  đồng hồ không chạy, không tự mở gợi ý, không sang vòng mới nên **không tốn từ bí mật**. Kênh lên live là game tự chạy tiếp
+  từ đúng chỗ đã dừng. Màn hình hiện “⏸ TẠM DỪNG — Chờ kênh lên live…”.
+- **Nút trong admin** (mục Kết nối TikTok Live): ⏸ Tạm dừng game / ▶ Tiếp tục — dùng bất cứ lúc nào, kể cả đang live.
+  Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
+- Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
+
 ## 🪢 Game Kéo co (`/keoco`)
 
 Game kéo co hai đội, mỗi ván 3 phút, dùng chung server / admin / cách triển khai với Chánh điện.

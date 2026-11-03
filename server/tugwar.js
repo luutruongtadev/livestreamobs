@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCommandMatcher } from './text.js';
+import { makePausable } from './pause.js';
 
 export const TUG_DEFAULTS = {
   roundSeconds: 180,
@@ -71,7 +72,7 @@ export class TugWar {
     this.roundNo++;
     this.phase = 'playing';
     this.pos = 0;
-    this.startedAt = this.now();
+    this.startedAt = this.clock();
     this.endsAt = this.startedAt + this.cfg.roundSeconds * 1000;
     this.players = new Map(); // id -> { id, name, avatar, team, power, diamonds }
     this.teamPower = { [this.cfg.teams[0].id]: 0, [this.cfg.teams[1].id]: 0 };
@@ -117,7 +118,7 @@ export class TugWar {
   }
 
   handle(ev) {
-    if (this.phase !== 'playing') return [];
+    if (this.paused || this.phase !== 'playing') return [];
     const effects = [];
     const pw = this.cfg.power;
     const user = ev.user;
@@ -192,22 +193,23 @@ export class TugWar {
     for (const p of this.players.values()) if (!winner || p.team === winner) if (!mvp || p.power > mvp.power) mvp = p;
     this.phase = 'ended';
     this.result = { winner, mvp: mvp && mvp.power > 0 ? { ...pub(mvp), power: mvp.power } : null, pos: this.pos };
-    this.history.push({ round: this.roundNo, winner, at: this.now() });
-    this.nextAt = this.now() + this.cfg.breakSeconds * 1000;
+    this.history.push({ round: this.roundNo, winner, at: this.clock() });
+    this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
     return [{ type: 'tug_end', round: this.roundNo, ...this.result, throne: this.throne }];
   }
 
   /** Gọi mỗi ~250ms: hết giờ thì kết thúc, hết giờ nghỉ thì sang ván mới. */
   tick() {
-    const t = this.now();
+    if (this.paused) return [];
+    const t = this.clock();
     if (this.phase === 'playing' && t >= this.endsAt) return this.finish();
     if (this.phase === 'ended' && t >= this.nextAt) return this.startRound();
     return [];
   }
 
   snapshot() {
-    const t = this.now();
+    const t = this.clock();
     const teams = this.cfg.teams.map((tm) => {
       const members = [...this.players.values()].filter((p) => p.team === tm.id).sort((x, y) => y.power - x.power);
       return {
@@ -219,6 +221,8 @@ export class TugWar {
     return {
       round: this.roundNo,
       phase: this.phase,
+      paused: !!this.paused,
+      pauseReason: this.pauseReason || null,
       pos: this.pos,
       winDistance: this.cfg.winDistance,
       remaining: Math.max(0, Math.ceil(((this.phase === 'playing' ? this.endsAt : this.nextAt) - t) / 1000)),
@@ -235,3 +239,5 @@ export class TugWar {
 function pub(p) {
   return { id: p.id, name: p.name, avatar: p.avatar };
 }
+
+makePausable(TugWar);
