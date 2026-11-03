@@ -428,6 +428,8 @@ export class Race {
       podium: this.podium,
       bananaMin: this.cfg.banana.minDiamonds,
       bombMin: this.cfg.bomb.minDiamonds,
+      roseCombo: this.cfg.rose.comboEvery,
+      tips: Array.isArray(this.cfg.tips) ? this.cfg.tips.slice(0, 10) : [], // mẹo tuỳ chỉnh thêm (config race.tips)
       giftTiers: [
         { id: 'rose', icon: '🌹', min: 1, label: `Tăng tốc · ${this.cfg.rose.comboEvery} bông = mưa hoa` },
         { id: 'heart', icon: '💖', min: this.cfg.heart.minDiamonds, label: 'Tăng tốc + hồi phục' },

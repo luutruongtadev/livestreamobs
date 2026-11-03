@@ -738,30 +738,97 @@ function drawCountdown() {
   }
 }
 
-function drawGuide() {
-  const chips = [
-    `💬 "${R.joinWord}" = vào đua (tối đa ${R.maxRacers})`, '💬 Bình luận = chạy', '❤️ Tim = tăng tốc',
-    '🔢 Gõ số làn = cổ vũ',
+// ---------------- mẹo xoay vòng ----------------
+const TIP_SECONDS = 6;
+const tipState = { idx: 0, at: 0, key: '' };
+
+function tipList() {
+  const tier = Object.fromEntries((R.giftTiers || []).map((t) => [t.id, t.min]));
+  const ok = R.joinWord || 'OK';
+  const join = [
+    { icon: '💬', text: `Comment "${ok}" để nhận một con vật và một làn đua — mỗi vòng tối đa ${R.maxRacers} người`, color: '#facc15' },
+    { icon: '📝', text: `Hết chỗ hoặc đang đua? Comment "${ok}" để GIỮ CHỖ vòng sau, vòng mới được vào trước`, color: '#a5b4fc' },
+    { icon: '📣', text: `Không đua? Gõ SỐ LÀN (1–${R.maxRacers}) hoặc tên con vật để cổ vũ — tim và quà của bạn tính cho con đó`, color: '#93c5fd' },
   ];
+  const play = [
+    { icon: '💬', text: 'Người đua: BÌNH LUẬN LIÊN TỤC để con mình chạy (mỗi giây 1 lần)', color: '#fff' },
+    { icon: '❤️', text: 'Thả tim = tăng tốc — thả càng nhiều, chạy càng nhanh!', color: '#fb7185' },
+    { icon: '🌹', text: `1 bông hồng = tăng tốc · đủ ${R.roseCombo || 10} bông cho cùng con = MƯA HOA phóng xa`, color: '#fb7185' },
+    tier.heart && { icon: '💖', text: `Bị chuối / bom làm choáng? Tặng quà ${tier.heart} xu để HỒI PHỤC ngay`, color: '#f9a8d4' },
+    tier.shield && { icon: '🛡️', text: `Đang dẫn đầu? Tặng ${tier.shield} xu bật KHIÊN 20 giây, chặn được chuối và bom`, color: '#7dd3fc' },
+    tier.banana && { icon: '🍌', text: `Tặng ${tier.banana} xu NÉM CHUỐI vào con đang dẫn đầu (không bao giờ trúng con mình)`, color: '#facc15' },
+    tier.bomb && { icon: '💣', text: `Tặng ${tier.bomb} xu NÉM BOM: con dẫn đầu nổ tung, bị đẩy lùi và choáng`, color: '#fb923c' },
+    tier.rocket && { icon: '🚀', text: `Tặng ${tier.rocket} xu SIÊU TỐC: nhanh gấp đôi và né mọi chuối, bom`, color: '#fdba74' },
+    { icon: '🏆', text: `Về đích đầu tiên là thắng — hết ${R.raceSeconds} giây thì con xa nhất thắng · lên bảng Vua tốc độ`, color: '#fde68a' },
+    { icon: '🔁', text: 'Chia sẻ live hoặc theo dõi kênh cũng đẩy con của bạn lên một đoạn dài!', color: '#86efac' },
+  ].filter(Boolean);
+  const custom = (R.tips || []).map((t) => ({ icon: '💡', text: String(t), color: '#fff' }));
+  if (R.phase === 'lobby' || R.phase === 'ended') {
+    // lúc chờ: xen kẽ mẹo tham gia với mẹo chơi
+    const out = [];
+    play.concat(custom).forEach((t, i) => { out.push(join[i % join.length], t); });
+    return out;
+  }
+  return [...play, join[1], join[2], ...custom];
+}
+
+/** Chia chữ thành tối đa 2 dòng vừa bề ngang. */
+function wrap2(text, maxW) {
+  const words = text.split(' ');
+  let a = '';
+  for (let i = 0; i < words.length; i++) {
+    const t = a ? a + ' ' + words[i] : words[i];
+    if (ctx.measureText(t).width > maxW && a) return [a, fitText(words.slice(i).join(' '), maxW)];
+    a = t;
+  }
+  return [a];
+}
+
+function drawTip(y) {
+  const list = tipList();
+  if (!list.length) return y;
+  const now = performance.now() / 1000;
+  const key = R.phase === 'racing' || R.phase === 'countdown' ? 'play' : 'join';
+  if (key !== tipState.key) { tipState.key = key; tipState.idx = 0; tipState.at = now; } // đổi pha: bắt đầu lại từ đầu
+  if (now - tipState.at > TIP_SECONDS) { tipState.idx = (tipState.idx + 1) % list.length; tipState.at = now; }
+  const tip = list[tipState.idx % list.length];
+  const age = now - tipState.at;
+  const k = Math.min(ease(age / 0.4), ease((TIP_SECONDS - age) / 0.4)); // trượt vào / mờ ra
+  const h = 104, x = 40, w = W - 80;
   ctx.save();
-  ctx.font = font(700, 23); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-  let y = TRACK_BOT + 82, x = 40;
-  const rows = [[]];
-  for (const c of chips) {
-    const w = ctx.measureText(c).width + 30;
-    if (x + w > W - 40) { rows.push([]); x = 40; }
-    rows.at(-1).push({ c, w }); x += w + 10;
+  rr(x, y, w, h, 26); ctx.fillStyle = 'rgba(10,14,40,.86)'; ctx.fill();
+  ctx.strokeStyle = tip.color; ctx.lineWidth = 3; ctx.stroke();
+  // nhãn MẸO + thanh thời gian
+  ctx.font = font(900, 18); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  rr(x + 18, y - 14, 92, 28, 14); ctx.fillStyle = tip.color; ctx.fill();
+  ctx.fillStyle = '#111827'; ctx.fillText('💡 MẸO', x + 30, y + 1);
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(x + 26, y + h - 10, w - 52, 4);
+  ctx.fillStyle = tip.color; ctx.fillRect(x + 26, y + h - 10, (w - 52) * Math.min(1, age / TIP_SECONDS), 4);
+  // nội dung
+  ctx.globalAlpha = k;
+  ctx.translate((1 - k) * 40, 0);
+  ctx.fillStyle = '#000';
+  ctx.font = `52px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(tip.icon, x + 56, y + h / 2 - 2);
+  ctx.font = font(800, 27); ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+  const lines = wrap2(tip.text, w - 130);
+  lines.forEach((ln, i) => ctx.fillText(ln, x + 100, y + h / 2 - 2 + (i - (lines.length - 1) / 2) * 34));
+  // chấm vị trí
+  ctx.restore();
+  ctx.save();
+  const n = Math.min(list.length, 14), dx = 14;
+  for (let i = 0; i < n; i++) {
+    ctx.beginPath(); ctx.arc(x + w - 30 - (n - 1 - i) * dx, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = i === tipState.idx % n ? tip.color : 'rgba(255,255,255,.35)'; ctx.fill();
   }
-  for (const row of rows) {
-    const total = row.reduce((s, i) => s + i.w, 0) + (row.length - 1) * 10;
-    let cx = (W - total) / 2;
-    for (const { c, w } of row) {
-      rr(cx, y - 22, w, 44, 22); ctx.fillStyle = 'rgba(10,14,40,.8)'; ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.fillText(c, cx + w / 2, y + 1);
-      cx += w + 10;
-    }
-    y += 54;
-  }
+  ctx.restore();
+  return y + h + 26;
+}
+
+function drawGuide() {
+  ctx.save();
+  let y = drawTip(TRACK_BOT + 66) + 18;
   // bảng mức quà: mỗi mức một tác dụng
   const tiers = R.giftTiers || [];
   if (tiers.length) {

@@ -129,6 +129,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   | 🚀 299 xu | **Siêu tốc** 6 giây: chạy nhanh gấp đôi, bật dậy nếu đang choáng, **né** mọi chướng ngại vật |
 
   Mọi quà đều đẩy thêm quãng đường (1 xu = 12 đơn vị, đường dài 1000, một lần tặng tối đa 320). Mức xu chỉnh trong khối `race` của `config.json`.
+- **Thanh 💡 MẸO tự xoay vòng** dưới đường đua (6 giây / mẹo): lúc chờ thì xen kẽ mẹo vào đua, giữ chỗ, cổ vũ; lúc đua thì xoay qua bình luận, tim, từng mức quà, khiên, chuối, bom, siêu tốc. Thêm mẹo riêng bằng `"tips": ["…"]` trong khối `race` của `config.json`.
 - Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
 - **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để cổ vũ (đẩy nhẹ); tim / quà sau đó đều tính cho con mình đang cổ vũ.
 - Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
