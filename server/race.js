@@ -25,10 +25,11 @@ export const RACE_DEFAULTS = {
   lobbySeconds: 30, // thời gian đăng ký (comment OK); hết giờ thì thêm bot cho đủ chỗ
   fullStartSeconds: 5, // đủ người thì xuất phát sau ngần này giây
   countdownSeconds: 4,
-  raceSeconds: 90, // hết giờ thì con dẫn đầu thắng
+  raceSeconds: 90, // sau 90 giây chưa ai về đích → NƯỚC RÚT. Vòng chỉ kết thúc khi có con chạm vạch đích
+  sprintMultiplier: 3, // nước rút: tốc độ nền nhân lên để chắc chắn có con về đích
   breakSeconds: 12,
   track: 1000, // chiều dài đường đua (đơn vị)
-  baseSpeed: 8, // đơn vị / giây khi không ai làm gì (≈ không bao giờ tự về đích)
+  baseSpeed: 8, // đơn vị / giây khi không ai làm gì
   dashSpeed: 260, // tốc độ "xả" lượng tăng tốc tích luỹ, đơn vị / giây
   boost: {
     cheerCooldownSec: 2, // khán giả gõ số làn để chọn con cổ vũ (chỉ chọn, không đẩy)
@@ -50,7 +51,7 @@ export const RACE_DEFAULTS = {
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
   aimSeconds: 30, // comment "ném 3" → quà chuối / bom trong 30 giây tới bay vào con làn 3
   // Bot lấp chỗ trống: tự chạy theo từng đợt ngẫu nhiên (≈ +4 đơn vị/giây) để người thật thả tim / tặng quà là vượt được
-  bots: { names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'], burstPerSec: 0.5, burstMin: 4, burstMax: 12 },
+  bots: { names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'], burstPerSec: 0.5, burstMin: 4, burstMax: 12 }, // bot ≈ 12 đơn vị/giây → về đích ~80–90 giây
 };
 
 const pub = (u) => ({ id: u.id, name: u.name, avatar: u.avatar || null });
@@ -159,7 +160,8 @@ export class Race {
   go() {
     this.phase = 'racing';
     this.startedAt = this.lastTickAt = this.clock();
-    this.endsAt = this.startedAt + this.cfg.raceSeconds * 1000;
+    this.endsAt = this.startedAt + this.cfg.raceSeconds * 1000; // mốc bắt đầu nước rút
+    this.sprint = false;
     this.dirty = true;
     return [{ type: 'race_go' }];
   }
@@ -203,6 +205,12 @@ export class Race {
     const dt = Math.min(1, Math.max(0, (t - this.lastTickAt) / 1000));
     this.lastTickAt = t;
     const fx = [];
+    if (!this.sprint && t >= this.endsAt) { // hết 2 phút mà chưa ai về đích → nước rút
+      this.sprint = true;
+      this.dirty = true;
+      fx.push({ type: 'race_sprint', multiplier: this.cfg.sprintMultiplier });
+    }
+    const sprint = this.sprint ? this.cfg.sprintMultiplier : 1;
     for (const r of this.racers) {
       if (r.finishedAt != null) continue;
       if (r.stunUntil > t) continue;
@@ -213,7 +221,7 @@ export class Race {
       const turbo = r.turboUntil > t ? 2 : 1; // siêu tốc: xả tăng tốc nhanh gấp đôi
       const dash = Math.min(r.pending, this.cfg.dashSpeed * turbo * dt);
       r.pending -= dash;
-      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * turbo * 2 ** (turbo - 1) * dt * (0.6 + this.random() * 0.8) + dash);
+      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * sprint * turbo * 2 ** (turbo - 1) * dt * (0.6 + this.random() * 0.8) + dash);
       if (r.pos >= this.cfg.track) {
         r.finishedAt = t;
         fx.push({ type: 'race_arrive', racer: this.pubRacer(r), place: this.racers.filter((x) => x.finishedAt != null).length });
@@ -222,8 +230,8 @@ export class Race {
     if (fx.length) this.dirty = true;
     const done = this.racers.filter((r) => r.finishedAt != null).length;
     // con đầu tiên về đích là thắng; chờ thêm chút cho đủ hạng 2–3 là không cần thiết trên live → kết thúc ngay
+    // chỉ kết thúc khi có con chạm vạch đích
     if (done >= 1) return [...fx, ...this.finish('finish')];
-    if (t >= this.endsAt) return [...fx, ...this.finish('timeout')];
     return fx;
   }
 
@@ -460,6 +468,8 @@ export class Race {
       pauseReason: this.pauseReason || null,
       remaining: Math.max(0, Math.ceil((deadline - t) / 1000)),
       raceSeconds: this.cfg.raceSeconds,
+      sprint: this.phase === 'racing' && !!this.sprint,
+      elapsed: this.phase === 'racing' ? Math.max(0, Math.floor((t - this.startedAt) / 1000)) : 0,
       maxRacers: this.cfg.maxRacers,
       minHumans: this.cfg.minHumans,
       joinWord: this.cfg.joinKeywords[0].toUpperCase(),

@@ -95,16 +95,24 @@ test('quà ≥ 30 xu ném chuối làm con dẫn đầu (không phải con mình
   assert.equal(a.pos, before);
 });
 
-test('hết giờ: con xa nhất thắng; người đăng ký trước tự vào vòng sau', () => {
-  const { g, clock } = mk({ baseSpeed: 1 });
+test('hết giờ chưa ai về đích: không kết thúc mà vào NƯỚC RÚT, chỉ kết thúc khi chạm vạch đích', () => {
+  const { g, clock } = mk({ baseSpeed: 1, sprintMultiplier: 40 });
   say(g, 'a', 'ok'); say(g, 'b', 'ok');
   g.skip(); g.skip();
   say(g, 'c', 'ok'); // đang đua → vòng sau
   g.handle({ type: 'like', user: u('a'), count: 5 });
-  const out = run(g, clock, 61_000);
+  let out = run(g, clock, 59_000);
+  assert.equal(g.phase, 'racing');
+  assert.equal(g.snapshot().sprint, false);
+  out = run(g, clock, 1_500);
+  assert.ok(out.some((e) => e.type === 'race_sprint'));
+  assert.equal(g.phase, 'racing'); // chưa ai về đích → chưa kết thúc
+  assert.equal(g.snapshot().sprint, true);
+  out = run(g, clock, 30_000);
   const fin = out.find((e) => e.type === 'race_finish');
-  assert.equal(fin.reason, 'timeout');
+  assert.equal(fin.reason, 'finish');
   assert.equal(fin.podium[0].id, 'a');
+  assert.ok(g.racers.find((r) => r.id === 'a').pos >= 1000);
   const fx = run(g, clock, 10_000);
   assert.ok(fx.some((e) => e.type === 'race_join' && e.racer.id === 'c' && e.fromQueue));
 });

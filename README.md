@@ -134,7 +134,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Thanh 💡 MẸO tự xoay vòng** dưới đường đua (6 giây / mẹo): lúc chờ thì xen kẽ mẹo vào đua, giữ chỗ, cổ vũ; lúc đua thì xoay qua bình luận, tim, từng mức quà, khiên, chuối, bom, siêu tốc. Thêm mẹo riêng bằng `"tips": ["…"]` trong khối `race` của `config.json`.
 - Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
 - **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để chọn con cổ vũ (kể cả bot); tim / quà sau đó đều tính cho con đó.
-- Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
+- Vòng **chỉ kết thúc khi có con chạm vạch đích**. Sau 90 giây mà chưa ai về đích → **⚡ NƯỚC RÚT**: tốc độ nền của tất cả nhân 3 cho tới khi có con về đích (chỉnh `raceSeconds`, `sprintMultiplier`). Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
 - **Lưu thành tích theo người** (số lần thắng, lên bục, số vòng đã đua) vào `data/race.json` → bảng 🏆 Vua tốc độ, không mất khi deploy.
 - Tự tạm dừng khi chưa live như Đoán từ / Kéo co. Admin có nút giả lập (OK, bình luận, cổ vũ, tim, quà, chuối) và ⏭ xuất phát ngay / kết thúc / vòng mới.
 - Phát bằng OBS: `http://localhost:8686/duathu?phone=0`. Điện thoại: `https://<tên miền>/duathu?phone=1`. Chỉnh luật trong khối `race` của `config.json`.

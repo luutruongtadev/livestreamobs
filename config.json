@@ -277,6 +277,7 @@
     "joinKeywords": ["ok", "oke", "okay", "oki", "okie"],
     "lobbySeconds": 30,
     "raceSeconds": 90,
+    "sprintMultiplier": 3,
     "breakSeconds": 12,
     "boost": { "like": 2, "perDiamond": 12, "maxGift": 320 },
     "banana": { "minDiamonds": 30, "stunSeconds": 2.5 },

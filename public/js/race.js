@@ -314,6 +314,11 @@ function handle(e) {
       });
       break;
     }
+    case 'race_sprint':
+      fx.flash = Math.max(fx.flash, 0.5); fx.shake = Math.max(fx.shake, 0.6);
+      sound.play('bell'); sound.play('levelup');
+      queueAlert({ title: '⚡ NƯỚC RÚT! ⚡', sub: `Chưa ai về đích — tất cả chạy nhanh gấp ${e.multiplier}, thả tim dồn dập nào!`, prio: 10, dur: 4, color: '#facc15' });
+      break;
     case 'race_arrive':
       sound.play('levelup');
       break;
@@ -532,6 +537,7 @@ function drawRacer(r, t, dt) {
     burst(g.x - 55 * s, g.y - 40 * s, 2, { speed: 260 * s, color: TIER_FX.rocket.parts, size: 16 * s, g: -40, angle: Math.PI, spread: 0.5, decay: 2.2, grow: -10 });
     trail.set(r.id, 1);
   }
+  if (R.sprint && running) trail.set(r.id, Math.max(trail.get(r.id) || 0, 0.6));
   // vệt tăng tốc
   if (tr > 0.05 && running) {
     ctx.strokeStyle = `rgba(255,255,255,${tr * 0.8})`; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
@@ -706,10 +712,10 @@ function drawHeader() {
   const label = R.paused ? `⏸ ${m}:${s}`
     : R.phase === 'lobby' ? `⏳ Xuất phát sau ${R.remaining}s`
     : R.phase === 'countdown' ? '🚦 Chuẩn bị!'
-    : R.phase === 'racing' ? `⏱ ${m}:${s}`
+    : R.phase === 'racing' ? (R.sprint ? '⚡ NƯỚC RÚT!' : `⏱ ${m}:${s} tới nước rút`)
     : `Vòng mới sau ${R.remaining}s`;
   ctx.font = font(800, 30);
-  const urgent = !R.paused && R.phase === 'racing' && R.remaining <= 10;
+  const urgent = !R.paused && R.phase === 'racing' && (R.sprint || R.remaining <= 10);
   ctx.fillStyle = urgent ? (Math.floor(performance.now() / 300) % 2 ? '#f87171' : '#fff') : '#fff';
   ctx.textAlign = 'right'; ctx.fillText(label, W - 76, y + 37);
   ctx.restore();
@@ -783,7 +789,7 @@ function tipList() {
     tier.banana && { icon: '🎯', text: `CHỌN MỤC TIÊU: comment "ném 3" (hoặc "chuối 3", "bom 3") rồi tặng chuối / bom → bay vào con làn 3`, color: '#f87171' },
     tier.bomb && { icon: '💣', text: `Tặng ${tier.bomb} xu NÉM BOM: con dẫn đầu nổ tung, bị đẩy lùi và choáng`, color: '#fb923c' },
     tier.rocket && { icon: '🚀', text: `Tặng ${tier.rocket} xu SIÊU TỐC: nhanh gấp đôi và né mọi chuối, bom`, color: '#fdba74' },
-    { icon: '🏆', text: `Về đích đầu tiên là thắng — hết ${R.raceSeconds} giây thì con xa nhất thắng · lên bảng Vua tốc độ`, color: '#fde68a' },
+    { icon: '🏆', text: `Chạm vạch đích đầu tiên là thắng · sau ${R.raceSeconds} giây chưa ai về thì ⚡ NƯỚC RÚT: tất cả chạy gấp 3`, color: '#fde68a' },
     { icon: '🔁', text: 'Chia sẻ live hoặc theo dõi kênh cũng đẩy con của bạn lên một đoạn dài!', color: '#86efac' },
   ].filter(Boolean);
   const custom = (R.tips || []).map((t) => ({ icon: '💡', text: String(t), color: '#fff' }));
