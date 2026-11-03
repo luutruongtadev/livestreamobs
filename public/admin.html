@@ -96,6 +96,11 @@
 
     <section>
       <h2>🔤 Đoán từ</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label class="muted" for="wgSet">Bộ từ:</label>
+        <select id="wgSet"></select>
+        <button id="btnWgSet" class="ghost">Chuyển bộ từ (bắt đầu vòng mới)</button>
+      </div>
       <p class="muted" id="wgSecret">Từ bí mật: (đang tải…)</p>
       <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
       <div class="row" style="margin-bottom:10px">
@@ -238,7 +243,15 @@
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
   let wgPoll = null;
   const wgShow = (r) => {
-    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · Từ bí mật: ${r.wg.secret}`;
+    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · ${r.wg.title} · Đáp án: ${r.wg.secret}`;
+    if (r?.sets) {
+      const sel = $('wgSet');
+      if (!sel.options.length || sel.dataset.v !== JSON.stringify(r.sets)) {
+        sel.innerHTML = r.sets.map((s) => `<option value="${s.id}">${s.title}${s.count ? ` (${s.count} từ)` : ''}</option>`).join('');
+        sel.dataset.v = JSON.stringify(r.sets);
+      }
+      sel.value = r.activeSet;
+    }
     const b = r?.bank;
     if (!b) return;
     $('wgBank').textContent = b.canGenerate
@@ -253,6 +266,7 @@
     if (b.dataset.wg === 'reset' && !confirm('Xoá bảng cao thủ đoán từ?')) return;
     wgApi(b.dataset.wg).then(() => log('Đoán từ: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
+  $('btnWgSet').onclick = () => wgApi('set', { set: $('wgSet').value }).then((r) => log('Đoán từ: chuyển sang bộ ' + r.wg.title)).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
     .catch((e) => log('Lỗi: ' + e.message));
@@ -266,7 +280,7 @@
       const r = await api('/api/simulate', { type: 'comment', text: t, name: simName() });
       const g = r.wordgame;
       const fx = g?.effects?.find((e) => e.type === 'wg_guess' || e.type === 'wg_win');
-      if (fx?.type === 'wg_win') out.textContent = `🎉 ${fx.by.name} đoán TRÚNG "${fx.secret}"!`;
+      if (fx?.type === 'wg_win') out.textContent = `🎉 ${fx.by.name} đoán TRÚNG "${fx.answer || fx.secret}"!`;
       else if (fx) out.textContent = `✓ ${fx.by.name} đoán "${fx.word}"` + (fx.score != null ? ` → ${fx.score} điểm (đã có người đoán trước)` : ' → đang chấm điểm…');
       else out.textContent = `✗ Không tính: ${g?.reject || 'không rõ lý do'}`;
       $('wgGuess').value = '';

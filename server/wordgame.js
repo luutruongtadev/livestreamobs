@@ -3,6 +3,9 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { canon, isExact } from './scorer.js';
 
+/** Tên hiển thị → chuỗi ô chữ: bỏ dấu nháy, chấm, & ... thành khoảng trắng ("Kai'Sa" → "kai sa"). */
+export const toSecret = (name) => canon(String(name || '').replace(/[^\p{L}\p{N} ]+/gu, ' '));
+
 export const WG_DEFAULTS = {
   roundSeconds: 300,
   breakSeconds: 12,
@@ -42,8 +45,12 @@ export function parseGuess(text, cfg = WG_DEFAULTS) {
  * Trò chơi đoán từ theo nghĩa. Phát sự kiện 'effects' (mảng hiệu ứng) khi có kết quả chấm điểm bất đồng bộ.
  */
 export class WordGame extends EventEmitter {
-  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null } = {}) {
+  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {} } = {}) {
     super();
+    // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
+    // Bộ "tu-vung" (mặc định) dùng kho từ do Claude sinh + config.words.
+    this.wordSets = wordSets;
+    this.activeSet = config.activeSet && (config.activeSet === 'tu-vung' || wordSets[config.activeSet]) ? config.activeSet : 'tu-vung';
     this.wordBank = wordBank; // kho từ do Claude sinh (tuỳ chọn)
     this.cfg = { ...WG_DEFAULTS, ...config };
     this.scorer = scorer;
@@ -64,6 +71,7 @@ export class WordGame extends EventEmitter {
       this.wins = s.wins || {};
       this.roundNo = s.roundNo || 0;
       this.recent = s.recent || [];
+      if (s.activeSet && (s.activeSet === 'tu-vung' || this.wordSets?.[s.activeSet])) this.activeSet = s.activeSet;
     } catch { /* chưa có */ }
   }
 
@@ -71,7 +79,7 @@ export class WordGame extends EventEmitter {
     this.scorer?.saveCache?.();
     if (!this.statePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30) }));
+    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet }));
     this.dirty = false;
   }
 
@@ -82,7 +90,30 @@ export class WordGame extends EventEmitter {
     return this.startRound();
   }
 
+  get set() { return this.activeSet !== 'tu-vung' ? this.wordSets[this.activeSet] : null; }
+
+  /** Đổi bộ từ (admin) → bắt đầu vòng mới với bộ đó. */
+  setWordSet(id) {
+    if (id !== 'tu-vung' && !this.wordSets[id]) throw new Error(`Không có bộ từ "${id}"`);
+    this.activeSet = id;
+    this.dirty = true;
+    return this.startRound();
+  }
+
+  listSets() {
+    return [
+      { id: 'tu-vung', title: 'Đoán từ (từ vựng)', count: null },
+      ...Object.entries(this.wordSets).map(([id, s]) => ({ id, title: s.title || id, count: s.words?.length || 0 })),
+    ];
+  }
+
   pickWord() {
+    if (this.set) {
+      const words = this.set.words.filter((w) => w?.word);
+      const fresh = words.filter((w) => !this.recent.includes(toSecret(w.word)));
+      const pool = fresh.length ? fresh : words;
+      return pool[Math.floor(this.random() * pool.length)];
+    }
     if (this.wordBank) return this.wordBank.next(this.recent);
     const words = this.cfg.words.filter((w) => w?.word);
     const fresh = words.filter((w) => !this.recent.includes(canon(w.word)));
@@ -94,8 +125,11 @@ export class WordGame extends EventEmitter {
     const w = word ? (typeof word === 'string' ? { word } : word) : this.pickWord();
     this.roundNo++;
     this.phase = 'playing';
-    this.secret = canon(w.word);
+    this.display = String(w.word).trim(); // tên hiển thị khi lộ đáp án (vd "Kai'Sa")
+    this.secret = toSecret(w.word);
     this.category = w.hint || '';
+    this.customHints = Array.isArray(w.hints) ? w.hints.filter(Boolean) : null; // gợi ý riêng của từ (bộ LMHT…)
+    this.aliases = Array.isArray(w.aliases) ? w.aliases : [];
     this.hintLevel = 0;
     this.revealedIdx = new Set(); // vị trí chữ cái đã lộ (đánh số liên tục, bỏ khoảng trắng)
     this.giftCounters = {}; // id luật quà → số món đã gom trong vòng
@@ -113,7 +147,18 @@ export class WordGame extends EventEmitter {
   }
 
   /** Gợi ý theo mức: 1 = chủ đề, 2 = chữ cái đầu mỗi tiếng, 3 = lộ một tiếng. */
+  get maxHints() { return this.customHints?.length || 3; }
+
+  /** Mốc giây tự mở gợi ý: dùng hintAtSeconds, nhiều gợi ý riêng thì rải đều trong vòng. */
+  hintSchedule() {
+    const n = this.maxHints;
+    if (n <= this.cfg.hintAtSeconds.length) return this.cfg.hintAtSeconds.slice(0, n);
+    const span = Math.max(60, this.cfg.roundSeconds - 40);
+    return Array.from({ length: n }, (_, i) => Math.round(((i + 1) * span) / (n + 0.5)));
+  }
+
   hints() {
+    if (this.customHints) return this.customHints.slice(0, this.hintLevel);
     const out = [];
     const syl = this.secret.split(' ');
     if (this.hintLevel >= 1 && this.category) out.push(`Chủ đề: ${this.category}`);
@@ -126,7 +171,7 @@ export class WordGame extends EventEmitter {
   }
 
   revealHint(by = null) {
-    if (this.phase !== 'playing' || this.hintLevel >= 3) return [];
+    if (this.phase !== 'playing' || this.hintLevel >= this.maxHints) return [];
     this.hintLevel++;
     this.dirty = true;
     return [{ type: 'wg_hint', level: this.hintLevel, hint: this.hints().at(-1), by }];
@@ -154,7 +199,7 @@ export class WordGame extends EventEmitter {
     this.lastGuessAt.set(user.id, t);
     const by = { id: user.id, name: user.name, avatar: user.avatar };
 
-    if (isExact(word, this.secret)) return this.win(by, word);
+    if (isExact(word, this.secret, this.aliases)) return this.win(by, word);
 
     const existing = this.guesses.get(word);
     if (existing) {
@@ -169,7 +214,8 @@ export class WordGame extends EventEmitter {
     this.pushFeed(fx);
     const round = this.roundNo;
     const useScorer = this.scoredCount++ < this.cfg.maxScoredPerRound ? this.scorer : null;
-    const p = useScorer ? useScorer.score(this.secret, word) : Promise.resolve({ score: 1, source: 'limit' });
+    const ctx = this.set?.scoreContext ? { id: this.activeSet, prompt: this.set.scoreContext } : null;
+    const p = useScorer ? useScorer.score(this.secret, word, ctx) : Promise.resolve({ score: 1, source: 'limit' });
     p.then(({ score, source }) => {
       if (round !== this.roundNo) return; // vòng đã qua
       entry.score = score; entry.pending = false; entry.source = source;
@@ -274,7 +320,7 @@ export class WordGame extends EventEmitter {
     this.guesses.set(this.secret, { word: this.secret, score: 100, pending: false, by, at: this.now(), count: 1, source: 'exact' });
     this.nextAt = this.now() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, by, seconds: Math.round((this.now() - this.startedAt) / 1000) }];
+    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, seconds: Math.round((this.now() - this.startedAt) / 1000) }];
   }
 
   /** Admin: đang chơi thì kết thúc vòng (lộ từ), đang nghỉ thì sang vòng mới. */
@@ -290,10 +336,10 @@ export class WordGame extends EventEmitter {
         this.phase = 'ended';
         this.nextAt = t + this.cfg.breakSeconds * 1000;
         this.dirty = true;
-        return [{ type: 'wg_timeout', round: this.roundNo, secret: this.secret }];
+        return [{ type: 'wg_timeout', round: this.roundNo, secret: this.secret, answer: this.display }];
       }
       const elapsed = (t - this.startedAt) / 1000;
-      const due = this.cfg.hintAtSeconds.filter((s) => elapsed >= s).length;
+      const due = this.hintSchedule().filter((s) => elapsed >= s).length;
       if (due > this.hintLevel) return this.revealHint(null);
       return [];
     }
@@ -323,10 +369,17 @@ export class WordGame extends EventEmitter {
       })(),
       unlocks: this.unlockRules.map((r) => ({ id: r.id, icon: r.icon, label: r.label, every: r.every || null, count: this.giftCounters[r.id] || 0 })),
       secret: ended ? this.secret : null,
+      answer: ended ? this.display : null, // tên hiển thị đầy đủ (vd "Kai'Sa")
+      title: this.set?.title || 'Đoán từ',
+      secretLabel: this.set?.secretLabel || 'TỪ BÍ MẬT',
+      wordSet: this.activeSet,
       hints: this.hints(),
       hintLevel: this.hintLevel,
-      nextHintIn: this.hintLevel < this.cfg.hintAtSeconds.length && !ended
-        ? Math.max(0, Math.ceil(this.cfg.hintAtSeconds[this.hintLevel] - (t - this.startedAt) / 1000)) : null,
+      nextHintIn: (() => {
+        const sch = this.hintSchedule();
+        return this.hintLevel < sch.length && !ended ? Math.max(0, Math.ceil(sch[this.hintLevel] - (t - this.startedAt) / 1000)) : null;
+      })(),
+      maxHints: this.maxHints,
       giftHintMinDiamonds: this.cfg.giftHintMinDiamonds,
       ranked,
       feed: this.feed.slice(0, 6),

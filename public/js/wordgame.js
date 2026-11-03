@@ -207,7 +207,7 @@ function drawHeader() {
   ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 3; ctx.stroke();
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left'; ctx.font = font(900, 32); ctx.fillStyle = '#c7d2fe';
-  ctx.fillText(`🔤 ĐOÁN TỪ · VÒNG ${G.round}`, 76, y + 37);
+  ctx.fillText(fitText(`🔤 ${(G.title || 'Đoán từ').toUpperCase()} · VÒNG ${G.round}`, W - 400), 76, y + 37);
   const m = Math.floor(G.remaining / 60), s = String(G.remaining % 60).padStart(2, '0');
   const label = G.phase === 'playing' ? `⏱ ${m}:${s}` : `Vòng mới sau ${G.remaining}s`;
   ctx.font = font(800, 30);
@@ -250,11 +250,13 @@ function drawSecret(t) {
   const boxTop = y + 62, boxBottom = boxTop + cell * 1.05;
   // vị trí các dòng gợi ý, dòng "gợi ý tiếp", hàng chip — xếp nối tiếp nhau
   const hints = G.hints || [];
+  const hintFont = hints.length > 3 ? 23 : 25; // bộ có 4-5 gợi ý thì chữ nhỏ hơn chút
   // khoảng cách rộng rãi để chữ không chạm nhau trên mọi máy
   let cy = boxBottom + 40;
-  const hintYs = hints.map((_, i) => cy + i * 42);
-  cy += hints.length * 42;
-  const showNext = G.nextHintIn != null && hints.length < 3 && G.phase === 'playing';
+  const hintGap = hints.length > 3 ? 36 : 42;
+  const hintYs = hints.map((_, i) => cy + i * hintGap);
+  cy += hints.length * hintGap;
+  const showNext = G.nextHintIn != null && hints.length < (G.maxHints || 3) && G.phase === 'playing';
   const nextY = cy;
   if (showNext) cy += 36;
   const chips = chipLayout();
@@ -270,7 +272,7 @@ function drawSecret(t) {
   ctx.strokeStyle = fx.hintFlash > 0 ? `rgba(250,204,21,${0.5 + fx.hintFlash / 2})` : '#6366f1'; ctx.lineWidth = 3 + fx.hintFlash * 4; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(800, 22); ctx.fillStyle = '#a5b4fc';
-  ctx.fillText('TỪ BÍ MẬT', W / 2, y + 30);
+  ctx.fillText(G.secretLabel || 'TỪ BÍ MẬT', W / 2, y + 30);
   // ô chữ: mỗi tiếng một nhóm ô
   const revealed = G.secret ? G.secret.split(' ') : null;
   let x = W / 2 - (total * cell) / 2;
@@ -298,7 +300,7 @@ function drawSecret(t) {
     x += cell * 0.8;
   });
   // gợi ý
-  ctx.font = font(700, 25);
+  ctx.font = font(700, hintFont);
   hints.forEach((hnt, i) => {
     ctx.fillStyle = '#fde68a';
     ctx.fillText(fitText('💡 ' + hnt, W - 140), W / 2, hintYs[i]);
@@ -459,12 +461,12 @@ function drawEnd(t) {
   ctx.font = font(800, 34); ctx.fillStyle = '#fff';
   ctx.fillText(win ? '🎉 ĐOÁN TRÚNG! 🎉' : '⏰ HẾT GIỜ!', W / 2, y + 56);
   ctx.font = font(600, 26); ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillText('Từ bí mật là', W / 2, y + 108);
+  ctx.fillText('Đáp án là', W / 2, y + 108);
   const s = 1 + 0.04 * Math.sin(t * 6);
   ctx.save();
   ctx.translate(W / 2, y + 180); ctx.scale(s, s);
   ctx.font = font(900, 78);
-  outlined((G.secret || '').toUpperCase(), 0, 0, '#fde68a', 'rgba(0,0,0,.5)', 10);
+  outlined(fitText((G.answer || G.secret || '').toUpperCase(), W - 240), 0, 0, '#fde68a', 'rgba(0,0,0,.5)', 10);
   ctx.restore();
   if (win) {
     avatar(win, W / 2, y + 300, 56, '#fde68a');

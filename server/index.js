@@ -73,7 +73,16 @@ const wordBank = new WordBank({
   minRemaining: wgCfg.minRemaining ?? 10,
   autoGenerate: wgCfg.autoGenerate !== false,
 });
-const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, statePath: path.join(ROOT, 'data', 'wordgame.json') });
+// Bộ từ riêng: mỗi file wordsets/<id>.json là một bộ (vd lmht.json = tướng LMHT)
+const wordSets = {};
+try {
+  for (const f of fs.readdirSync(path.join(ROOT, 'wordsets'))) {
+    if (!f.endsWith('.json')) continue;
+    try { wordSets[f.replace(/\.json$/, '')] = JSON.parse(fs.readFileSync(path.join(ROOT, 'wordsets', f), 'utf8')); }
+    catch (e) { console.warn(`[wordgame] Bỏ qua bộ từ ${f}: ${e.message}`); }
+  }
+} catch { /* chưa có thư mục wordsets */ }
+const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 
 // ---------------- WebSocket hub ----------------
@@ -251,12 +260,16 @@ app.post('/api/wg/:action', requireAdmin, (req, res) => {
     wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || '') }));
   } else if (a === 'reset') wgBroadcast(wg.resetAll());
   else if (a === 'peek') { /* chỉ xem từ bí mật */ }
+  else if (a === 'set') {
+    try { wgBroadcast(wg.setWordSet(String(req.body?.set || ''))); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
+  }
   else if (a === 'generate') {
     // trả lời ngay, tạo nền (mất khoảng 20-60 giây); xem tiến độ bằng 'peek'
     wordBank.generate({ theme: req.body?.theme, count: req.body?.count }).catch(() => {});
   }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate' });
-  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.secret }, bank: wordBank.stats() });
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | set' });
+  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet });
 });
 
 app.post('/api/reset', requireAdmin, (_req, res) => {

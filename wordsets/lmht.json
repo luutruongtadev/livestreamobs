@@ -1,0 +1,1097 @@
+{
+ "title": "Đoán tướng LMHT",
+ "secretLabel": "TƯỚNG BÍ MẬT",
+ "scoreContext": "Từ bí mật là tên một tướng trong game Liên Minh Huyền Thoại (LMHT). Chấm mức liên quan của từ đoán tới vị tướng này: cốt truyện và quan hệ (anh em, vợ chồng, kẻ thù), vùng đất, vũ khí, ngoại hình, chiêu thức, vai trò. Tên tướng có quan hệ trực tiếp (anh em, đối thủ, cùng nhóm) 70-90; tướng khác cùng vùng đất 40-60; tướng không liên quan 5-25; từ khoá đúng đặc điểm của tướng (ví dụ 'hồ ly' cho Ahri) 60-90.",
+ "words": [
+  {
+   "word": "Ahri",
+   "aliases": [
+    "ahri"
+   ],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Hồ ly chín đuôi tộc Vastaya",
+    "Hút tinh hoa ký ức của con người",
+    "Ném quả cầu bay đi rồi quay lại",
+    "Chiêu cuối lướt liên tục 3 lần"
+   ]
+  },
+  {
+   "word": "Yasuo",
+   "aliases": [
+    "yas"
+   ],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Kiếm sĩ lãng khách bị truy nã",
+    "Bị vu oan giết thầy, phải giết anh trai",
+    "Dựng bức tường gió chặn đạn",
+    "Hất tung rồi bay lên chém trên không"
+   ]
+  },
+  {
+   "word": "Yone",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Đã chết rồi trở lại với hai thanh kiếm",
+    "Anh trai của kiếm sĩ đánh gió",
+    "Đeo mặt nạ quỷ, săn lũ Azakana",
+    "Xuất hồn chém rồi quay về thân xác"
+   ]
+  },
+  {
+   "word": "Lee Sin",
+   "aliases": [
+    "lee",
+    "leesin"
+   ],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Nhà sư tự đốt mắt để chuộc lỗi",
+    "Võ sư mù dùng tay không",
+    "Ném sóng âm rồi lao theo mục tiêu",
+    "Cú đá rồng hất văng đối thủ"
+   ]
+  },
+  {
+   "word": "Master Yi",
+   "aliases": [
+    "yi",
+    "masteryi"
+   ],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Kiếm sư cuối cùng của môn phái Wuju",
+    "Đeo kính nhiều tròng màu xanh lá",
+    "Biến mất rồi chém qua nhiều mục tiêu",
+    "Ngồi thiền để hồi máu"
+   ]
+  },
+  {
+   "word": "Zed",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Chúa tể của Hội Bóng Tối",
+    "Phản bội thầy để học cấm thuật",
+    "Tạo phân thân bóng tối",
+    "Ném phi tiêu hình ngôi sao"
+   ]
+  },
+  {
+   "word": "Shen",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Mắt của Hoàng Hôn, giữ thế cân bằng",
+    "Thủ lĩnh Hội Kinkou",
+    "Thanh kiếm linh hồn bay về che chắn",
+    "Dịch chuyển tới che chắn đồng minh từ xa"
+   ]
+  },
+  {
+   "word": "Akali",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Rời Hội Kinkou để trở thành sát thủ",
+    "Dùng liềm và dao găm",
+    "Thả bom khói để tàng hình",
+    "Thành viên nhóm nhạc K/DA"
+   ]
+  },
+  {
+   "word": "Irelia",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Vũ công cầm đầu cuộc kháng chiến",
+    "Điều khiển nhiều lưỡi kiếm bay",
+    "Lướt tiếp khi hạ gục mục tiêu",
+    "Chống lại quân xâm lược Noxus"
+   ]
+  },
+  {
+   "word": "Karma",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Hiện thân của một linh hồn cổ xưa",
+    "Lãnh đạo tinh thần của dân tộc",
+    "Cường hoá chiêu kế tiếp bằng Mantra",
+    "Tạo khiên tăng tốc cho đồng minh"
+   ]
+  },
+  {
+   "word": "Jhin",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Kẻ sát nhân coi giết chóc là nghệ thuật",
+    "Đeo mặt nạ, ám ảnh con số 4",
+    "Viên đạn thứ tư luôn chí mạng",
+    "Ngồi bắn tỉa bằng khẩu súng khổng lồ"
+   ]
+  },
+  {
+   "word": "Kayn",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Cầm lưỡi hái cổ đại tộc Darkin",
+    "Đệ tử của Chúa tể Bóng Tối",
+    "Hoá sát thủ bóng tối hoặc quỷ đỏ",
+    "Đi xuyên qua tường"
+   ]
+  },
+  {
+   "word": "Sett",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ionia",
+    "Ông trùm võ đài ngầm",
+    "Nửa người nửa Vastaya",
+    "Túm đối thủ ném văng lên trời",
+    "Đấm mạnh hơn khi bị dồn máu"
+   ]
+  },
+  {
+   "word": "Garen",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Đội trưởng đội Tiên Phong",
+    "Xoay tròn với thanh đại kiếm",
+    "Phán quyết giáng xuống từ trên trời",
+    "Anh trai của cô pháp sư ánh sáng"
+   ]
+  },
+  {
+   "word": "Lux",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Pháp sư phải che giấu phép thuật",
+    "Em gái đội trưởng đội Tiên Phong",
+    "Trói chân bằng quả cầu ánh sáng",
+    "Bắn tia laser cầu vồng dài"
+   ]
+  },
+  {
+   "word": "Jarvan IV",
+   "aliases": [
+    "j4",
+    "jarvan"
+   ],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Thái tử của vương quốc",
+    "Cầm giáo, mặc giáp vàng",
+    "Cắm cờ rồi lao tới hất tung",
+    "Dựng đấu trường đá vây kín đối thủ"
+   ]
+  },
+  {
+   "word": "Xin Zhao",
+   "aliases": [
+    "xin",
+    "xinzhao"
+   ],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Cựu đấu sĩ, nay là hộ vệ hoàng gia",
+    "Cầm giáo, đòn thứ ba hất tung",
+    "Lao tới mục tiêu ở xa",
+    "Quét giáo tạo vòng chặn đòn tầm xa"
+   ]
+  },
+  {
+   "word": "Fiora",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Kiếm sĩ đấu tay đôi",
+    "Đâm vào các điểm yếu",
+    "Đỡ đòn rồi phản công",
+    "Thuộc gia tộc Laurent"
+   ]
+  },
+  {
+   "word": "Vayne",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Thợ săn bóng đêm",
+    "Gia đình bị phù thuỷ sát hại",
+    "Bắn nỏ, đẩy địch dính tường",
+    "Lộn nhào rồi tàng hình"
+   ]
+  },
+  {
+   "word": "Galio",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Bức tượng khổng lồ hút phép thuật",
+    "Thức tỉnh khi có ma thuật",
+    "Bay tới chỗ đồng minh từ xa",
+    "Gồng mình khiêu khích xung quanh"
+   ]
+  },
+  {
+   "word": "Poppy",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Yordle đi tìm người anh hùng",
+    "Cầm cây búa khổng lồ",
+    "Đẩy đối thủ đập vào tường",
+    "Ném búa hất văng thật xa"
+   ]
+  },
+  {
+   "word": "Lucian",
+   "aliases": [],
+   "hints": [
+    "Hội Hộ Vệ Ánh Sáng",
+    "Thợ săn bóng đêm cầm hai khẩu súng",
+    "Truy đuổi kẻ đã bắt linh hồn vợ",
+    "Bắn tia sáng xuyên thẳng",
+    "Lướt rồi bắn liên tục"
+   ]
+  },
+  {
+   "word": "Senna",
+   "aliases": [],
+   "hints": [
+    "Hội Hộ Vệ Ánh Sáng",
+    "Trở về từ màn sương đen",
+    "Súng lớn vừa bắn địch vừa hồi máu",
+    "Thu nhặt sương đen để mạnh lên",
+    "Vợ của người cầm hai khẩu súng"
+   ]
+  },
+  {
+   "word": "Kayle",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Thiên thần của công lý",
+    "Bảo vệ đồng minh bất tử vài giây",
+    "Kiếm lửa thần thánh",
+    "Em gái là thiên thần sa ngã"
+   ]
+  },
+  {
+   "word": "Morgana",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Demacia",
+    "Thiên thần sa ngã",
+    "Khiên đen chặn khống chế",
+    "Trói chân bằng dải năng lượng tối",
+    "Xích nối nhiều mục tiêu rồi làm choáng"
+   ]
+  },
+  {
+   "word": "Darius",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Bàn Tay của đế chế",
+    "Kéo địch lại bằng cán rìu",
+    "Chém kết liễu như máy chém",
+    "Anh trai của gã đao phủ"
+   ]
+  },
+  {
+   "word": "Draven",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Đao phủ thích được chú ý",
+    "Bắt những chiếc rìu xoay tròn",
+    "Em trai của Bàn Tay Noxus",
+    "Ném hai lưỡi rìu xuyên bản đồ"
+   ]
+  },
+  {
+   "word": "Katarina",
+   "aliases": [
+    "kata"
+   ],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Sát thủ dùng dao găm",
+    "Con gái tướng Du Couteau",
+    "Dịch chuyển tới chỗ dao găm",
+    "Xoay tròn ném dao khắp nơi"
+   ]
+  },
+  {
+   "word": "Swain",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Đại tướng thống lĩnh đế chế",
+    "Gắn liền với bầy quạ",
+    "Có cánh tay quỷ",
+    "Hoá quỷ hút máu xung quanh"
+   ]
+  },
+  {
+   "word": "Sion",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Chiến binh bất tử được hồi sinh",
+    "Gồng rìu rồi đập hất tung",
+    "Sống lại thêm một lúc sau khi chết",
+    "Lao thẳng không dừng xuyên bản đồ"
+   ]
+  },
+  {
+   "word": "LeBlanc",
+   "aliases": [
+    "lb",
+    "leblanc"
+   ],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Kẻ lừa dối của Hội Hoa Hồng Đen",
+    "Tạo phân thân đánh lừa",
+    "Dịch chuyển rồi quay về chỗ cũ",
+    "Sao chép lại chiêu vừa dùng"
+   ]
+  },
+  {
+   "word": "Riven",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Cựu binh lưu lạc với thanh kiếm gãy",
+    "Chém liên tiếp 3 nhát",
+    "Gắn lại thanh kiếm thành cơn gió",
+    "Tìm cách chuộc lỗi ở Ionia"
+   ]
+  },
+  {
+   "word": "Samira",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Noxus",
+    "Nữ quỷ liều mạng thích phong cách",
+    "Cộng dồn hạng phong cách tới S",
+    "Vừa bắn súng vừa chém kiếm",
+    "Xoay vòng bắn đạn khắp nơi"
+   ]
+  },
+  {
+   "word": "Jinx",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Zaun",
+    "Cô nàng nổi loạn tóc xanh tết dài",
+    "Đổi qua lại súng máy và tên lửa",
+    "Đặt bẫy lựu đạn hoá dữ",
+    "Tên lửa siêu to xuyên bản đồ"
+   ]
+  },
+  {
+   "word": "Vi",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Piltover",
+    "Cảnh sát đeo găng tay khổng lồ",
+    "Chị gái của cô nàng nổi loạn",
+    "Gồng rồi đấm lao tới",
+    "Khoá mục tiêu, lao tới hất tung"
+   ]
+  },
+  {
+   "word": "Caitlyn",
+   "aliases": [
+    "cait"
+   ],
+   "hints": [
+    "Vùng đất: Piltover",
+    "Cảnh sát trưởng bắn tỉa",
+    "Đội mũ chóp cao",
+    "Đặt bẫy kẹp chân",
+    "Ngắm bắn kết liễu từ xa"
+   ]
+  },
+  {
+   "word": "Ezreal",
+   "aliases": [
+    "ez"
+   ],
+   "hints": [
+    "Vùng đất: Piltover",
+    "Nhà thám hiểm trẻ tuổi",
+    "Đeo găng tay ma thuật cổ",
+    "Dịch chuyển chớp nhoáng",
+    "Bắn tia sáng lớn xuyên bản đồ"
+   ]
+  },
+  {
+   "word": "Ekko",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Zaun",
+    "Cậu bé thiên tài điều khiển thời gian",
+    "Bạn thơ ấu của cô nàng nổi loạn",
+    "Tạo vùng làm chậm rồi làm choáng",
+    "Tua ngược thời gian để hồi máu"
+   ]
+  },
+  {
+   "word": "Heimerdinger",
+   "aliases": [
+    "heimer"
+   ],
+   "hints": [
+    "Vùng đất: Piltover",
+    "Nhà phát minh Yordle",
+    "Tóc và râu trắng dựng ngược",
+    "Dựng tháp pháo",
+    "Ném lựu đạn gây choáng"
+   ]
+  },
+  {
+   "word": "Viktor",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Zaun",
+    "Nhà khoa học tự cải tiến cơ thể",
+    "Theo đuổi Tiến Hoá Vinh Quang",
+    "Bắn tia laser chém ngang",
+    "Tạo cơn bão năng lượng"
+   ]
+  },
+  {
+   "word": "Blitzcrank",
+   "aliases": [
+    "blitz"
+   ],
+   "hints": [
+    "Vùng đất: Zaun",
+    "Robot chạy bằng hơi nước",
+    "Tay tên lửa kéo đối thủ",
+    "Đấm hất tung lên trời",
+    "Phóng điện tắt nội tại xung quanh"
+   ]
+  },
+  {
+   "word": "Thresh",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Quần Đảo Bóng Đêm",
+    "Cai ngục giam giữ linh hồn",
+    "Cầm lưỡi hái và đèn lồng",
+    "Thả đèn kéo đồng minh về",
+    "Ném xích móc kéo đối thủ"
+   ]
+  },
+  {
+   "word": "Hecarim",
+   "aliases": [
+    "heca"
+   ],
+   "hints": [
+    "Vùng đất: Quần Đảo Bóng Đêm",
+    "Kỵ sĩ ma nửa người nửa ngựa",
+    "Chỉ huy đoàn kỵ binh bóng ma",
+    "Lao tới hất văng đối thủ",
+    "Gọi kỵ binh ma làm địch hoảng sợ"
+   ]
+  },
+  {
+   "word": "Kalista",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Quần Đảo Bóng Đêm",
+    "Bóng ma báo thù",
+    "Ném giáo rồi rút ra gây sát thương",
+    "Kết ước với một đồng minh",
+    "Kéo đồng minh rồi ném vào đối thủ"
+   ]
+  },
+  {
+   "word": "Viego",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Quần Đảo Bóng Đêm",
+    "Nhà vua phát điên vì mất vợ",
+    "Gây ra thảm hoạ Suy Vong",
+    "Màn sương đen bao phủ",
+    "Chiếm xác tướng địch vừa hạ"
+   ]
+  },
+  {
+   "word": "Mordekaiser",
+   "aliases": [
+    "mord"
+   ],
+   "hints": [
+    "Vùng đất: Quần Đảo Bóng Đêm",
+    "Bạo chúa mặc giáp sắt",
+    "Vung chuỳ gây sát thương",
+    "Kéo đối thủ vào cõi chết đấu tay đôi",
+    "Hút chỉ số của đối thủ"
+   ]
+  },
+  {
+   "word": "Nautilus",
+   "aliases": [
+    "nau"
+   ],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Thợ lặn trong bộ giáp sắt",
+    "Kéo theo mỏ neo khổng lồ",
+    "Ném neo kéo mình tới",
+    "Sóng ngầm hất tung đối thủ"
+   ]
+  },
+  {
+   "word": "Miss Fortune",
+   "aliases": [
+    "mf"
+   ],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Nữ thuyền trưởng săn tiền thưởng",
+    "Dùng hai khẩu súng lục",
+    "Báo thù kẻ đã giết mẹ mình",
+    "Mưa đạn khắp một vùng"
+   ]
+  },
+  {
+   "word": "Gangplank",
+   "aliases": [
+    "gp"
+   ],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Thuyền trưởng cướp biển",
+    "Ăn cam để hồi máu",
+    "Đặt thùng thuốc súng rồi bắn nổ",
+    "Bắn pháo từ tàu xuống bất cứ đâu"
+   ]
+  },
+  {
+   "word": "Twisted Fate",
+   "aliases": [
+    "tf"
+   ],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Cao thủ cờ bạc",
+    "Chọn lá bài vàng làm choáng",
+    "Ném ba lá bài ra phía trước",
+    "Dịch chuyển tới bất cứ đâu"
+   ]
+  },
+  {
+   "word": "Pyke",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Thợ săn cá voi bị dìm chết",
+    "Hồi máu khi khuất tầm nhìn",
+    "Móc kéo đối thủ",
+    "Hành quyết kẻ có tên trong danh sách"
+   ]
+  },
+  {
+   "word": "Graves",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Bilgewater",
+    "Kẻ ngoài vòng pháp luật",
+    "Bắn súng hoa cải",
+    "Ném lựu đạn khói",
+    "Bạn cũ của cao thủ cờ bạc"
+   ]
+  },
+  {
+   "word": "Nami",
+   "aliases": [],
+   "hints": [
+    "Đến từ biển sâu",
+    "Nàng tiên cá tộc Marai",
+    "Nhốt đối thủ trong bong bóng nước",
+    "Hồi máu nảy qua đồng minh",
+    "Gọi sóng thần hất tung"
+   ]
+  },
+  {
+   "word": "Ashe",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Nữ hoàng băng giá",
+    "Cung băng làm chậm",
+    "Thả chim ưng soi bản đồ",
+    "Mũi tên băng khổng lồ làm choáng"
+   ]
+  },
+  {
+   "word": "Sejuani",
+   "aliases": [
+    "seju"
+   ],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Thủ lĩnh bộ tộc khắc nghiệt",
+    "Cưỡi heo rừng khổng lồ",
+    "Vung chuỳ đóng băng",
+    "Ném chuỳ băng làm choáng cả nhóm"
+   ]
+  },
+  {
+   "word": "Braum",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Anh hùng có bộ ria mép to",
+    "Cầm tấm khiên là cánh cửa hầm",
+    "Giơ khiên chắn đạn cho đồng đội",
+    "Đập đất tạo vết nứt hất tung"
+   ]
+  },
+  {
+   "word": "Tryndamere",
+   "aliases": [
+    "trynd",
+    "trym"
+   ],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Man di vương",
+    "Chồng của nữ hoàng băng giá",
+    "Xoay kiếm lướt tới",
+    "Bất tử vài giây khi sắp chết"
+   ]
+  },
+  {
+   "word": "Olaf",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Chiến binh muốn được chết vinh quang",
+    "Ném rìu rồi nhặt lại",
+    "Càng ít máu đánh càng nhanh",
+    "Miễn khống chế khi bật chiêu cuối"
+   ]
+  },
+  {
+   "word": "Lissandra",
+   "aliases": [
+    "lisa"
+   ],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Phù thuỷ băng tối",
+    "Tạo cột băng đóng băng mặt đất",
+    "Lướt theo mũi băng",
+    "Tự đóng băng mình để hồi máu"
+   ]
+  },
+  {
+   "word": "Ornn",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Thần rèn sống trong núi lửa",
+    "Nâng cấp trang bị cho đồng đội",
+    "Húc tường đá hất tung",
+    "Gọi con dê núi lửa khổng lồ"
+   ]
+  },
+  {
+   "word": "Volibear",
+   "aliases": [
+    "voli"
+   ],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Thần gấu sấm sét",
+    "Biến thành khổng lồ, phá tháp",
+    "Cắn rồi hồi máu",
+    "Gọi sét đánh xuống"
+   ]
+  },
+  {
+   "word": "Nasus",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Thánh thể đầu chó",
+    "Cộng dồn sát thương mỗi lần kết liễu",
+    "Hút sinh lực khi đánh",
+    "Anh trai của thánh thể cá sấu"
+   ]
+  },
+  {
+   "word": "Renekton",
+   "aliases": [
+    "renek"
+   ],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Thánh thể cá sấu điên loạn",
+    "Em trai của thánh thể đầu chó",
+    "Chém xoay tròn quanh mình",
+    "Lướt hai lần liên tiếp"
+   ]
+  },
+  {
+   "word": "Azir",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Hoàng đế chim ưng",
+    "Triệu hồi lính cát",
+    "Hồi sinh thành thánh thể",
+    "Dựng bức tường lính đẩy lùi"
+   ]
+  },
+  {
+   "word": "Xerath",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Pháp sư năng lượng thuần",
+    "Từng là nô lệ",
+    "Bắn tia năng lượng dài",
+    "Pháo kích từ xa nhiều lần"
+   ]
+  },
+  {
+   "word": "Sivir",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Lính đánh thuê",
+    "Ném lưỡi đao chữ thập bay về",
+    "Khiên chặn phép thuật",
+    "Tăng tốc chạy cho cả đội"
+   ]
+  },
+  {
+   "word": "Rammus",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Tê tê bọc giáp",
+    "Cuộn tròn lăn thật nhanh",
+    "Gai phản lại sát thương",
+    "Câu nói quen thuộc: 'Ok'"
+   ]
+  },
+  {
+   "word": "Amumu",
+   "aliases": [
+    "mumu"
+   ],
+   "hints": [
+    "Vùng đất: Shurima",
+    "Xác ướp nhỏ cô đơn",
+    "Ném dải băng kéo mình tới",
+    "Nỗi buồn gây sát thương xung quanh",
+    "Trói tất cả bằng băng quấn"
+   ]
+  },
+  {
+   "word": "Malphite",
+   "aliases": [
+    "malph"
+   ],
+   "hints": [
+    "Vùng đất: Ixtal",
+    "Người đá khổng lồ",
+    "Mảnh vỡ của khối đá nguyên thuỷ",
+    "Ném mảnh đá làm chậm",
+    "Lao tới hất tung cả đội địch"
+   ]
+  },
+  {
+   "word": "Nidalee",
+   "aliases": [
+    "nida"
+   ],
+   "hints": [
+    "Vùng đất: Ixtal",
+    "Thợ săn sống giữa rừng già",
+    "Biến hình thành báo",
+    "Ném giáo tầm xa",
+    "Đặt bẫy trong bụi cỏ"
+   ]
+  },
+  {
+   "word": "Neeko",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ixtal",
+    "Tắc kè hoa tộc Vastaya",
+    "Biến hình thành đồng minh",
+    "Nhảy lên rồi nở hoa hất tung",
+    "Hạt giống nở hoa trói chân"
+   ]
+  },
+  {
+   "word": "Rengar",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Ixtal",
+    "Thợ săn sư tử",
+    "Bị mất một bên mắt",
+    "Nhảy ra từ bụi cỏ",
+    "Tàng hình săn mồi"
+   ]
+  },
+  {
+   "word": "Teemo",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Thành phố Bandle",
+    "Trinh sát Yordle",
+    "Phi tiêu làm mù",
+    "Tàng hình khi đứng yên",
+    "Đặt nấm độc khắp bản đồ"
+   ]
+  },
+  {
+   "word": "Lulu",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Thành phố Bandle",
+    "Phù thuỷ Yordle tinh nghịch",
+    "Có bạn đồng hành là tiên Pix",
+    "Biến đối thủ thành con vật nhỏ",
+    "Làm đồng minh to lớn bất ngờ"
+   ]
+  },
+  {
+   "word": "Tristana",
+   "aliases": [
+    "trist"
+   ],
+   "hints": [
+    "Vùng đất: Thành phố Bandle",
+    "Xạ thủ Yordle",
+    "Nhảy bằng tên lửa",
+    "Gắn bom vào mục tiêu",
+    "Bắn phát đạn đẩy lùi"
+   ]
+  },
+  {
+   "word": "Veigar",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Thành phố Bandle",
+    "Bậc thầy ma thuật đen Yordle",
+    "Đội chiếc mũ phù thuỷ to",
+    "Sức mạnh phép tăng mãi không giới hạn",
+    "Tạo lồng giam làm choáng"
+   ]
+  },
+  {
+   "word": "Aatrox",
+   "aliases": [],
+   "hints": [
+    "Tộc Darkin",
+    "Quỷ kiếm bị giam trong vũ khí",
+    "Thanh kiếm sống khổng lồ",
+    "Chém ba nhát liên tiếp",
+    "Hồi sinh khi bật chiêu cuối"
+   ]
+  },
+  {
+   "word": "Pantheon",
+   "aliases": [
+    "panth"
+   ],
+   "hints": [
+    "Vùng đất: Targon",
+    "Chiến binh được thánh thể chiến tranh chọn",
+    "Ném giáo",
+    "Giơ khiên chặn đòn phía trước",
+    "Nhảy từ trên trời xuống"
+   ]
+  },
+  {
+   "word": "Leona",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Targon",
+    "Hiện thân của Mặt Trời",
+    "Đập khiên làm choáng",
+    "Lao kiếm tới mục tiêu",
+    "Gọi tia mặt trời giáng xuống"
+   ]
+  },
+  {
+   "word": "Diana",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Targon",
+    "Hiện thân của Mặt Trăng",
+    "Kẻ đối đầu hiện thân Mặt Trời",
+    "Lướt tới mục tiêu có ánh trăng",
+    "Kéo đối thủ vào giữa"
+   ]
+  },
+  {
+   "word": "Aurelion Sol",
+   "aliases": [
+    "asol"
+   ],
+   "hints": [
+    "Vùng đất: Targon",
+    "Rồng sao tạo ra vũ trụ",
+    "Bị trói buộc bởi chiếc vương miện",
+    "Thở ra dòng sao",
+    "Tạo hố đen hút đối thủ"
+   ]
+  },
+  {
+   "word": "Soraka",
+   "aliases": [
+    "raka"
+   ],
+   "hints": [
+    "Vùng đất: Targon",
+    "Người gieo sao",
+    "Có sừng như kỳ lân",
+    "Đổi máu của mình cho đồng minh",
+    "Hồi máu cả đội khắp bản đồ"
+   ]
+  },
+  {
+   "word": "Zoe",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Targon",
+    "Hiện thân tinh nghịch của Hoàng Hôn",
+    "Bắn ngôi sao bay xa",
+    "Nhặt phép rơi trên mặt đất",
+    "Ru ngủ bằng bong bóng"
+   ]
+  },
+  {
+   "word": "Kai'Sa",
+   "aliases": [
+    "kaisa"
+   ],
+   "hints": [
+    "Đến từ Hư Không",
+    "Cô gái sống sót trong Hư Không",
+    "Mặc bộ giáp sinh thể",
+    "Tiến hoá chiêu khi đủ chỉ số",
+    "Lướt tới cạnh mục tiêu có dấu ấn"
+   ]
+  },
+  {
+   "word": "Kha'Zix",
+   "aliases": [
+    "kha",
+    "khazix"
+   ],
+   "hints": [
+    "Đến từ Hư Không",
+    "Sát thủ côn trùng biết tiến hoá",
+    "Đánh mạnh hơn mục tiêu bị cô lập",
+    "Nhảy thật xa",
+    "Tàng hình liên tục"
+   ]
+  },
+  {
+   "word": "Vel'Koz",
+   "aliases": [
+    "velkoz"
+   ],
+   "hints": [
+    "Đến từ Hư Không",
+    "Con mắt khổng lồ với nhiều xúc tu",
+    "Thích nghiên cứu mọi thứ",
+    "Bắn tia chia đôi",
+    "Phóng tia huỷ diệt kéo dài"
+   ]
+  },
+  {
+   "word": "Cho'Gath",
+   "aliases": [
+    "cho",
+    "chogath"
+   ],
+   "hints": [
+    "Đến từ Hư Không",
+    "Quái vật lớn lên mãi không ngừng",
+    "Gào thét làm câm lặng",
+    "Làm đất nứt hất tung",
+    "Ăn tướng địch để to ra"
+   ]
+  },
+  {
+   "word": "Bel'Veth",
+   "aliases": [
+    "belveth"
+   ],
+   "hints": [
+    "Đến từ Hư Không",
+    "Nữ hoàng của Hư Không",
+    "Tốc độ đánh tăng không giới hạn",
+    "Ăn san hô Hư Không",
+    "Hiện dạng thật sau khi hạ gục"
+   ]
+  },
+  {
+   "word": "Annie",
+   "aliases": [],
+   "hints": [
+    "Cô bé có năng lực lửa",
+    "Ôm chú gấu bông Tibbers",
+    "Choáng sau mỗi bốn chiêu",
+    "Phun lửa hình nón",
+    "Thả gấu lửa khổng lồ"
+   ]
+  },
+  {
+   "word": "Brand",
+   "aliases": [],
+   "hints": [
+    "Vùng đất: Freljord",
+    "Con người hoá thành ngọn lửa",
+    "Thiêu đốt mọi thứ chạm vào",
+    "Dựng cột lửa",
+    "Quả cầu lửa nảy qua nhiều mục tiêu"
+   ]
+  },
+  {
+   "word": "Ryze",
+   "aliases": [],
+   "hints": [
+    "Pháp sư lang thang khắp Runeterra",
+    "Da xanh, vác cuộn sách lớn",
+    "Thu thập Cổ Ngữ Thế Giới",
+    "Ít chiêu nhưng dùng liên tục",
+    "Mở cổng dịch chuyển cả đội"
+   ]
+  },
+  {
+   "word": "Zilean",
+   "aliases": [],
+   "hints": [
+    "Pháp sư điều khiển thời gian",
+    "Râu dài, mang đồng hồ",
+    "Đặt bom hẹn giờ",
+    "Làm nhanh hoặc chậm thời gian",
+    "Hồi sinh đồng minh vừa ngã xuống"
+   ]
+  }
+ ]
+}

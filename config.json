@@ -308,6 +308,7 @@
     ]
   },
   "wordgame": {
+    "activeSet": "tu-vung",
     "model": "claude-opus-5-5",
     "generatorModel": "claude-opus-5-5",
     "batchSize": 100,

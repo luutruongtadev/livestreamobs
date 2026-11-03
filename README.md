@@ -87,6 +87,10 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   | 💎 từ 99 xu | lộ cả một tiếng |
 
   Chữ đã lộ hiện màu vàng trong ô; luôn chừa lại ít nhất 1 chữ. Quà khớp theo **tên quà** trước (tên tiếng Anh của TikTok), không khớp thì theo **số xu**. Đổi trong `config.json` → `wordgame.giftUnlocks` (`action`: `letter` | `hint` | `time` | `syllable`, `every`: số món cần gom, `gifts`: danh sách tên quà, `minDiamonds`: ngưỡng xu).
+- **Nhiều bộ từ, chuyển qua lại trong trang admin** (ô *Bộ từ* → *Chuyển bộ từ*, bắt đầu vòng mới ngay):
+  - `Đoán từ (từ vựng)`: kho từ Claude sinh + 40 từ mẫu.
+  - `Đoán tướng LMHT`: 92 tướng Liên Minh Huyền Thoại (`wordsets/lmht.json`). Mỗi tướng có 5 gợi ý riêng mở dần (vùng đất → cốt truyện / ngoại hình → chiêu thức), có biệt danh tính là trúng (`ez`, `mf`, `tf`, `j4`, `lee`…), gõ liền không dấu nháy vẫn trúng (`kaisa` = Kai'Sa). Có API key thì Claude chấm theo ngữ cảnh LMHT (anh em / kẻ thù / cùng vùng đất / đặc điểm của tướng).
+  - Thêm bộ mới: tạo file `wordsets/<tên>.json` cùng định dạng (`title`, `secretLabel`, `scoreContext`, `words: [{ word, aliases, hints }]`), push lên là có trong danh sách.
 - Mỗi vòng 5 phút; hết giờ lộ từ, 12 giây sau sang vòng mới. Bảng 🥇🥈🥉 cao thủ đếm số vòng thắng.
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { WordGame, parseGuess } from '../server/wordgame.js';
 import { ClaudeScorer, simpleScore, isExact } from '../server/scorer.js';
@@ -154,4 +155,43 @@ test('quà mở khoá: vòng mới thì xoá chữ đã lộ và tiến độ', 
   g.skip(); now = 2000; g.tick();
   assert.equal(g.snapshot().letters.flat().filter(Boolean).length, 0);
   assert.equal(g.snapshot().unlocks.find((x) => x.id === 'rose').count, 0);
+});
+
+test('bộ từ riêng (tướng LMHT): gợi ý riêng, biệt danh, tên có dấu nháy, ngữ cảnh chấm điểm', async () => {
+  const sets = { lmht: JSON.parse(fs.readFileSync(new URL('../wordsets/lmht.json', import.meta.url))) };
+  assert.ok(sets.lmht.words.length >= 90);
+  const calls = [];
+  const scorer = { score: (s, w, ctx) => { calls.push({ s, w, ctx }); return Promise.resolve({ score: 60 }); } };
+  let now = 0;
+  const g = new WordGame({ roundSeconds: 300, cooldownSec: 0 }, { scorer, wordSets: sets, now: () => now });
+  assert.equal(g.activeSet, 'tu-vung');
+  g.setWordSet('lmht');
+  g.startRound(sets.lmht.words.find((w) => w.word === "Kai'Sa"));
+  const snap = g.snapshot();
+  assert.equal(snap.title, 'Đoán tướng LMHT');
+  assert.equal(snap.secretLabel, 'TƯỚNG BÍ MẬT');
+  assert.deepEqual(snap.pattern, [3, 2], "Kai'Sa → 2 nhóm ô");
+  assert.equal(snap.maxHints, 5);
+  // gợi ý riêng mở dần theo thời gian
+  now = 50_000; g.tick();
+  assert.deepEqual(g.snapshot().hints, ['Đến từ Hư Không']);
+  // đoán sai thì chấm kèm ngữ cảnh LMHT
+  g.handle({ type: 'comment', user: u('a'), text: 'hư không' });
+  await flush();
+  assert.equal(calls[0].ctx.id, 'lmht');
+  assert.match(calls[0].ctx.prompt, /Liên Minh Huyền Thoại/);
+  // gõ liền không dấu nháy vẫn trúng
+  const win = g.handle({ type: 'comment', user: u('b'), text: 'kaisa' });
+  assert.equal(win[0].type, 'wg_win');
+  assert.equal(win[0].answer, "Kai'Sa");
+});
+
+test('biệt danh tính là trúng (mf = Miss Fortune), đổi bộ không tồn tại thì báo lỗi', () => {
+  const sets = { lmht: JSON.parse(fs.readFileSync(new URL('../wordsets/lmht.json', import.meta.url))) };
+  const g = new WordGame({}, { scorer: fakeScorer({}), wordSets: sets });
+  g.setWordSet('lmht');
+  g.startRound(sets.lmht.words.find((w) => w.word === 'Miss Fortune'));
+  assert.equal(g.handle({ type: 'comment', user: u('a'), text: 'MF' })[0].type, 'wg_win');
+  assert.throws(() => g.setWordSet('khong-co'), /Không có bộ từ/);
+  assert.deepEqual(g.listSets().map((s) => s.id), ['tu-vung', 'lmht']);
 });

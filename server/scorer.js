@@ -8,9 +8,14 @@ export function canon(text) {
   return String(text ?? '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-/** Trùng từ bí mật (không phân biệt dấu, hoa thường) → coi là đoán đúng. */
-export function isExact(guess, secret) {
-  return normalize(guess) === normalize(secret);
+/** Gọn để so khớp: bỏ dấu, hoa thường, khoảng trắng, dấu câu ("Kai'Sa" = "kaisa"). */
+export const compact = (s) => normalize(s).replace(/ /g, '');
+
+/** Trùng từ bí mật hoặc một biệt danh (không phân biệt dấu, hoa thường, khoảng trắng) → đoán đúng. */
+export function isExact(guess, secret, aliases = []) {
+  const g = compact(guess);
+  if (!g) return false;
+  return g === compact(secret) || aliases.some((a) => compact(a) === g);
 }
 
 /**
@@ -91,11 +96,13 @@ export class ClaudeScorer {
     this.cacheDirty = false;
   }
 
-  score(secret, word) {
-    const key = `${canon(secret)}|${canon(word)}`;
+  /** ctx: { id, prompt } — ngữ cảnh của bộ từ (vd tướng LMHT), thêm vào yêu cầu chấm. */
+  score(secret, word, ctx = null) {
+    const s = (ctx?.id ? `${ctx.id}:` : '') + canon(secret);
+    const key = `${s}|${canon(word)}`;
     if (this.cache.has(key)) return Promise.resolve({ score: this.cache.get(key), source: 'cache' });
+    if (ctx?.prompt) (this.contexts ||= new Map()).set(s, ctx.prompt);
     return new Promise((resolve) => {
-      const s = canon(secret);
       if (!this.queue.has(s)) this.queue.set(s, new Map());
       const q = this.queue.get(s);
       const w = canon(word);
@@ -115,14 +122,14 @@ export class ClaudeScorer {
         let scores = {};
         let source = 'claude';
         try {
-          scores = await this.callClaude(secret, chunk);
+          scores = await this.callClaude(secret.replace(/^[^:|]+:/, ''), chunk, this.contexts?.get(secret));
         } catch (e) {
           this.log.warn?.(`[wordgame] Chấm bằng Claude lỗi (${e?.status || ''} ${e?.message || e}) — dùng chấm đơn giản`);
           source = 'simple';
         }
         for (const w of chunk) {
           let sc = scores[w];
-          if (!Number.isFinite(sc)) { sc = simpleScore(secret, w); source = source === 'claude' ? 'mixed' : source; }
+          if (!Number.isFinite(sc)) { sc = simpleScore(secret.replace(/^[^:|]+:/, ''), w); source = source === 'claude' ? 'mixed' : source; }
           sc = Math.max(1, Math.min(99, Math.round(sc)));
           if (scores[w] !== undefined) { this.cache.set(`${secret}|${w}`, sc); this.cacheDirty = true; }
           for (const r of q.get(w)) r({ score: sc, source: scores[w] !== undefined ? 'claude' : 'simple' });
@@ -131,7 +138,7 @@ export class ClaudeScorer {
     }
   }
 
-  async callClaude(secret, words) {
+  async callClaude(secret, words, context = '') {
     this.calls++;
     const response = await this.client.beta.messages.create({
       model: this.model,
@@ -142,7 +149,7 @@ export class ClaudeScorer {
       system: SYSTEM,
       messages: [{
         role: 'user',
-        content: `TỪ BÍ MẬT: ${JSON.stringify(secret)}\nTỪ ĐOÁN: ${JSON.stringify(words)}`,
+        content: `${context ? `NGỮ CẢNH: ${context}\n` : ''}TỪ BÍ MẬT: ${JSON.stringify(secret)}\nTỪ ĐOÁN: ${JSON.stringify(words)}`,
       }],
     });
     if (response.stop_reason === 'refusal') throw new Error('refusal');
