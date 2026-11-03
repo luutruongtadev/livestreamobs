@@ -102,13 +102,13 @@ function handle(e) {
       break;
     case 'wg_scored':
       fx.highlight.set(e.word, performance.now());
-      if (e.score >= 85) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.score}`, x: W / 2, y: 1240, life: 1, color: '#4ade80' }); }
+      if (e.score >= 85) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.score}`, x: W / 2, y: L.rankTop + 24, life: 1, color: '#4ade80' }); }
       else if (e.score >= 60) sound.play('chime', { pitch: 1.1 });
       break;
     case 'wg_progress':
       fx.unlockFlash.set(e.rule, performance.now());
       sound.play('chime', { pitch: 1.3 });
-      fx.floaters.push({ text: `${e.icon || '🎁'} ${e.count}/${e.every}`, x: W - 150, y: 560, life: 1, color: '#fbcfe8' });
+      fx.floaters.push({ text: `${e.icon || '🎁'} ${e.count}/${e.every}`, x: W - 150, y: L.secretBottom - 70, life: 1, color: '#fbcfe8' });
       break;
     case 'wg_unlock': {
       const now = performance.now();
@@ -217,8 +217,50 @@ function drawHeader() {
   ctx.restore();
 }
 
+// Bố cục tính lại mỗi khung hình: khung "Từ bí mật" cao theo số gợi ý + hàng chip quà,
+// các khối bên dưới dịch theo để không bị che.
+const L = { secretBottom: 692, rankTop: 714, rankBottom: 1264, guideBottom: 1332, feedY: 1410 };
+
+/** Đo và xếp chip "quà mở khoá" thành các hàng vừa chiều ngang. */
+function chipLayout() {
+  const list = G.unlocks || [];
+  ctx.save();
+  ctx.font = font(700, 18);
+  const items = list.map((u) => ({
+    text: `${u.icon || '🎁'} ${u.label}${u.every ? ` (${u.count}/${u.every})` : ''}`,
+    active: !!(u.every && u.count > 0), id: u.id,
+  }));
+  const pad = 12, gap = 8;
+  const ws = items.map((it) => ctx.measureText(it.text).width + pad * 2);
+  ctx.restore();
+  const rows = items.length ? [[]] : [];
+  let rowW = 0;
+  items.forEach((it, i) => {
+    if (rowW + ws[i] > W - 120 && rows[rows.length - 1].length) { rows.push([]); rowW = 0; }
+    rows[rows.length - 1].push(i); rowW += ws[i] + gap;
+  });
+  return { items, ws, rows, gap };
+}
+
 function drawSecret(t) {
-  const y = 392, h = 300;
+  const y = 392;
+  const groups = G.pattern;
+  const total = groups.reduce((a, b) => a + b, 0) + (groups.length - 1) * 0.8;
+  const cell = Math.min(62, (W - 160) / total);
+  const boxTop = y + 62, boxBottom = boxTop + cell * 1.05;
+  // vị trí các dòng gợi ý, dòng "gợi ý tiếp", hàng chip — xếp nối tiếp nhau
+  const hints = G.hints || [];
+  let cy = boxBottom + 30;
+  const hintYs = hints.map((_, i) => cy + i * 34);
+  cy += hints.length * 34;
+  const showNext = G.nextHintIn != null && hints.length < 3 && G.phase === 'playing';
+  const nextY = cy;
+  if (showNext) cy += 30;
+  const chips = chipLayout();
+  const chipY0 = cy + 6; // tâm hàng chip đầu
+  const h = Math.max(220, chipY0 + Math.max(0, chips.rows.length - 1) * 40 + 30 - y);
+  L.secretBottom = y + h;
+
   ctx.save();
   rr(40, y, W - 80, h, 26);
   const g = ctx.createLinearGradient(0, y, 0, y + h);
@@ -230,9 +272,6 @@ function drawSecret(t) {
   ctx.fillText('TỪ BÍ MẬT', W / 2, y + 30);
   // ô chữ: mỗi tiếng một nhóm ô
   const revealed = G.secret ? G.secret.split(' ') : null;
-  const groups = G.pattern;
-  const total = groups.reduce((a, b) => a + b, 0) + (groups.length - 1) * 0.8;
-  const cell = Math.min(62, (W - 160) / total);
   let x = W / 2 - (total * cell) / 2;
   const now = performance.now();
   let flat = 0;
@@ -243,14 +282,14 @@ function drawSecret(t) {
       const born = fx.letterAt.get(flat);
       const pop = born ? Math.max(0, 1 - (now - born) / 600) : 0;
       ctx.save();
-      ctx.translate(cx, y + 62 + cell * 0.52); ctx.scale(1 + pop * 0.35, 1 + pop * 0.35); ctx.translate(-cx, -(y + 62 + cell * 0.52));
-      rr(cx - cell * 0.42, y + 62, cell * 0.84, cell * 1.05, 10);
+      ctx.translate(cx, boxTop + cell * 0.52); ctx.scale(1 + pop * 0.35, 1 + pop * 0.35); ctx.translate(-cx, -(boxTop + cell * 0.52));
+      rr(cx - cell * 0.42, boxTop, cell * 0.84, cell * 1.05, 10);
       ctx.fillStyle = revealed ? '#4ade80' : opened ? '#facc15' : 'rgba(255,255,255,.12)'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; ctx.stroke();
       const ch = revealed ? [...revealed[gi]][i] : opened;
       if (ch) {
         ctx.font = font(900, Math.round(cell * 0.7)); ctx.fillStyle = revealed ? '#052e16' : '#3b2500';
-        ctx.fillText(ch.toUpperCase(), cx, y + 62 + cell * 0.55);
+        ctx.fillText(ch.toUpperCase(), cx, boxTop + cell * 0.55);
       }
       ctx.restore();
       x += cell;
@@ -258,44 +297,29 @@ function drawSecret(t) {
     x += cell * 0.8;
   });
   // gợi ý
-  const hints = G.hints || [];
   ctx.font = font(700, 25);
   hints.forEach((hnt, i) => {
     ctx.fillStyle = '#fde68a';
-    ctx.fillText(fitText('💡 ' + hnt, W - 140), W / 2, y + 62 + cell * 1.05 + 32 + i * 34);
+    ctx.fillText(fitText('💡 ' + hnt, W - 140), W / 2, hintYs[i]);
   });
-  if (G.nextHintIn != null && hints.length < 3 && G.phase === 'playing') {
+  if (showNext) {
     ctx.font = font(500, 19); ctx.fillStyle = 'rgba(199,210,254,.8)';
-    ctx.fillText(`Gợi ý tiếp sau ${G.nextHintIn}s`, W / 2, y + h - 74);
+    ctx.fillText(`Gợi ý tiếp sau ${G.nextHintIn}s`, W / 2, nextY);
   }
-  drawUnlockMenu(y + h - 34);
+  drawUnlockMenu(chips, chipY0);
   ctx.restore();
 }
 
 /** Dòng "quà mở khoá" dưới ô chữ, kèm tiến độ gom quà (vd 🌹 3/5). */
-function drawUnlockMenu(cy) {
-  const list = G.unlocks || [];
-  if (!list.length) return;
+function drawUnlockMenu({ items, ws, rows, gap }, y0) {
+  if (!items.length) return;
   ctx.save();
   ctx.font = font(700, 18); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-  const items = list.map((u) => {
-    const prog = u.every ? ` (${u.count}/${u.every})` : '';
-    return { text: `${u.icon || '🎁'} ${u.label}${prog}`, active: u.every && u.count > 0, id: u.id };
-  });
-  const pad = 12, gap = 8;
-  const ws = items.map((it) => ctx.measureText(it.text).width + pad * 2);
-  // xếp tối đa 2 hàng cho vừa khung
-  const rows = [[]];
-  let rowW = 0;
-  items.forEach((it, i) => {
-    if (rowW + ws[i] > W - 120 && rows[rows.length - 1].length) { rows.push([]); rowW = 0; }
-    rows[rows.length - 1].push(i); rowW += ws[i] + gap;
-  });
   const now = performance.now();
   rows.forEach((row, ri) => {
     const total = row.reduce((a, i) => a + ws[i], 0) + gap * (row.length - 1);
     let x = (W - total) / 2;
-    const y = cy - (rows.length - 1 - ri) * 40;
+    const y = y0 + ri * 40;
     row.forEach((i) => {
       const it = items[i];
       const flash = fx.unlockFlash.get(it.id);
@@ -312,8 +336,10 @@ function drawUnlockMenu(cy) {
 }
 
 function drawRanking(t) {
-  const top = 714, rowH = 60, x = 40, w = W - 80;
-  const list = (G.ranked || []).slice(0, 8);
+  const top = L.secretBottom + 22, rowH = 60, x = 40, w = W - 80;
+  const list = (G.ranked || []).slice(0, L.secretBottom > 740 ? 7 : 8);
+  L.rankTop = top;
+  L.rankBottom = top + 56 + Math.max(1, list.length) * rowH + 14;
   ctx.save();
   rr(x, top, w, 56 + Math.max(1, list.length) * rowH + 14, 24);
   ctx.fillStyle = 'rgba(15,18,60,.86)'; ctx.fill();
@@ -356,7 +382,7 @@ function drawRanking(t) {
 
 function drawFeed() {
   const list = (G.feed || []).slice(0, 4);
-  const y0 = 1410;
+  const y0 = L.feedY;
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.font = font(700, 20); ctx.fillStyle = 'rgba(199,210,254,.8)'; ctx.textAlign = 'left';
@@ -389,7 +415,9 @@ function drawGuide() {
   const pad = 18, gap = 12;
   const ws = items.map((s) => ctx.measureText(s).width + pad * 2);
   let x = (W - ws.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2;
-  const y = 1282;
+  const y = L.rankBottom + 18;
+  L.guideBottom = y + 50;
+  L.feedY = y + 128;
   items.forEach((s, i) => {
     rr(x, y, ws[i], 50, 25);
     ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
@@ -407,7 +435,7 @@ function drawChampions() {
   ctx.font = font(700, 20); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
   const medals = ['🥇', '🥈', '🥉'];
   list.forEach((c, i) => {
-    const y = 1410 + i * 44;
+    const y = L.feedY + i * 44;
     const label = `${medals[i]} ${clip(c.name, 12)} · ${c.wins} lần`;
     const w = ctx.measureText(label).width + 30;
     rr(W - 40 - w, y - 19, w, 38, 19);
@@ -420,8 +448,8 @@ function drawChampions() {
 function drawEnd(t) {
   if (G.phase !== 'ended') return;
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 710, W, 640);
-  const y = 770;
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, L.rankTop - 6, W, 640);
+  const y = L.rankTop + 54;
   rr(80, y, W - 160, 470, 34);
   const win = G.winner;
   ctx.fillStyle = win ? '#166534' : '#3730a3'; ctx.fill();
@@ -459,14 +487,15 @@ function drawBanner(dt) {
   const k = Math.min(1, b.t * 3, (3.5 - Math.min(3.5, b.t)) * 4 + 0.001);
   ctx.save();
   ctx.globalAlpha = Math.min(1, k);
-  rr(90, 1346, W - 180, 96, 26);
+  const by = L.guideBottom + 14;
+  rr(90, by, W - 180, 96, 26);
   ctx.fillStyle = 'rgba(15,18,60,.95)'; ctx.fill();
   ctx.strokeStyle = b.color; ctx.lineWidth = 4; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(800, 28); ctx.fillStyle = b.color;
-  ctx.fillText(fitText(b.text, W - 240), W / 2, 1376);
+  ctx.fillText(fitText(b.text, W - 240), W / 2, by + 30);
   ctx.font = font(600, 22); ctx.fillStyle = '#fff';
-  ctx.fillText(fitText(b.sub || '', W - 240), W / 2, 1414);
+  ctx.fillText(fitText(b.sub || '', W - 240), W / 2, by + 68);
   ctx.restore();
 }
 
