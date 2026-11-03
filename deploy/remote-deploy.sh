@@ -75,6 +75,9 @@ case "$MODE" in
   *) echo "Chế độ không hợp lệ: $MODE"; exit 1 ;;
 esac
 
+echo "==> Dọn image cũ không dùng (giải phóng ổ trước khi nạp image mới)"
+$DOCKER image prune -af 2>/dev/null | tail -1 || true
+
 echo "==> Nạp image"
 for f in image-*.tar.gz; do
   [[ -e "$f" ]] || continue
@@ -85,7 +88,10 @@ done
 echo "==> Chạy"
 mkdir -p public/assets
 $DOCKER compose "${PROFILES[@]}" up -d --no-build --remove-orphans
-$DOCKER image prune -f >/dev/null || true
+echo "==> Xoá image cũ của bản trước + cache build"
+$DOCKER image prune -af 2>/dev/null | tail -1 || true
+$DOCKER builder prune -af >/dev/null 2>&1 || true
+$DOCKER images --format '    {{.Repository}}:{{.Tag}}  {{.Size}}'
 $DOCKER compose "${PROFILES[@]}" ps
 
 echo
