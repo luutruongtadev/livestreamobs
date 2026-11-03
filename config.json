@@ -321,7 +321,52 @@
       150,
       230
     ],
-    "giftHintMinDiamonds": 10,
+    "giftUnlocks": [
+      {
+        "id": "rose",
+        "gifts": [
+          "Rose",
+          "TikTok",
+          "Heart Me",
+          "Ice Cream Cone"
+        ],
+        "action": "letter",
+        "every": 5,
+        "icon": "🌹",
+        "label": "5 Hoa hồng = 1 chữ"
+      },
+      {
+        "id": "heart",
+        "gifts": [
+          "Finger Heart"
+        ],
+        "action": "letter",
+        "icon": "🫰",
+        "label": "Tim tay = 1 chữ"
+      },
+      {
+        "id": "hint",
+        "minDiamonds": 10,
+        "action": "hint",
+        "icon": "🎁",
+        "label": "10 xu = gợi ý"
+      },
+      {
+        "id": "time",
+        "minDiamonds": 30,
+        "action": "time",
+        "seconds": 60,
+        "icon": "🍩",
+        "label": "30 xu = +60 giây"
+      },
+      {
+        "id": "syllable",
+        "minDiamonds": 99,
+        "action": "syllable",
+        "icon": "💎",
+        "label": "99 xu = lộ 1 tiếng"
+      }
+    ],
     "cooldownSec": 2,
     "maxScoredPerRound": 500,
     "words": [

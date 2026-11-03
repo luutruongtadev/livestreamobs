@@ -60,8 +60,8 @@ test('gợi ý theo thời gian và theo quà; hết giờ lộ từ, sang vòng
   assert.deepEqual(g.snapshot().pattern, [3, 4]);
   assert.equal(g.snapshot().secret, null);
   const fx = g.handle({ type: 'gift', user: u('a'), diamonds: 10 });
-  assert.equal(fx[0].type, 'wg_hint');
-  assert.equal(fx[0].hint, 'Chủ đề: Thiên nhiên');
+  assert.equal(fx[0].type, 'wg_unlock');
+  assert.equal(fx.find((e) => e.type === 'wg_hint').hint, 'Chủ đề: Thiên nhiên');
   assert.equal(g.handle({ type: 'gift', user: u('a'), diamonds: 1 }).length, 0, 'quà nhỏ không mở gợi ý');
   now = 121_000;
   assert.equal(g.tick()[0].hint, 'Chữ đầu: M… T…');
@@ -109,4 +109,49 @@ test('lastReject: nêu lý do bỏ qua bình luận', () => {
   assert.equal(g.lastReject, null);
   g.handle({ type: 'comment', user: u('a'), text: 'mưa' });
   assert.match(g.lastReject, /2 giây/);
+});
+
+test('quà mở khoá: hoa hồng gom 5 = 1 chữ, tim tay = 1 chữ, 10 xu = gợi ý, 30 xu = +60s, 99 xu = 1 tiếng', () => {
+  let now = 0;
+  const g = mk(fakeScorer({}), () => now, { roundSeconds: 300 });
+  const gift = (giftName, diamonds, repeatCount = 1) => g.handle({ type: 'gift', user: u('a'), giftName, diamonds, repeatCount });
+  const shown = () => g.snapshot().letters.flat().filter(Boolean).length;
+  // 4 bông: chỉ tăng tiến độ
+  for (let i = 0; i < 4; i++) assert.equal(gift('Rose', 1)[0].type, 'wg_progress');
+  assert.equal(g.snapshot().unlocks.find((x) => x.id === 'rose').count, 4);
+  assert.equal(shown(), 0);
+  // bông thứ 5: lộ 1 chữ
+  const fx = gift('Rose', 1);
+  assert.equal(fx[0].type, 'wg_unlock'); assert.equal(fx[0].action, 'letter');
+  assert.equal(shown(), 1);
+  assert.equal(g.snapshot().unlocks.find((x) => x.id === 'rose').count, 0);
+  // combo 10 bông = 2 chữ
+  assert.equal(gift('Rose', 1, 10).length, 2);
+  assert.equal(shown(), 3);
+  // tim tay: 1 chữ ngay
+  assert.equal(gift('Finger Heart', 5)[0].action, 'letter');
+  assert.equal(shown(), 4);
+  // 20 xu: gợi ý
+  assert.ok(gift('Perfume', 20).some((e) => e.type === 'wg_hint'));
+  assert.equal(g.hintLevel, 1);
+  // 30 xu: +60 giây
+  const before = g.endsAt; now = 100_000;
+  gift('Doughnut', 30);
+  assert.equal(g.endsAt, before + 60_000);
+  // 99+ xu: lộ cả một tiếng nhưng luôn chừa ít nhất 1 chữ
+  gift('Hand Hearts', 100); gift('Hand Hearts', 100); gift('Hand Hearts', 100);
+  assert.equal(shown(), 6, 'mặt trời có 7 chữ cái → chừa lại 1');
+  assert.deepEqual(gift('Finger Heart', 5), [], 'không lộ chữ cuối cùng');
+  // quà 1 xu không có trong danh sách tên: không mở gì
+  assert.deepEqual(gift('Unknown', 1), []);
+});
+
+test('quà mở khoá: vòng mới thì xoá chữ đã lộ và tiến độ', () => {
+  let now = 0;
+  const g = mk(fakeScorer({}), () => now, { breakSeconds: 1 });
+  g.handle({ type: 'gift', user: u('a'), giftName: 'Finger Heart', diamonds: 5 });
+  g.handle({ type: 'gift', user: u('a'), giftName: 'Rose', diamonds: 1 });
+  g.skip(); now = 2000; g.tick();
+  assert.equal(g.snapshot().letters.flat().filter(Boolean).length, 0);
+  assert.equal(g.snapshot().unlocks.find((x) => x.id === 'rose').count, 0);
 });

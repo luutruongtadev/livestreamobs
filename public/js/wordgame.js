@@ -25,7 +25,7 @@ let G = null; // snapshot game
 let cfg = {};
 let wsOk = false;
 let sound = new SoundBoard({ muted: opt.mute });
-const fx = { confetti: [], floaters: [], flash: 0, hintFlash: 0, rowY: new Map(), highlight: new Map(), banner: null };
+const fx = { confetti: [], floaters: [], flash: 0, hintFlash: 0, rowY: new Map(), highlight: new Map(), banner: null, letterAt: new Map(), unlockFlash: new Map() };
 
 // ---------------- tiện ích ----------------
 const font = (w, s, serif = false) => `${w} ${s}px ${serif ? "'Noto Serif', serif" : "'Be Vietnam Pro', system-ui, sans-serif"}`;
@@ -102,10 +102,27 @@ function handle(e) {
       break;
     case 'wg_scored':
       fx.highlight.set(e.word, performance.now());
-      if (e.score >= 85) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.score}`, x: W / 2, y: 1190, life: 1, color: '#4ade80' }); }
+      if (e.score >= 85) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.score}`, x: W / 2, y: 1240, life: 1, color: '#4ade80' }); }
       else if (e.score >= 60) sound.play('chime', { pitch: 1.1 });
       break;
+    case 'wg_progress':
+      fx.unlockFlash.set(e.rule, performance.now());
+      sound.play('chime', { pitch: 1.3 });
+      fx.floaters.push({ text: `${e.icon || '🎁'} ${e.count}/${e.every}`, x: W - 150, y: 560, life: 1, color: '#fbcfe8' });
+      break;
+    case 'wg_unlock': {
+      const now = performance.now();
+      fx.unlockFlash.set(G?.unlocks?.find((u) => u.label === e.label)?.id, now);
+      for (const i of e.indexes || []) fx.letterAt.set(i, now);
+      const who = e.by ? clip(e.by.name, 16) : 'Ai đó';
+      const what = e.action === 'letter' ? 'lộ 1 chữ cái!' : e.action === 'syllable' ? 'lộ cả 1 tiếng!' : e.action === 'time' ? `+${e.seconds} giây!` : 'mở gợi ý!';
+      fx.banner = { text: `${e.icon || '🎁'} ${who} tặng ${e.repeat > 1 ? e.repeat + ' ' : ''}${e.giftName || 'quà'}: ${what}`, sub: e.hint || e.label || '', t: 4, color: '#facc15' };
+      fx.hintFlash = 1;
+      sound.play(e.action === 'syllable' ? 'levelup' : 'bell');
+      break;
+    }
     case 'wg_hint':
+      if (e.by) break; // gợi ý do quà mở đã có thông báo wg_unlock
       fx.hintFlash = 1;
       sound.play('bell');
       fx.banner = { text: e.by ? `💡 ${clip(e.by.name, 18)} tặng quà mở gợi ý!` : '💡 Gợi ý mới!', sub: e.hint, t: 4, color: '#facc15' };
@@ -119,7 +136,7 @@ function handle(e) {
       sound.play('bell');
       break;
     case 'wg_start':
-      fx.rowY.clear(); fx.highlight.clear();
+      fx.rowY.clear(); fx.highlight.clear(); fx.letterAt.clear();
       sound.play('chime');
       fx.banner = { text: `VÒNG ${e.round} BẮT ĐẦU!`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
@@ -201,7 +218,7 @@ function drawHeader() {
 }
 
 function drawSecret(t) {
-  const y = 392, h = 250;
+  const y = 392, h = 300;
   ctx.save();
   rr(40, y, W - 80, h, 26);
   const g = ctx.createLinearGradient(0, y, 0, y + h);
@@ -217,16 +234,25 @@ function drawSecret(t) {
   const total = groups.reduce((a, b) => a + b, 0) + (groups.length - 1) * 0.8;
   const cell = Math.min(62, (W - 160) / total);
   let x = W / 2 - (total * cell) / 2;
+  const now = performance.now();
+  let flat = 0;
   groups.forEach((n, gi) => {
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < n; i++, flat++) {
       const cx = x + cell / 2;
+      const opened = !revealed ? G.letters?.[gi]?.[i] : null; // chữ lộ nhờ quà
+      const born = fx.letterAt.get(flat);
+      const pop = born ? Math.max(0, 1 - (now - born) / 600) : 0;
+      ctx.save();
+      ctx.translate(cx, y + 62 + cell * 0.52); ctx.scale(1 + pop * 0.35, 1 + pop * 0.35); ctx.translate(-cx, -(y + 62 + cell * 0.52));
       rr(cx - cell * 0.42, y + 62, cell * 0.84, cell * 1.05, 10);
-      ctx.fillStyle = revealed ? '#4ade80' : 'rgba(255,255,255,.12)'; ctx.fill();
+      ctx.fillStyle = revealed ? '#4ade80' : opened ? '#facc15' : 'rgba(255,255,255,.12)'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; ctx.stroke();
-      if (revealed) {
-        ctx.font = font(900, Math.round(cell * 0.7)); ctx.fillStyle = '#052e16';
-        ctx.fillText([...revealed[gi]][i]?.toUpperCase() || '', cx, y + 62 + cell * 0.55);
+      const ch = revealed ? [...revealed[gi]][i] : opened;
+      if (ch) {
+        ctx.font = font(900, Math.round(cell * 0.7)); ctx.fillStyle = revealed ? '#052e16' : '#3b2500';
+        ctx.fillText(ch.toUpperCase(), cx, y + 62 + cell * 0.55);
       }
+      ctx.restore();
       x += cell;
     }
     x += cell * 0.8;
@@ -238,16 +264,55 @@ function drawSecret(t) {
     ctx.fillStyle = '#fde68a';
     ctx.fillText(fitText('💡 ' + hnt, W - 140), W / 2, y + 62 + cell * 1.05 + 32 + i * 34);
   });
-  if (hints.length < 3 && G.phase === 'playing') {
-    ctx.font = font(500, 20); ctx.fillStyle = 'rgba(199,210,254,.85)';
-    const nh = G.nextHintIn != null ? `Gợi ý tiếp sau ${G.nextHintIn}s · ` : '';
-    ctx.fillText(`${nh}🎁 Tặng ${G.giftHintMinDiamonds} xu để mở gợi ý ngay`, W / 2, y + h - 22);
+  if (G.nextHintIn != null && hints.length < 3 && G.phase === 'playing') {
+    ctx.font = font(500, 19); ctx.fillStyle = 'rgba(199,210,254,.8)';
+    ctx.fillText(`Gợi ý tiếp sau ${G.nextHintIn}s`, W / 2, y + h - 74);
   }
+  drawUnlockMenu(y + h - 34);
+  ctx.restore();
+}
+
+/** Dòng "quà mở khoá" dưới ô chữ, kèm tiến độ gom quà (vd 🌹 3/5). */
+function drawUnlockMenu(cy) {
+  const list = G.unlocks || [];
+  if (!list.length) return;
+  ctx.save();
+  ctx.font = font(700, 18); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  const items = list.map((u) => {
+    const prog = u.every ? ` (${u.count}/${u.every})` : '';
+    return { text: `${u.icon || '🎁'} ${u.label}${prog}`, active: u.every && u.count > 0, id: u.id };
+  });
+  const pad = 12, gap = 8;
+  const ws = items.map((it) => ctx.measureText(it.text).width + pad * 2);
+  // xếp tối đa 2 hàng cho vừa khung
+  const rows = [[]];
+  let rowW = 0;
+  items.forEach((it, i) => {
+    if (rowW + ws[i] > W - 120 && rows[rows.length - 1].length) { rows.push([]); rowW = 0; }
+    rows[rows.length - 1].push(i); rowW += ws[i] + gap;
+  });
+  const now = performance.now();
+  rows.forEach((row, ri) => {
+    const total = row.reduce((a, i) => a + ws[i], 0) + gap * (row.length - 1);
+    let x = (W - total) / 2;
+    const y = cy - (rows.length - 1 - ri) * 40;
+    row.forEach((i) => {
+      const it = items[i];
+      const flash = fx.unlockFlash.get(it.id);
+      const k = flash ? Math.max(0, 1 - (now - flash) / 1200) : 0;
+      rr(x, y - 16, ws[i], 32, 16);
+      ctx.fillStyle = k > 0 ? `rgba(250,204,21,${0.3 + k * 0.5})` : it.active ? 'rgba(244,114,182,.3)' : 'rgba(255,255,255,.08)'; ctx.fill();
+      ctx.strokeStyle = it.active || k > 0 ? '#fbcfe8' : 'rgba(165,180,252,.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(it.text, x + ws[i] / 2, y + 1);
+      x += ws[i] + gap;
+    });
+  });
   ctx.restore();
 }
 
 function drawRanking(t) {
-  const top = 664, rowH = 60, x = 40, w = W - 80;
+  const top = 714, rowH = 60, x = 40, w = W - 80;
   const list = (G.ranked || []).slice(0, 8);
   ctx.save();
   rr(x, top, w, 56 + Math.max(1, list.length) * rowH + 14, 24);
@@ -291,7 +356,7 @@ function drawRanking(t) {
 
 function drawFeed() {
   const list = (G.feed || []).slice(0, 4);
-  const y0 = 1360;
+  const y0 = 1410;
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.font = font(700, 20); ctx.fillStyle = 'rgba(199,210,254,.8)'; ctx.textAlign = 'left';
@@ -324,7 +389,7 @@ function drawGuide() {
   const pad = 18, gap = 12;
   const ws = items.map((s) => ctx.measureText(s).width + pad * 2);
   let x = (W - ws.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2;
-  const y = 1232;
+  const y = 1282;
   items.forEach((s, i) => {
     rr(x, y, ws[i], 50, 25);
     ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
@@ -342,7 +407,7 @@ function drawChampions() {
   ctx.font = font(700, 20); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
   const medals = ['🥇', '🥈', '🥉'];
   list.forEach((c, i) => {
-    const y = 1360 + i * 44;
+    const y = 1410 + i * 44;
     const label = `${medals[i]} ${clip(c.name, 12)} · ${c.wins} lần`;
     const w = ctx.measureText(label).width + 30;
     rr(W - 40 - w, y - 19, w, 38, 19);
@@ -355,8 +420,8 @@ function drawChampions() {
 function drawEnd(t) {
   if (G.phase !== 'ended') return;
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 660, W, 640);
-  const y = 720;
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 710, W, 640);
+  const y = 770;
   rr(80, y, W - 160, 470, 34);
   const win = G.winner;
   ctx.fillStyle = win ? '#166534' : '#3730a3'; ctx.fill();
@@ -394,14 +459,14 @@ function drawBanner(dt) {
   const k = Math.min(1, b.t * 3, (3.5 - Math.min(3.5, b.t)) * 4 + 0.001);
   ctx.save();
   ctx.globalAlpha = Math.min(1, k);
-  rr(90, 1296, W - 180, 96, 26);
+  rr(90, 1346, W - 180, 96, 26);
   ctx.fillStyle = 'rgba(15,18,60,.95)'; ctx.fill();
   ctx.strokeStyle = b.color; ctx.lineWidth = 4; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(800, 28); ctx.fillStyle = b.color;
-  ctx.fillText(fitText(b.text, W - 240), W / 2, 1326);
+  ctx.fillText(fitText(b.text, W - 240), W / 2, 1376);
   ctx.font = font(600, 22); ctx.fillStyle = '#fff';
-  ctx.fillText(fitText(b.sub || '', W - 240), W / 2, 1364);
+  ctx.fillText(fitText(b.sub || '', W - 240), W / 2, 1414);
   ctx.restore();
 }
 

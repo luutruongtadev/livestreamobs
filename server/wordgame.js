@@ -7,7 +7,17 @@ export const WG_DEFAULTS = {
   roundSeconds: 300,
   breakSeconds: 12,
   hintAtSeconds: [60, 150, 230], // tự mở gợi ý theo thời gian
-  giftHintMinDiamonds: 10, // tặng từ N xu thì mở gợi ý tiếp theo
+  giftHintMinDiamonds: 10, // (cũ) dùng khi không khai báo giftUnlocks
+  // Quà mở khoá: khớp theo tên quà (gifts) trước, không khớp thì theo số xu (minDiamonds cao nhất ≤ số xu).
+  // action: letter (lộ 1 chữ cái) | hint (gợi ý tiếp) | time (+giây) | syllable (lộ cả 1 tiếng)
+  // every: cần gom đủ N món (cộng dồn cả phòng trong vòng) mới mở 1 lần.
+  giftUnlocks: [
+    { id: 'rose', gifts: ['Rose', 'TikTok', 'Heart Me', 'Ice Cream Cone'], action: 'letter', every: 5, icon: '🌹', label: '5 Hoa hồng = 1 chữ' },
+    { id: 'heart', gifts: ['Finger Heart'], action: 'letter', icon: '🫰', label: 'Tim tay = 1 chữ' },
+    { id: 'hint', minDiamonds: 10, action: 'hint', icon: '🎁', label: '10 xu = gợi ý' },
+    { id: 'time', minDiamonds: 30, action: 'time', seconds: 60, icon: '🍩', label: '30 xu = +60 giây' },
+    { id: 'syllable', minDiamonds: 99, action: 'syllable', icon: '💎', label: '99 xu = lộ 1 tiếng' },
+  ],
   cooldownSec: 2, // mỗi người đoán tối đa 1 từ / N giây
   maxGuessChars: 24,
   maxGuessWords: 4,
@@ -87,6 +97,8 @@ export class WordGame extends EventEmitter {
     this.secret = canon(w.word);
     this.category = w.hint || '';
     this.hintLevel = 0;
+    this.revealedIdx = new Set(); // vị trí chữ cái đã lộ (đánh số liên tục, bỏ khoảng trắng)
+    this.giftCounters = {}; // id luật quà → số món đã gom trong vòng
     this.startedAt = this.now();
     this.endsAt = this.startedAt + this.cfg.roundSeconds * 1000;
     this.guesses = new Map(); // canon -> { word, score, pending, by, at, count, source }
@@ -127,11 +139,7 @@ export class WordGame extends EventEmitter {
       return [];
     }
     const user = ev.user;
-    if (ev.type === 'gift') {
-      const diamonds = Math.max(0, Number(ev.diamonds) || 0) * Math.max(1, ev.repeatCount | 0 || 1);
-      if (diamonds >= this.cfg.giftHintMinDiamonds) return this.revealHint(user ? { id: user.id, name: user.name, avatar: user.avatar } : null);
-      return [];
-    }
+    if (ev.type === 'gift') return this.handleGift(ev);
     if (ev.type !== 'comment' || !user?.id) return [];
     const word = parseGuess(ev.text, this.cfg);
     if (!word) {
@@ -170,6 +178,85 @@ export class WordGame extends EventEmitter {
       this.emit('effects', [{ type: 'wg_scored', word, score, by: entry.by, source }]);
     }).catch((e) => console.warn('[wordgame] chấm lỗi:', e?.message || e));
     return [fx];
+  }
+
+  get unlockRules() {
+    const rules = this.cfg.giftUnlocks;
+    if (Array.isArray(rules) && rules.length) return rules;
+    return [{ id: 'hint', minDiamonds: this.cfg.giftHintMinDiamonds, action: 'hint', icon: '🎁', label: `${this.cfg.giftHintMinDiamonds} xu = gợi ý` }];
+  }
+
+  /** Luật cho món quà: theo tên trước, sau đó theo số xu (ngưỡng cao nhất đạt được). */
+  matchUnlock(giftName, unitDiamonds, totalDiamonds) {
+    const name = String(giftName || '').toLowerCase();
+    const byName = this.unlockRules.find((r) => r.gifts?.some((g) => g.toLowerCase() === name));
+    if (byName) return byName;
+    let best = null;
+    for (const r of this.unlockRules) {
+      if (r.minDiamonds == null || r.gifts) continue;
+      if (totalDiamonds >= r.minDiamonds && (!best || r.minDiamonds > best.minDiamonds)) best = r;
+    }
+    return best;
+  }
+
+  handleGift(ev) {
+    const user = ev.user;
+    const by = user ? { id: user.id, name: user.name, avatar: user.avatar } : null;
+    const repeat = Math.max(1, ev.repeatCount | 0 || 1);
+    const unit = Math.max(0, Number(ev.diamonds) || 0);
+    const rule = this.matchUnlock(ev.giftName, unit, unit * repeat);
+    if (!rule) return [];
+    let times = 1;
+    if (rule.every) {
+      const cnt = (this.giftCounters[rule.id] || 0) + repeat;
+      times = Math.floor(cnt / rule.every);
+      this.giftCounters[rule.id] = cnt % rule.every;
+      this.dirty = true;
+      if (!times) return [{ type: 'wg_progress', rule: rule.id, icon: rule.icon, count: this.giftCounters[rule.id], every: rule.every, by, giftName: ev.giftName }];
+    } else if (rule.action === 'letter') {
+      times = repeat; // mỗi món một chữ
+    }
+    const out = [];
+    for (let i = 0; i < Math.min(times, 5); i++) out.push(...this.applyUnlock(rule, by, ev.giftName, repeat));
+    return out;
+  }
+
+  /** Danh sách vị trí chữ cái (bỏ khoảng trắng) theo từng tiếng. */
+  letterSlots() {
+    const slots = [];
+    let idx = 0;
+    this.secret.split(' ').forEach((syl, si) => { [...syl].forEach((ch, ci) => slots.push({ idx: idx++, si, ci, ch })); });
+    return slots;
+  }
+
+  applyUnlock(rule, by, giftName, repeat) {
+    const base = { type: 'wg_unlock', action: rule.action, icon: rule.icon, label: rule.label, by, giftName, repeat };
+    if (rule.action === 'hint') {
+      const fx = this.revealHint(by);
+      return fx.length ? [{ ...base, hint: fx[0].hint }, ...fx] : [];
+    }
+    if (rule.action === 'time') {
+      const add = (rule.seconds || 60) * 1000;
+      this.endsAt = Math.min(this.endsAt + add, this.now() + this.cfg.roundSeconds * 1000);
+      this.dirty = true;
+      return [{ ...base, seconds: rule.seconds || 60 }];
+    }
+    const slots = this.letterSlots();
+    const hidden = slots.filter((s) => !this.revealedIdx.has(s.idx));
+    if (hidden.length <= 1) return []; // luôn chừa ít nhất 1 chữ để còn phải đoán
+    let pick = [];
+    if (rule.action === 'syllable') {
+      const sylls = [...new Set(hidden.map((s) => s.si))];
+      const si = sylls[Math.floor(this.random() * sylls.length)];
+      pick = hidden.filter((s) => s.si === si);
+      if (pick.length >= hidden.length) pick = pick.slice(0, Math.max(1, Math.ceil(pick.length / 2)));
+    } else {
+      pick = [hidden[Math.floor(this.random() * hidden.length)]];
+    }
+    pick = pick.slice(0, hidden.length - 1);
+    for (const s of pick) this.revealedIdx.add(s.idx);
+    this.dirty = true;
+    return [{ ...base, indexes: pick.map((s) => s.idx) }];
   }
 
   pushFeed(fx) {
@@ -227,7 +314,14 @@ export class WordGame extends EventEmitter {
       phase: this.phase,
       remaining: Math.max(0, Math.ceil(((ended ? this.nextAt : this.endsAt) - t) / 1000)),
       // độ dài từng tiếng của từ bí mật (không lộ chữ), lộ hẳn khi hết vòng
-      pattern: this.secret.split(' ').map((s) => s.length),
+      pattern: this.secret.split(' ').map((s) => [...s].length),
+      // chữ cái đã lộ nhờ quà: mảng theo từng tiếng, null = còn ẩn
+      letters: (() => {
+        const out = this.secret.split(' ').map((s) => [...s].map(() => null));
+        for (const s of this.letterSlots()) if (this.revealedIdx.has(s.idx)) out[s.si][s.ci] = s.ch;
+        return out;
+      })(),
+      unlocks: this.unlockRules.map((r) => ({ id: r.id, icon: r.icon, label: r.label, every: r.every || null, count: this.giftCounters[r.id] || 0 })),
       secret: ended ? this.secret : null,
       hints: this.hints(),
       hintLevel: this.hintLevel,

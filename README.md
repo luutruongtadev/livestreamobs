@@ -75,7 +75,18 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Chấm điểm bằng Claude** (hiểu nghĩa tiếng Việt, kể cả gõ không dấu). Đặt `ANTHROPIC_API_KEY` trong `.env` (lấy ở console.anthropic.com). Model mặc định `claude-opus-5-5`, đổi bằng `WORDGAME_MODEL` hoặc `config.json` → `wordgame.model`.
 - **Tiết kiệm chi phí**: mỗi cặp (từ bí mật, từ đoán) chỉ chấm **một lần** rồi lưu cache (`data/wordscore-cache.json`), nhiều người đoán trùng không tốn thêm; từ đoán được gom lô ~1 giây/lần; tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
 - **Không có API key** → tự chuyển sang chấm đơn giản theo chữ (không hiểu nghĩa, chỉ để test).
-- **Gợi ý**: tự mở sau 60 / 150 / 230 giây (chủ đề → chữ đầu mỗi tiếng → lộ một tiếng); **tặng từ 10 xu mở gợi ý ngay**.
+- **Gợi ý**: tự mở sau 60 / 150 / 230 giây (chủ đề → chữ đầu mỗi tiếng → lộ một tiếng).
+- **Quà mở khoá** (hiện thành dòng chip dưới ô chữ, kèm tiến độ gom quà):
+
+  | Quà | Mở khoá |
+  |---|---|
+  | 🌹 Hoa hồng / TikTok / Heart Me / Ice Cream (1 xu) | gom đủ 5 món (cộng dồn cả phòng trong vòng) = lộ 1 chữ cái |
+  | 🫰 Tim tay (Finger Heart) | lộ 1 chữ cái (combo x3 = 3 chữ) |
+  | 🎁 từ 10 xu | mở gợi ý tiếp theo |
+  | 🍩 từ 30 xu | +60 giây cho vòng |
+  | 💎 từ 99 xu | lộ cả một tiếng |
+
+  Chữ đã lộ hiện màu vàng trong ô; luôn chừa lại ít nhất 1 chữ. Quà khớp theo **tên quà** trước (tên tiếng Anh của TikTok), không khớp thì theo **số xu**. Đổi trong `config.json` → `wordgame.giftUnlocks` (`action`: `letter` | `hint` | `time` | `syllable`, `every`: số món cần gom, `gifts`: danh sách tên quà, `minDiamonds`: ngưỡng xu).
 - Mỗi vòng 5 phút; hết giờ lộ từ, 12 giây sau sang vòng mới. Bảng 🥇🥈🥉 cao thủ đếm số vòng thắng.
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
