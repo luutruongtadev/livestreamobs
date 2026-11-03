@@ -332,6 +332,7 @@
     "batchSize": 100,
     "minRemaining": 10,
     "autoGenerate": true,
+    "difficulty": "hard",
     "scorer": "claude",
     "roundSeconds": 300,
     "breakSeconds": 12,

@@ -10,9 +10,21 @@ Yêu cầu cho mỗi từ:
 - Danh từ hoặc khái niệm tiếng Việt quen thuộc với đa số người Việt (đồ vật, con vật, món ăn, nghề nghiệp, địa điểm, thiên nhiên, cảm xúc, hoạt động, lễ hội…), có nhiều từ liên quan để người chơi đoán dần.
 - Viết đúng chính tả, có dấu, chữ thường, 1 đến 3 tiếng, không dấu câu, không số.
 - Không dùng tên riêng (người, thương hiệu, địa danh cụ thể), không chính trị, không tôn giáo gây tranh cãi, không tục tĩu, không chủ đề nhạy cảm.
-- Độ khó vừa phải: đoán được trong vài phút.
 - Đa dạng chủ đề; không trùng nhau và không trùng danh sách đã có.
 "hint" là chủ đề ngắn 1-4 tiếng dùng làm gợi ý đầu tiên (ví dụ "Động vật", "Món ăn", "Đồ dùng học tập"), không được chứa chính từ bí mật.`;
+
+/** Mức độ khó khi sinh từ (config wordgame.difficulty: "easy" | "medium" | "hard"). */
+export const DIFFICULTY = {
+  easy: 'Độ khó: DỄ. Từ rất phổ biến, cụ thể, ai cũng nghĩ tới ngay (con mèo, quả chuối, xe đạp). Chủ đề gợi ý rõ ràng.',
+  medium: 'Độ khó: VỪA. Từ quen thuộc nhưng không phải từ đầu tiên người ta nghĩ tới; đoán được trong vài phút.',
+  hard: [
+    'Độ khó: KHÓ. Người chơi cần nhiều lượt đoán và gợi ý mới ra.',
+    '- Tránh các từ quá phổ biến, cụ thể, dễ nghĩ ra ngay (con chó, quả táo, xe máy, mặt trời, điện thoại…).',
+    '- Ưu tiên: từ ghép 2-3 tiếng ít gặp hơn nhưng ai cũng hiểu (ống nhòm, đồng hồ cát, la bàn, bù nhìn, chong chóng, tò he, kính vạn hoa, bàn tính), khái niệm trừu tượng (lòng tự trọng, sự im lặng, ký ức, định mệnh), hiện tượng (nhật thực, ảo ảnh, hải đăng, cực quang), nghề / hoạt động đặc thù (thợ lặn, thủ thư, ảo thuật gia), đồ vật xưa (đèn dầu, cối xay, guốc mộc).',
+    '- Vẫn phải là từ người Việt bình thường biết nghĩa; không dùng thuật ngữ chuyên ngành hiểm hóc, không từ Hán Việt cổ ít người hiểu.',
+    '- "hint" nên là chủ đề RỘNG, chung chung (ví dụ "Đồ vật", "Khái niệm", "Thiên nhiên", "Đời sống") để không lộ quá nhiều.',
+  ].join('\n'),
+};
 
 const SCHEMA = {
   type: 'object',
@@ -44,7 +56,8 @@ export function validWord(w) {
  * next() lấy một từ chưa dùng; hết thì dùng danh sách dự phòng (config.json).
  */
 export class WordBank {
-  constructor({ filePath = null, fallbackWords = [], client = null, model = 'claude-opus-5-5', batchSize = 100, minRemaining = 10, autoGenerate = true, random = Math.random, log = console } = {}) {
+  constructor({ filePath = null, fallbackWords = [], client = null, model = 'claude-opus-5-5', batchSize = 100, minRemaining = 10, autoGenerate = true, difficulty = 'hard', random = Math.random, log = console } = {}) {
+    this.difficulty = DIFFICULTY[difficulty] ? difficulty : 'hard';
     this.filePath = filePath;
     this.fallback = fallbackWords.filter((w) => w?.word);
     this.client = client;
@@ -88,6 +101,7 @@ export class WordBank {
       fallback: this.fallback.length,
       generating: !!this.generating,
       canGenerate: !!this.client,
+      difficulty: this.difficulty,
       model: this.model,
       lastError: this.lastError,
     };
@@ -136,6 +150,7 @@ export class WordBank {
           role: 'user',
           content: [
             `Soạn ${count} từ bí mật mới.`,
+            DIFFICULTY[this.difficulty],
             theme ? `Chủ đề chung của cả lô: ${theme}.` : 'Trộn nhiều chủ đề khác nhau.',
             avoidList.length ? `Không dùng các từ đã có: ${avoidList.join(', ')}.` : '',
           ].filter(Boolean).join('\n'),
@@ -153,7 +168,7 @@ export class WordBank {
         words.push({ word: w, hint });
       }
       if (!words.length) throw new Error('Không nhận được từ hợp lệ nào');
-      const batch = { id: Date.now(), createdAt: new Date().toISOString(), theme, model: this.model, words };
+      const batch = { id: Date.now(), createdAt: new Date().toISOString(), theme, difficulty: this.difficulty, model: this.model, words };
       this.data.batches.push(batch);
       this.save();
       this.lastError = null;

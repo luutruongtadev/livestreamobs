@@ -315,7 +315,7 @@
     const b = r?.bank;
     if (!b) return;
     $('wgBank').textContent = b.canGenerate
-      ? `Kho từ: ${b.remaining} chưa dùng / ${b.total} từ (${b.batches} lô, ${b.model})` + (b.generating ? ' · ⏳ đang tạo lô mới…' : '') + (b.lastError ? ` · ⚠ lỗi lần trước: ${b.lastError}` : '')
+      ? `Kho từ: ${b.remaining} chưa dùng / ${b.total} từ (${b.batches} lô, ${b.model}) · độ khó lô mới: ${({ easy: 'dễ', medium: 'vừa', hard: 'khó' })[b.difficulty] || b.difficulty}` + (b.generating ? ' · ⏳ đang tạo lô mới…' : '') + (b.lastError ? ` · ⚠ lỗi lần trước: ${b.lastError}` : '')
       : `Kho từ: chưa có ANTHROPIC_API_KEY → dùng ${b.fallback} từ trong config.json`;
     $('btnWgGen').disabled = !b.canGenerate || b.generating;
     const job = r.genJob;

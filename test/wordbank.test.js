@@ -76,3 +76,17 @@ test('WordGame lấy từ bí mật từ kho', async () => {
   assert.equal(g.secret, 'bánh xèo');
   assert.equal(g.category, 'Món ăn');
 });
+
+test('độ khó khi sinh từ: mặc định "hard" (tránh từ quá phổ biến, chủ đề gợi ý rộng), chỉnh được easy / medium', async () => {
+  const client = fakeClient([{ word: 'ống nhòm', hint: 'Đồ vật' }]);
+  const bank = new WordBank({ filePath: tmpFile(), client, autoGenerate: false, log: {} });
+  assert.equal(bank.stats().difficulty, 'hard');
+  const { batch } = await bank.generate();
+  assert.equal(batch.difficulty, 'hard');
+  assert.match(client.calls[0].messages[0].content, /Độ khó: KHÓ/);
+  assert.match(client.calls[0].messages[0].content, /Tránh các từ quá phổ biến/);
+  const easy = fakeClient([{ word: 'con mèo', hint: 'Động vật' }]);
+  await new WordBank({ filePath: tmpFile(), client: easy, difficulty: 'easy', autoGenerate: false, log: {} }).generate();
+  assert.match(easy.calls[0].messages[0].content, /Độ khó: DỄ/);
+  assert.equal(new WordBank({ difficulty: 'lung tung' }).stats().difficulty, 'hard');
+});

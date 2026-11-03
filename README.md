@@ -100,6 +100,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
 - **Từ bí mật do Claude sinh theo lô 100 từ** (kèm chủ đề gợi ý), lưu ở `data/wordbank.json`, không lặp lại từ đã chơi. Kho còn dưới 10 từ chưa dùng thì tự tạo lô mới. Tạo thủ công: trang admin → ô chủ đề (ví dụ "Tết", "Đồ ăn", để trống = trộn) → **✨ Tạo 100 từ mới**, hoặc `npm run gen-words -- "Tết" 100`. Model sinh từ: `WORDGAME_GEN_MODEL` / `wordgame.generatorModel` (mặc định `claude-opus-5-5`).
+- Độ khó khi Claude sinh lô mới: `"difficulty": "hard"` (mặc định — tránh từ quá phổ biến, ưu tiên từ ghép ít gặp, khái niệm trừu tượng, hiện tượng, đồ vật xưa; chủ đề gợi ý rộng) | `"medium"` | `"easy"` trong khối `wordgame` của `config.json`, hoặc biến môi trường `WORDGAME_DIFFICULTY`.
 - Không có API key → dùng 140 từ mẫu trong `config.json` → `wordgame.words` (động vật, món ăn, trái cây, đồ vật, thiên nhiên, nghề nghiệp, thể thao, phương tiện, lễ hội, công nghệ, cảm xúc). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 

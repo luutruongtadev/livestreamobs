@@ -77,6 +77,7 @@ const wordBank = new WordBank({
   batchSize: wgCfg.batchSize || 100,
   minRemaining: wgCfg.minRemaining ?? 10,
   autoGenerate: wgCfg.autoGenerate !== false,
+  difficulty: process.env.WORDGAME_DIFFICULTY || wgCfg.difficulty || 'hard',
 });
 // Bộ từ riêng: wordsets/<id>.json (có sẵn trong repo) + data/wordsets/<id>.json (tạo / sửa bằng Claude)
 const setStore = new WordSetStore({ repoDir: path.join(ROOT, 'wordsets'), dataDir: path.join(ROOT, 'data', 'wordsets') });
