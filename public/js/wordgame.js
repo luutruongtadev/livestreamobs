@@ -24,7 +24,7 @@ fit();
 let G = null; // snapshot game
 let cfg = {};
 let wsOk = false;
-let sound = new SoundBoard({ muted: opt.mute });
+let sound = new SoundBoard({ muted: opt.mute, theme: 'game' });
 const fx = { confetti: [], floaters: [], flash: 0, hintFlash: 0, rowY: new Map(), highlight: new Map(), banner: null, letterAt: new Map(), unlockFlash: new Map() };
 
 // ---------------- tiện ích ----------------
@@ -158,7 +158,7 @@ function connect() {
       const first = !G;
       cfg = msg.config; G = msg.wg;
       if (first) {
-        sound = new SoundBoard({ muted: opt.mute, files: cfg.sounds, ambientVolume: cfg.ambientVolume });
+        sound = new SoundBoard({ muted: opt.mute, theme: 'game' }); // không mõ, không chuông chùa, không nhạc nền tụng kinh
         sound.init();
         if (started) sound.resume();
         setTimeout(() => { if (!opt.mute && !opt.phone && sound.suspended) soundBtn.style.display = 'block'; }, 800);

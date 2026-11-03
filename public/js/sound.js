@@ -1,8 +1,10 @@
 // Âm thanh tổng hợp bằng WebAudio (không cần file). Có thể thay bằng file
 // riêng qua config.json -> "sounds": { "mo": "assets/mo.mp3", ... }
+// theme: 'temple' (mõ, chuông chùa, nhạc nền tụng kinh nếu có) | 'game' (pop, ding, không nhạc nền)
 export class SoundBoard {
-  constructor({ files = {}, muted = false, ambientVolume = 0.25 } = {}) {
-    this.files = files;
+  constructor({ files = {}, muted = false, ambientVolume = 0.25, theme = 'temple' } = {}) {
+    this.theme = theme;
+    this.files = theme === 'game' ? {} : files; // game không dùng file âm thanh / nhạc nền của chùa
     this.muted = muted;
     this.ambientVolume = ambientVolume;
     this.ctx = null;
@@ -110,8 +112,40 @@ export class SoundBoard {
       if (name === 'mo' && this.#throttle('mo', 90)) return;
       return this.#playBuffer(name, opts.gain ?? 1);
     }
-    const fn = this['_' + name];
+    const fn = (this.theme === 'game' && this['_game_' + name]) || this['_' + name];
     if (fn) fn.call(this, opts);
+  }
+
+  // ---------- bộ âm thanh kiểu game (không mõ, không chuông chùa) ----------
+  // Có người đoán: tiếng "pop" ngắn
+  _game_mo() {
+    if (this.#throttle('mo', 90)) return;
+    const t = this.ctx.currentTime;
+    const o = this.#partial(520 + Math.random() * 80, t, 0.09, 0.22, 'sine', false);
+    o.frequency.exponentialRampToValueAtTime(1100, t + 0.07);
+  }
+
+  // Mở gợi ý / vòng mới: "ding-ding" hai nốt sáng
+  _game_bell() {
+    if (this.#throttle('bell', 400)) return;
+    const t = this.ctx.currentTime;
+    this.#partial(1047, t, 0.35, 0.16, 'triangle', false);
+    this.#partial(1568, t + 0.12, 0.5, 0.16, 'triangle', false);
+  }
+
+  // Điểm cao / mở khoá: "blip" theo cao độ
+  _game_chime({ pitch = 1 } = {}) {
+    if (this.#throttle('chime', 100)) return;
+    const t = this.ctx.currentTime;
+    this.#partial(784 * pitch, t, 0.28, 0.14, 'triangle', false);
+    this.#partial(1568 * pitch, t + 0.05, 0.18, 0.05, 'sine', false);
+  }
+
+  // Thắng vòng: kèn chiến thắng (arpeggio + hợp âm)
+  _game_levelup() {
+    const t = this.ctx.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => this.#partial(f, t + i * 0.1, 0.22, 0.15, 'square', false));
+    for (const f of [523, 659, 784, 1047]) this.#partial(f, t + 0.45, 0.9, 0.07, 'triangle', false);
   }
 
   // Tiếng mõ gỗ: hai thành phần tần số, tắt rất nhanh
