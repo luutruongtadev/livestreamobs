@@ -221,3 +221,29 @@ test('chọn mục tiêu: comment "ném 3" rồi tặng chuối / bom → bay v�
   assert.equal(fx[0].from, null);
   assert.deepEqual(say(h.g, 'fan', 'chơi 3'), []); // không phải câu nhắm
 });
+
+test('bot: phong độ khác nhau (con nhanh con chậm) và tự ném chuối / bom ngẫu nhiên', () => {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const clock = { t: 0 };
+  const g = new Race({ raceSeconds: 600, bots: { bananaPerSec: 0.2, bombPerSec: 0.05 } }, { now: () => clock.t, random: rnd });
+  g.skip(); g.skip(); // 6 bot
+  assert.equal(g.racers.length, 6);
+  const skills = g.racers.map((r) => r.skill);
+  assert.ok(skills.every((k) => k >= 0.75 && k <= 1.25));
+  assert.ok(Math.max(...skills) - Math.min(...skills) > 0.1, 'các bot phải có phong độ khác nhau');
+  const fx = [];
+  let firstThrowAt = null;
+  for (let i = 0; i < 160 && g.phase === 'racing'; i++) {
+    clock.t += 250;
+    const out = g.tick();
+    if (firstThrowAt == null && out.some((e) => e.type === 'race_obstacle')) firstThrowAt = clock.t;
+    fx.push(...out);
+  }
+  const throws = fx.filter((e) => e.type === 'race_obstacle');
+  assert.ok(throws.some((e) => e.kind === 'banana'), 'bot phải tự ném chuối');
+  assert.ok(throws.every((e) => e.byBot && e.by.id !== e.target.id));
+  assert.ok(throws.every((e) => e.by.id.startsWith('bot:')));
+  // vài giây đầu không ném
+  assert.ok(firstThrowAt >= 8000);
+});

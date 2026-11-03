@@ -286,7 +286,7 @@
     "heart": { "minDiamonds": 5, "boost": 90 },
     "shield": { "minDiamonds": 10, "seconds": 20 },
     "rocket": { "minDiamonds": 299, "seconds": 6, "boost": 450 },
-    "bots": { "names": ["Bot Gió", "Bot Sấm", "Bot Chớp", "Bot Bão", "Bot Lốc", "Bot Mây"], "burstPerSec": 0.5, "burstMin": 4, "burstMax": 12 }
+    "bots": { "names": ["Bot Gió", "Bot Sấm", "Bot Chớp", "Bot Bão", "Bot Lốc", "Bot Mây"], "burstPerSec": 0.5, "burstMin": 4, "burstMax": 12, "skillMin": 0.75, "skillMax": 1.25, "bananaPerSec": 0.02, "bombPerSec": 0.005, "throwAfterSec": 8 }
   },
   "tugwar": {
     "roundSeconds": 180,

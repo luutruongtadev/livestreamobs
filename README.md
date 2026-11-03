@@ -117,6 +117,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
   người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
 - Sảnh chờ **30 giây**. Hết giờ mà chưa đủ 6 người thì **tự thêm 🤖 bot** cho đủ 6 con (bot tự chạy theo từng đợt, không lên bảng Vua tốc độ); không ai vào thì 6 bot vẫn đua để màn hình luôn chạy. Đủ 6 người thật thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
+- **Bot có phong độ ngẫu nhiên** (0,75–1,25 lần tốc độ chuẩn) nên con nhanh con chậm, và **tự ném 🍌 chuối / 💣 bom ngẫu nhiên** vào con dẫn đầu sau 8 giây đầu (5 bot ≈ 1 quả chuối / 10 giây, 1 quả bom / 40 giây; chỉnh trong `race.bots`).
 - **Người đua**: **bình luận không làm con vật chạy** — thả tim = chạy (2 đơn vị / tim), tặng quà = phóng. **Tặng quà theo mức** (tính theo giá một món, combo thì nhân lên):
 
   | Quà | Tác dụng |

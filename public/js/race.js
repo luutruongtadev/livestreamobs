@@ -306,8 +306,8 @@ function handle(e) {
       sound.play('chime', { pitch: e.kind === 'bomb' ? 0.7 : 1.4 });
       const bomb = e.kind === 'bomb';
       queueAlert({
-        user: e.by, color: bomb ? '#fb923c' : '#facc15', prio: bomb ? 8 : 7, dur: 3.5,
-        title: `${bomb ? '💣' : '🍌'} ${clip(e.by?.name, 16)} ném ${bomb ? 'BOM' : 'chuối'}${e.aimed ? ` 🎯 làn ${e.target.lane}` : ''}!`,
+        user: e.byBot ? null : e.by, color: bomb ? '#fb923c' : '#facc15', prio: e.byBot ? (bomb ? 6 : 4) : bomb ? 8 : 7, dur: e.byBot ? 2.6 : 3.5,
+        title: `${e.byBot ? '🤖 ' : ''}${bomb ? '💣' : '🍌'} ${clip(e.by?.name, 16)} ném ${bomb ? 'BOM' : 'chuối'}${e.aimed ? ` 🎯 làn ${e.target.lane}` : ''}!`,
         sub: e.blocked === 'shield' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} có khiên 🛡️ — chặn được!`
           : e.blocked === 'turbo' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} đang siêu tốc 🚀 — né được!`
           : bomb ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} nổ tung, bị hất lùi · choáng ${e.seconds}s` : `${e.target.animal.emoji} ${clip(e.target.name, 16)} trượt ngã ${e.seconds}s`,

@@ -51,7 +51,14 @@ export const RACE_DEFAULTS = {
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
   aimSeconds: 30, // comment "ném 3" → quà chuối / bom trong 30 giây tới bay vào con làn 3
   // Bot lấp chỗ trống: tự chạy theo từng đợt ngẫu nhiên (≈ +4 đơn vị/giây) để người thật thả tim / tặng quà là vượt được
-  bots: { names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'], burstPerSec: 0.5, burstMin: 4, burstMax: 12 }, // bot ≈ 12 đơn vị/giây → về đích ~80–90 giây
+  bots: {
+    names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'],
+    burstPerSec: 0.5, burstMin: 4, burstMax: 12, // bot ≈ 12 đơn vị/giây → về đích ~80–90 giây
+    skillMin: 0.75, skillMax: 1.25, // phong độ ngẫu nhiên mỗi bot → con nhanh con chậm
+    bananaPerSec: 0.02, // mỗi bot: xác suất ném chuối mỗi giây (5 bot ≈ 1 quả / 10 giây)
+    bombPerSec: 0.005, // mỗi bot: xác suất ném bom mỗi giây (5 bot ≈ 1 quả / 40 giây)
+    throwAfterSec: 8, // vài giây đầu không ném
+  },
 };
 
 const pub = (u) => ({ id: u.id, name: u.name, avatar: u.avatar || null });
@@ -142,6 +149,8 @@ export class Race {
       const name = names.find((n) => !used.has(n)) || `Bot ${++i}`;
       const r = this.makeRacer({ id: `bot:${this.roundNo}:${this.racers.length}`, name, avatar: null });
       r.bot = true;
+      const { skillMin: lo, skillMax: hi } = this.cfg.bots;
+      r.skill = lo + this.random() * (hi - lo);
       fx.push({ type: 'race_join', racer: this.pubRacer(r), bot: true });
     }
     return fx;
@@ -211,17 +220,27 @@ export class Race {
       fx.push({ type: 'race_sprint', multiplier: this.cfg.sprintMultiplier });
     }
     const sprint = this.sprint ? this.cfg.sprintMultiplier : 1;
+    // bot tự ném chuối / bom ngẫu nhiên
+    const bc = this.cfg.bots;
+    if (t - this.startedAt >= bc.throwAfterSec * 1000) {
+      for (const r of this.racers) {
+        if (!r.bot || r.finishedAt != null || r.stunUntil > t) continue;
+        const roll = this.random();
+        const kind = roll < bc.bombPerSec * dt ? 'bomb' : roll < (bc.bombPerSec + bc.bananaPerSec) * dt ? 'banana' : null;
+        if (kind) fx.push(...this.throwObstacle(kind, { id: r.id, name: r.name, avatar: null, bot: true }, r));
+      }
+    }
     for (const r of this.racers) {
       if (r.finishedAt != null) continue;
       if (r.stunUntil > t) continue;
-      if (r.bot && this.random() < this.cfg.bots.burstPerSec * dt) { // bot tự "thả tim"
+      if (r.bot && this.random() < this.cfg.bots.burstPerSec * (r.skill || 1) * dt) { // bot tự "thả tim"
         const { burstMin: lo, burstMax: hi } = this.cfg.bots;
         r.pending += lo + this.random() * (hi - lo);
       }
       const turbo = r.turboUntil > t ? 2 : 1; // siêu tốc: xả tăng tốc nhanh gấp đôi
       const dash = Math.min(r.pending, this.cfg.dashSpeed * turbo * dt);
       r.pending -= dash;
-      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * sprint * turbo * 2 ** (turbo - 1) * dt * (0.6 + this.random() * 0.8) + dash);
+      r.pos = Math.min(this.cfg.track, r.pos + this.cfg.baseSpeed * (r.skill || 1) * sprint * turbo * 2 ** (turbo - 1) * dt * (0.6 + this.random() * 0.8) + dash);
       if (r.pos >= this.cfg.track) {
         r.finishedAt = t;
         fx.push({ type: 'race_arrive', racer: this.pubRacer(r), place: this.racers.filter((x) => x.finishedAt != null).length });
@@ -436,7 +455,7 @@ export class Race {
     const aimed = aim && t - aim.at <= this.cfg.aimSeconds * 1000 ? alive.find((x) => x.lane === aim.lane) : null;
     const target = aimed || alive.sort((x, y) => y.pos - x.pos)[0];
     if (!target) return [];
-    const base = { type: 'race_obstacle', kind, aimed: !!aimed, by: pub(user), from: from ? this.pubRacer(from) : null, target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 };
+    const base = { type: 'race_obstacle', kind, aimed: !!aimed, byBot: !!user.bot, by: pub(user), from: from ? this.pubRacer(from) : null, target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 };
     if (target.turboUntil > t) return [{ ...base, blocked: 'turbo', seconds: 0, knockback: 0 }]; // siêu tốc: né được
     if (target.shieldUntil > t) { // khiên chặn rồi vỡ
       target.shieldUntil = 0;
