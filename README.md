@@ -88,7 +88,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 
   Chữ đã lộ hiện màu vàng trong ô; luôn chừa lại ít nhất 1 chữ. Quà khớp theo **tên quà** trước (tên tiếng Anh của TikTok), không khớp thì theo **số xu**. Đổi trong `config.json` → `wordgame.giftUnlocks` (`action`: `letter` | `hint` | `time` | `syllable`, `every`: số món cần gom, `gifts`: danh sách tên quà, `minDiamonds`: ngưỡng xu).
 - **Nhiều bộ từ, chuyển qua lại trong trang admin** (ô *Bộ từ* → *Chuyển bộ từ*, bắt đầu vòng mới ngay):
-  - `Đoán từ (từ vựng)`: kho từ Claude sinh + 40 từ mẫu.
+  - `Đoán từ (từ vựng)`: kho từ Claude sinh + 140 từ mẫu trộn nhiều chủ đề.
   - `Đoán tướng LMHT`: 92 tướng Liên Minh Huyền Thoại (`wordsets/lmht.json`). Mỗi tướng có 5 gợi ý riêng mở dần (vùng đất → cốt truyện / ngoại hình → chiêu thức), có biệt danh tính là trúng (`ez`, `mf`, `tf`, `j4`, `lee`…), gõ liền không dấu nháy vẫn trúng (`kaisa` = Kai'Sa). Có API key thì Claude chấm theo ngữ cảnh LMHT (anh em / kẻ thù / cùng vùng đất / đặc điểm của tướng).
   - **✨ Tạo bằng Claude** (trang admin → mục Đoán từ, cần `ANTHROPIC_API_KEY`):
     - **Tạo bộ từ mới theo chủ đề bất kỳ** (vd "Cầu thủ bóng đá", "Phim hoạt hình Disney"): chọn 30 / 50 / 100 từ, Claude soạn tên bộ, nhãn, mỗi từ 5 gợi ý + biệt danh. Mất khoảng 1–3 phút, xong là có trong ô *Bộ từ*.
@@ -100,7 +100,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
 - **Từ bí mật do Claude sinh theo lô 100 từ** (kèm chủ đề gợi ý), lưu ở `data/wordbank.json`, không lặp lại từ đã chơi. Kho còn dưới 10 từ chưa dùng thì tự tạo lô mới. Tạo thủ công: trang admin → ô chủ đề (ví dụ "Tết", "Đồ ăn", để trống = trộn) → **✨ Tạo 100 từ mới**, hoặc `npm run gen-words -- "Tết" 100`. Model sinh từ: `WORDGAME_GEN_MODEL` / `wordgame.generatorModel` (mặc định `claude-opus-5-5`).
-- Không có API key → dùng 40 từ mẫu trong `config.json` → `wordgame.words`.
+- Không có API key → dùng 140 từ mẫu trong `config.json` → `wordgame.words` (động vật, món ăn, trái cây, đồ vật, thiên nhiên, nghề nghiệp, thể thao, phương tiện, lễ hội, công nghệ, cảm xúc). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
 ### ⏸ Tạm dừng game (Đoán từ, Kéo co & Đua thú)

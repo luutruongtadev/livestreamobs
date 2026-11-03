@@ -195,3 +195,23 @@ test('biệt danh tính là trúng (mf = Miss Fortune), đổi bộ không tồn
   assert.throws(() => g.setWordSet('khong-co'), /Không có bộ từ/);
   assert.deepEqual(g.listSets().map((s) => s.id), ['tu-vung', 'lmht']);
 });
+
+test('đoán bỏ từ chỉ loại vẫn trúng: "chó" = "con chó", "xương rồng" = "cây xương rồng"', () => {
+  assert.ok(isExact('chó', 'con chó'));
+  assert.ok(isExact('trái chuối', 'quả chuối'));
+  assert.ok(isExact('xương rồng', 'cây xương rồng'));
+  assert.ok(!isExact('con', 'con chó'));
+  assert.ok(!isExact('mèo', 'con chó'));
+});
+
+test('config.json: danh sách từ vựng ≥ 140 từ hợp lệ, không trùng, gợi ý không lộ đáp án', async () => {
+  const { validWord } = await import('../server/wordbank.js');
+  const { compact } = await import('../server/scorer.js');
+  const words = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf8')).wordgame.words;
+  assert.ok(words.length >= 140);
+  assert.equal(new Set(words.map((w) => compact(w.word))).size, words.length);
+  for (const w of words) {
+    assert.ok(validWord(w.word), w.word);
+    assert.ok(!compact(w.hint).includes(compact(w.word)), `${w.word} / ${w.hint}`);
+  }
+});

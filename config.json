@@ -548,6 +548,406 @@
       {
         "word": "lửa",
         "hint": "Thiên nhiên"
+      },
+      {
+        "word": "con chó",
+        "hint": "Thú cưng"
+      },
+      {
+        "word": "con thỏ",
+        "hint": "Động vật"
+      },
+      {
+        "word": "con rùa",
+        "hint": "Bò sát"
+      },
+      {
+        "word": "con ong",
+        "hint": "Côn trùng"
+      },
+      {
+        "word": "con bướm",
+        "hint": "Côn trùng"
+      },
+      {
+        "word": "con khỉ",
+        "hint": "Động vật"
+      },
+      {
+        "word": "hươu cao cổ",
+        "hint": "Động vật hoang dã"
+      },
+      {
+        "word": "chim cánh cụt",
+        "hint": "Động vật xứ lạnh"
+      },
+      {
+        "word": "cá sấu",
+        "hint": "Bò sát"
+      },
+      {
+        "word": "con trâu",
+        "hint": "Vật nuôi"
+      },
+      {
+        "word": "sư tử",
+        "hint": "Động vật hoang dã"
+      },
+      {
+        "word": "bún chả",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "bánh xèo",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "cơm tấm",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "nem rán",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "gỏi cuốn",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "chè",
+        "hint": "Món tráng miệng"
+      },
+      {
+        "word": "bánh trung thu",
+        "hint": "Món ăn lễ hội"
+      },
+      {
+        "word": "kem",
+        "hint": "Món tráng miệng"
+      },
+      {
+        "word": "mì tôm",
+        "hint": "Món ăn nhanh"
+      },
+      {
+        "word": "nước mía",
+        "hint": "Đồ uống"
+      },
+      {
+        "word": "xôi",
+        "hint": "Món ăn sáng"
+      },
+      {
+        "word": "sầu riêng",
+        "hint": "Trái cây"
+      },
+      {
+        "word": "dưa hấu",
+        "hint": "Trái cây"
+      },
+      {
+        "word": "quả chuối",
+        "hint": "Trái cây"
+      },
+      {
+        "word": "quả dừa",
+        "hint": "Trái cây"
+      },
+      {
+        "word": "hoa mai",
+        "hint": "Thực vật"
+      },
+      {
+        "word": "hoa đào",
+        "hint": "Thực vật"
+      },
+      {
+        "word": "cây xương rồng",
+        "hint": "Thực vật"
+      },
+      {
+        "word": "cái ô",
+        "hint": "Đồ dùng"
+      },
+      {
+        "word": "cái kéo",
+        "hint": "Dụng cụ"
+      },
+      {
+        "word": "bút chì",
+        "hint": "Đồ dùng học tập"
+      },
+      {
+        "word": "tủ lạnh",
+        "hint": "Đồ điện gia dụng"
+      },
+      {
+        "word": "quạt máy",
+        "hint": "Đồ điện gia dụng"
+      },
+      {
+        "word": "bàn chải",
+        "hint": "Đồ dùng cá nhân"
+      },
+      {
+        "word": "cái gối",
+        "hint": "Phòng ngủ"
+      },
+      {
+        "word": "nồi cơm",
+        "hint": "Nhà bếp"
+      },
+      {
+        "word": "cái ghế",
+        "hint": "Nội thất"
+      },
+      {
+        "word": "ba lô",
+        "hint": "Đồ dùng"
+      },
+      {
+        "word": "kính râm",
+        "hint": "Phụ kiện"
+      },
+      {
+        "word": "núi lửa",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "sấm sét",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "thác nước",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "sa mạc",
+        "hint": "Địa hình"
+      },
+      {
+        "word": "tuyết",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "cơn bão",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "hang động",
+        "hint": "Địa hình"
+      },
+      {
+        "word": "đại dương",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "cơn gió",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "phi công",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "lính cứu hoả",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "ca sĩ",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "nông dân",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "cảnh sát",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "thợ cắt tóc",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "nhà báo",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "kỹ sư",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "họa sĩ",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "bơi lội",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "cầu lông",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "cờ vua",
+        "hint": "Trò chơi trí tuệ"
+      },
+      {
+        "word": "võ thuật",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "bóng rổ",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "bóng chuyền",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "nhảy dây",
+        "hint": "Trò chơi dân gian"
+      },
+      {
+        "word": "thả diều",
+        "hint": "Trò chơi dân gian"
+      },
+      {
+        "word": "đá cầu",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "xe đạp",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "tàu hoả",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "xe buýt",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "tàu ngầm",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "khinh khí cầu",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "thư viện",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "sân bay",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "công viên",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "rạp phim",
+        "hint": "Giải trí"
+      },
+      {
+        "word": "siêu thị",
+        "hint": "Mua sắm"
+      },
+      {
+        "word": "bãi biển",
+        "hint": "Du lịch"
+      },
+      {
+        "word": "tết",
+        "hint": "Lễ hội"
+      },
+      {
+        "word": "trung thu",
+        "hint": "Lễ hội"
+      },
+      {
+        "word": "múa lân",
+        "hint": "Lễ hội"
+      },
+      {
+        "word": "lì xì",
+        "hint": "Phong tục"
+      },
+      {
+        "word": "đèn lồng",
+        "hint": "Lễ hội"
+      },
+      {
+        "word": "pháo hoa",
+        "hint": "Lễ hội"
+      },
+      {
+        "word": "nón lá",
+        "hint": "Trang phục truyền thống"
+      },
+      {
+        "word": "máy tính",
+        "hint": "Công nghệ"
+      },
+      {
+        "word": "rô bốt",
+        "hint": "Công nghệ"
+      },
+      {
+        "word": "internet",
+        "hint": "Công nghệ"
+      },
+      {
+        "word": "tai nghe",
+        "hint": "Thiết bị âm thanh"
+      },
+      {
+        "word": "máy ảnh",
+        "hint": "Thiết bị"
+      },
+      {
+        "word": "vệ tinh",
+        "hint": "Vũ trụ"
+      },
+      {
+        "word": "tin nhắn",
+        "hint": "Liên lạc"
+      },
+      {
+        "word": "giấc mơ",
+        "hint": "Khi ngủ"
+      },
+      {
+        "word": "nỗi nhớ",
+        "hint": "Cảm xúc"
+      },
+      {
+        "word": "tình bạn",
+        "hint": "Mối quan hệ"
+      },
+      {
+        "word": "kỳ nghỉ",
+        "hint": "Thời gian"
+      },
+      {
+        "word": "lời hứa",
+        "hint": "Giao tiếp"
+      },
+      {
+        "word": "nụ cười",
+        "hint": "Cảm xúc"
+      },
+      {
+        "word": "nước mắt",
+        "hint": "Cảm xúc"
+      },
+      {
+        "word": "tuổi thơ",
+        "hint": "Kỷ niệm"
       }
     ]
   }

@@ -12,10 +12,20 @@ export function canon(text) {
 export const compact = (s) => normalize(s).replace(/ /g, '');
 
 /** Trùng từ bí mật hoặc một biệt danh (không phân biệt dấu, hoa thường, khoảng trắng) → đoán đúng. */
+// Từ chỉ loại đứng đầu: đoán "chó" vẫn trúng "con chó", "xương rồng" trúng "cây xương rồng"
+const CLASSIFIERS = new Set(['con', 'cai', 'qua', 'trai', 'chiec', 'cay']);
+function core(s) {
+  const parts = normalize(s).split(' ').filter(Boolean);
+  if (parts.length > 1 && CLASSIFIERS.has(parts[0])) parts.shift();
+  return parts.join('');
+}
+
 export function isExact(guess, secret, aliases = []) {
   const g = compact(guess);
   if (!g) return false;
-  return g === compact(secret) || aliases.some((a) => compact(a) === g);
+  if (g === compact(secret) || aliases.some((a) => compact(a) === g)) return true;
+  const c = core(guess);
+  return c.length >= 1 && (c === core(secret) || aliases.some((a) => core(a) === c));
 }
 
 /**
