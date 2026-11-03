@@ -20,6 +20,23 @@ $SUDO systemctl enable containerd >/dev/null 2>&1 || true
 DOCKER="docker"
 docker info >/dev/null 2>&1 || DOCKER="$SUDO docker"
 
+# Docker cài từ gói docker.io của Ubuntu không kèm plugin compose → cài thêm
+if ! $DOCKER compose version >/dev/null 2>&1; then
+  echo "==> Cài docker compose"
+  if command -v apt-get >/dev/null; then
+    $SUDO apt-get update -qq || true
+    $SUDO apt-get install -y -qq docker-compose-plugin >/dev/null 2>&1 \
+      || $SUDO apt-get install -y -qq docker-compose-v2 >/dev/null 2>&1 || true
+  fi
+  if ! $DOCKER compose version >/dev/null 2>&1; then
+    $SUDO mkdir -p /usr/local/lib/docker/cli-plugins
+    $SUDO curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+      "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)"
+    $SUDO chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  fi
+  $DOCKER compose version
+fi
+
 echo "==> Tắt bản cài systemd cũ (nếu có) để không tranh cổng 8686 / 80 / 443"
 for s in chua-stream chua-app; do
   if systemctl list-unit-files "$s.service" >/dev/null 2>&1 && systemctl is-enabled "$s" >/dev/null 2>&1; then
