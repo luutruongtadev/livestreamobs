@@ -68,6 +68,20 @@ Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọn
 
 Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
 
+## 🔤 Game Đoán từ (`/doantu`)
+
+Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng tiếng: `_ _ _  _ _ _ _`). Người xem bình luận một từ (tối đa 4 tiếng), từ đó hiện lên kèm **điểm gần nghĩa 1–100** so với từ bí mật; bảng **GẦN NGHĨA NHẤT** xếp 8 từ điểm cao nhất (thanh màu đỏ → vàng → xanh). Đoán trúng (không phân biệt dấu, hoa thường) = **100 điểm, thắng vòng**.
+
+- **Chấm điểm bằng Claude** (hiểu nghĩa tiếng Việt, kể cả gõ không dấu). Đặt `ANTHROPIC_API_KEY` trong `.env` (lấy ở console.anthropic.com). Model mặc định `claude-opus-5-5`, đổi bằng `WORDGAME_MODEL` hoặc `config.json` → `wordgame.model`.
+- **Tiết kiệm chi phí**: mỗi cặp (từ bí mật, từ đoán) chỉ chấm **một lần** rồi lưu cache (`data/wordscore-cache.json`), nhiều người đoán trùng không tốn thêm; từ đoán được gom lô ~1 giây/lần; tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
+- **Không có API key** → tự chuyển sang chấm đơn giản theo chữ (không hiểu nghĩa, chỉ để test).
+- **Gợi ý**: tự mở sau 60 / 150 / 230 giây (chủ đề → chữ đầu mỗi tiếng → lộ một tiếng); **tặng từ 10 xu mở gợi ý ngay**.
+- Mỗi vòng 5 phút; hết giờ lộ từ, 12 giây sau sang vòng mới. Bảng 🥇🥈🥉 cao thủ đếm số vòng thắng.
+- Mỗi người đoán tối đa 1 từ / 2 giây.
+- Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
+- Danh sách từ + chủ đề trong `config.json` → `wordgame.words` (40 từ mẫu).
+- OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
+
 ## 🪢 Game Kéo co (`/keoco`)
 
 Game kéo co hai đội, mỗi ván 3 phút, dùng chung server / admin / cách triển khai với Chánh điện.
@@ -343,6 +357,7 @@ public/
   chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
+  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm bằng Claude)
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP

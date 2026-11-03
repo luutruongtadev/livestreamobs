@@ -95,6 +95,27 @@
     </section>
 
     <section>
+      <h2>🔤 Đoán từ</h2>
+      <p class="muted" id="wgSecret">Từ bí mật: (đang tải…)</p>
+      <div class="row" style="margin-bottom:10px">
+        <input id="wgGuess" type="text" placeholder="Giả lập bình luận đoán từ…">
+        <button id="btnWgGuess">Đoán</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <input id="wgWord" type="text" placeholder="Đặt từ bí mật riêng (vd: bánh xèo)">
+        <input id="wgHint" type="text" placeholder="Chủ đề gợi ý (vd: Món ăn)">
+        <button id="btnWgWord" class="ghost">Bắt đầu với từ này</button>
+      </div>
+      <div class="row">
+        <button class="ghost" data-wg="hint">💡 Mở gợi ý</button>
+        <button class="ghost" data-wg="next">⏭ Lộ từ / vòng mới</button>
+        <button class="ghost" data-wg="reset">⟲ Xoá bảng cao thủ</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍩 Quà 30 xu (mở gợi ý)</button>
+      </div>
+      <p class="muted">Từ bí mật chỉ hiện ở đây (trang admin), không hiện trên live. Bình luận ngắn (≤ 4 tiếng) được tính là một lần đoán.</p>
+    </section>
+
+    <section>
       <h2>🪢 Kéo co</h2>
       <div class="grid" style="margin-bottom:10px">
         <button data-sim='{"type":"comment","text":"đỏ"}' style="background:#c0392b">🔴 Vào đội Đỏ</button>
@@ -126,6 +147,7 @@
         <button class="ghost" data-view="/chanhdien">🛕 Chánh điện</button>
         <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
         <button class="ghost" data-view="/keoco">🪢 Kéo co</button>
+        <button class="ghost" data-view="/doantu">🔤 Đoán từ</button>
       </div>
       <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
       <div class="links muted">
@@ -201,6 +223,16 @@
 
   const simName = () => $('simName').value.trim() || undefined;
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
+  const wgShow = (r) => { if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · Từ bí mật: ${r.wg.secret}`; };
+  const wgApi = (a, body) => api('/api/wg/' + a, body).then((r) => { wgShow(r); return r; });
+  document.querySelectorAll('[data-wg]').forEach((b) => (b.onclick = () => {
+    if (b.dataset.wg === 'reset' && !confirm('Xoá bảng cao thủ đoán từ?')) return;
+    wgApi(b.dataset.wg).then(() => log('Đoán từ: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
+  }));
+  $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then(() => log('Đoán từ: đặt từ mới')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnWgGuess').onclick = () => { const t = $('wgGuess').value.trim(); if (t) sim({ type: 'comment', text: t }); };
+  $('wgGuess').onkeydown = (e) => { if (e.key === 'Enter') $('btnWgGuess').click(); };
+  wgApi('peek').catch(() => {});
   document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {
     if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
     api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));

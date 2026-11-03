@@ -306,5 +306,181 @@
         ]
       }
     ]
+  },
+  "wordgame": {
+    "model": "claude-opus-5-5",
+    "scorer": "claude",
+    "roundSeconds": 300,
+    "breakSeconds": 12,
+    "hintAtSeconds": [
+      60,
+      150,
+      230
+    ],
+    "giftHintMinDiamonds": 10,
+    "cooldownSec": 2,
+    "maxScoredPerRound": 500,
+    "words": [
+      {
+        "word": "mặt trời",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "mặt trăng",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "biển",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "núi",
+        "hint": "Thiên nhiên"
+      },
+      {
+        "word": "cầu vồng",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "mưa",
+        "hint": "Thời tiết"
+      },
+      {
+        "word": "mùa đông",
+        "hint": "Thời gian"
+      },
+      {
+        "word": "con mèo",
+        "hint": "Động vật"
+      },
+      {
+        "word": "con voi",
+        "hint": "Động vật"
+      },
+      {
+        "word": "con gà",
+        "hint": "Động vật"
+      },
+      {
+        "word": "cá heo",
+        "hint": "Động vật"
+      },
+      {
+        "word": "bánh chưng",
+        "hint": "Món ăn ngày Tết"
+      },
+      {
+        "word": "phở",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "bánh mì",
+        "hint": "Món ăn"
+      },
+      {
+        "word": "cà phê",
+        "hint": "Đồ uống"
+      },
+      {
+        "word": "trà sữa",
+        "hint": "Đồ uống"
+      },
+      {
+        "word": "quả xoài",
+        "hint": "Trái cây"
+      },
+      {
+        "word": "áo dài",
+        "hint": "Trang phục"
+      },
+      {
+        "word": "xe máy",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "máy bay",
+        "hint": "Phương tiện"
+      },
+      {
+        "word": "điện thoại",
+        "hint": "Đồ vật"
+      },
+      {
+        "word": "đồng hồ",
+        "hint": "Đồ vật"
+      },
+      {
+        "word": "chìa khoá",
+        "hint": "Đồ vật"
+      },
+      {
+        "word": "cái gương",
+        "hint": "Đồ vật"
+      },
+      {
+        "word": "cây đàn",
+        "hint": "Nhạc cụ"
+      },
+      {
+        "word": "trường học",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "bệnh viện",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "cái chợ",
+        "hint": "Địa điểm"
+      },
+      {
+        "word": "bác sĩ",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "giáo viên",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "đầu bếp",
+        "hint": "Nghề nghiệp"
+      },
+      {
+        "word": "tình yêu",
+        "hint": "Cảm xúc"
+      },
+      {
+        "word": "hạnh phúc",
+        "hint": "Cảm xúc"
+      },
+      {
+        "word": "sinh nhật",
+        "hint": "Sự kiện"
+      },
+      {
+        "word": "đám cưới",
+        "hint": "Sự kiện"
+      },
+      {
+        "word": "bóng đá",
+        "hint": "Thể thao"
+      },
+      {
+        "word": "hoa sen",
+        "hint": "Loài hoa"
+      },
+      {
+        "word": "cây tre",
+        "hint": "Cây cối"
+      },
+      {
+        "word": "ngôi sao",
+        "hint": "Bầu trời"
+      },
+      {
+        "word": "lửa",
+        "hint": "Thiên nhiên"
+      }
+    ]
   }
 }

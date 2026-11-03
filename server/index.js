@@ -7,6 +7,8 @@ import { WebSocketServer } from 'ws';
 import { Temple } from './temple.js';
 import { TikTokBridge } from './tiktok.js';
 import { TugWar } from './tugwar.js';
+import { WordGame } from './wordgame.js';
+import { ClaudeScorer, SimpleScorer } from './scorer.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -55,6 +57,13 @@ if (process.env.REQUIRE_ADMIN_TOKEN === '1') {
 }
 const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
 const tug = new TugWar(config.tugwar || {}, { statePath: path.join(ROOT, 'data', 'tugwar.json') });
+const wgCfg = config.wordgame || {};
+const hasClaudeCreds = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
+const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
+  ? new SimpleScorer()
+  : new ClaudeScorer({ model: process.env.WORDGAME_MODEL || wgCfg.model || 'claude-opus-5-5', cachePath: path.join(ROOT, 'data', 'wordscore-cache.json') });
+if (wgScorer instanceof SimpleScorer) console.warn('[wordgame] Chưa có ANTHROPIC_API_KEY → chấm điểm đơn giản theo chữ (không hiểu nghĩa).');
+const wg = new WordGame(wgCfg, { scorer: wgScorer, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 
 // ---------------- WebSocket hub ----------------
@@ -92,7 +101,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot() });
 });
 
 function ingest(ev) {
@@ -100,8 +109,27 @@ function ingest(ev) {
   if (effects.length) broadcast({ type: 'fx', effects });
   scheduleState();
   tugBroadcast(tug.handle(ev));
+  wgBroadcast(wg.handle(ev));
   return effects;
 }
+
+// ---------------- Đoán từ ----------------
+let wgTimer = null;
+function wgBroadcast(effects) {
+  if (effects?.length) broadcast({ type: 'wgfx', effects });
+  if (wgTimer) return;
+  wgTimer = setTimeout(() => {
+    wgTimer = null;
+    broadcast({ type: 'wg', wg: wg.snapshot() });
+  }, 150);
+}
+wg.on('effects', wgBroadcast);
+let wgLastRemaining = -1;
+setInterval(() => {
+  const fx = wg.tick();
+  const rem = wg.snapshot().remaining;
+  if (fx.length || rem !== wgLastRemaining) { wgLastRemaining = rem; wgBroadcast(fx); }
+}, 250).unref();
 
 // ---------------- Kéo co ----------------
 let tugTimer = null;
@@ -136,6 +164,7 @@ setInterval(() => {
   if (temple.prunePresence()) scheduleState();
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
   try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
+  try { wg.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -144,6 +173,7 @@ app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
+app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -190,6 +220,20 @@ app.post('/api/tug/:action', requireAdmin, (req, res) => {
   res.json({ ok: true, tug: tug.snapshot() });
 });
 
+app.post('/api/wg/:action', requireAdmin, (req, res) => {
+  const a = req.params.action;
+  if (a === 'next') wgBroadcast(wg.skip());
+  else if (a === 'hint') wgBroadcast(wg.revealHint(null));
+  else if (a === 'word') {
+    const w = String(req.body?.word || '').trim();
+    if (!w) return res.status(400).json({ error: 'Thiếu từ' });
+    wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || '') }));
+  } else if (a === 'reset') wgBroadcast(wg.resetAll());
+  else if (a === 'peek') { /* chỉ xem từ bí mật */ }
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek' });
+  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.secret } });
+});
+
 app.post('/api/reset', requireAdmin, (_req, res) => {
   temple.reset();
   temple.save();
@@ -214,7 +258,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); tug.save(); } catch { /* bỏ qua */ }
+  try { temple.save(); tug.save(); wg.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }
