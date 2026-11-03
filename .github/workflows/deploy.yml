@@ -1,0 +1,86 @@
+# Build Docker image trên GitHub, chép sang VPS bằng SSH (user + mật khẩu) rồi chạy docker compose.
+# Container chạy với restart: unless-stopped và Docker được bật cùng hệ thống,
+# nên VPS tắt / mở lại thì app tự chạy lại.
+#
+# Cần tạo trong GitHub repo → Settings → Secrets and variables → Actions:
+#   Secrets:   VPS_HOST, VPS_USER, VPS_PASSWORD, (tuỳ chọn) VPS_PORT, VPS_ENV_FILE
+#   Variables: (tuỳ chọn) DEPLOY_MODE = phone | server | stream (mặc định phone), VPS_DIR (mặc định /opt/chua-online)
+name: Deploy lên VPS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Chế độ chạy trên VPS"
+        type: choice
+        options: [phone, server, stream]
+        default: phone
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+env:
+  DEPLOY_MODE: ${{ inputs.mode || vars.DEPLOY_MODE || 'phone' }}
+  VPS_DIR: ${{ vars.VPS_DIR || '/opt/chua-online' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image app
+        run: |
+          docker build --target app -t chua-online:app .
+          docker save chua-online:app | gzip > image-app.tar.gz
+
+      - name: Build image streamer (chỉ chế độ stream)
+        if: env.DEPLOY_MODE == 'stream'
+        run: |
+          docker build --target streamer -t chua-online:streamer .
+          docker save chua-online:streamer | gzip > image-streamer.tar.gz
+
+      - name: Chuẩn bị file .env (từ secret VPS_ENV_FILE nếu có)
+        env:
+          VPS_ENV_FILE: ${{ secrets.VPS_ENV_FILE }}
+        run: |
+          printf '%s' "$VPS_ENV_FILE" > env.deploy
+          chmod 600 env.deploy
+          ls -lh image-*.tar.gz
+
+      - name: Chép lên VPS
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "image-*.tar.gz,env.deploy,docker-compose.yml,.env.example,config.json,deploy/Caddyfile,deploy/remote-deploy.sh,public/assets"
+          target: ${{ env.VPS_DIR }}
+          overwrite: true
+
+      - name: Chạy trên VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          command_timeout: 20m
+          script: bash "${{ env.VPS_DIR }}/deploy/remote-deploy.sh" "${{ env.VPS_DIR }}" "${{ env.DEPLOY_MODE }}"

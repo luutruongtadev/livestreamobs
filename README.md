@@ -283,6 +283,34 @@ Tài khoản đã có stream key thì bỏ qua LIVE Studio: dùng OBS → *Setti
 
 Đừng bấm X để đóng Remote Desktop. Hãy chuột phải **`deploy\windows\disconnect-keep-live.bat` → Run as administrator**. Script này ngắt kết nối nhưng giữ màn hình VPS hoạt động, để OBS và LIVE Studio không bị đen hình. Lần sau cứ Remote Desktop vào lại bình thường.
 
+### Tự động deploy bằng GitHub Actions (SSH user + mật khẩu)
+
+File `.github/workflows/deploy.yml`: mỗi lần push lên `master` (hoặc bấm *Run workflow* trong tab **Actions**):
+
+1. Chạy `npm test`.
+2. Build image Docker trên GitHub, nén thành `image-app.tar.gz`.
+3. Chép image + `docker-compose.yml`, `config.json`, `public/assets`, `deploy/` lên VPS bằng SSH (user + mật khẩu).
+4. Trên VPS chạy `deploy/remote-deploy.sh`: cài Docker nếu chưa có, bật Docker chạy cùng hệ thống, nạp image, `docker compose up -d`. Container có `restart: unless-stopped` → **VPS tắt / khởi động lại thì app tự chạy lại**, không cần deploy lại. Công đức, bảng xếp hạng lưu trong volume `chua-data`, không mất khi deploy.
+
+**Cài đặt một lần** — GitHub repo → **Settings → Secrets and variables → Actions**:
+
+| Loại | Tên | Giá trị |
+|---|---|---|
+| Secret | `VPS_HOST` | IP VPS, ví dụ `103.82.27.60` |
+| Secret | `VPS_USER` | `root` (hoặc user có `sudo` không cần mật khẩu) |
+| Secret | `VPS_PASSWORD` | mật khẩu SSH |
+| Secret (tuỳ chọn) | `VPS_PORT` | cổng SSH nếu khác 22 |
+| Secret (tuỳ chọn) | `VPS_ENV_FILE` | toàn bộ nội dung file `.env` (TIKTOK_USERNAME, ADMIN_TOKEN, ANTHROPIC_API_KEY, DOMAIN…). Bỏ trống thì giữ `.env` đang có trên VPS (lần đầu tự tạo từ `.env.example`, tự sinh `ADMIN_TOKEN`) |
+| Variable (tuỳ chọn) | `DEPLOY_MODE` | `phone` (mặc định: app + Caddy HTTPS), `server` (chỉ app), `stream` (app + VPS tự phát RTMP) |
+| Variable (tuỳ chọn) | `VPS_DIR` | thư mục trên VPS, mặc định `/opt/chua-online` |
+
+Lưu ý:
+
+- VPS phải cho phép đăng nhập SSH bằng mật khẩu. An toàn hơn: đổi sang SSH key sau khi chạy ổn.
+- Script tự tắt bản cài systemd cũ (`chua-app`, `chua-stream`, Caddy cài trực tiếp) để không tranh cổng.
+- Chế độ `phone` cần mở cổng 80 / 443 trên tường lửa nhà cung cấp VPS.
+- Docker Hub báo lỗi `429 Too Many Requests` khi build? Thêm `--build-arg NODE_IMAGE=mirror.gcr.io/library/node:22-bookworm-slim`.
+
 ### 3. Điều khiển từ xa (trang admin)
 
 Server chỉ mở trên `127.0.0.1` của VPS, không lộ ra internet. Vào admin bằng SSH tunnel từ máy bạn:
@@ -364,6 +392,7 @@ deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg 
 deploy/bootstrap.sh             Cài trọn gói một lệnh (mặc định: chế độ điện thoại)
 deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd (--phone: chỉ server)
 deploy/setup-https.sh           Caddy + HTTPS (tên miền miễn phí sslip.io) cho điện thoại
+deploy/remote-deploy.sh         Chạy trên VPS khi GitHub Actions deploy (.github/workflows/deploy.yml)
 deploy/windows/                 Cài và chạy trên VPS Windows (install.bat, start-chua.bat, disconnect-keep-live.bat)
 Dockerfile, docker-compose.yml  Docker: app (nhẹ) / caddy (HTTPS) / streamer (RTMP), xem deploy/docker-init.sh
 ```
