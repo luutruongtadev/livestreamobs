@@ -121,6 +121,10 @@ function handle(e) {
       sound.play(e.action === 'syllable' ? 'levelup' : 'bell');
       break;
     }
+    case 'wg_hints_updated':
+      fx.hintFlash = 1;
+      fx.banner = { text: '✨ Gợi ý vừa được làm mới!', sub: '', t: 2.5, color: '#a5b4fc' };
+      break;
     case 'wg_hint':
       if (e.by) break; // gợi ý do quà mở đã có thông báo wg_unlock
       fx.hintFlash = 1;
@@ -247,7 +251,8 @@ function drawSecret(t) {
   const groups = G.pattern;
   const total = groups.reduce((a, b) => a + b, 0) + (groups.length - 1) * 0.8;
   const cell = Math.min(62, (W - 160) / total);
-  const boxTop = y + 62, boxBottom = boxTop + cell * 1.05;
+  const topicH = G.topic ? 34 : 0; // dòng "Chủ đề" của bộ từ (nếu có)
+  const boxTop = y + 62 + topicH, boxBottom = boxTop + cell * 1.05;
   // vị trí các dòng gợi ý, dòng "gợi ý tiếp", hàng chip — xếp nối tiếp nhau
   const hints = G.hints || [];
   const hintFont = hints.length > 3 ? 23 : 25; // bộ có 4-5 gợi ý thì chữ nhỏ hơn chút
@@ -273,6 +278,10 @@ function drawSecret(t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(800, 22); ctx.fillStyle = '#a5b4fc';
   ctx.fillText(G.secretLabel || 'TỪ BÍ MẬT', W / 2, y + 30);
+  if (G.topic) {
+    ctx.font = font(700, 22); ctx.fillStyle = '#c7d2fe';
+    ctx.fillText(fitText(`📚 Chủ đề: ${G.topic}`, W - 160), W / 2, y + 62);
+  }
   // ô chữ: mỗi tiếng một nhóm ô
   const revealed = G.secret ? G.secret.split(' ') : null;
   let x = W / 2 - (total * cell) / 2;

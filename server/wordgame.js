@@ -100,10 +100,21 @@ export class WordGame extends EventEmitter {
     return this.startRound();
   }
 
+  /** Gợi ý của một từ vừa được tạo lại: nếu đúng từ đang chơi thì cập nhật luôn (giữ số gợi ý đã mở). */
+  updateWord(setId, entry) {
+    if (setId !== this.activeSet || this.phase !== 'playing') return [];
+    if (toSecret(entry.word) !== this.secret) return [];
+    this.customHints = entry.hints.slice();
+    this.aliases = entry.aliases || [];
+    this.hintLevel = Math.min(this.hintLevel, this.customHints.length);
+    this.dirty = true;
+    return [{ type: 'wg_hints_updated' }];
+  }
+
   listSets() {
     return [
       { id: 'tu-vung', title: 'Đoán từ (từ vựng)', count: null },
-      ...Object.entries(this.wordSets).map(([id, s]) => ({ id, title: s.title || id, count: s.words?.length || 0 })),
+      ...Object.entries(this.wordSets).map(([id, s]) => ({ id, title: s.title || id, topic: s.topic || null, count: s.words?.length || 0, generated: !!s.generated })),
     ];
   }
 
@@ -371,6 +382,7 @@ export class WordGame extends EventEmitter {
       secret: ended ? this.secret : null,
       answer: ended ? this.display : null, // tên hiển thị đầy đủ (vd "Kai'Sa")
       title: this.set?.title || 'Đoán từ',
+      topic: this.set?.topic || null, // chủ đề của bộ (hiện trên màn hình nếu có)
       secretLabel: this.set?.secretLabel || 'TỪ BÍ MẬT',
       wordSet: this.activeSet,
       hints: this.hints(),

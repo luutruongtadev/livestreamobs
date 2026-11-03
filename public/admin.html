@@ -102,6 +102,26 @@
         <button id="btnWgSet" class="ghost">Chuyển bộ từ (bắt đầu vòng mới)</button>
       </div>
       <p class="muted" id="wgSecret">Từ bí mật: (đang tải…)</p>
+      <details id="wgAi" style="margin:10px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <summary style="cursor:pointer;color:var(--gold);font-weight:600">✨ Tạo bằng Claude: bộ từ mới / gợi ý mới</summary>
+        <p class="muted" id="wgAiNote" style="margin:8px 0"></p>
+        <div class="row" style="margin-bottom:8px">
+          <input id="wgTopic" type="text" placeholder="Chủ đề bộ mới, vd: Cầu thủ bóng đá nổi tiếng, Phim hoạt hình Disney…">
+          <select id="wgCount"><option value="30">30 từ</option><option value="50" selected>50 từ</option><option value="100">100 từ</option></select>
+          <button id="btnGenSet" class="gold">Tạo bộ từ mới</button>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <input id="wgRegenWord" type="text" list="wgWordList" placeholder="Từ / tướng cần tạo lại gợi ý (trong bộ đang chọn ở trên)">
+          <datalist id="wgWordList"></datalist>
+          <input id="wgRegenNote" type="text" placeholder="Yêu cầu thêm (tuỳ chọn), vd: tập trung vào chiêu thức">
+        </div>
+        <div class="row">
+          <button id="btnRegen" class="gold">🔁 Tạo lại gợi ý cho từ này</button>
+          <button id="btnRegenCur" class="ghost">🔁 Tạo lại gợi ý cho từ đang chơi</button>
+          <button id="btnDelSet" class="ghost">🗑 Xoá bộ đã tạo / khôi phục bản gốc</button>
+        </div>
+        <p class="muted" id="wgAiResult" style="margin:8px 0 0;white-space:pre-line"></p>
+      </details>
       <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
       <div class="row" style="margin-bottom:10px">
         <input id="wgTheme" type="text" placeholder="Chủ đề cho lô từ mới (để trống = trộn nhiều chủ đề)">
@@ -247,10 +267,11 @@
     if (r?.sets) {
       const sel = $('wgSet');
       if (!sel.options.length || sel.dataset.v !== JSON.stringify(r.sets)) {
-        sel.innerHTML = r.sets.map((s) => `<option value="${s.id}">${s.title}${s.count ? ` (${s.count} từ)` : ''}</option>`).join('');
+        sel.innerHTML = r.sets.map((s) => `<option value="${s.id}">${s.title}${s.topic ? ` · ${s.topic}` : ''}${s.count ? ` (${s.count} từ)` : ''}</option>`).join('');
         sel.dataset.v = JSON.stringify(r.sets);
       }
       sel.value = r.activeSet;
+      loadSetWords();
     }
     const b = r?.bank;
     if (!b) return;
@@ -258,6 +279,13 @@
       ? `Kho từ: ${b.remaining} chưa dùng / ${b.total} từ (${b.batches} lô, ${b.model})` + (b.generating ? ' · ⏳ đang tạo lô mới…' : '') + (b.lastError ? ` · ⚠ lỗi lần trước: ${b.lastError}` : '')
       : `Kho từ: chưa có ANTHROPIC_API_KEY → dùng ${b.fallback} từ trong config.json`;
     $('btnWgGen').disabled = !b.canGenerate || b.generating;
+    const job = r.genJob;
+    for (const id of ['btnGenSet', 'btnRegen', 'btnRegenCur']) $(id).disabled = !b.canGenerate || job?.state === 'running';
+    $('wgAiNote').textContent = b.canGenerate
+      ? `Dùng ${b.model}. Tạo bộ mới mất khoảng 1-3 phút; bộ tạo xong hiện trong ô "Bộ từ" ở trên.`
+      : 'Cần ANTHROPIC_API_KEY trong .env để dùng phần này.';
+    if (job) $('wgAiResult').textContent = (job.state === 'running' ? '⏳ ' : job.state === 'error' ? '⚠ ' : '✓ ') + job.message;
+    if (job?.state === 'running') { clearTimeout(wgPoll); wgPoll = setTimeout(() => wgApi('peek').catch(() => {}), 3000); }
     clearTimeout(wgPoll);
     if (b.generating) wgPoll = setTimeout(() => wgApi('peek').catch(() => {}), 3000);
   };
@@ -266,6 +294,36 @@
     if (b.dataset.wg === 'reset' && !confirm('Xoá bảng cao thủ đoán từ?')) return;
     wgApi(b.dataset.wg).then(() => log('Đoán từ: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
+  let wordsFor = null;
+  function loadSetWords() {
+    const set = $('wgSet').value;
+    if (!set || set === 'tu-vung' || wordsFor === set) return;
+    wordsFor = set;
+    api('/api/wg/setwords', { set }).then((r) => {
+      $('wgWordList').innerHTML = r.words.map((w) => `<option value="${w.word.replace(/"/g, '&quot;')}">`).join('');
+    }).catch(() => {});
+  }
+  $('wgSet').onchange = loadSetWords;
+  const regen = (body) => {
+    $('wgAiResult').textContent = '⏳ Claude đang viết gợi ý mới…';
+    return api('/api/wg/regen-hints', body)
+      .then((r) => { $('wgAiResult').textContent = `✓ ${r.entry.word}:\n` + r.entry.hints.map((h, i) => `${i + 1}. ${h}`).join('\n') + (r.entry.aliases?.length ? `\nBiệt danh: ${r.entry.aliases.join(', ')}` : ''); wgShow(r); })
+      .catch((e) => { $('wgAiResult').textContent = '⚠ ' + e.message; });
+  };
+  $('btnRegen').onclick = () => {
+    const word = $('wgRegenWord').value.trim();
+    if (!word) { $('wgAiResult').textContent = 'Nhập từ / tướng cần tạo lại gợi ý.'; return; }
+    regen({ set: $('wgSet').value, word, note: $('wgRegenNote').value.trim() });
+  };
+  $('btnRegenCur').onclick = () => regen({ note: $('wgRegenNote').value.trim() });
+  $('btnGenSet').onclick = () => wgApi('genset', { topic: $('wgTopic').value.trim(), count: Number($('wgCount').value) })
+    .then(() => log('Đoán từ: đang tạo bộ từ mới…')).catch((e) => { $('wgAiResult').textContent = '⚠ ' + e.message; });
+  $('btnDelSet').onclick = () => {
+    const set = $('wgSet').value;
+    if (set === 'tu-vung') { $('wgAiResult').textContent = 'Chọn bộ cần xoá / khôi phục ở ô "Bộ từ".'; return; }
+    if (!confirm('Xoá bộ đã tạo (hoặc khôi phục bộ có sẵn về bản gốc)?')) return;
+    wgApi('delset', { set }).catch((e) => { $('wgAiResult').textContent = '⚠ ' + e.message; });
+  };
   $('btnWgSet').onclick = () => wgApi('set', { set: $('wgSet').value }).then((r) => log('Đoán từ: chuyển sang bộ ' + r.wg.title)).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })

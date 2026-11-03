@@ -10,6 +10,8 @@ import { TugWar } from './tugwar.js';
 import { WordGame } from './wordgame.js';
 import { ClaudeScorer, SimpleScorer } from './scorer.js';
 import { WordBank, claudeClientFromEnv } from './wordbank.js';
+import { WordSetStore } from './wordsets.js';
+import { SetGenerator } from './setgen.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -73,15 +75,11 @@ const wordBank = new WordBank({
   minRemaining: wgCfg.minRemaining ?? 10,
   autoGenerate: wgCfg.autoGenerate !== false,
 });
-// Bộ từ riêng: mỗi file wordsets/<id>.json là một bộ (vd lmht.json = tướng LMHT)
-const wordSets = {};
-try {
-  for (const f of fs.readdirSync(path.join(ROOT, 'wordsets'))) {
-    if (!f.endsWith('.json')) continue;
-    try { wordSets[f.replace(/\.json$/, '')] = JSON.parse(fs.readFileSync(path.join(ROOT, 'wordsets', f), 'utf8')); }
-    catch (e) { console.warn(`[wordgame] Bỏ qua bộ từ ${f}: ${e.message}`); }
-  }
-} catch { /* chưa có thư mục wordsets */ }
+// Bộ từ riêng: wordsets/<id>.json (có sẵn trong repo) + data/wordsets/<id>.json (tạo / sửa bằng Claude)
+const setStore = new WordSetStore({ repoDir: path.join(ROOT, 'wordsets'), dataDir: path.join(ROOT, 'data', 'wordsets') });
+const wordSets = setStore.sets;
+const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5' });
+let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 
@@ -250,7 +248,7 @@ app.post('/api/tug/:action', requireAdmin, (req, res) => {
   res.json({ ok: true, tug: tug.snapshot() });
 });
 
-app.post('/api/wg/:action', requireAdmin, (req, res) => {
+app.post('/api/wg/:action', requireAdmin, async (req, res) => {
   const a = req.params.action;
   if (a === 'next') wgBroadcast(wg.skip());
   else if (a === 'hint') wgBroadcast(wg.revealHint(null));
@@ -260,6 +258,49 @@ app.post('/api/wg/:action', requireAdmin, (req, res) => {
     wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || '') }));
   } else if (a === 'reset') wgBroadcast(wg.resetAll());
   else if (a === 'peek') { /* chỉ xem từ bí mật */ }
+  else if (a === 'setwords') {
+    const st = wordSets[req.body?.set];
+    if (!st) return res.status(400).json({ error: 'Không có bộ từ này' });
+    return res.json({ ok: true, words: st.words.map((w) => ({ word: w.word, hints: w.hints || [], aliases: w.aliases || [] })) });
+  }
+  else if (a === 'regen-hints') {
+    // tạo lại 5 gợi ý cho 1 từ (mất ~10-30 giây) — trả kết quả khi xong
+    const setId = String(req.body?.set || wg.activeSet);
+    const st = wordSets[setId];
+    if (!st) return res.status(400).json({ error: 'Chọn một bộ từ riêng (không phải bộ từ vựng)' });
+    const word = String(req.body?.word || (setId === wg.activeSet ? wg.display : '') || '').trim();
+    try {
+      const entry = await setGen.regenerateHints({ set: st, word, note: req.body?.note });
+      const copy = { ...st, words: st.words.map((w) => (w.word === entry.word ? { ...w, ...entry } : w)) };
+      setStore.save(setId, copy);
+      wgBroadcast(wg.updateWord(setId, entry));
+      return res.json({ ok: true, entry, wg: { ...wg.snapshot(), secret: wg.display }, sets: wg.listSets(), activeSet: wg.activeSet, bank: wordBank.stats(), genJob });
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+  }
+  else if (a === 'genset') {
+    if (genJob?.state === 'running') return res.status(409).json({ error: 'Đang tạo một bộ khác, chờ chút' });
+    const topic = String(req.body?.topic || '').trim();
+    if (!topic) return res.status(400).json({ error: 'Nhập chủ đề' });
+    genJob = { state: 'running', message: `Đang tạo bộ "${topic}"…`, startedAt: Date.now() };
+    setGen.generateSet({ topic, count: Number(req.body?.count) || 50 })
+      .then((set) => {
+        const id = setStore.newId(topic);
+        setStore.save(id, set);
+        genJob = { state: 'done', message: `Đã tạo bộ "${set.title}" (${set.words.length} từ)`, setId: id };
+        wgBroadcast([]);
+      })
+      .catch((e) => { genJob = { state: 'error', message: `Tạo bộ lỗi: ${e.message}` }; });
+  }
+  else if (a === 'delset') {
+    const id = String(req.body?.set || '');
+    try {
+      const r = setStore.remove(id);
+      if (wg.activeSet === id && !wordSets[id]) wgBroadcast(wg.setWordSet('tu-vung'));
+      genJob = { state: 'done', message: r === 'restored' ? 'Đã khôi phục bộ về bản gốc' : 'Đã xoá bộ từ' };
+    } catch (e) { return res.status(400).json({ error: e.message }); }
+  }
   else if (a === 'set') {
     try { wgBroadcast(wg.setWordSet(String(req.body?.set || ''))); }
     catch (e) { return res.status(400).json({ error: e.message }); }
@@ -268,8 +309,8 @@ app.post('/api/wg/:action', requireAdmin, (req, res) => {
     // trả lời ngay, tạo nền (mất khoảng 20-60 giây); xem tiến độ bằng 'peek'
     wordBank.generate({ theme: req.body?.theme, count: req.body?.count }).catch(() => {});
   }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | set' });
-  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet });
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | set | setwords | regen-hints | genset | delset' });
+  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob });
 });
 
 app.post('/api/reset', requireAdmin, (_req, res) => {

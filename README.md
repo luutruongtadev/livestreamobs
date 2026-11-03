@@ -90,7 +90,12 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Nhiều bộ từ, chuyển qua lại trong trang admin** (ô *Bộ từ* → *Chuyển bộ từ*, bắt đầu vòng mới ngay):
   - `Đoán từ (từ vựng)`: kho từ Claude sinh + 40 từ mẫu.
   - `Đoán tướng LMHT`: 92 tướng Liên Minh Huyền Thoại (`wordsets/lmht.json`). Mỗi tướng có 5 gợi ý riêng mở dần (vùng đất → cốt truyện / ngoại hình → chiêu thức), có biệt danh tính là trúng (`ez`, `mf`, `tf`, `j4`, `lee`…), gõ liền không dấu nháy vẫn trúng (`kaisa` = Kai'Sa). Có API key thì Claude chấm theo ngữ cảnh LMHT (anh em / kẻ thù / cùng vùng đất / đặc điểm của tướng).
-  - Thêm bộ mới: tạo file `wordsets/<tên>.json` cùng định dạng (`title`, `secretLabel`, `scoreContext`, `words: [{ word, aliases, hints }]`), push lên là có trong danh sách.
+  - **✨ Tạo bằng Claude** (trang admin → mục Đoán từ, cần `ANTHROPIC_API_KEY`):
+    - **Tạo bộ từ mới theo chủ đề bất kỳ** (vd "Cầu thủ bóng đá", "Phim hoạt hình Disney"): chọn 30 / 50 / 100 từ, Claude soạn tên bộ, nhãn, mỗi từ 5 gợi ý + biệt danh. Mất khoảng 1–3 phút, xong là có trong ô *Bộ từ*.
+    - **Tạo lại gợi ý** cho một từ / tướng (có ô "yêu cầu thêm", vd "tập trung vào chiêu thức"), hoặc cho **từ đang chơi** — gợi ý trên màn hình đổi ngay.
+    - Bộ tạo mới / đã sửa lưu ở `data/wordsets/` (volume Docker, không mất khi deploy). Nút **Xoá bộ đã tạo / khôi phục bản gốc**: bộ tạo mới thì xoá, bộ có sẵn (vd LMHT) thì quay về bản trong repo.
+  - Màn hình hiện **📚 Chủ đề** của bộ dưới nhãn từ bí mật (trường `topic` trong file bộ từ).
+  - Thêm bộ bằng tay: tạo file `wordsets/<tên>.json` cùng định dạng (`title`, `topic`, `secretLabel`, `scoreContext`, `words: [{ word, aliases, hints }]`), push lên là có trong danh sách.
 - Mỗi vòng 5 phút; hết giờ lộ từ, 12 giây sau sang vòng mới. Bảng 🥇🥈🥉 cao thủ đếm số vòng thắng.
 - Mỗi người đoán tối đa 1 từ / 2 giây.
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
@@ -401,7 +406,8 @@ public/
   chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
-  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ bằng Claude)
+  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ,
+                                server/setgen.js tạo bộ / gợi ý bằng Claude, server/wordsets.js lưu bộ từ)
   admin.html                    Bảng điều khiển
 test/temple.test.js             npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
