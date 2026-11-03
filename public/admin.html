@@ -106,6 +106,7 @@
         <input id="wgGuess" type="text" placeholder="Giả lập bình luận đoán từ…">
         <button id="btnWgGuess">Đoán</button>
       </div>
+      <p class="muted" id="wgGuessResult" style="margin-top:-4px"></p>
       <div class="row" style="margin-bottom:10px">
         <input id="wgWord" type="text" placeholder="Đặt từ bí mật riêng (vd: bánh xèo)">
         <input id="wgHint" type="text" placeholder="Chủ đề gợi ý (vd: Món ăn)">
@@ -249,7 +250,23 @@
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
     .catch((e) => log('Lỗi: ' + e.message));
   $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then(() => log('Đoán từ: đặt từ mới')).catch((e) => log('Lỗi: ' + e.message));
-  $('btnWgGuess').onclick = () => { const t = $('wgGuess').value.trim(); if (t) sim({ type: 'comment', text: t }); };
+  $('btnWgGuess').onclick = async () => {
+    const t = $('wgGuess').value.trim();
+    const out = $('wgGuessResult');
+    if (!t) { out.textContent = 'Nhập một từ để đoán.'; return; }
+    if (!$('preview').src.includes('/doantu')) { $('preview').src = '/doantu?mute=1'; $('obsUrl').textContent = location.origin + '/doantu'; }
+    try {
+      const r = await api('/api/simulate', { type: 'comment', text: t, name: simName() });
+      const g = r.wordgame;
+      const fx = g?.effects?.find((e) => e.type === 'wg_guess' || e.type === 'wg_win');
+      if (fx?.type === 'wg_win') out.textContent = `🎉 ${fx.by.name} đoán TRÚNG "${fx.secret}"!`;
+      else if (fx) out.textContent = `✓ ${fx.by.name} đoán "${fx.word}"` + (fx.score != null ? ` → ${fx.score} điểm (đã có người đoán trước)` : ' → đang chấm điểm…');
+      else out.textContent = `✗ Không tính: ${g?.reject || 'không rõ lý do'}`;
+      $('wgGuess').value = '';
+    } catch (e) {
+      out.textContent = `✗ Lỗi: ${e.message}` + (/token/i.test(e.message) ? ' — mở trang admin bằng link có ?token=ADMIN_TOKEN' : '');
+    }
+  };
   $('wgGuess').onkeydown = (e) => { if (e.key === 'Enter') $('btnWgGuess').click(); };
   wgApi('peek').catch(() => {});
   document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {

@@ -119,9 +119,12 @@ function ingest(ev) {
   if (effects.length) broadcast({ type: 'fx', effects });
   scheduleState();
   tugBroadcast(tug.handle(ev));
-  wgBroadcast(wg.handle(ev));
+  const wgFx = wg.handle(ev);
+  wgBroadcast(wgFx);
+  lastWg = { effects: wgFx, reject: wg.lastReject };
   return effects;
 }
+let lastWg = null;
 
 // ---------------- Đoán từ ----------------
 let wgTimer = null;
@@ -218,7 +221,8 @@ app.post('/api/simulate', requireAdmin, (req, res) => {
   if (!['like', 'comment', 'share', 'follow', 'gift', 'manual', 'member'].includes(ev.type)) {
     return res.status(400).json({ error: 'type không hợp lệ' });
   }
-  res.json({ ok: true, effects: ingest(ev) });
+  const effects = ingest(ev);
+  res.json({ ok: true, effects, wordgame: lastWg });
 });
 
 app.post('/api/tug/:action', requireAdmin, (req, res) => {

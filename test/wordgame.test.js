@@ -99,3 +99,14 @@ test('simpleScore / isExact', () => {
   assert.ok(isExact('Mat Troi', 'mặt trời'));
   assert.ok(simpleScore('mặt trời', 'ông mặt trời') > simpleScore('mặt trời', 'con mèo'));
 });
+
+test('lastReject: nêu lý do bỏ qua bình luận', () => {
+  let now = 0;
+  const g = mk(fakeScorer({}), () => now);
+  g.handle({ type: 'comment', user: u('a'), text: 'hôm nay trời đẹp quá ta ơi' });
+  assert.match(g.lastReject, /tối đa 4 tiếng/);
+  g.handle({ type: 'comment', user: u('a'), text: 'nắng' });
+  assert.equal(g.lastReject, null);
+  g.handle({ type: 'comment', user: u('a'), text: 'mưa' });
+  assert.match(g.lastReject, /2 giây/);
+});

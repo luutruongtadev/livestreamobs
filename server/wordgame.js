@@ -121,7 +121,11 @@ export class WordGame extends EventEmitter {
   }
 
   handle(ev) {
-    if (this.phase !== 'playing') return [];
+    this.lastReject = null; // lý do bỏ qua bình luận gần nhất (để trang admin hiển thị)
+    if (this.phase !== 'playing') {
+      if (ev.type === 'comment') this.lastReject = `Đang nghỉ giữa hai vòng (còn ${Math.max(0, Math.ceil((this.nextAt - this.now()) / 1000))} giây)`;
+      return [];
+    }
     const user = ev.user;
     if (ev.type === 'gift') {
       const diamonds = Math.max(0, Number(ev.diamonds) || 0) * Math.max(1, ev.repeatCount | 0 || 1);
@@ -130,9 +134,15 @@ export class WordGame extends EventEmitter {
     }
     if (ev.type !== 'comment' || !user?.id) return [];
     const word = parseGuess(ev.text, this.cfg);
-    if (!word) return [];
+    if (!word) {
+      this.lastReject = `Không tính là từ đoán: tối đa ${this.cfg.maxGuessWords} tiếng / ${this.cfg.maxGuessChars} ký tự, phải có chữ cái, không chứa link`;
+      return [];
+    }
     const t = this.now();
-    if (t - (this.lastGuessAt.get(user.id) ?? -Infinity) < this.cfg.cooldownSec * 1000) return [];
+    if (t - (this.lastGuessAt.get(user.id) ?? -Infinity) < this.cfg.cooldownSec * 1000) {
+      this.lastReject = `Người này vừa đoán, mỗi người 1 từ / ${this.cfg.cooldownSec} giây`;
+      return [];
+    }
     this.lastGuessAt.set(user.id, t);
     const by = { id: user.id, name: user.name, avatar: user.avatar };
 
