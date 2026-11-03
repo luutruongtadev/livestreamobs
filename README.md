@@ -42,14 +42,19 @@ TikTok Live ──(WebSocket, tiktok-live-connector)──► Node.js server ─
 
 ### Chánh điện hoạt động thế nào
 
-- **Bình luận bất kỳ** → vào chùa (đi từ dưới lên chỗ ngồi), lời bình luận hiện trên đầu 6 giây.
-- **Thắp hương** → cúi lạy, nén hương bay lên cắm vào lư, khói bốc lên trước tượng.
-- **Xin xăm / xin quẻ** → thẻ quẻ hiện giữa màn hình (có thể đọc to với `?tts=1`).
-- **Nam mô… / cầu…** → thả đèn lồng mang lời khấn bay lên.
+Bố cục: tượng Phật trên cùng · **quà gần đây** góc trái · **TÂM LÒNG THÀNH** (top 3) góc phải · **băng rôn lời nguyện** giữa màn hình · **6 bục lễ** trước bàn thờ · phật tử mặc áo tràng (lam / nâu / trắng) đứng hai bên thảm đỏ · **bảng giá** dưới cùng.
+
+- **Bình luận bất kỳ** → vào chùa (đi từ cửa vào chỗ đứng), lời bình luận hiện thành bong bóng trên đầu 6 giây.
+- **Thắp hương** → cúi lạy, nén hương bay lên cắm vào lư.
+- **Xin xăm / xin quẻ** → lời quẻ hiện trên băng rôn (đọc to với `?tts=1`).
+- **Nam mô… / cầu…** → bong bóng lời khấn + đèn lồng bay lên.
 - **Thả tim** → gõ mõ, **Follow / Chia sẻ** → thỉnh chuông.
-- **Mọi món quà** → nén hương lên bàn thờ + thông báo "Xướng danh công đức". **Rose / Love you so much** → hoa sen bay lên đặt dưới toà sen. **Finger Heart** → mưa hoa. **≥100 xu** → hào quang vàng. **≥1000 xu** → hào quang rực rỡ + mưa hoa sen.
-- Phật tử **xếp chỗ theo công đức**: người đứng đầu ngồi **đài sen vàng** ngay trước bàn thờ ("Đệ nhất công đức"), các hàng trên gần Phật hơn.
-- Ai không tương tác quá `hall.presenceMinutes` phút (mặc định 15) sẽ lặng lẽ rời chánh điện. Tối đa `hall.maxWorshippers` người (mặc định 60).
+- **Mọi món quà** → bong bóng "🙏 dâng Rose x1", nén hương lên bàn thờ, hiện ở thanh quà góc trái. Rose / Love you so much → hoa sen dâng lên Phật; Finger Heart → mưa hoa; ≥100 xu → hào quang vàng; ≥1000 xu → băng rôn "đại cúng dường".
+- **Từ 5 xu → lên bục lễ**: người tặng đi dọc thảm đỏ lên một trong 6 bục, quỳ lạy trước tượng; băng rôn đọc lời nguyện ("X thành tâm dâng Rose, lên bục quỳ trước Tam Bảo. Nguyện…" hoặc "X đã dâng lễ 9 lần, mời lên bục lễ Phật…"). Giữ bục 60 giây + 4 giây mỗi xu thêm (tối đa 5 phút); tặng tiếp thì được gia hạn; hết bục thì người sắp hết giờ nhất nhường chỗ.
+- Phật tử **xếp chỗ theo công đức**: người nhiều công đức đứng hàng trên, gần bàn thờ hơn.
+- Ai không tương tác quá `hall.presenceMinutes` phút (mặc định 15) sẽ rời chánh điện. Tối đa `hall.maxWorshippers` người (mặc định 60).
+
+Chỉnh trong `config.json` → `hall`: `platform` (số bục, số xu tối thiểu, thời gian, danh sách lời nguyện `wishes`), `priceTags` (bảng giá dưới cùng), `leaderboardTitle`.
 
 Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`, `?phone=1` / `?phone=0` (bật / tắt hẳn chế độ điện thoại; trang tự bật khi mở toàn màn hình nên OBS/Chrome kiosk trên VPS cần `?phone=0`).
 

@@ -127,6 +127,11 @@ tiktok.on('status', (status) => {
 });
 
 setInterval(() => {
+  const fx = temple.prunePlatforms();
+  if (fx.length) { broadcast({ type: 'fx', effects: fx }); scheduleState(); }
+}, 1000).unref();
+
+setInterval(() => {
   temple.pruneCooldowns();
   if (temple.prunePresence()) scheduleState();
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }

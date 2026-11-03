@@ -120,3 +120,29 @@ test('lệnh chánh điện: Nam mô, xin xăm, thắp hương', () => {
   assert.equal(m('thắp hương')?.action, 'incense');
   assert.equal(m('cậu ơi'), null);
 });
+
+test('bục lễ: tặng đủ xu thì lên bục, gia hạn, thay người sắp hết giờ, hết giờ thì rời', () => {
+  let now = 0;
+  const cfg = { ...config, hall: { ...config.hall, platform: { ...config.hall.platform, count: 2, minDiamonds: 5, seconds: 60, secondsPerDiamond: 0 } } };
+  const t = new Temple(cfg, { now: () => now });
+  assert.ok(!t.handle({ type: 'gift', user: u('a'), giftName: 'Rose', diamonds: 1 }).some((e) => e.type === 'platform'), '1 xu chỉ dâng hương');
+  const fa = t.handle({ type: 'gift', user: u('a'), giftName: 'Rose', diamonds: 1, repeatCount: 5 }).find((e) => e.type === 'platform');
+  assert.equal(fa.slot, 0);
+  assert.equal(fa.offerings, 2, 'đếm số lần dâng lễ');
+  assert.ok(fa.wish.length > 0);
+  now = 1000;
+  assert.equal(t.handle({ type: 'gift', user: u('b'), giftName: 'Doughnut', diamonds: 30 }).find((e) => e.type === 'platform').slot, 1);
+  now = 2000;
+  t.handle({ type: 'gift', user: u('a'), giftName: 'Rose', diamonds: 5 }); // a gia hạn: còn bục 0
+  assert.equal(t.platforms[0].id, 'a');
+  const fc = t.handle({ type: 'gift', user: u('c'), giftName: 'Rose', diamonds: 5 }).find((e) => e.type === 'platform');
+  assert.equal(fc.slot, 1, 'thay b vì b sắp hết giờ hơn a');
+  assert.equal(fc.replaced.id, 'b');
+  assert.equal(t.snapshot().platforms[1].id, 'c');
+  assert.equal(t.snapshot().recentGifts[0].name, 'c');
+  now = 63_000;
+  assert.deepEqual(t.prunePlatforms().map((e) => e.user.id), ['c']);
+  now = 200_000;
+  assert.deepEqual(t.prunePlatforms().map((e) => e.user.id), ['a']);
+  assert.deepEqual(t.snapshot().platforms, [null, null]);
+});

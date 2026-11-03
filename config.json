@@ -151,7 +151,7 @@
       "base": 0.765,
       "centerX": 0.5
     },
-    "leaderboardTitle": "BẢNG CÔNG ĐỨC",
+    "leaderboardTitle": "TÂM LÒNG THÀNH",
     "leaderboardSubtitle": "Tặng quà để ghi danh",
     "guide": [
       {
@@ -205,6 +205,37 @@
         "icon": "📣",
         "title": "Người dâng quà",
         "desc": "được xướng tên, ghi danh"
+      }
+    ],
+    "platform": {
+      "count": 6,
+      "minDiamonds": 5,
+      "seconds": 60,
+      "secondsPerDiamond": 4,
+      "maxSeconds": 300,
+      "wishes": [
+        "gia đạo thuận hoà, vợ chồng hoà hợp, con cháu thảo hiền.",
+        "đem công đức này hồi hướng cho cha mẹ được bình an, khoẻ mạnh.",
+        "công việc hanh thông, tài lộc dồi dào, mọi sự như ý.",
+        "thân tâm an lạc, phiền não tiêu trừ, trí tuệ sáng suốt.",
+        "gia đình mạnh khoẻ, bình an, xa lìa bệnh khổ.",
+        "học hành tấn tới, thi cử đỗ đạt, sự nghiệp thành công.",
+        "tiêu tai giải nạn, xuất nhập bình an, vạn sự cát tường.",
+        "nhân duyên tốt đẹp, tình cảm viên mãn, hạnh phúc lâu bền."
+      ]
+    },
+    "priceTags": [
+      {
+        "price": "1 xu",
+        "label": "dâng hương"
+      },
+      {
+        "price": "5 xu",
+        "label": "lên bục"
+      },
+      {
+        "price": "10+ xu",
+        "label": "tăng công đức"
       }
     ]
   },

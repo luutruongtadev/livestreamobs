@@ -17,6 +17,8 @@ export class Temple {
     this.giftTiers = [...config.giftTiers].sort((a, b) => a.minDiamonds - b.minDiamonds);
     this.lastComment = new Map(); // userId -> timestamp, chống spam công đức
     this.presence = new Map(); // userId -> phật tử đang có mặt trong chánh điện
+    this.platforms = []; // bục lễ trước bàn thờ: null | { id, name, avatar, until, wish, giftName }
+    this.recentGifts = []; // quà gần đây cho thanh quà góc trái
     this.dirty = false;
     this.reset();
     if (statePath) this.load();
@@ -31,7 +33,56 @@ export class Temple {
     };
     this.lastComment.clear();
     this.presence?.clear();
+    this.platforms = [];
+    this.recentGifts = [];
     this.dirty = true;
+  }
+
+  get platformCfg() {
+    return {
+      count: 6, minDiamonds: 5, seconds: 60, secondsPerDiamond: 4, maxSeconds: 300,
+      wishes: ['gia đạo bình an, mọi sự hanh thông.'],
+      ...(this.config.hall?.platform || {}),
+    };
+  }
+
+  /** Tặng đủ xu thì lên bục lễ: đã ở bục thì gia hạn, còn bục trống thì vào, hết bục thì thay người sắp hết giờ nhất. */
+  takePlatform(user, diamonds, giftName, repeatCount) {
+    const pc = this.platformCfg;
+    if (!user?.id || diamonds < pc.minDiamonds) return [];
+    const t = this.now();
+    const secs = Math.min(pc.maxSeconds, pc.seconds + (diamonds - pc.minDiamonds) * pc.secondsPerDiamond);
+    const offerings = this.state.donors[user.id]?.offerings || 1;
+    const wish = pc.wishes[Math.floor(Math.random() * pc.wishes.length)] || '';
+    let slot = this.platforms.findIndex((p) => p?.id === user.id);
+    let replaced = null;
+    if (slot >= 0) {
+      this.platforms[slot].until = Math.max(this.platforms[slot].until, t) + secs * 1000;
+    } else {
+      slot = -1;
+      for (let i = 0; i < pc.count; i++) if (!this.platforms[i]) { slot = i; break; }
+      if (slot < 0) {
+        slot = 0;
+        for (let i = 1; i < pc.count; i++) if (this.platforms[i].until < this.platforms[slot].until) slot = i;
+        replaced = { id: this.platforms[slot].id, name: this.platforms[slot].name };
+      }
+      this.platforms[slot] = { id: user.id, name: user.name, avatar: user.avatar, since: t, until: t + secs * 1000 };
+    }
+    Object.assign(this.platforms[slot], { wish, giftName });
+    return [{ type: 'platform', user, slot, wish, giftName, repeatCount, offerings, seconds: secs, replaced }];
+  }
+
+  /** Gọi mỗi giây: ai hết giờ thì rời bục. */
+  prunePlatforms() {
+    const t = this.now();
+    const out = [];
+    this.platforms.forEach((p, i) => {
+      if (p && p.until <= t) {
+        out.push({ type: 'platform_leave', user: { id: p.id, name: p.name, avatar: p.avatar }, slot: i });
+        this.platforms[i] = null;
+      }
+    });
+    return out;
   }
 
   get hall() {
@@ -57,7 +108,8 @@ export class Temple {
   prunePresence() {
     const limit = this.now() - this.hall.presenceMinutes * 60000;
     let changed = false;
-    for (const [k, p] of this.presence) if (p.lastSeen < limit) { this.presence.delete(k); changed = true; }
+    const onPlatform = new Set(this.platforms.filter(Boolean).map((p) => p.id));
+    for (const [k, p] of this.presence) if (p.lastSeen < limit && !onPlatform.has(k)) { this.presence.delete(k); changed = true; }
     return changed;
   }
 
@@ -123,6 +175,11 @@ export class Temple {
       present: this.presence.size,
       worshippers: this.worshippers(),
       lastGift: this.state.lastGift || null,
+      recentGifts: this.recentGifts,
+      platforms: Array.from({ length: this.platformCfg.count }, (_, i) => {
+        const p = this.platforms[i];
+        return p ? { id: p.id, name: p.name, avatar: p.avatar, remaining: Math.max(0, Math.ceil((p.until - this.now()) / 1000)) } : null;
+      }),
     };
   }
 
@@ -228,9 +285,12 @@ export class Temple {
         if (user?.id) {
           const d = (this.state.donors[user.id] ||= { id: user.id, name: user.name, avatar: user.avatar, merit: 0, diamonds: 0 });
           d.diamonds += diamonds;
+          d.offerings = (d.offerings || 0) + 1;
         }
         const giftName = this.config.giftNames?.[ev.giftName] || ev.giftName || 'Quà';
         this.state.lastGift = { name: user?.name || 'Thí chủ', giftName, repeatCount: repeat, at: this.now() };
+        this.recentGifts.unshift({ name: user?.name || 'Thí chủ', avatar: user?.avatar || null, giftName, giftImage: ev.giftImage || null, repeatCount: repeat, at: this.now() });
+        this.recentGifts.length = Math.min(this.recentGifts.length, 6);
         effects.push({
           type: 'gift',
           user,
@@ -243,6 +303,7 @@ export class Temple {
           verb: tier?.verb || 'cúng dường',
         });
         effects.push(...this.addMerit(user, merit));
+        effects.push(...this.takePlatform(user, diamonds, giftName, repeat));
         break;
       }
       case 'manual': {
