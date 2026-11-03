@@ -128,6 +128,8 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   | 💣 99 xu | Ném **bom**: nổ tung, hất lên, cháy đen, bị đẩy lùi 6% đường, choáng 3,5 giây |
   | 🚀 299 xu | **Siêu tốc** 6 giây: chạy nhanh gấp đôi, bật dậy nếu đang choáng, **né** mọi chướng ngại vật |
 
+  **🎯 Chọn mục tiêu**: comment `ném 3` (hoặc `chuối 3`, `bom 3`, `ném ngựa`) rồi tặng quà chuối / bom trong 30 giây → bay vào con làn 3 thay vì con dẫn đầu (nhắm con mình thì vẫn ném con dẫn đầu). Khán giả chưa cổ vũ ai cũng ném được.
+
   Mọi quà đều đẩy thêm quãng đường (1 xu = 12 đơn vị, đường dài 1000, một lần tặng tối đa 320). Mức xu chỉnh trong khối `race` của `config.json`.
 - **Thanh 💡 MẸO tự xoay vòng** dưới đường đua (6 giây / mẹo): lúc chờ thì xen kẽ mẹo vào đua, giữ chỗ, cổ vũ; lúc đua thì xoay qua bình luận, tim, từng mức quà, khiên, chuối, bom, siêu tốc. Thêm mẹo riêng bằng `"tips": ["…"]` trong khối `race` của `config.json`.
 - Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.

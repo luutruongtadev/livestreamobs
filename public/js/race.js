@@ -254,6 +254,13 @@ function handle(e) {
       floater(`📣 ${clip(e.by?.name, 10)}`, x, y - 90 * s, r.animal?.color || '#fff', 24);
       break;
     }
+    case 'race_aim': {
+      const r = e.racer && (racerById(e.racer.id) || e.racer);
+      fx.aims = (fx.aims || []).filter((a) => a.by !== e.by?.id).concat({ lane: e.lane, by: e.by?.id, t0: nowS() });
+      if (r) { const { x, y, s } = racerXY(r); floater(`🎯 ${clip(e.by?.name, 12)} nhắm làn ${e.lane}`, x, y - 120 * s, '#f87171', 28); }
+      sound.play('chime', { pitch: 1.9 });
+      break;
+    }
     case 'race_combo': {
       const r = racerById(e.racer.id) || e.racer;
       const { x, y, s } = racerXY(r);
@@ -300,7 +307,7 @@ function handle(e) {
       const bomb = e.kind === 'bomb';
       queueAlert({
         user: e.by, color: bomb ? '#fb923c' : '#facc15', prio: bomb ? 8 : 7, dur: 3.5,
-        title: bomb ? `💣 ${clip(e.by?.name, 16)} ném BOM!` : `🍌 ${clip(e.by?.name, 16)} ném chuối!`,
+        title: `${bomb ? '💣' : '🍌'} ${clip(e.by?.name, 16)} ném ${bomb ? 'BOM' : 'chuối'}${e.aimed ? ` 🎯 làn ${e.target.lane}` : ''}!`,
         sub: e.blocked === 'shield' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} có khiên 🛡️ — chặn được!`
           : e.blocked === 'turbo' ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} đang siêu tốc 🚀 — né được!`
           : bomb ? `${e.target.animal.emoji} ${clip(e.target.name, 16)} nổ tung, bị hất lùi · choáng ${e.seconds}s` : `${e.target.animal.emoji} ${clip(e.target.name, 16)} trượt ngã ${e.seconds}s`,
@@ -660,6 +667,20 @@ function drawEffects(dt) {
   ctx.restore();
   fx.parts = fx.parts.filter((q) => q.life > 0);
 
+  // tâm ngắm 🎯 trên con bị nhắm (3 giây sau khi comment "ném N")
+  fx.aims = (fx.aims || []).filter((a) => tn - a.t0 < 3);
+  for (const a of fx.aims) {
+    const r = R.racers.find((x) => x.lane === a.lane);
+    if (!r) continue;
+    const { x, y, s } = racerXY(r);
+    const k = tn - a.t0, rad = (70 - Math.min(1, k * 3) * 20) * s;
+    ctx.save(); ctx.globalAlpha = Math.min(1, (3 - k) * 2);
+    ctx.translate(x, y - 20 * s); ctx.rotate(k * 2);
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 5 * s;
+    ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 4; i++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(rad - 16 * s, 0); ctx.lineTo(rad + 16 * s, 0); ctx.stroke(); }
+    ctx.restore();
+  }
   for (const ring of fx.rings || []) {
     const k = (tn - ring.t0) / 0.6;
     if (k > 1) continue;
@@ -759,6 +780,7 @@ function tipList() {
     tier.heart && { icon: '💖', text: `Bị chuối / bom làm choáng? Tặng quà ${tier.heart} xu để HỒI PHỤC ngay`, color: '#f9a8d4' },
     tier.shield && { icon: '🛡️', text: `Đang dẫn đầu? Tặng ${tier.shield} xu bật KHIÊN 20 giây, chặn được chuối và bom`, color: '#7dd3fc' },
     tier.banana && { icon: '🍌', text: `Tặng ${tier.banana} xu NÉM CHUỐI vào con đang dẫn đầu (không bao giờ trúng con mình)`, color: '#facc15' },
+    tier.banana && { icon: '🎯', text: `CHỌN MỤC TIÊU: comment "ném 3" (hoặc "chuối 3", "bom 3") rồi tặng chuối / bom → bay vào con làn 3`, color: '#f87171' },
     tier.bomb && { icon: '💣', text: `Tặng ${tier.bomb} xu NÉM BOM: con dẫn đầu nổ tung, bị đẩy lùi và choáng`, color: '#fb923c' },
     tier.rocket && { icon: '🚀', text: `Tặng ${tier.rocket} xu SIÊU TỐC: nhanh gấp đôi và né mọi chuối, bom`, color: '#fdba74' },
     { icon: '🏆', text: `Về đích đầu tiên là thắng — hết ${R.raceSeconds} giây thì con xa nhất thắng · lên bảng Vua tốc độ`, color: '#fde68a' },

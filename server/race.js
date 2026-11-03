@@ -48,6 +48,7 @@ export const RACE_DEFAULTS = {
   bomb: { minDiamonds: 99, stunSeconds: 3.5, knockback: 60 }, // 💣 nổ tung, bị hất lùi
   rocket: { minDiamonds: 299, seconds: 6, boost: 450 }, // 🚀 siêu tốc: phóng mạnh, miễn nhiễm chướng ngại vật
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
+  aimSeconds: 30, // comment "ném 3" → quà chuối / bom trong 30 giây tới bay vào con làn 3
   // Bot lấp chỗ trống: tự chạy theo từng đợt ngẫu nhiên (≈ +4 đơn vị/giây) để người thật thả tim / tặng quà là vượt được
   bots: { names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'], burstPerSec: 0.5, burstMin: 4, burstMax: 12 },
 };
@@ -120,6 +121,7 @@ export class Race {
     this.podium = null;
     this.supporters = new Map(); // khán giả id -> làn đang cổ vũ
     this.lastAct = new Map(); // id -> thời điểm bình luận tính điểm gần nhất
+    this.aims = new Map(); // id -> { lane, at } mục tiêu chuối / bom đã chọn
     this.dirty = true;
     const fx = [{ type: 'race_lobby', round: this.roundNo }];
     // người đã đăng ký trước được vào luôn
@@ -267,6 +269,16 @@ export class Race {
     return this.joinWords.has(n) || this.joinWords.has(n.replace(/(.)\1+$/, '$1')); // "okkk"
   }
 
+  /** "ném 3", "chuối 3", "bom làn 3", "ném ngựa" → số làn muốn ném chuối / bom. */
+  aimLane(text) {
+    const n = normalize(text || '');
+    const m = n.match(/^(?:nem|chuoi|bom|ban|nham)\s+(?:vao\s+)?(?:lan\s+|so\s+|con\s+)?(.+)$/);
+    if (!m) return null;
+    if (/^[1-6]$/.test(m[1])) return Number(m[1]) <= this.cfg.maxRacers ? Number(m[1]) : null;
+    const r = this.racers.find((x) => normalize(x.animal.name) === m[1]);
+    return r ? r.lane : null;
+  }
+
   /** Khán giả cổ vũ: gõ số làn (1–6) hoặc tên con vật. */
   cheerTarget(text) {
     const n = normalize(text || '');
@@ -298,6 +310,12 @@ export class Race {
     const t = this.clock();
 
     if (ev.type === 'comment') {
+      const aim = this.aimLane(ev.text);
+      if (aim && this.phase !== 'ended') {
+        this.aims.set(user.id, { lane: aim, at: t });
+        const target = this.racers.find((r) => r.lane === aim);
+        return [{ type: 'race_aim', by: pub(user), lane: aim, racer: target ? this.pubRacer(target) : null, seconds: this.cfg.aimSeconds }];
+      }
       if (this.isJoin(ev.text)) {
         if (this.phase === 'lobby') {
           if (this.racers.length >= this.cfg.maxRacers) return this.enqueue(user, 'full');
@@ -326,7 +344,12 @@ export class Race {
 
     if (this.phase !== 'racing') return [];
     const r = this.teamOf(user.id);
-    if (!r) return [];
+    if (!r) {
+      // chưa có con / chưa cổ vũ ai: quà chuối, bom vẫn ném được (vào mục tiêu đã chọn hoặc con dẫn đầu)
+      if (ev.type !== 'gift') return [];
+      const tier = this.tierOf(Math.max(1, Number(ev.diamonds) || 1));
+      return tier === 'banana' || tier === 'bomb' ? this.throwObstacle(tier, user, null) : [];
+    }
     const b = this.cfg.boost;
     switch (ev.type) {
       case 'like': {
@@ -398,10 +421,14 @@ export class Race {
   /** Ném chướng ngại vật vào con dẫn đầu (trừ con mình): đứng yên vài giây, bom còn hất lùi. */
   throwObstacle(kind, user, from) {
     const o = this.cfg[kind];
-    const target = this.racers.filter((x) => x !== from && x.finishedAt == null).sort((x, y) => y.pos - x.pos)[0];
-    if (!target) return [];
     const t = this.clock();
-    const base = { type: 'race_obstacle', kind, by: pub(user), from: this.pubRacer(from), target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 };
+    const alive = this.racers.filter((x) => x !== from && x.finishedAt == null);
+    // mục tiêu đã chọn (comment "ném 3") còn hiệu lực thì ném vào con đó, không thì con dẫn đầu
+    const aim = this.aims.get(user.id);
+    const aimed = aim && t - aim.at <= this.cfg.aimSeconds * 1000 ? alive.find((x) => x.lane === aim.lane) : null;
+    const target = aimed || alive.sort((x, y) => y.pos - x.pos)[0];
+    if (!target) return [];
+    const base = { type: 'race_obstacle', kind, aimed: !!aimed, by: pub(user), from: from ? this.pubRacer(from) : null, target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 };
     if (target.turboUntil > t) return [{ ...base, blocked: 'turbo', seconds: 0, knockback: 0 }]; // siêu tốc: né được
     if (target.shieldUntil > t) { // khiên chặn rồi vỡ
       target.shieldUntil = 0;
@@ -413,7 +440,7 @@ export class Race {
     target.pending = 0; // mất đà đang phóng
     if (o.knockback) target.pos = Math.max(0, target.pos - o.knockback);
     this.dirty = true;
-    return [{ type: 'race_obstacle', kind, by: pub(user), from: this.pubRacer(from), target: this.pubRacer(target), seconds: o.stunSeconds, knockback: o.knockback || 0 }];
+    return [base];
   }
 
   enqueue(user, why) {
@@ -455,12 +482,13 @@ export class Race {
       bananaMin: this.cfg.banana.minDiamonds,
       bombMin: this.cfg.bomb.minDiamonds,
       roseCombo: this.cfg.rose.comboEvery,
+      aimSeconds: this.cfg.aimSeconds,
       tips: Array.isArray(this.cfg.tips) ? this.cfg.tips.slice(0, 10) : [], // mẹo tuỳ chỉnh thêm (config race.tips)
       giftTiers: [
         { id: 'rose', icon: '🌹', min: 1, label: `Tăng tốc · ${this.cfg.rose.comboEvery} bông = mưa hoa` },
         { id: 'heart', icon: '💖', min: this.cfg.heart.minDiamonds, label: 'Tăng tốc + hồi phục' },
         { id: 'shield', icon: '🛡️', min: this.cfg.shield.minDiamonds, label: 'Khiên chặn chướng ngại' },
-        { id: 'banana', icon: '🍌', min: this.cfg.banana.minDiamonds, label: 'Ném chuối con dẫn đầu' },
+        { id: 'banana', icon: '🍌', min: this.cfg.banana.minDiamonds, label: 'Ném chuối ("ném 3" chọn làn)' },
         { id: 'bomb', icon: '💣', min: this.cfg.bomb.minDiamonds, label: 'Ném bom: nổ, hất lùi' },
         { id: 'rocket', icon: '🚀', min: this.cfg.rocket.minDiamonds, label: 'Siêu tốc, miễn nhiễm' },
       ],

@@ -176,3 +176,40 @@ test('các mức quà: hoa hồng tăng tốc + mưa hoa mỗi 10 bông, tim h�
   assert.equal(fx.find((e) => e.type === 'race_obstacle').blocked, 'turbo');
   assert.equal(g.snapshot().giftTiers.length, 6);
 });
+
+test('chọn mục tiêu: comment "ném 3" rồi tặng chuối / bom → bay vào con làn 3 (không phải con dẫn đầu)', () => {
+  const { g, clock } = mk();
+  say(g, 'a', 'ok'); say(g, 'b', 'ok'); say(g, 'c', 'ok');
+  g.skip(); g.skip();
+  g.handle({ type: 'like', user: u('a'), count: 30 }); // a dẫn đầu
+  run(g, clock, 1000);
+  const aimFx = say(g, 'b', 'ném 3');
+  assert.equal(aimFx[0].type, 'race_aim');
+  assert.equal(aimFx[0].lane, 3);
+  let fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
+  let ob = fx.find((e) => e.type === 'race_obstacle');
+  assert.equal(ob.target.id, 'c');
+  assert.equal(ob.aimed, true);
+  // "bom ngựa"/tên con vật cũng được; nhắm vào chính con mình thì ném con dẫn đầu
+  const lane = g.racers.find((r) => r.id === 'b').lane;
+  say(g, 'b', `chuối làn ${lane}`);
+  fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
+  assert.equal(fx.find((e) => e.type === 'race_obstacle').target.id, 'a');
+  // hết 30 giây thì mục tiêu hết hiệu lực
+  say(g, 'b', 'ném 3');
+  run(g, clock, 31_000);
+  if (g.phase === 'racing') {
+    fx = g.handle({ type: 'gift', user: u('b'), diamonds: 30 });
+    assert.equal(fx.find((e) => e.type === 'race_obstacle').aimed, false);
+  }
+  // khán giả chưa cổ vũ ai vẫn ném được vào mục tiêu đã chọn
+  const h = mk();
+  say(h.g, 'a', 'ok'); say(h.g, 'b', 'ok');
+  h.g.skip(); h.g.skip();
+  say(h.g, 'fan', 'nem 2');
+  fx = h.g.handle({ type: 'gift', user: u('fan'), diamonds: 99 });
+  assert.equal(fx[0].type, 'race_obstacle');
+  assert.equal(fx[0].target.lane, 2);
+  assert.equal(fx[0].from, null);
+  assert.deepEqual(say(h.g, 'fan', 'chơi 3'), []); // không phải câu nhắm
+});
