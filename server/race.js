@@ -20,21 +20,18 @@ export const ANIMALS = [
 
 export const RACE_DEFAULTS = {
   maxRacers: 6,
-  minRacers: 2,
+  minHumans: 0, // số người thật tối thiểu để xuất phát (0 = luôn chạy, thiếu thì thêm bot)
   joinKeywords: ['ok', 'oke', 'okay', 'oki', 'okie', 'okela'],
-  lobbySeconds: 45, // thời gian đăng ký (comment OK)
+  lobbySeconds: 30, // thời gian đăng ký (comment OK); hết giờ thì thêm bot cho đủ chỗ
   fullStartSeconds: 5, // đủ người thì xuất phát sau ngần này giây
   countdownSeconds: 4,
   raceSeconds: 90, // hết giờ thì con dẫn đầu thắng
   breakSeconds: 12,
   track: 1000, // chiều dài đường đua (đơn vị)
-  baseSpeed: 6, // đơn vị / giây khi không ai làm gì (≈ không bao giờ tự về đích)
+  baseSpeed: 8, // đơn vị / giây khi không ai làm gì (≈ không bao giờ tự về đích)
   dashSpeed: 260, // tốc độ "xả" lượng tăng tốc tích luỹ, đơn vị / giây
   boost: {
-    comment: 14, // người đua tự bình luận
-    commentCooldownSec: 1,
-    cheer: 8, // khán giả gõ số làn / tên con vật để cổ vũ
-    cheerCooldownSec: 2,
+    cheerCooldownSec: 2, // khán giả gõ số làn để chọn con cổ vũ (chỉ chọn, không đẩy)
     like: 2, // mỗi tim
     maxLikePerEvent: 30,
     share: 40,
@@ -51,6 +48,8 @@ export const RACE_DEFAULTS = {
   bomb: { minDiamonds: 99, stunSeconds: 3.5, knockback: 60 }, // 💣 nổ tung, bị hất lùi
   rocket: { minDiamonds: 299, seconds: 6, boost: 450 }, // 🚀 siêu tốc: phóng mạnh, miễn nhiễm chướng ngại vật
   queueMax: 12, // đăng ký trước cho vòng sau khi đang đua
+  // Bot lấp chỗ trống: tự chạy theo từng đợt ngẫu nhiên (≈ +4 đơn vị/giây) để người thật thả tim / tặng quà là vượt được
+  bots: { names: ['Bot Gió', 'Bot Sấm', 'Bot Chớp', 'Bot Bão', 'Bot Lốc', 'Bot Mây'], burstPerSec: 0.5, burstMin: 4, burstMax: 12 },
 };
 
 const pub = (u) => ({ id: u.id, name: u.name, avatar: u.avatar || null });
@@ -72,6 +71,7 @@ export class Race {
       heart: { ...RACE_DEFAULTS.heart, ...(config.heart || {}) },
       shield: { ...RACE_DEFAULTS.shield, ...(config.shield || {}) },
       rocket: { ...RACE_DEFAULTS.rocket, ...(config.rocket || {}) },
+      bots: { ...RACE_DEFAULTS.bots, ...(config.bots || {}) },
     };
     this.cfg.maxRacers = Math.max(2, Math.min(6, this.cfg.maxRacers | 0 || 6));
     this.joinWords = new Set(this.cfg.joinKeywords.map(normalize));
@@ -129,11 +129,29 @@ export class Race {
     return fx;
   }
 
+  /** Thêm bot vào các làn còn trống cho đủ maxRacers. */
+  fillBots() {
+    const fx = [];
+    const names = this.cfg.bots.names;
+    let i = 0;
+    while (this.racers.length < this.cfg.maxRacers) {
+      const used = new Set(this.racers.filter((r) => r.bot).map((r) => r.name));
+      const name = names.find((n) => !used.has(n)) || `Bot ${++i}`;
+      const r = this.makeRacer({ id: `bot:${this.roundNo}:${this.racers.length}`, name, avatar: null });
+      r.bot = true;
+      fx.push({ type: 'race_join', racer: this.pubRacer(r), bot: true });
+    }
+    return fx;
+  }
+
+  humans() { return this.racers.filter((r) => !r.bot).length; }
+
   startCountdown() {
+    const bots = this.fillBots();
     this.phase = 'countdown';
     this.endsAt = this.clock() + this.cfg.countdownSeconds * 1000;
     this.dirty = true;
-    return [{ type: 'race_countdown', seconds: this.cfg.countdownSeconds, racers: this.racers.length }];
+    return [...bots, { type: 'race_countdown', seconds: this.cfg.countdownSeconds, racers: this.racers.length, bots: bots.length }];
   }
 
   go() {
@@ -148,20 +166,21 @@ export class Race {
     const order = [...this.racers].sort((a, b) => (a.finishedAt ?? Infinity) - (b.finishedAt ?? Infinity) || b.pos - a.pos);
     this.podium = order.slice(0, 3).map((r, i) => ({ place: i + 1, ...this.pubRacer(r) }));
     for (const r of this.racers) {
+      if (r.bot) continue; // bot không lên bảng Vua tốc độ
       const s = (this.stats[r.id] ||= { id: r.id, name: r.name, avatar: r.avatar, wins: 0, podiums: 0, races: 0 });
       s.name = r.name || s.name; s.avatar = r.avatar || s.avatar;
       s.races++;
     }
-    order.slice(0, 3).forEach((r, i) => { const s = this.stats[r.id]; s.podiums++; if (i === 0) s.wins++; });
+    order.slice(0, 3).forEach((r, i) => { const s = this.stats[r.id]; if (!s) return; s.podiums++; if (i === 0) s.wins++; });
     this.phase = 'ended';
     this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
     return [{ type: 'race_finish', round: this.roundNo, reason, podium: this.podium }];
   }
 
-  /** Admin: sảnh chờ → xuất phát luôn (cần ≥ 1 con); đang đua → kết thúc; đang nghỉ → vòng mới. */
+  /** Admin: sảnh chờ → xuất phát luôn (thêm bot cho đủ); đang đua → kết thúc; đang nghỉ → vòng mới. */
   skip() {
-    if (this.phase === 'lobby') return this.racers.length ? this.startCountdown() : [];
+    if (this.phase === 'lobby') return this.startCountdown();
     if (this.phase === 'countdown') return this.go();
     if (this.phase === 'racing') return this.finish('admin');
     return this.newLobby();
@@ -172,8 +191,8 @@ export class Race {
     const t = this.clock();
     if (this.phase === 'lobby') {
       if (t < this.endsAt) return [];
-      if (this.racers.length >= this.cfg.minRacers) return this.startCountdown();
-      this.endsAt = t + this.cfg.lobbySeconds * 1000; // chưa đủ người: chờ thêm
+      if (this.humans() >= this.cfg.minHumans) return this.startCountdown();
+      this.endsAt = t + this.cfg.lobbySeconds * 1000; // chưa đủ người thật: chờ thêm
       return [];
     }
     if (this.phase === 'countdown') return t >= this.endsAt ? this.go() : [];
@@ -185,6 +204,10 @@ export class Race {
     for (const r of this.racers) {
       if (r.finishedAt != null) continue;
       if (r.stunUntil > t) continue;
+      if (r.bot && this.random() < this.cfg.bots.burstPerSec * dt) { // bot tự "thả tim"
+        const { burstMin: lo, burstMax: hi } = this.cfg.bots;
+        r.pending += lo + this.random() * (hi - lo);
+      }
       const turbo = r.turboUntil > t ? 2 : 1; // siêu tốc: xả tăng tốc nhanh gấp đôi
       const dash = Math.min(r.pending, this.cfg.dashSpeed * turbo * dt);
       r.pending -= dash;
@@ -212,11 +235,10 @@ export class Race {
   racerOf(id) { return this.racers.find((r) => r.id === id); }
 
   pubRacer(r) {
-    return { ...pub(r), lane: r.lane, animal: r.animal, pos: Math.round((r.pos / this.cfg.track) * 1000) / 1000 };
+    return { ...pub(r), bot: !!r.bot, lane: r.lane, animal: r.animal, pos: Math.round((r.pos / this.cfg.track) * 1000) / 1000 };
   }
 
-  addRacer(user, fromQueue = false) {
-    if (this.racerOf(user.id)) return [];
+  makeRacer(user) {
     const used = new Set(this.racers.map((r) => r.animal.id));
     const free = ANIMALS.filter((a) => !used.has(a.id));
     const animal = free[Math.floor(this.random() * free.length)];
@@ -226,6 +248,12 @@ export class Race {
     this.racers.push(r);
     this.racers.sort((a, b) => a.lane - b.lane);
     this.dirty = true;
+    return r;
+  }
+
+  addRacer(user, fromQueue = false) {
+    if (this.racerOf(user.id)) return [];
+    const r = this.makeRacer(user);
     const fx = [{ type: 'race_join', racer: this.pubRacer(r), fromQueue }];
     if (this.racers.length >= this.cfg.maxRacers) {
       this.endsAt = Math.min(this.endsAt, this.clock() + this.cfg.fullStartSeconds * 1000);
@@ -283,19 +311,17 @@ export class Race {
         return [];
       }
       if (this.phase !== 'racing' && this.phase !== 'countdown') return [];
-      const own = this.racerOf(user.id);
-      if (own) {
-        if (this.phase !== 'racing' || t - (this.lastAct.get(user.id) ?? -Infinity) < this.cfg.boost.commentCooldownSec * 1000) return [];
-        this.lastAct.set(user.id, t);
-        return this.push(own, this.cfg.boost.comment, user, 'comment');
-      }
+      // bình luận KHÔNG làm con vật chạy; khán giả chỉ gõ số làn để chọn con cổ vũ (tim / quà tính cho con đó)
+      if (this.racerOf(user.id)) return [];
       const target = this.cheerTarget(ev.text);
       if (!target) return [];
+      const changed = this.supporters.get(user.id) !== target.lane;
       this.supporters.set(user.id, target.lane);
-      if (this.phase !== 'racing' || t - (this.lastAct.get(user.id) ?? -Infinity) < this.cfg.boost.cheerCooldownSec * 1000) return [];
+      if (!changed && t - (this.lastAct.get(user.id) ?? -Infinity) < this.cfg.boost.cheerCooldownSec * 1000) return [];
       this.lastAct.set(user.id, t);
       target.cheers++;
-      return [{ type: 'race_cheer', racer: this.pubRacer(target), by: pub(user), amount: this.cfg.boost.cheer }, ...this.push(target, this.cfg.boost.cheer, user, 'cheer').map((e) => ({ ...e, silent: true }))];
+      this.dirty = true;
+      return [{ type: 'race_cheer', racer: this.pubRacer(target), by: pub(user), amount: 0 }];
     }
 
     if (this.phase !== 'racing') return [];
@@ -408,7 +434,7 @@ export class Race {
       remaining: Math.max(0, Math.ceil((deadline - t) / 1000)),
       raceSeconds: this.cfg.raceSeconds,
       maxRacers: this.cfg.maxRacers,
-      minRacers: this.cfg.minRacers,
+      minHumans: this.cfg.minHumans,
       joinWord: this.cfg.joinKeywords[0].toUpperCase(),
       racers: this.racers.map((r) => ({
         ...this.pubRacer(r),
@@ -438,7 +464,7 @@ export class Race {
         { id: 'bomb', icon: '💣', min: this.cfg.bomb.minDiamonds, label: 'Ném bom: nổ, hất lùi' },
         { id: 'rocket', icon: '🚀', min: this.cfg.rocket.minDiamonds, label: 'Siêu tốc, miễn nhiễm' },
       ],
-      champions: Object.values(this.stats).sort((a, b) => b.wins - a.wins || b.podiums - a.podiums).slice(0, 5),
+      champions: Object.values(this.stats).filter((c) => !String(c.id).startsWith('bot:')).sort((a, b) => b.wins - a.wins || b.podiums - a.podiums).slice(0, 5),
     };
   }
 }

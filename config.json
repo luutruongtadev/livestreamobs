@@ -273,18 +273,19 @@
   "ambientVolume": 0.25,
   "race": {
     "maxRacers": 6,
-    "minRacers": 2,
+    "minHumans": 0,
     "joinKeywords": ["ok", "oke", "okay", "oki", "okie"],
-    "lobbySeconds": 45,
+    "lobbySeconds": 30,
     "raceSeconds": 90,
     "breakSeconds": 12,
-    "boost": { "comment": 14, "cheer": 8, "like": 2, "perDiamond": 12, "maxGift": 320 },
+    "boost": { "like": 2, "perDiamond": 12, "maxGift": 320 },
     "banana": { "minDiamonds": 30, "stunSeconds": 2.5 },
     "bomb": { "minDiamonds": 99, "stunSeconds": 3.5, "knockback": 60 },
     "rose": { "boost": 25, "comboEvery": 10, "comboBoost": 120 },
     "heart": { "minDiamonds": 5, "boost": 90 },
     "shield": { "minDiamonds": 10, "seconds": 20 },
-    "rocket": { "minDiamonds": 299, "seconds": 6, "boost": 450 }
+    "rocket": { "minDiamonds": 299, "seconds": 6, "boost": 450 },
+    "bots": { "names": ["Bot Gió", "Bot Sấm", "Bot Chớp", "Bot Bão", "Bot Lốc", "Bot Mây"], "burstPerSec": 0.5, "burstMin": 4, "burstMax": 12 }
   },
   "tugwar": {
     "roundSeconds": 180,

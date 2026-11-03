@@ -116,8 +116,8 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 
 - **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
   người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
-- Sảnh chờ 45 giây, cần ≥ 2 người để xuất phát; đủ 6 người thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
-- **Người đua**: mỗi bình luận = chạy một đoạn (1 lần / giây), thả tim = tăng tốc. **Tặng quà theo mức** (tính theo giá một món, combo thì nhân lên):
+- Sảnh chờ **30 giây**. Hết giờ mà chưa đủ 6 người thì **tự thêm 🤖 bot** cho đủ 6 con (bot tự chạy theo từng đợt, không lên bảng Vua tốc độ); không ai vào thì 6 bot vẫn đua để màn hình luôn chạy. Đủ 6 người thật thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
+- **Người đua**: **bình luận không làm con vật chạy** — thả tim = chạy (2 đơn vị / tim), tặng quà = phóng. **Tặng quà theo mức** (tính theo giá một món, combo thì nhân lên):
 
   | Quà | Tác dụng |
   |---|---|
@@ -131,7 +131,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   Mọi quà đều đẩy thêm quãng đường (1 xu = 12 đơn vị, đường dài 1000, một lần tặng tối đa 320). Mức xu chỉnh trong khối `race` của `config.json`.
 - **Thanh 💡 MẸO tự xoay vòng** dưới đường đua (6 giây / mẹo): lúc chờ thì xen kẽ mẹo vào đua, giữ chỗ, cổ vũ; lúc đua thì xoay qua bình luận, tim, từng mức quà, khiên, chuối, bom, siêu tốc. Thêm mẹo riêng bằng `"tips": ["…"]` trong khối `race` của `config.json`.
 - Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
-- **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để cổ vũ (đẩy nhẹ); tim / quà sau đó đều tính cho con mình đang cổ vũ.
+- **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để chọn con cổ vũ (kể cả bot); tim / quà sau đó đều tính cho con đó.
 - Con đầu tiên về đích thắng; hết 90 giây thì con xa nhất thắng. Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
 - **Lưu thành tích theo người** (số lần thắng, lên bục, số vòng đã đua) vào `data/race.json` → bảng 🏆 Vua tốc độ, không mất khi deploy.
 - Tự tạm dừng khi chưa live như Đoán từ / Kéo co. Admin có nút giả lập (OK, bình luận, cổ vũ, tim, quà, chuối) và ⏭ xuất phát ngay / kết thúc / vòng mới.

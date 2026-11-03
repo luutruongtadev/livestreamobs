@@ -194,8 +194,9 @@ function handle(e) {
       queueAlert({ title: `VÒNG ${e.round} — MỞ ĐĂNG KÝ`, sub: `Comment ${R?.joinWord || 'OK'} để nhận một con vật (tối đa ${R?.maxRacers || 6} con)`, prio: 9, dur: 3.5, color: '#facc15' });
       break;
     case 'race_join': {
-      sound.play('chime', { pitch: 0.9 + e.racer.lane * 0.08 });
       const q = proj(-0.2, laneU(e.racer.lane));
+      if (e.bot) { floater(`🤖 ${e.racer.name} vào làn ${e.racer.lane}`, q.x, q.y - 40 * q.s, '#cbd5e1', 26); break; }
+      sound.play('chime', { pitch: 0.9 + e.racer.lane * 0.08 });
       floater(`${e.racer.animal.emoji} ${clip(e.racer.name, 14)} vào làn ${e.racer.lane}`, q.x, q.y - 40 * q.s, e.racer.animal.color, 30);
       break;
     }
@@ -208,6 +209,7 @@ function handle(e) {
     case 'race_countdown':
       fx.countdownAt = performance.now();
       sound.play('bell');
+      if (e.bots) queueAlert({ title: `🤖 THÊM ${e.bots} BOT CHO ĐỦ ${e.racers} CON`, sub: 'Thả tim, tặng quà cho con mình để vượt mặt bot!', prio: 8, dur: 3, color: '#cbd5e1' });
       break;
     case 'race_go':
       fx.goAt = performance.now();
@@ -587,13 +589,13 @@ function drawRacer(r, t, dt) {
   // thẻ tên phía trên đầu
   const ty = g.y - (stunned ? 150 : 128) * s - lift;
   ctx.font = font(800, Math.round(22 * s));
-  const label = clip(r.name, 12);
+  const label = (r.bot ? '🤖 ' : '') + clip(r.name, 12);
   const tw = Math.min(240 * s, ctx.measureText(label).width + 60 * s);
   ctx.globalAlpha = 0.93;
   rr(g.x - tw / 2, ty - 19 * s, tw, 38 * s, 19 * s); ctx.fillStyle = 'rgba(10,14,40,.85)'; ctx.fill();
   ctx.strokeStyle = r.animal.color; ctx.lineWidth = 3 * s; ctx.stroke();
   ctx.globalAlpha = 1;
-  avatar(r, g.x - tw / 2 + 19 * s, ty, 15 * s, r.animal.color);
+  if (!r.bot) avatar(r, g.x - tw / 2 + 19 * s, ty, 15 * s, r.animal.color);
   ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(fitText(label, tw - 48 * s), g.x - tw / 2 + 40 * s, ty + 1);
   if (r.supporters || r.diamonds || r.roses) {
@@ -613,7 +615,7 @@ function drawTrack(t, dt) {
     if (R.phase === 'lobby') {
       const q = proj(-0.3, laneU(lane));
       ctx.font = font(700, Math.round(30 * q.s)); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(`Trống — comment "${R.joinWord}"`, q.x, q.y);
+      ctx.fillText(`Trống — comment "${R.joinWord}" (hết giờ: bot)`, q.x, q.y);
     }
   }
   drawFinishGate(t, 'front');
@@ -681,7 +683,7 @@ function drawHeader() {
   ctx.fillText(`🏁 ĐUA THÚ · VÒNG ${R.round}`, 76, y + 37);
   const m = Math.floor(R.remaining / 60), s = String(R.remaining % 60).padStart(2, '0');
   const label = R.paused ? `⏸ ${m}:${s}`
-    : R.phase === 'lobby' ? (R.racers.length >= R.minRacers ? `⏳ Xuất phát sau ${R.remaining}s` : `⏳ Chờ người đua…`)
+    : R.phase === 'lobby' ? `⏳ Xuất phát sau ${R.remaining}s`
     : R.phase === 'countdown' ? '🚦 Chuẩn bị!'
     : R.phase === 'racing' ? `⏱ ${m}:${s}`
     : `Vòng mới sau ${R.remaining}s`;
@@ -707,12 +709,12 @@ function drawBanner(t) {
     ctx.fillText(left > 0 ? `💬 COMMENT "${R.joinWord}" ĐỂ VÀO ĐUA` : '✅ ĐÃ ĐỦ NGƯỜI ĐUA', 0, 0);
     ctx.restore();
     ctx.font = font(700, 26); ctx.fillStyle = '#5b3a00';
-    ctx.fillText(left > 0 ? `Còn ${left}/${R.maxRacers} chỗ · cần tối thiểu ${R.minRacers} người để xuất phát` : `Comment "${R.joinWord}" để đăng ký vòng sau${R.queueCount ? ` · đã có ${R.queueCount} người chờ` : ''}`, W / 2, y + 80);
+    ctx.fillText(left > 0 ? `Còn ${left}/${R.maxRacers} chỗ · hết giờ sẽ thêm bot cho đủ ${R.maxRacers} con` : `Comment "${R.joinWord}" để đăng ký vòng sau${R.queueCount ? ` · đã có ${R.queueCount} người chờ` : ''}`, W / 2, y + 80);
   } else {
     ctx.font = font(800, 30); ctx.fillStyle = '#fff';
-    ctx.fillText('🏇 Người đua: bình luận / thả tim / tặng quà để chạy', W / 2, y + 34);
+    ctx.fillText('🏇 Người đua: THẢ TIM / TẶNG QUÀ để con mình chạy', W / 2, y + 34);
     ctx.font = font(700, 26); ctx.fillStyle = '#fde68a';
-    ctx.fillText(fitText(`📣 Khán giả: gõ số làn (1–${R.maxRacers}) để cổ vũ${R.queueCount ? ` · ${R.queueCount} người chờ vòng sau` : ` · "${R.joinWord}" = đăng ký vòng sau`}`, W - 120), W / 2, y + 76);
+    ctx.fillText(fitText(`📣 Khán giả: gõ số làn (1–${R.maxRacers}) chọn con cổ vũ — tim, quà tính cho con đó${R.queueCount ? ` · ${R.queueCount} người chờ` : ''}`, W - 120), W / 2, y + 76);
   }
   ctx.restore();
 }
@@ -751,8 +753,8 @@ function tipList() {
     { icon: '📣', text: `Không đua? Gõ SỐ LÀN (1–${R.maxRacers}) hoặc tên con vật để cổ vũ — tim và quà của bạn tính cho con đó`, color: '#93c5fd' },
   ];
   const play = [
-    { icon: '💬', text: 'Người đua: BÌNH LUẬN LIÊN TỤC để con mình chạy (mỗi giây 1 lần)', color: '#fff' },
-    { icon: '❤️', text: 'Thả tim = tăng tốc — thả càng nhiều, chạy càng nhanh!', color: '#fb7185' },
+    { icon: '❤️', text: 'THẢ TIM liên tục để con mình chạy — thả càng nhiều, chạy càng nhanh!', color: '#fb7185' },
+    { icon: '🤖', text: `Thiếu người thì BOT vào đua cho đủ ${R.maxRacers} con — comment "${R.joinWord}" để giành chỗ của bot!`, color: '#cbd5e1' },
     { icon: '🌹', text: `1 bông hồng = tăng tốc · đủ ${R.roseCombo || 10} bông cho cùng con = MƯA HOA phóng xa`, color: '#fb7185' },
     tier.heart && { icon: '💖', text: `Bị chuối / bom làm choáng? Tặng quà ${tier.heart} xu để HỒI PHỤC ngay`, color: '#f9a8d4' },
     tier.shield && { icon: '🛡️', text: `Đang dẫn đầu? Tặng ${tier.shield} xu bật KHIÊN 20 giây, chặn được chuối và bom`, color: '#7dd3fc' },

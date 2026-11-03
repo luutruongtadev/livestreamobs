@@ -24,27 +24,42 @@ test('comment OK để vào đua, tối đa 6 con, con vật không trùng; ngư
   assert.deepEqual(say(g, 'p8', 'ok đi bạn'), []); // không đúng từ khoá
 });
 
-test('đủ 6 người thì xuất phát sớm; chưa đủ 2 người thì chờ thêm', () => {
+test('hết 30 giây chờ: thiếu người thì thêm bot cho đủ 6 con; đủ 6 người thật thì xuất phát sớm', () => {
   const { g, clock } = mk();
   say(g, 'a', 'ok');
-  run(g, clock, 31_000);
-  assert.equal(g.phase, 'lobby'); // 1 người: chờ
-  say(g, 'b', 'ok');
-  for (let i = 0; i < 4; i++) say(g, 'x' + i, 'ok');
-  const fx = run(g, clock, 5_000);
+  run(g, clock, 29_000);
+  assert.equal(g.phase, 'lobby');
+  const fx = run(g, clock, 1_250);
   assert.ok(fx.some((e) => e.type === 'race_countdown'));
-  run(g, clock, 3_000);
-  assert.equal(g.phase, 'racing');
+  assert.equal(g.racers.length, 6);
+  assert.equal(g.racers.filter((r) => r.bot).length, 5);
+  assert.equal(new Set(g.racers.map((r) => r.animal.id)).size, 6);
+  assert.equal(g.snapshot().racers.filter((r) => r.bot).length, 5);
+  // vòng không ai vào: vẫn chạy với 6 bot, bot không lên bảng Vua tốc độ
+  const z = mk();
+  run(z.g, z.clock, 31_000);
+  assert.equal(z.g.racers.length, 6);
+  z.g.skip(); z.g.skip();
+  assert.equal(z.g.phase, 'ended');
+  assert.deepEqual(z.g.snapshot().champions, []);
+  // đủ 6 người thật → xuất phát sau 5 giây, không có bot
+  const f = mk();
+  for (let i = 0; i < 6; i++) say(f.g, 'x' + i, 'ok');
+  run(f.g, f.clock, 5_000);
+  assert.equal(f.g.phase, 'countdown');
+  assert.equal(f.g.racers.filter((r) => r.bot).length, 0);
+  run(f.g, f.clock, 3_000);
+  assert.equal(f.g.phase, 'racing');
 });
 
-test('đua: bình luận / tim / quà đẩy con của mình, khán giả cổ vũ theo số làn, về đích thì thắng và lưu thành tích', () => {
+test('đua: tim / quà đẩy con của mình, khán giả cổ vũ theo số làn, về đích thì thắng và lưu thành tích', () => {
   const { g, clock } = mk();
   say(g, 'a', 'ok'); say(g, 'b', 'ok');
   assert.equal(say(g, 'fan', '2')[0].type, 'race_cheer'); // cổ vũ từ sảnh chờ
   g.skip(); g.skip(); // xuất phát ngay
   assert.equal(g.phase, 'racing');
-  assert.equal(say(g, 'a', 'chạy')[0].type, 'race_boost');
-  assert.deepEqual(say(g, 'a', 'chạy nữa'), []); // hồi chiêu 1 giây
+  assert.deepEqual(say(g, 'a', 'chạy đi chạy đi'), []); // bình luận không làm con vật chạy
+  assert.equal(g.handle({ type: 'like', user: u('a'), count: 10 })[0].type, 'race_boost');
   // quà của khán giả cổ vũ làn 2 đẩy con của b
   const fx = g.handle({ type: 'gift', user: u('fan'), diamonds: 10, giftName: 'Rose' });
   assert.equal(fx[0].racer.id, 'b');
@@ -55,7 +70,8 @@ test('đua: bình luận / tim / quà đẩy con của mình, khán giả cổ v
   assert.ok(fin, 'phải có người về đích');
   assert.equal(fin.podium[0].id, 'b');
   assert.equal(g.stats.b.wins, 1);
-  assert.equal(g.stats.a.podiums, 1);
+  assert.equal(g.stats.a.races, 1); // a bị chuối nên rớt khỏi bục; bot không có trong stats
+  assert.ok(!Object.keys(g.stats).some((id) => id.startsWith('bot:')));
   assert.ok(b.pos >= 1000);
   assert.equal(g.phase, 'ended');
   run(g, clock, 10_000);
@@ -84,7 +100,7 @@ test('hết giờ: con xa nhất thắng; người đăng ký trước tự vào
   say(g, 'a', 'ok'); say(g, 'b', 'ok');
   g.skip(); g.skip();
   say(g, 'c', 'ok'); // đang đua → vòng sau
-  say(g, 'a', 'đi');
+  g.handle({ type: 'like', user: u('a'), count: 5 });
   const out = run(g, clock, 61_000);
   const fin = out.find((e) => e.type === 'race_finish');
   assert.equal(fin.reason, 'timeout');
