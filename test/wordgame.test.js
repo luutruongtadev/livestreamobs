@@ -1,5 +1,7 @@
 import test from 'node:test';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { WordGame, parseGuess } from '../server/wordgame.js';
 import { ClaudeScorer, simpleScore, isExact } from '../server/scorer.js';
@@ -263,4 +265,20 @@ test('wordsets/: mọi bộ có sẵn hợp lệ — tên từ đúng dạng, kh
       assert.equal(cleanHints(w.word, w.aliases || [], text).length, text.length, `${f}: gợi ý lộ đáp án ở "${w.word}"`);
     }
   }
+});
+
+test('hàng ưu tiên: từ admin thêm được chơi trước, theo thứ tự, không trùng; lưu qua khởi động lại', () => {
+  const statePath = path.join(os.tmpdir(), `wg-${process.pid}-${Date.now()}.json`);
+  const g = new WordGame({ words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }], cooldownSec: 2 }, { scorer: fakeScorer({}), statePath });
+  g.enqueue({ word: 'farm aura', aliases: ['aura farming'], desc: ['anime · ngầu', 'tạo dáng'], emoji: '😎 🌾 ✨' });
+  g.enqueue({ word: 'delulu', desc: ['fan · mơ mộng'] });
+  g.enqueue({ word: 'Farm Aura', desc: ['x'] }); // trùng → dồn xuống cuối, không nhân đôi
+  assert.deepEqual(g.priority.map((w) => w.word), ['delulu', 'Farm Aura']);
+  g.dirty = true; g.save();
+  const g2 = new WordGame({ words: [{ word: 'mặt trời' }] }, { scorer: fakeScorer({}), statePath }); // vòng đầu lấy từ hàng ưu tiên
+  assert.equal(g2.secret, 'delulu');
+  g2.skip(); g2.skip();
+  assert.equal(g2.secret, 'farm aura');
+  g2.skip(); g2.skip();
+  assert.equal(g2.secret, 'mặt trời'); // hết hàng ưu tiên → về bình thường
 });

@@ -128,6 +128,29 @@
         </div>
         <p class="muted" id="wgAiResult" style="margin:8px 0 0;white-space:pre-line"></p>
       </details>
+      <details open style="margin:6px 0 12px">
+        <summary><b>➕ Thêm từ mới (chơi ưu tiên)</b></summary>
+        <p class="muted" style="margin:6px 0">Từ được lưu vào bộ đang chơi. Gợi ý là vài từ liên quan, cách nhau bằng dấu " · " hoặc dấu phẩy; không được chứa chữ của đáp án.</p>
+        <div class="row" style="margin-bottom:6px">
+          <input id="awWord" type="text" placeholder="Từ bí mật (vd: farm aura)">
+          <input id="awAliases" type="text" placeholder="Cách gõ khác vẫn tính trúng, cách nhau dấu phẩy (vd: aura farming)">
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <input id="awHint1" type="text" placeholder="Gợi ý 1 — liên quan xa (vd: anime · thần thái · ngầu)">
+          <input id="awHint2" type="text" placeholder="Gợi ý 2 — liên quan gần (vd: tạo dáng · khoảnh khắc chất)">
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <input id="awEmoji" type="text" placeholder="Gợi ý 3: đúng 3 emoji (vd 😎 🌾 ✨) — có thể để trống" style="max-width:340px">
+          <input id="awTopic" type="text" placeholder="Chủ đề (chỉ cho bộ từ vựng, vd: Đồ vật)" style="max-width:300px">
+        </div>
+        <div class="row">
+          <button id="btnAwNow" class="gold">▶ Thêm &amp; chơi ngay</button>
+          <button id="btnAwQueue">⏭ Thêm vào hàng ưu tiên (vòng sau)</button>
+          <button id="btnAwClear" class="ghost">Xoá hàng ưu tiên</button>
+        </div>
+        <p class="muted" id="awResult" style="margin:6px 0 0"></p>
+        <p class="muted" id="awQueue" style="margin:4px 0 0"></p>
+      </details>
       <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
       <div class="row" style="margin-bottom:10px">
         <input id="wgTheme" type="text" placeholder="Chủ đề cho lô từ mới (để trống = trộn nhiều chủ đề)">
@@ -316,6 +339,7 @@
       sel.value = r.activeSet;
       loadSetWords();
     }
+    if (Array.isArray(r?.queue)) $('awQueue').textContent = r.queue.length ? `Hàng ưu tiên (${r.queue.length}): ${r.queue.join(' → ')}` : 'Hàng ưu tiên: trống';
     const b = r?.bank;
     if (!b) return;
     $('wgBank').textContent = b.canGenerate
@@ -373,6 +397,19 @@
   $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
     .catch((e) => log('Lỗi: ' + e.message));
+  const addWord = (mode) => {
+    const body = { mode, word: $('awWord').value, aliases: $('awAliases').value, hint1: $('awHint1').value, hint2: $('awHint2').value, emoji: $('awEmoji').value, topic: $('awTopic').value };
+    wgApi('addword', body)
+      .then((r) => {
+        $('awResult').textContent = mode === 'now' ? `✓ Đang chơi "${r.wg.secret}"` : `✓ Đã thêm "${body.word.trim()}" vào hàng ưu tiên`;
+        for (const id of ['awWord', 'awAliases', 'awHint1', 'awHint2', 'awEmoji']) $(id).value = '';
+        log('Đoán từ: thêm từ ' + body.word.trim() + (mode === 'now' ? ' (chơi ngay)' : ' (hàng ưu tiên)'));
+      })
+      .catch((e) => { $('awResult').textContent = '⚠ ' + e.message; });
+  };
+  $('btnAwNow').onclick = () => addWord('now');
+  $('btnAwQueue').onclick = () => addWord('queue');
+  $('btnAwClear').onclick = () => wgApi('clearqueue').then(() => { $('awResult').textContent = 'Đã xoá hàng ưu tiên'; }).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgBackfill').onclick = () => wgApi('backfill')
     .then(() => {
       log('Đoán từ: đang bổ sung gợi ý cho từ cũ…');

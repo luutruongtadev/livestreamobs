@@ -159,6 +159,19 @@ export class WordBank {
     };
   }
 
+  /** Admin thêm tay một từ vào kho (lô "admin"), có gợi ý. Chưa đánh dấu đã dùng. */
+  addManual({ word, hint = '', desc = [], emoji = '' }) {
+    const w = canon(word);
+    if (!validWord(w)) throw new Error('Từ chỉ gồm chữ cái, 1-3 tiếng, tối đa 20 ký tự');
+    let batch = this.data.batches.find((b) => b.id === 'admin');
+    if (!batch) { batch = { id: 'admin', createdAt: new Date().toISOString(), theme: 'Admin thêm tay', model: 'admin', words: [] }; this.data.batches.push(batch); }
+    batch.words = batch.words.filter((x) => canon(x.word) !== w);
+    batch.words.push({ word: w, hint: String(hint || '').slice(0, 40), desc, emoji });
+    this.data.used = this.data.used.filter((x) => x !== w);
+    this.save();
+    return { word: w, hint, desc, emoji };
+  }
+
   /** Gợi ý mô tả + emoji của một từ (trong lô, hoặc bổ sung sau). */
   hintsFor(w) {
     if (!w.desc?.length) { // chỉ có chữ (vd admin đặt từ): tra trong kho và danh sách có sẵn

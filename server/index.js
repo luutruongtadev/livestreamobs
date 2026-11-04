@@ -10,9 +10,9 @@ import { TugWar } from './tugwar.js';
 import { Race } from './race.js';
 import { WordGame } from './wordgame.js';
 import { ClaudeScorer, SimpleScorer, compact } from './scorer.js';
-import { WordBank, claudeClientFromEnv } from './wordbank.js';
+import { WordBank, claudeClientFromEnv, cleanDesc, cleanEmoji, validWord } from './wordbank.js';
 import { WordSetStore } from './wordsets.js';
-import { SetGenerator } from './setgen.js';
+import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
 import { PauseController } from './pause.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -365,6 +365,36 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     // trả lời ngay, tạo nền (mất khoảng 20-60 giây); xem tiến độ bằng 'peek'
     wordBank.generate({ theme: req.body?.theme, count: req.body?.count }).catch(() => {});
   }
+  else if (a === 'addword') {
+    // admin tự thêm từ mới kèm gợi ý → lưu vào bộ đang chơi, rồi chơi ngay hoặc xếp hàng ưu tiên
+    const b = req.body || {};
+    const word = String(b.word || '').trim().replace(/\s+/g, ' ');
+    const inSet = wg.activeSet !== 'tu-vung';
+    if (!word) return res.status(400).json({ error: 'Thiếu từ' });
+    if (inSet ? !validSecretName(word) : !validWord(word)) return res.status(400).json({ error: inSet ? 'Từ tối đa 4 tiếng / 24 ký tự, phải có chữ cái' : 'Từ chỉ gồm chữ cái, 1-3 tiếng, tối đa 20 ký tự' });
+    const raw = [b.hint1, b.hint2].map((x) => String(x || '').split(/\s*[,;·]\s*/).filter(Boolean).join(' · ')).filter(Boolean);
+    if (raw.length < 1) return res.status(400).json({ error: 'Cần ít nhất gợi ý 1' });
+    const desc = cleanDesc(word, raw);
+    if (desc.length < raw.length) return res.status(400).json({ error: `Gợi ý đang lộ chữ của đáp án: "${raw.find((x) => !desc.includes(x.replace(/[.。]+$/, '')))}" — sửa lại nhé` });
+    const emojiIn = String(b.emoji || '').trim();
+    const emoji = cleanEmoji(emojiIn);
+    if (emojiIn && !emoji) return res.status(400).json({ error: 'Emoji cần đủ 3 cái (vd 🧭 🗺️ ⛵), hoặc để trống' });
+    const aliases = cleanAliases(word, String(b.aliases || '').split(',').map((x) => x.trim()).filter(Boolean));
+    let entry;
+    try {
+      if (inSet) {
+        setStore.addWord(wg.activeSet, { word, aliases, hints: [...desc, ...(emoji ? [emoji] : [])], addedBy: 'admin', addedAt: new Date().toISOString() });
+        entry = { word, aliases, desc, emoji };
+      } else {
+        const w = wordBank.addManual({ word, hint: b.topic, desc, emoji });
+        entry = { word: w.word, hint: w.hint, aliases, desc, emoji };
+      }
+    } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (b.mode === 'now') wgBroadcast(wg.startRound(entry));
+    else wg.enqueue(entry);
+    wg.dirty = true;
+  }
+  else if (a === 'clearqueue') { wg.priority = []; wg.dirty = true; }
   else if (a === 'backfill') {
     // bổ sung 2 câu mô tả + 3 emoji cho từ cũ / từ có sẵn (mỗi lần tối đa 60 từ, chạy nền)
     if (genJob?.state === 'running') return res.status(409).json({ error: 'Đang chạy một việc khác, chờ chút' });
@@ -374,8 +404,8 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
       .then((r) => { genJob = { state: 'done', message: `Đã bổ sung gợi ý cho ${r.added} từ${r.remaining ? ` · còn ${r.remaining} từ, bấm tiếp để làm nốt` : ' · xong hết'}` }; })
       .catch((e) => { genJob = { state: 'error', message: `Bổ sung gợi ý lỗi: ${e.message}` }; });
   }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | backfill | set | setwords | regen-hints | genset | delset' });
-  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob });
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | addword | clearqueue | backfill | set | setwords | regen-hints | genset | delset' });
+  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word) });
 });
 
 app.post('/api/reset', requireAdmin, (_req, res) => {

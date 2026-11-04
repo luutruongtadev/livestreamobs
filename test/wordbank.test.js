@@ -135,3 +135,26 @@ test('hintsFor: đặt từ chỉ bằng chữ vẫn lấy được gợi ý có
   assert.deepEqual(bank.hintsFor({ word: 'La Bàn' }), { desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' });
   assert.deepEqual(bank.hintsFor({ word: 'không có' }), { desc: [], emoji: '' });
 });
+
+test('admin thêm từ: vào bộ riêng (lưu file riêng, tải lại vẫn còn) và vào kho từ vựng (lô admin)', async () => {
+  const { WordSetStore } = await import('../server/wordsets.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ws-'));
+  const repoDir = path.join(root, 'repo'); fs.mkdirSync(repoDir);
+  fs.writeFileSync(path.join(repoDir, 'trend.json'), JSON.stringify({ title: 'T', words: [{ word: 'flex', hints: ['a'] }] }));
+  const dataDir = path.join(root, 'data', 'wordsets');
+  const store = new WordSetStore({ repoDir, dataDir, log: {} });
+  store.addWord('trend', { word: 'farm aura', aliases: ['aura farming'], hints: ['anime · ngầu', 'tạo dáng'] });
+  store.addWord('trend', { word: 'Farm  Aura', aliases: [], hints: ['sửa lại'] }); // cùng từ → cập nhật, không trùng
+  assert.equal(store.sets.trend.words.length, 2);
+  assert.equal(store.sets.trend.words[0].word, 'Farm  Aura');
+  assert.ok(fs.existsSync(path.join(root, 'data', 'added-words.json')));
+  assert.ok(!fs.existsSync(path.join(dataDir, 'trend.json')), 'không ghi đè cả bộ');
+  const again = new WordSetStore({ repoDir, dataDir, log: {} });
+  assert.deepEqual(again.sets.trend.words.map((w) => w.hints[0]), ['sửa lại', 'a']);
+  assert.throws(() => again.addWord('khong-co', { word: 'x', hints: [] }), /Không có bộ/);
+
+  const bank = new WordBank({ filePath: tmpFile(), log: {} });
+  bank.addManual({ word: 'Cầu Thủ', hint: 'Thể thao', desc: ['sân cỏ · áo số'], emoji: '⚽ 👟 🏟️' });
+  assert.deepEqual(bank.next(), { word: 'cầu thủ', hint: 'Thể thao', desc: ['sân cỏ · áo số'], emoji: '⚽ 👟 🏟️', source: 'bank' });
+  assert.throws(() => bank.addManual({ word: 'quá nhiều tiếng ở đây' }), /1-3 tiếng/);
+});

@@ -61,6 +61,7 @@ export class WordGame extends EventEmitter {
     this.wins = {}; // id -> { id, name, avatar, wins }
     this.roundNo = 0;
     this.recent = []; // các từ bí mật gần đây, tránh lặp
+    this.priority = []; // từ admin thêm, chơi trước (hàng ưu tiên)
     this.load();
     this.startRound();
   }
@@ -72,6 +73,7 @@ export class WordGame extends EventEmitter {
       this.wins = s.wins || {};
       this.roundNo = s.roundNo || 0;
       this.recent = s.recent || [];
+      this.priority = Array.isArray(s.priority) ? s.priority : [];
       if (s.activeSet && (s.activeSet === 'tu-vung' || this.wordSets?.[s.activeSet])) this.activeSet = s.activeSet;
     } catch { /* chưa có */ }
   }
@@ -80,7 +82,7 @@ export class WordGame extends EventEmitter {
     this.scorer?.saveCache?.();
     if (!this.statePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet }));
+    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority }));
     this.dirty = false;
   }
 
@@ -119,7 +121,16 @@ export class WordGame extends EventEmitter {
     ];
   }
 
+  /** Admin: thêm từ vào hàng ưu tiên (vòng sau chơi luôn). */
+  enqueue(entry) {
+    this.priority = this.priority.filter((w) => toSecret(w.word) !== toSecret(entry.word));
+    this.priority.push(entry);
+    this.dirty = true;
+    return this.priority.length;
+  }
+
   pickWord() {
+    if (this.priority?.length) { this.dirty = true; return this.priority.shift(); }
     if (this.set) {
       const words = this.set.words.filter((w) => w?.word);
       const fresh = words.filter((w) => !this.recent.includes(toSecret(w.word)));

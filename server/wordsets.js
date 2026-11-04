@@ -10,9 +10,11 @@ import { normalize } from './text.js';
  * `sets` là một object dùng chung với WordGame (sửa tại chỗ, không thay object).
  */
 export class WordSetStore {
-  constructor({ repoDir, dataDir, log = console } = {}) {
+  constructor({ repoDir, dataDir, addedPath = null, log = console } = {}) {
     this.repoDir = repoDir;
     this.dataDir = dataDir;
+    this.addedPath = addedPath || (dataDir ? path.join(dataDir, '..', 'added-words.json') : null);
+    this.added = {}; // id bộ -> [từ admin thêm tay] (giữ riêng để cập nhật bộ trong repo không làm mất)
     this.log = log;
     this.sets = {};
     this.origin = {}; // id -> 'repo' | 'data' | 'repo+data'
@@ -36,6 +38,33 @@ export class WordSetStore {
     for (const k of Object.keys(this.sets)) delete this.sets[k];
     for (const [id, s] of Object.entries(repo)) { this.sets[id] = s; this.origin[id] = 'repo'; }
     for (const [id, s] of Object.entries(data)) { this.sets[id] = s; this.origin[id] = repo[id] ? 'repo+data' : 'data'; }
+    try { this.added = this.addedPath && fs.existsSync(this.addedPath) ? JSON.parse(fs.readFileSync(this.addedPath, 'utf8')) : {}; }
+    catch (e) { this.log.warn?.(`[wordsets] Bỏ qua added-words.json: ${e.message}`); this.added = {}; }
+    for (const [id, list] of Object.entries(this.added)) for (const w of list) this.#merge(id, w);
+  }
+
+  #merge(id, w) {
+    const set = this.sets[id];
+    if (!set) return;
+    set.words ||= [];
+    const k = normalize(w.word).replace(/ /g, '');
+    const i = set.words.findIndex((x) => normalize(x.word).replace(/ /g, '') === k);
+    if (i >= 0) set.words[i] = w; else set.words.unshift(w);
+  }
+
+  /** Admin thêm / sửa một từ trong bộ (lưu riêng, không đụng file bộ). */
+  addWord(id, w) {
+    if (!this.sets[id]) throw new Error(`Không có bộ từ "${id}"`);
+    const list = (this.added[id] ||= []);
+    const k = normalize(w.word).replace(/ /g, '');
+    const i = list.findIndex((x) => normalize(x.word).replace(/ /g, '') === k);
+    if (i >= 0) list[i] = w; else list.push(w);
+    this.#merge(id, w);
+    if (this.addedPath) {
+      fs.mkdirSync(path.dirname(this.addedPath), { recursive: true });
+      fs.writeFileSync(this.addedPath + '.tmp', JSON.stringify(this.added, null, 1));
+      fs.renameSync(this.addedPath + '.tmp', this.addedPath);
+    }
   }
 
   save(id, set) {
