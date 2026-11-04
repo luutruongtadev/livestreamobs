@@ -235,14 +235,18 @@ test('quà nào cũng có hiệu ứng cảm ơn đích danh, kể cả lúc ngh
   assert.deepEqual(g.handle({ type: 'like', user: u('b'), count: 5 }), []);
 });
 
-test('từ vựng có 2 gợi ý chữ + 3 emoji: emoji mở trước, rồi tới 2 gợi ý chữ; không có emoji thì chỉ 2 gợi ý', () => {
+test('từ vựng: 3 lần gợi ý — emoji → chủ đề của từ → gợi ý từ liên quan; không có emoji thì chủ đề → 2 gợi ý', () => {
   const g = mk(fakeScorer({}));
   g.startRound({ word: 'ống nhòm', hint: 'Đồ vật', desc: ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt'], emoji: '👀 🦅 ⛰️' });
   assert.equal(g.maxHints, 3);
   g.revealHint(); g.revealHint(); g.revealHint();
-  assert.deepEqual(g.snapshot().hints, ['👀 🦅 ⛰️', 'rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt']); // emoji mở trước
+  // 3 lần: emoji → chủ đề → gợi ý từ liên quan gần nghĩa nhất
+  assert.deepEqual(g.snapshot().hints, ['👀 🦅 ⛰️', 'Chủ đề: Đồ vật', 'nhìn xa · kính · hai mắt']);
+  assert.deepEqual(g.hintSchedule(), [60, 150, 230]);
   g.startRound({ word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' });
-  assert.equal(g.maxHints, 2);
+  assert.equal(g.maxHints, 3); // không có emoji: chủ đề → gợi ý xa → gợi ý gần
+  g.revealHint(); g.revealHint(); g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['Chủ đề: Khái niệm', 'Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa']);
   // từ cũ chưa có mô tả: vẫn gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ)
   g.startRound({ word: 'con mèo', hint: 'Động vật' });
   g.revealHint();
