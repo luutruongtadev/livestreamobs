@@ -271,6 +271,12 @@
     "ambient": ""
   },
   "ambientVolume": 0.25,
+  "goodbye": {
+    "enabled": true,
+    "at": "01:00",
+    "seconds": 60,
+    "message": "Cảm ơn cả nhà đã chơi cùng tối nay! Hẹn gặp lại tối mai nha 💖"
+  },
   "arena": {
     "maxFighters": 100,
     "minFighters": 16,

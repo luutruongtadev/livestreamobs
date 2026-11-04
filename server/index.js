@@ -17,6 +17,7 @@ import { PauseController } from './pause.js';
 import { WeeklyBoard } from './weekly.js';
 import { Arena } from './arena.js';
 import { CardStore } from './cards.js';
+import { Goodbye } from './goodbye.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -94,6 +95,7 @@ const cardStore = new CardStore({ filePath: path.join(ROOT, 'data', 'cards.json'
 const arena = new Arena(arenaCfg, { cards: cardStore });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
+const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
 const pauser = new PauseController([wg, tug, race, arena], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
 // ---------------- WebSocket hub ----------------
@@ -131,7 +133,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status() });
 });
 
 function ingest(ev) {
@@ -229,8 +231,18 @@ tiktok.on('status', (status) => {
   if (pauser.setOnline(status.state === 'connected')) pauseBroadcast();
 });
 
+// ---------------- Chào tạm biệt / kết thúc live theo giờ hẹn ----------------
+function goodbyeBroadcast() { broadcast({ type: 'goodbye', goodbye: goodbye.status() }); }
+setInterval(() => {
+  const r = goodbye.tick();
+  if (r === 'start') { console.log('[goodbye] tới giờ hẹn — chào tạm biệt'); goodbyeBroadcast(); }
+  if (r === 'end') { goodbyeBroadcast(); if (pauser.sleep()) pauseBroadcast(); }
+}, 1000).unref();
+
 function pauseBroadcast() {
   const p = pauser.status();
+  // game chạy lại (lên live lần sau / admin bấm Tiếp tục) → bỏ màn chào tạm biệt
+  if (!p.paused && goodbye.active?.done && goodbye.cancel()) goodbyeBroadcast();
   console.log(`[pause] ${p.paused ? 'tạm dừng (' + p.reason + ')' : 'đang chạy'}`);
   broadcast({ type: 'pause', pause: p });
   wgBroadcast([]);
@@ -242,6 +254,17 @@ function pauseBroadcast() {
 app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
 app.post('/api/resume', requireAdmin, (_req, res) => { if (pauser.resume()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
 app.get('/api/pause', (_req, res) => res.json(pauser.status()));
+// Hẹn giờ chào tạm biệt: { action: 'now' | 'cancel' | 'set', enabled, at: 'HH:MM', seconds, message }
+app.post('/api/goodbye', express.json({ limit: '16kb' }), requireAdmin, (req, res) => {
+  const b = req.body || {};
+  try {
+    if (b.action === 'now') goodbye.start(b.seconds ?? goodbye.cfg.seconds, b.message || goodbye.cfg.message);
+    else if (b.action === 'cancel') { goodbye.cancel(); if (pauser.status().sleeping && pauser.resume()) pauseBroadcast(); }
+    else goodbye.set(b);
+  } catch (e) { return res.status(400).json({ error: e.message }); }
+  goodbyeBroadcast();
+  res.json({ ok: true, goodbye: goodbye.status(), pause: pauser.status() });
+});
 
 setInterval(() => {
   const fx = temple.prunePlatforms();

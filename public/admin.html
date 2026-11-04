@@ -54,6 +54,20 @@
         <button id="btnResume">▶ Tiếp tục</button>
       </div>
       <p class="muted">Đoán từ, Kéo co &amp; Đua thú tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
+      <h3 style="margin:16px 0 8px">🌙 Hẹn giờ kết thúc live</h3>
+      <div class="row" style="align-items:center">
+        <label style="display:flex;gap:6px;align-items:center"><input id="gbOn" type="checkbox"> Mỗi ngày lúc</label>
+        <input id="gbAt" type="time" value="01:00" style="max-width:120px">
+        <label style="display:flex;gap:6px;align-items:center">đếm ngược <input id="gbSec" type="number" min="5" max="600" value="60" style="max-width:80px"> giây</label>
+      </div>
+      <input id="gbMsg" type="text" placeholder="Lời chào tạm biệt (hiện + đọc trên màn hình)" style="margin-top:8px">
+      <div class="row" style="margin-top:8px">
+        <button id="gbSave" class="ghost">💾 Lưu hẹn giờ</button>
+        <button id="gbNow">🌙 Chào tạm biệt ngay</button>
+        <button id="gbCancel" class="ghost">✖ Huỷ chào / chạy lại game</button>
+      </div>
+      <div id="gbText" class="muted" style="margin-top:6px"></div>
+      <p class="muted">Tới giờ: mọi trang game hiện “Chúc cả nhà ngủ ngon” + đếm ngược (đọc lời chào bằng giọng tiếng Việt), hết giờ thì tạm dừng game. Lần lên live sau game tự chạy lại. Tắt laptop / kết thúc live: chạy một lần <code>deploy/macos/hen-gio-tat-may.sh</code> trên MacBook.</p>
     </section>
 
     <section>
@@ -348,9 +362,21 @@
 
   function renderPause(p) {
     if (!p) return;
-    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
+    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : p.reason === 'goodnight' ? '🌙 Đã kết thúc live — lần live sau game tự chạy' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
     $('pauseText').style.color = p.paused ? '#facc15' : '#4ade80';
   }
+
+  let gbFilled = false;
+  function renderGoodbye(g) {
+    if (!g) return;
+    if (!gbFilled) { gbFilled = true; $('gbOn').checked = g.enabled; $('gbAt').value = g.at; $('gbSec').value = g.seconds; $('gbMsg').value = g.message; }
+    $('gbText').textContent = g.active ? (g.active.done ? '🌙 Đã chào tạm biệt — game đang dừng chờ lần live sau' : `🌙 Đang chào tạm biệt · còn ${g.active.remaining}s`)
+      : g.enabled ? `⏰ Mỗi ngày ${g.at} (giờ VN) sẽ chào tạm biệt rồi dừng game` : 'Hẹn giờ đang tắt';
+  }
+  $('gbSave').onclick = () => api('/api/goodbye', { action: 'set', enabled: $('gbOn').checked, at: $('gbAt').value, seconds: Number($('gbSec').value), message: $('gbMsg').value })
+    .then((r) => { renderGoodbye(r.goodbye); log('Đã lưu hẹn giờ kết thúc live'); }).catch((e) => log('Lỗi: ' + e.message));
+  $('gbNow').onclick = () => { if (!confirm('Chào tạm biệt ngay bây giờ? Hết đếm ngược sẽ tạm dừng game.')) return; api('/api/goodbye', { action: 'now', seconds: Number($('gbSec').value), message: $('gbMsg').value }).then((r) => renderGoodbye(r.goodbye)).catch((e) => log('Lỗi: ' + e.message)); };
+  $('gbCancel').onclick = () => api('/api/goodbye', { action: 'cancel' }).then((r) => { renderGoodbye(r.goodbye); renderPause(r.pause); }).catch((e) => log('Lỗi: ' + e.message));
 
   function renderState(st) {
     const c = st.counts;
@@ -366,7 +392,8 @@
     const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     s.onmessage = (m) => {
       const msg = JSON.parse(m.data);
-      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); renderPause(msg.pause); }
+      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
+      if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
       if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
       if (msg.type === 'state') renderState(msg.state);
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }

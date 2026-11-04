@@ -168,6 +168,18 @@ Battle royale cho live đông người: **comment "vào"** → thần thú (lá 
   `damage` — hệ số sát thương, tăng thì trận nhanh hơn, `chestEvery`, `maxCards`; các mức quà `shield`/`revive`/`bomb`/`giant`/`tornado` `.minDiamonds`).
 - Phát bằng OBS: `http://localhost:8686/dautruong?phone=0`. Điện thoại: `https://<tên miền>/dautruong?phone=1`.
 
+## 🌙 Hẹn giờ kết thúc live (mặc định 01:00)
+
+- **01:00 (giờ VN)**: mọi trang game hiện màn **“Chúc cả nhà ngủ ngon”** (trăng, sao, tim bay) + lời cảm ơn + đếm ngược 60 giây, đọc lời chào bằng giọng tiếng Việt của máy (`?tts=0` để tắt).
+- **Hết đếm ngược**: tạm dừng mọi game (màn hình “Live đã kết thúc · Hẹn gặp lại”). **Lần lên live sau game tự chạy lại**, không cần bấm Tiếp tục. VPS vẫn chạy bình thường, không cần tắt.
+- Admin → mục Kết nối TikTok Live → **🌙 Hẹn giờ kết thúc live**: bật / tắt, đổi giờ, số giây đếm ngược, lời chào; nút **Chào tạm biệt ngay** và **Huỷ**. Mặc định ở khối `goodbye` của `config.json`.
+- **Tắt MacBook + kết thúc live**: chạy một lần trên Mac (cần mật khẩu máy một lần):
+  ```bash
+  bash deploy/macos/hen-gio-tat-may.sh          # mỗi ngày 01:02: tắt TikTok LIVE Studio / OBS rồi tắt máy
+  bash deploy/macos/hen-gio-tat-may.sh 01:30    # đổi giờ · "huy" để gỡ · "thu" để thử ngay
+  ```
+  App phát live bị tắt → TikTok tự kết thúc live sau ~1–3 phút. Máy cần cắm sạc và không gập (máy ngủ thì không tự tắt; mở máy lại sau đó cũng không bị tắt bất ngờ).
+
 ## 🏁 Game Đua thú (`/duathu`)
 
 - **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
