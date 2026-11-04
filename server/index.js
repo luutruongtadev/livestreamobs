@@ -434,7 +434,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     const word = String(b.word || '').trim().replace(/\s+/g, ' ');
     const inSet = wg.activeSet !== 'tu-vung';
     if (!word) return res.status(400).json({ error: 'Thiếu từ' });
-    if (inSet ? !validSecretName(word) : !validWord(word)) return res.status(400).json({ error: inSet ? 'Từ tối đa 4 tiếng / 24 ký tự, phải có chữ cái' : 'Từ chỉ gồm chữ cái, 1-3 tiếng, tối đa 20 ký tự' });
+    if (inSet ? !validSecretName(word) : !validWord(word)) return res.status(400).json({ error: inSet ? 'Từ tối đa 4 tiếng / 24 ký tự, phải có chữ cái' : 'Từ chỉ gồm chữ cái, 1-4 tiếng, tối đa 24 ký tự' });
     const raw = [b.hint1, b.hint2].map((x) => String(x || '').split(/\s*[,;·]\s*/).filter(Boolean).join(' · ')).filter(Boolean);
     if (raw.length < 1) return res.status(400).json({ error: 'Cần ít nhất gợi ý 1' });
     const desc = cleanDesc(word, raw);

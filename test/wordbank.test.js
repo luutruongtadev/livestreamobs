@@ -18,8 +18,9 @@ function fakeClient(words) {
   };
 }
 
-test('validWord: 1-3 tiếng, chỉ chữ cái', () => {
+test('validWord: 1-4 tiếng, chỉ chữ cái', () => {
   assert.ok(validWord('Bánh Xèo'));
+  assert.ok(validWord('thành phố sợi chỉ'), '4 tiếng được');
   assert.ok(!validWord('xe đạp điện thông minh'));
   assert.ok(!validWord('7 up'));
   assert.ok(!validWord('cà-phê'));
@@ -156,5 +157,5 @@ test('admin thêm từ: vào bộ riêng (lưu file riêng, tải lại vẫn c�
   const bank = new WordBank({ filePath: tmpFile(), log: {} });
   bank.addManual({ word: 'Cầu Thủ', hint: 'Thể thao', desc: ['sân cỏ · áo số'], emoji: '⚽ 👟 🏟️' });
   assert.deepEqual(bank.next(), { word: 'cầu thủ', hint: 'Thể thao', desc: ['sân cỏ · áo số'], emoji: '⚽ 👟 🏟️', source: 'bank' });
-  assert.throws(() => bank.addManual({ word: 'quá nhiều tiếng ở đây' }), /1-3 tiếng/);
+  assert.throws(() => bank.addManual({ word: 'quá nhiều tiếng ở đây' }), /1-4 tiếng/);
 });

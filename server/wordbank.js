@@ -94,12 +94,12 @@ export function cleanEmoji(s) {
   return em.length >= 3 ? em.slice(0, 3).join(' ') : '';
 }
 
-/** Từ hợp lệ: chỉ chữ cái + khoảng trắng, 1-3 tiếng, ≤ 20 ký tự. */
+/** Từ hợp lệ: chỉ chữ cái + khoảng trắng, 1-4 tiếng, ≤ 24 ký tự (khớp giới hạn bình luận đoán). */
 export function validWord(w) {
   const t = canon(w);
-  if (!t || t.length > 20) return false;
+  if (!t || t.length > 24) return false;
   if (!/^[\p{L} ]+$/u.test(t)) return false;
-  return t.split(' ').length <= 3;
+  return t.split(' ').length <= 4;
 }
 
 /**
@@ -162,7 +162,7 @@ export class WordBank {
   /** Admin thêm tay một từ vào kho (lô "admin"), có gợi ý. Chưa đánh dấu đã dùng. */
   addManual({ word, hint = '', desc = [], emoji = '' }) {
     const w = canon(word);
-    if (!validWord(w)) throw new Error('Từ chỉ gồm chữ cái, 1-3 tiếng, tối đa 20 ký tự');
+    if (!validWord(w)) throw new Error('Từ chỉ gồm chữ cái, 1-4 tiếng, tối đa 24 ký tự');
     let batch = this.data.batches.find((b) => b.id === 'admin');
     if (!batch) { batch = { id: 'admin', createdAt: new Date().toISOString(), theme: 'Admin thêm tay', model: 'admin', words: [] }; this.data.batches.push(batch); }
     batch.words = batch.words.filter((x) => canon(x.word) !== w);
