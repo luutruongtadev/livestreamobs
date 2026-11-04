@@ -148,6 +148,84 @@ export class SoundBoard {
     for (const f of [523, 659, 784, 1047]) this.#partial(f, t + 0.45, 0.9, 0.07, 'triangle', false);
   }
 
+  // ---------- hiệu ứng đấu trường ----------
+  #noise(start, dur, gain, { freq = 800, q = 0.7, type = 'lowpass', sweepTo = null, wet = false } = {}) {
+    const ctx = this.ctx;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(freq, start);
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, start + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(gain, start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    src.connect(f).connect(g).connect(this.master);
+    if (wet) g.connect(this.reverb);
+    src.start(start);
+  }
+
+  // Nổ bom / mở rương: tiếng ầm trầm + nhiễu
+  _game_boom({ big = false } = {}) {
+    if (this.#throttle('boom', 120)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, big ? 1.6 : 0.9, big ? 0.9 : 0.6, { freq: big ? 900 : 1400, sweepTo: 60, wet: true });
+    const o = this.#partial(big ? 90 : 120, t, big ? 1.2 : 0.6, 0.5, 'sine', false);
+    o.frequency.exponentialRampToValueAtTime(35, t + (big ? 1.1 : 0.5));
+  }
+
+  // Đòn đánh / hạ gục: "bụp" ngắn
+  _game_hit() {
+    if (this.#throttle('hit', 70)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.12, 0.25, { freq: 2200, sweepTo: 300 });
+    this.#partial(180, t, 0.1, 0.18, 'square', false);
+  }
+
+  // Cồng vàng (Huyền thoại)
+  _game_gong() {
+    const t = this.ctx.currentTime;
+    for (const [m, g] of [[1, 0.35], [2.02, 0.16], [2.98, 0.1], [4.1, 0.06]]) this.#partial(98 * m, t, 4.5, g, 'sine', true);
+    this.#noise(t, 0.3, 0.2, { freq: 3000, type: 'bandpass', q: 2 });
+  }
+
+  // Sấm sét (Thần thoại / Lôi long)
+  _game_thunder() {
+    if (this.#throttle('thunder', 300)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.15, 0.8, { freq: 6000, type: 'highpass' });
+    this.#noise(t + 0.05, 2.4, 0.7, { freq: 700, sweepTo: 50, wet: true });
+  }
+
+  // Ánh sáng dâng lên trong rương: âm vút cao dần
+  _game_riser({ dur = 1.5, pitch = 1 } = {}) {
+    const t = this.ctx.currentTime;
+    const o = this.#partial(220 * pitch, t, dur, 0.12, 'sawtooth', true);
+    o.frequency.exponentialRampToValueAtTime(1760 * pitch, t + dur);
+    this.#noise(t, dur, 0.12, { freq: 400, sweepTo: 8000, type: 'bandpass', q: 3 });
+  }
+
+  // Lướt / lao tới
+  _game_whoosh() {
+    if (this.#throttle('whoosh', 150)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.45, 0.3, { freq: 300, sweepTo: 3000, type: 'bandpass', q: 1.5 });
+  }
+
+  // Gầm (Múa lân, vô địch)
+  _game_roar() {
+    if (this.#throttle('roar', 400)) return;
+    const t = this.ctx.currentTime;
+    const o = this.#partial(110, t, 0.9, 0.3, 'sawtooth', true);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.8);
+    this.#noise(t, 0.9, 0.3, { freq: 500, sweepTo: 150 });
+  }
+
   // Tiếng mõ gỗ: hai thành phần tần số, tắt rất nhanh
   _mo() {
     if (this.#throttle('mo', 90)) return;

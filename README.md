@@ -110,7 +110,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
-### ⏸ Tạm dừng game (Đoán từ, Kéo co & Đua thú)
+### ⏸ Tạm dừng game (Đoán từ, Kéo co, Đua thú & Đấu trường)
 
 - **Tự tạm dừng khi chưa live**: khi server chưa kết nối được phiên live TikTok, cả hai game đứng yên —
   đồng hồ không chạy, không tự mở gợi ý, không sang vòng mới nên **không tốn từ bí mật**. Kênh lên live là game tự chạy tiếp
@@ -118,6 +118,38 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - **Nút trong admin** (mục Kết nối TikTok Live): ⏸ Tạm dừng game / ▶ Tiếp tục — dùng bất cứ lúc nào, kể cả đang live.
   Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
 - Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
+
+## ⚔️ Đấu Trường Thần Thú (`/dautruong`) — sưu tầm thẻ
+
+Battle royale cho live đông người: **comment "vào"** → thần thú (lá bài mạnh nhất trong kho của bạn) nhảy vào sân,
+**tối đa 100 con / trận**. Các con tự đánh nhau, vòng an toàn thu hẹp dần, **con cuối cùng sống sót thắng RƯƠNG VÀNG**.
+
+- **Trận**: sảnh 30 giây (đủ 100 người thì 5 giây sau đánh luôn; ít người thì thêm bot cho đủ 16) → đánh ~1,5 phút
+  (10 giây đầu vòng an toàn đứng yên, thu dần 70 giây, sau đó ☠️ TỬ CHIẾN khép hẳn nên trận luôn kết thúc) → công bố + mở rương 16 giây.
+  Còn 3 con thì camera zoom vào, 2 con cuối có màn ⚔ CHUNG KẾT, người thắng được rọi đèn.
+- **Người xem làm gì**:
+  - ❤️ **Thả tim** = hồi máu cho con của mình · 🌹 1–4 xu = hồi 12 máu mỗi món
+  - 🛡️ **5 xu** khiên 5 giây · 💖 **10 xu** hồi sinh (đã bị hạ) / đầy máu · 💣 **30 xu** bom rơi vào con mạnh nhất
+  - ⚡ **99 xu** hóa khổng lồ 8 giây (to 1,6 lần, đánh x2) · 🌪️ **299 xu** lốc xoáy cuốn bay cả vùng. Đã bị hạ mà tặng 99 / 299 xu thì sống lại luôn.
+  - 👻 Bị hạ thì comment **"báo thù"**: hồn ma bay tới cắn kẻ đã hạ mình 15% máu (mỗi lần chết 1 lần).
+  - 🎴 Comment **"thẻ"** để khoe bộ sưu tập lên màn hình (60 giây / lần) · **"dùng rồng"**, **"dùng gà chọi"**… để chọn lá ra trận.
+- **Thẻ bài** (`public/js/cards-data.js`): 21 loài, 5 độ hiếm ⚪ Thường · 🔵 Hiếm · 🟣 Sử thi · 🟡 Huyền thoại · 🌈 Thần thoại.
+  Mỗi lá có **3 chỉ số** (❤️ Máu · ⚔️ Công · 💨 Tốc), **1 kỹ năng riêng** (Long hỏa, Mai thần, Lôi long, Phi ngựa sắt, Tái sinh, Múa lân…),
+  **phẩm chất 60–100%** (1–5 sao) và **số seri** theo loài (#0001 = bản đầu tiên của kênh).
+  Cân bằng: thẻ hiếm nhất chỉ mạnh hơn thẻ thường ~1/3, nên người mới vẫn có cửa thắng.
+- **Nhận thẻ**: người mới vào lần đầu được 1 thẻ Thường · thắng trận = rương vàng (không ra thẻ Thường: Hiếm 45% · Sử thi 38% · Huyền thoại 14% · Thần thoại 3%) ·
+  **mỗi xu quà = 1 mảnh 🧩, mỗi mạng hạ = 3 mảnh, người nhiều mạng nhất +30 mảnh, chia sẻ live +5 → đủ 100 mảnh tự mở 1 rương thường**
+  (Thường 52% · Hiếm 30% · Sử thi 13% · Huyền thoại 4,5% · Thần thoại 0,5%). Kho tối đa 40 lá, đầy thì lá yếu nhất đổi thành 10 mảnh.
+- **Mở thẻ**: thẻ Thường / Hiếm hiện nhỏ bên phải (không che trận). Sử thi trở lên và rương vô địch có màn mở toàn màn hình:
+  rương rung, ánh sáng trong rương leo dần qua từng màu độ hiếm, nổ tung, nắp bay, cột sáng + tia quay, lá bài bay lên xoay 2 vòng,
+  chữ độ hiếm đóng dấu từng chữ, mưa xu vàng (Huyền thoại) / cầu vồng + sấm sét (Thần thoại), huy hiệu "BẢN ĐẦU TIÊN CỦA KÊNH", "LOÀI MỚI".
+- **Lưu thẻ**: `data/cards.json` (không mất khi deploy). Người xem tra kho thẻ bằng điện thoại ở **`/thebai`** (gõ tên TikTok), có bảng Vua đấu trường.
+- **Chịu tải**: server mô phỏng trận 10 lần / giây (100 con ≈ 0,3 ms / lần), gom hiệu ứng rồi gửi 10 gói / giây, gói vị trí 100 con ≈ 2,5 KB.
+  Đã thử 100 con + ~400 bình luận / tim mỗi giây. Màn hình vẽ sẵn emoji / lá bài vào bộ nhớ đệm nên giữ ~60 fps.
+- **Admin**: mục ⚔️ Đấu trường — giả lập vào / quà / báo thù / "thẻ", nút ⏭ đánh ngay / kết thúc / trận mới, 👥 thử tải 50 / 100 người,
+  🟣🟡🌈 thử màn mở thẻ, 📊 xem kho thẻ. Chỉnh luật trong khối `arena` của `config.json` (`maxFighters`, `minFighters`, `lobbySeconds`,
+  `damage` — hệ số sát thương, tăng thì trận nhanh hơn, `chestEvery`, `maxCards`; các mức quà `shield`/`revive`/`bomb`/`giant`/`tornado` `.minDiamonds`).
+- Phát bằng OBS: `http://localhost:8686/dautruong?phone=0`. Điện thoại: `https://<tên miền>/dautruong?phone=1`.
 
 ## 🏁 Game Đua thú (`/duathu`)
 
@@ -451,6 +483,9 @@ public/
   js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
   keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
   duathu.html, js/race.js       Game đua thú (server/race.js là luật chơi)
+  dautruong.html, js/arena.js   Đấu trường thần thú (server/arena.js luật chơi, server/cards.js kho thẻ)
+  js/cards-data.js, js/cardart.js  Dữ liệu thẻ (dùng chung server + trình duyệt) · vẽ lá bài
+  thebai.html                   Trang tra kho thẻ cho người xem
   doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ,
                                 server/setgen.js tạo bộ / gợi ý bằng Claude, server/wordsets.js lưu bộ từ)
   admin.html                    Bảng điều khiển

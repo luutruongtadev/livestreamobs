@@ -15,6 +15,8 @@ import { WordSetStore } from './wordsets.js';
 import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
 import { PauseController } from './pause.js';
 import { WeeklyBoard } from './weekly.js';
+import { Arena } from './arena.js';
+import { CardStore } from './cards.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -87,9 +89,12 @@ const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.
 let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 'data', 'weekly.json') });
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, statePath: path.join(ROOT, 'data', 'wordgame.json') });
+const arenaCfg = config.arena || {};
+const cardStore = new CardStore({ filePath: path.join(ROOT, 'data', 'cards.json'), chestEvery: arenaCfg.chestEvery || 100, maxCards: arenaCfg.maxCards || 40 });
+const arena = new Arena(arenaCfg, { cards: cardStore });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
-const pauser = new PauseController([wg, tug, race], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
+const pauser = new PauseController([wg, tug, race, arena], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -126,7 +131,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), pause: pauser.status() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status() });
 });
 
 function ingest(ev) {
@@ -135,6 +140,7 @@ function ingest(ev) {
   scheduleState();
   tugBroadcast(tug.handle(ev));
   raceBroadcast(race.handle(ev));
+  arenaQueue(arena.handle(ev));
   const wgFx = wg.handle(ev);
   wgBroadcast(wgFx);
   lastWg = { effects: wgFx, reject: wg.lastReject };
@@ -160,6 +166,26 @@ setInterval(() => {
   const key = s.phase === 'racing' ? Math.random() : `${s.phase}${s.remaining}${s.paused}`;
   if (fx.length || key !== raceLast) { raceLast = key; raceBroadcast(fx); }
 }, 250).unref();
+
+// ---------------- Đấu trường thần thú ----------------
+// Gom hiệu ứng rồi gửi 10 lần / giây cùng vị trí các con (100 con ≈ 2,5 KB / lần) → chịu được hàng trăm bình luận / giây.
+let arenaFx = [];
+let arenaSnapAt = 0;
+let arenaPhase = '';
+let arenaTick = 0;
+function arenaQueue(effects) { if (effects?.length) arenaFx.push(...effects); }
+function arenaSnapshot() { arenaSnapAt = Date.now(); broadcast({ type: 'arena', arena: arena.snapshot() }); }
+setInterval(() => {
+  arenaQueue(arena.tick());
+  arenaTick++;
+  const fx = arenaFx;
+  arenaFx = [];
+  if (fx.length) broadcast({ type: 'arenafx', effects: fx.slice(0, 400) });
+  const moving = arena.phase === 'fight' || (arena.fighters.length && arenaTick % 2 === 0);
+  if (moving && !arena.paused) broadcast({ type: 'ap', p: arena.positions() });
+  const big = fx.some((e) => e.type === 'arena_lobby' || e.type === 'arena_go' || e.type === 'arena_win');
+  if (big || arena.phase !== arenaPhase || Date.now() - arenaSnapAt >= 1000) { arenaPhase = arena.phase; arenaSnapshot(); }
+}, 100).unref();
 
 // ---------------- Đoán từ ----------------
 let wgTimer = null;
@@ -210,6 +236,7 @@ function pauseBroadcast() {
   wgBroadcast([]);
   tugBroadcast([]);
   raceBroadcast([]);
+  arenaSnapshot();
 }
 
 app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
@@ -228,6 +255,7 @@ setInterval(() => {
   try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
   try { wg.save(); weekly.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
   try { race.save(); } catch (e) { console.warn('[race] save lỗi:', e.message); }
+  try { cardStore.save(); } catch (e) { console.warn('[cards] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -245,6 +273,8 @@ app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
 app.get('/dua-thu', (_req, res) => res.redirect('/duathu'));
 app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
+app.get('/dau-truong', (_req, res) => res.redirect('/dautruong'));
+app.get('/the-bai', (_req, res) => res.redirect('/thebai'));
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -300,6 +330,29 @@ app.post('/api/race/:action', requireAdmin, (req, res) => {
   else return res.status(400).json({ error: 'action: next | lobby | reset' });
   res.json({ ok: true, race: race.snapshot() });
 });
+
+app.post('/api/arena/:action', requireAdmin, (req, res) => {
+  const a = req.params.action;
+  const b = req.body || {};
+  if (a === 'next') arenaQueue(arena.skip());
+  else if (a === 'lobby') arenaQueue(arena.newLobby());
+  else if (a === 'reset') arenaQueue(arena.resetAll());
+  else if (a === 'stress') {
+    // thử tải: n khán giả giả lập comment "vào" cùng lúc
+    const n = Math.max(1, Math.min(150, Number(b.n) || 50));
+    for (let i = 1; i <= n; i++) arenaQueue(arena.handle({ type: 'comment', user: { id: `sim:Khán giả ${i}`, name: `Khán giả ${i}` }, text: 'vào' }));
+  } else if (a === 'chest') {
+    // mở thử một rương (xem hiệu ứng mở thẻ): rar = C | R | E | L | M
+    const name = String(b.name || 'Admin thử').slice(0, 40);
+    const rar = ['C', 'R', 'E', 'L', 'M'].includes(b.rar) ? b.rar : undefined;
+    const user = { id: 'sim:' + name, name };
+    arenaQueue([{ type: 'arena_chest', reason: 'admin', by: user, card: cardStore.open(user, 'normal', { rar }) }]);
+  } else if (a !== 'peek') return res.status(400).json({ error: 'action: next | lobby | reset | stress | chest | peek' });
+  res.json({ ok: true, arena: { phase: arena.phase, round: arena.roundNo, total: arena.fighters.length, alive: arena.alive().length, queue: arena.queue.length }, cards: cardStore.stats(), top: cardStore.top(10) });
+});
+// Tra kho thẻ công khai (trang /thebai): ?q=tên
+app.get('/api/arena/collection', (req, res) => res.json({ players: cardStore.find(String(req.query.q || '').slice(0, 40)) }));
+app.get('/api/arena/top', (_req, res) => res.json({ wins: cardStore.top(10, 'wins'), collectors: cardStore.top(10, 'collection'), stats: cardStore.stats() }));
 
 // Bảng xếp hạng tuần (admin): xem top + lịch sử, chốt tuần thủ công
 app.post('/api/weekly/:action', requireAdmin, (req, res) => {
@@ -452,7 +505,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); tug.save(); wg.save(); weekly.save(); race.save(); } catch { /* bỏ qua */ }
+  try { temple.save(); tug.save(); wg.save(); weekly.save(); race.save(); cardStore.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

@@ -271,6 +271,14 @@
     "ambient": ""
   },
   "ambientVolume": 0.25,
+  "arena": {
+    "maxFighters": 100,
+    "minFighters": 16,
+    "lobbySeconds": 30,
+    "damage": 0.22,
+    "chestEvery": 100,
+    "maxCards": 40
+  },
   "race": {
     "maxRacers": 6,
     "minHumans": 0,

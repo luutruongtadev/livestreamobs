@@ -233,6 +233,38 @@
     </section>
 
     <section>
+      <h2>⚔️ Đấu trường thần thú</h2>
+      <div class="grid" style="margin-bottom:10px">
+        <button data-sim='{"type":"comment","text":"vào"}'>💬 VÀO (thả thần thú)</button>
+        <button data-sim='{"type":"comment","text":"thẻ"}'>🎴 "thẻ" (khoe bộ sưu tập)</button>
+        <button data-sim='{"type":"comment","text":"dùng rồng"}'>🐉 "dùng rồng" (chọn thẻ)</button>
+        <button data-sim='{"type":"comment","text":"báo thù"}'>👻 "báo thù" (khi đã bị hạ)</button>
+        <button data-sim='{"type":"like","count":15}'>❤️ 15 tim (hồi máu)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":10}'>🌹 10× Rose (hồi máu)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Finger Heart","diamonds":5}'>🛡️ 5 xu (khiên)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Rosa","diamonds":10}'>💖 10 xu (hồi sinh)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>💣 30 xu (bom)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Hand Hearts","diamonds":100}'>⚡ 100 xu (khổng lồ + 1 rương)</button>
+        <button class="gold" data-sim='{"type":"gift","giftName":"Corgi","diamonds":299}'>🌪️ 299 xu (lốc xoáy + rương)</button>
+      </div>
+      <div class="row">
+        <button class="ghost" data-arena="next">⏭ Đánh ngay / kết thúc / trận mới</button>
+        <button class="ghost" data-arena="lobby">↺ Mở sảnh lại</button>
+        <button class="ghost" data-arena='{"action":"stress","n":50}'>👥 Thử tải: 50 người vào</button>
+        <button class="ghost" data-arena='{"action":"stress","n":100}'>👥 Thử tải: 100 người vào</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" data-arena='{"action":"chest","rar":"E"}'>🟣 Thử mở thẻ Sử thi</button>
+        <button class="ghost" data-arena='{"action":"chest","rar":"L"}'>🟡 Thử mở thẻ Huyền thoại</button>
+        <button class="ghost" data-arena='{"action":"chest","rar":"M"}'>🌈 Thử mở thẻ Thần thoại</button>
+        <button class="ghost" data-arena="peek">📊 Xem kho thẻ</button>
+        <button class="ghost" data-arena="reset">⟲ Xoá bảng Vua đấu trường</button>
+      </div>
+      <div id="arenaInfo" class="muted" style="margin-top:8px"></div>
+      <p class="muted">Comment "vào" để thả thần thú (người mới được tặng 1 thẻ Thường), tối đa 100 con / trận, ít người thì thêm bot cho đủ 16. Sảnh 30 giây → tự đánh, vòng an toàn thu hẹp, con cuối cùng thắng RƯƠNG VÀNG. Mỗi xu quà = 1 mảnh, đủ 100 mảnh tự mở 1 rương. Kho thẻ lưu ở <code>data/cards.json</code>; người xem tra kho thẻ ở trang <code>/thebai</code>. Xoá bảng Vua đấu trường chỉ xoá số trận thắng / mạng, không xoá thẻ.</p>
+    </section>
+
+    <section>
       <h2>🪢 Kéo co</h2>
       <div class="grid" style="margin-bottom:10px">
         <button data-sim='{"type":"comment","text":"đỏ"}' style="background:#c0392b">🔴 Vào đội Đỏ</button>
@@ -265,6 +297,7 @@
         <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
         <button class="ghost" data-view="/keoco">🪢 Kéo co</button>
         <button class="ghost" data-view="/duathu">🏁 Đua thú</button>
+        <button class="ghost" data-view="/dautruong">⚔️ Đấu trường</button>
         <button class="ghost" data-view="/doantu">🔤 Đoán từ</button>
       </div>
       <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
@@ -500,6 +533,17 @@
   document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {
     if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
     api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
+  }));
+  document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => {
+    const raw = b.dataset.arena;
+    const body = raw.startsWith('{') ? JSON.parse(raw) : { action: raw };
+    if (body.action === 'reset' && !confirm('Xoá bảng Vua đấu trường (số trận thắng / mạng)? Thẻ của người chơi vẫn giữ nguyên.')) return;
+    api('/api/arena/' + body.action, body).then((r) => {
+      const a = r.arena, c = r.cards;
+      $('arenaInfo').textContent = `Trận #${a.round} · ${a.phase} · ${a.alive}/${a.total} còn sống · ${a.queue} chờ trận sau · Kho: ${c.players} người, ${c.cards} thẻ`
+        + (r.top?.length ? ' · Top: ' + r.top.slice(0, 5).map((p) => `${p.name} (${p.wins} thắng, ${p.total} thẻ)`).join(', ') : '');
+      log('Đấu trường: ' + b.textContent);
+    }).catch((e) => log('Lỗi: ' + e.message));
   }));
   document.querySelectorAll('[data-race]').forEach((b) => (b.onclick = () => {
     if (b.dataset.race === 'reset' && !confirm('Xoá bảng Vua tốc độ (số lần thắng đua thú)?')) return;
