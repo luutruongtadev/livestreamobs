@@ -140,7 +140,10 @@ export class WordGame extends EventEmitter {
     this.display = String(w.word).trim(); // tên hiển thị khi lộ đáp án (vd "Kai'Sa")
     this.secret = toSecret(w.word);
     this.category = w.hint || '';
-    this.customHints = Array.isArray(w.hints) ? w.hints.filter(Boolean) : null; // gợi ý riêng của từ (bộ LMHT…)
+    // gợi ý riêng của từ: bộ LMHT… (hints), hoặc từ vựng có 2 câu mô tả + 3 emoji (desc, emoji)
+    this.customHints = Array.isArray(w.hints) ? w.hints.filter(Boolean)
+      : Array.isArray(w.desc) && w.desc.length ? [...w.desc.filter(Boolean).slice(0, 2), ...(w.emoji ? [w.emoji] : [])]
+      : null;
     this.aliases = Array.isArray(w.aliases) ? w.aliases : [];
     this.hintLevel = 0;
     this.revealedIdx = new Set(); // vị trí chữ cái đã lộ (đánh số liên tục, bỏ khoảng trắng)
@@ -190,6 +193,17 @@ export class WordGame extends EventEmitter {
   }
 
   handle(ev) {
+    const fx = this.handleEvent(ev);
+    // ai tặng quà cũng được cảm ơn đích danh (kể cả lúc nghỉ giữa vòng / tạm dừng)
+    if (ev.type === 'gift' && ev.user?.id) {
+      const repeat = Math.max(1, ev.repeatCount | 0 || 1);
+      const unit = Math.max(0, Number(ev.diamonds) || 0);
+      fx.push({ type: 'wg_thanks', by: { id: ev.user.id, name: ev.user.name, avatar: ev.user.avatar }, giftName: ev.giftName || 'quà', giftImage: ev.giftImage || null, repeat, diamonds: unit * repeat });
+    }
+    return fx;
+  }
+
+  handleEvent(ev) {
     this.lastReject = null; // lý do bỏ qua bình luận gần nhất (để trang admin hiển thị)
     if (this.paused) {
       if (ev.type === 'comment') this.lastReject = this.pauseReason === 'offline' ? 'Game đang tạm dừng vì chưa live (bấm ▶ Tiếp tục để thử)' : 'Game đang tạm dừng';

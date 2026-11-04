@@ -3,6 +3,15 @@ import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { canon } from './scorer.js';
 
+/** Quy tắc gợi ý mô tả + emoji (dùng chung khi sinh lô mới và khi bổ sung cho từ cũ). */
+const HINT_RULES = `"desc": đúng 2 câu mô tả, mở lần lượt khi chơi:
+- Câu 1 khó: gián tiếp, gợi công dụng / hoàn cảnh / cảm giác, không nói thẳng nó là gì.
+- Câu 2 dễ hơn: đặc điểm nổi bật hơn nhưng vẫn không lộ đáp án.
+- Mỗi câu tối đa 60 ký tự, tiếng Việt tự nhiên, không dấu chấm cuối câu.
+- TUYỆT ĐỐI không chứa từ bí mật hay bất kỳ tiếng nào của nó (trừ "con", "cái", "quả"), không đánh vần, không nói số chữ.
+"emoji": đúng 3 emoji gợi hình, cách nhau một dấu cách, xếp từ mơ hồ tới rõ (không dùng emoji vẽ thẳng đáp án nếu quá lộ).
+Nếu từ trừu tượng / khó diễn tả bằng emoji thì để "emoji" là chuỗi rỗng "".`;
+
 const SYSTEM = `Bạn soạn từ bí mật cho trò chơi đoán từ theo nghĩa trên livestream TikTok tiếng Việt.
 Người xem bình luận từ đoán, hệ thống chấm độ gần nghĩa, ai đoán trúng thì thắng.
 
@@ -11,7 +20,8 @@ Yêu cầu cho mỗi từ:
 - Viết đúng chính tả, có dấu, chữ thường, 1 đến 3 tiếng, không dấu câu, không số.
 - Không dùng tên riêng (người, thương hiệu, địa danh cụ thể), không chính trị, không tôn giáo gây tranh cãi, không tục tĩu, không chủ đề nhạy cảm.
 - Đa dạng chủ đề; không trùng nhau và không trùng danh sách đã có.
-"hint" là chủ đề ngắn 1-4 tiếng dùng làm gợi ý đầu tiên (ví dụ "Động vật", "Món ăn", "Đồ dùng học tập"), không được chứa chính từ bí mật.`;
+"hint" là chủ đề ngắn 1-4 tiếng (ví dụ "Động vật", "Món ăn", "Đồ dùng học tập"), không được chứa chính từ bí mật.
+${HINT_RULES}`;
 
 /** Mức độ khó khi sinh từ (config wordgame.difficulty: "easy" | "medium" | "hard"). */
 export const DIFFICULTY = {
@@ -33,8 +43,8 @@ const SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { word: { type: 'string' }, hint: { type: 'string' } },
-        required: ['word', 'hint'],
+        properties: { word: { type: 'string' }, hint: { type: 'string' }, desc: { type: 'array', items: { type: 'string' } }, emoji: { type: 'string' } },
+        required: ['word', 'hint', 'desc', 'emoji'],
         additionalProperties: false,
       },
     },
@@ -42,6 +52,48 @@ const SCHEMA = {
   required: ['words'],
   additionalProperties: false,
 };
+
+const HINTS_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { word: { type: 'string' }, desc: { type: 'array', items: { type: 'string' } }, emoji: { type: 'string' } },
+        required: ['word', 'desc', 'emoji'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['items'],
+  additionalProperties: false,
+};
+
+const CLASSIFIERS = new Set(['con', 'cái', 'quả', 'trái', 'chiếc', 'cây']);
+const plain = (t) => canon(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+
+/** 2 câu mô tả: bỏ câu lộ bất kỳ tiếng nào của đáp án, cắt dài. */
+export function cleanDesc(word, desc = []) {
+  const syl = canon(word).split(' ').filter((x) => !CLASSIFIERS.has(x)).map(plain);
+  const out = [];
+  for (let d of Array.isArray(desc) ? desc : []) {
+    d = String(d || '').replace(/\s+/g, ' ').replace(/[.。]+$/, '').trim();
+    if (!d) continue;
+    if (d.length > 72) d = d.slice(0, 71).trimEnd() + '…';
+    const words = new Set(plain(d).replace(/[^a-z0-9 ]/g, ' ').split(' '));
+    if (syl.some((x) => words.has(x))) continue;
+    if (!out.includes(d)) out.push(d);
+  }
+  return out.slice(0, 2);
+}
+
+/** Đúng 3 emoji, không thì rỗng (từ khó diễn tả bằng emoji). */
+export function cleanEmoji(s) {
+  const seg = typeof Intl?.Segmenter === 'function' ? [...new Intl.Segmenter('vi', { granularity: 'grapheme' }).segment(String(s || ''))].map((x) => x.segment) : [...String(s || '')];
+  const em = seg.filter((g) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(g));
+  return em.length >= 3 ? em.slice(0, 3).join(' ') : '';
+}
 
 /** Từ hợp lệ: chỉ chữ cái + khoảng trắng, 1-3 tiếng, ≤ 20 ký tự. */
 export function validWord(w) {
@@ -67,7 +119,7 @@ export class WordBank {
     this.autoGenerate = autoGenerate;
     this.random = random;
     this.log = log;
-    this.data = { batches: [], used: [] };
+    this.data = { batches: [], used: [], extra: {} }; // extra: gợi ý bổ sung cho từ cũ / từ có sẵn { từ: { desc, emoji } }
     this.generating = null;
     this.lastError = null;
     this.load();
@@ -75,7 +127,7 @@ export class WordBank {
 
   load() {
     if (!this.filePath) return;
-    try { this.data = { batches: [], used: [], ...JSON.parse(fs.readFileSync(this.filePath, 'utf8')) }; } catch { /* chưa có */ }
+    try { this.data = { batches: [], used: [], extra: {}, ...JSON.parse(fs.readFileSync(this.filePath, 'utf8')) }; } catch { /* chưa có */ }
   }
 
   save() {
@@ -102,9 +154,61 @@ export class WordBank {
       generating: !!this.generating,
       canGenerate: !!this.client,
       difficulty: this.difficulty,
+      missingHints: this.missingHints().length,
       model: this.model,
       lastError: this.lastError,
     };
+  }
+
+  /** Gợi ý mô tả + emoji của một từ (trong lô, hoặc bổ sung sau). */
+  hintsFor(w) {
+    const x = this.data.extra?.[canon(w.word)] || {};
+    const desc = w.desc?.length ? w.desc : x.desc || [];
+    const emoji = w.desc?.length ? w.emoji || '' : x.emoji || w.emoji || '';
+    return { desc, emoji };
+  }
+
+  /** Các từ (kho + có sẵn) chưa có gợi ý mô tả. */
+  missingHints() {
+    const all = [...this.allWords(), ...this.fallback];
+    const seen = new Set();
+    return all.filter((w) => {
+      const k = canon(w.word);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return !this.hintsFor(w).desc.length;
+    });
+  }
+
+  /** Nhờ Claude soạn 2 câu mô tả + 3 emoji cho các từ cũ chưa có (mỗi lần tối đa `limit` từ). */
+  async backfillHints({ limit = 60 } = {}) {
+    if (!this.client) throw new Error('Chưa có ANTHROPIC_API_KEY');
+    const todo = this.missingHints().slice(0, Math.max(1, Math.min(150, limit | 0)));
+    if (!todo.length) return { added: 0, remaining: 0 };
+    const response = await this.client.beta.messages.create({
+      model: this.model,
+      max_tokens: 16000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { format: { type: 'json_schema', schema: HINTS_SCHEMA } },
+      system: `Bạn soạn gợi ý cho trò chơi đoán từ trên livestream TikTok tiếng Việt.\n${HINT_RULES}`,
+      messages: [{ role: 'user', content: `Soạn "desc" và "emoji" cho từng từ bí mật sau (giữ nguyên "word"):\n${todo.map((w) => `- ${w.word}${w.hint ? ` (chủ đề: ${w.hint})` : ''}`).join('\n')}` }],
+    });
+    if (response.stop_reason === 'refusal') throw new Error('Claude từ chối yêu cầu');
+    const data = JSON.parse(response.content.filter((b) => b.type === 'text').map((b) => b.text).join(''));
+    const want = new Set(todo.map((w) => canon(w.word)));
+    let added = 0;
+    for (const it of data.items || []) {
+      const k = canon(it.word);
+      if (!want.has(k)) continue;
+      const desc = cleanDesc(k, it.desc);
+      if (!desc.length) continue;
+      this.data.extra[k] = { desc, emoji: cleanEmoji(it.emoji) };
+      added++;
+    }
+    this.save();
+    this.log.log?.(`[wordbank] Bổ sung gợi ý cho ${added} từ`);
+    return { added, remaining: this.missingHints().length };
   }
 
   /** Lấy một từ cho vòng mới. avoid: các từ vừa chơi (khi dùng danh sách dự phòng). */
@@ -117,13 +221,13 @@ export class WordBank {
       const w = pool[Math.floor(this.random() * pool.length)];
       this.data.used.push(canon(w.word));
       this.save();
-      return { word: w.word, hint: w.hint, source: 'bank' };
+      return { word: w.word, hint: w.hint, ...this.hintsFor(w), source: 'bank' };
     }
     const fresh = this.fallback.filter((w) => !avoid.includes(canon(w.word)));
     const list = fresh.length ? fresh : this.fallback;
     if (!list.length) return { word: 'mặt trời', hint: 'Thiên nhiên', source: 'default' };
     const w = list[Math.floor(this.random() * list.length)];
-    return { word: w.word, hint: w.hint, source: 'config' };
+    return { word: w.word, hint: w.hint, ...this.hintsFor(w), source: 'config' };
   }
 
   /** Sinh một lô từ mới bằng Claude. theme: chủ đề cho cả lô (tuỳ chọn). */
@@ -165,7 +269,8 @@ export class WordBank {
         const hint = String(it.hint || '').trim().slice(0, 40);
         if (!validWord(w) || existing.has(w) || !hint || canon(hint).includes(w)) continue;
         existing.add(w);
-        words.push({ word: w, hint });
+        const desc = cleanDesc(w, it.desc);
+        words.push({ word: w, hint, ...(desc.length ? { desc } : {}), emoji: cleanEmoji(it.emoji) });
       }
       if (!words.length) throw new Error('Không nhận được từ hợp lệ nào');
       const batch = { id: Date.now(), createdAt: new Date().toISOString(), theme, difficulty: this.difficulty, model: this.model, words };

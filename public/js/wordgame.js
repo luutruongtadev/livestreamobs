@@ -1,5 +1,5 @@
 // Game đoán từ theo nghĩa cho TikTok Live.
-// ?mute=1  ?debug=1  ?phone=1|0
+// ?mute=1  ?debug=1  ?phone=1|0  ?tts=0 (tắt giọng đọc tên người tặng quà)
 import { SoundBoard } from './sound.js';
 
 const W = 1080, H = 1920;
@@ -7,6 +7,7 @@ const qs = new URLSearchParams(location.search);
 const opt = {
   mute: qs.get('mute') === '1',
   debug: qs.get('debug') === '1',
+  tts: qs.get('tts') !== '0' && qs.get('mute') !== '1',
   phone: qs.get('phone') === '1' || (qs.get('phone') !== '0' && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches),
 };
 if (opt.phone) document.body.classList.add('phone');
@@ -94,8 +95,48 @@ function confetti(n = 220) {
 }
 
 // ---------------- sự kiện ----------------
+// ---------------- cảm ơn người tặng quà ----------------
+const GIFT_VI = {
+  rose: 'bông hồng', 'finger heart': 'trái tim', tiktok: 'quà TikTok', perfume: 'nước hoa', doughnut: 'bánh donut',
+  'hand hearts': 'trái tim', 'heart me': 'trái tim', 'ice cream cone': 'cây kem', gg: 'GG', corgi: 'chú chó Corgi',
+  galaxy: 'dải ngân hà', 'love bang': 'trái tim tình yêu', 'sunglasses': 'kính râm', 'cap': 'chiếc mũ', 'lion': 'sư tử',
+  'universe': 'vũ trụ', 'confetti': 'pháo giấy', 'money gun': 'súng tiền', 'hat and mustache': 'mũ và ria',
+};
+const giftVi = (n) => GIFT_VI[String(n || '').toLowerCase()] || n || 'quà';
+const thanks = { queue: [], cur: null, hearts: [] };
+const THANKS_Y = 965; // tâm thẻ cảm ơn: đè tạm lên bảng xếp hạng, không che ô chữ / gợi ý / thông báo
+const tierOf = (d) => (d >= 99 ? 3 : d >= 30 ? 2 : d >= 5 ? 1 : 0);
+
+let viVoice = null;
+function pickVoice() {
+  const vs = window.speechSynthesis?.getVoices?.() || [];
+  viVoice = vs.find((v) => /^vi/i.test(v.lang)) || null;
+}
+if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+/** Đọc tên người tặng (giọng tiếng Việt của máy; không có giọng Việt thì bỏ qua). */
+function speak(text) {
+  if (!opt.tts || !window.speechSynthesis || !viVoice) return;
+  if (speechSynthesis.pending && speechSynthesis.speaking && thanks.queue.length > 3) return; // quá nhiều thì bỏ bớt
+  const u = new SpeechSynthesisUtterance(text);
+  u.voice = viVoice; u.lang = viVoice.lang; u.rate = 1.05; u.volume = 1;
+  speechSynthesis.speak(u);
+}
+const speakName = (n) => String(n || 'bạn').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 28) || 'bạn';
+
+function thank(e) {
+  const tier = tierOf(e.diamonds);
+  // quà nhỏ dồn dập: gộp vào thẻ đang chờ của cùng người
+  const same = thanks.queue.find((q) => q.by?.id === e.by?.id && q.giftName === e.giftName);
+  if (same) { same.repeat += e.repeat; same.diamonds += e.diamonds; same.tier = Math.max(same.tier, tierOf(same.diamonds)); return; }
+  if (thanks.queue.length >= 6) { const i = thanks.queue.findIndex((q) => q.tier < tier); if (i < 0) return; thanks.queue.splice(i, 1); }
+  thanks.queue.push({ ...e, tier });
+}
+
 function handle(e) {
   switch (e.type) {
+    case 'wg_thanks':
+      thank(e);
+      break;
     case 'wg_guess':
       if (e.dup && e.score != null) fx.highlight.set(e.word, performance.now());
       sound.play('mo');
@@ -259,8 +300,9 @@ function drawSecret(t) {
   // khoảng cách rộng rãi để chữ không chạm nhau trên mọi máy
   let cy = boxBottom + 40;
   const hintGap = hints.length > 3 ? 36 : 42;
-  const hintYs = hints.map((_, i) => cy + i * hintGap);
-  cy += hints.length * hintGap;
+  const isEmoji = (t) => /^[\p{Extended_Pictographic}\p{Regional_Indicator}\u200d\ufe0f\s]+$/u.test(t);
+  const hintYs = [];
+  for (const hnt of hints) { const big = isEmoji(hnt); hintYs.push(cy + (big ? 10 : 0)); cy += hintGap + (big ? 22 : 0); }
   const showNext = G.nextHintIn != null && hints.length < (G.maxHints || 3) && G.phase === 'playing';
   const nextY = cy;
   if (showNext) cy += 36;
@@ -311,6 +353,12 @@ function drawSecret(t) {
   // gợi ý
   ctx.font = font(700, hintFont);
   hints.forEach((hnt, i) => {
+    if (isEmoji(hnt)) { // gợi ý bằng emoji: hiện to
+      ctx.save(); ctx.font = `48px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`; ctx.fillStyle = '#000';
+      ctx.fillText(hnt.split(/\s+/).join(' '), W / 2, hintYs[i]);
+      ctx.restore(); ctx.font = font(700, hintFont);
+      return;
+    }
     ctx.fillStyle = '#fde68a';
     ctx.fillText(fitText('💡 ' + hnt, W - 140), W / 2, hintYs[i]);
   });
@@ -511,6 +559,65 @@ function drawBanner(dt) {
   ctx.restore();
 }
 
+function drawThanks(dt) {
+  if (!thanks.cur && thanks.queue.length) {
+    const c = thanks.queue.shift();
+    c.age = 0; c.dur = [2.6, 3.2, 4.2, 5.5][c.tier];
+    thanks.cur = c;
+    sound.play(['chime', 'bell', 'levelup', 'levelup'][c.tier], { pitch: 1.4 });
+    if (c.tier >= 2) confetti(c.tier === 3 ? 260 : 140);
+    if (c.tier === 3) fx.flash = Math.max(fx.flash, 0.6);
+    const gift = `${c.repeat > 1 ? c.repeat + ' ' : ''}${giftVi(c.giftName)}`;
+    speak(c.tier >= 2 ? `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}! Yêu bạn nhiều lắm!` : `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}`);
+    for (let i = 0; i < 10 + c.tier * 10; i++) {
+      thanks.hearts.push({ x: W / 2 + (Math.random() - 0.5) * 500, y: THANKS_Y + Math.random() * 60, vx: (Math.random() - 0.5) * 160, vy: -180 - Math.random() * 260, life: 1, s: 26 + Math.random() * 22, e: ['❤️', '💖', '💕', '🌹', '✨'][i % 5] });
+    }
+  }
+  // tim bay
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#000';
+  for (const h of thanks.hearts) {
+    h.life -= dt * 0.6; h.x += h.vx * dt; h.y += h.vy * dt; h.vy += 40 * dt;
+    ctx.globalAlpha = Math.max(0, Math.min(1, h.life * 1.5));
+    ctx.font = `${Math.round(h.s)}px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`;
+    ctx.fillText(h.e, h.x, h.y);
+  }
+  ctx.restore();
+  thanks.hearts = thanks.hearts.filter((h) => h.life > 0);
+  const c = thanks.cur;
+  if (!c) return;
+  c.age += dt;
+  if (c.age > c.dur) { thanks.cur = null; return; }
+  const k = Math.min(ease(c.age / 0.35), ease((c.dur - c.age) / 0.35));
+  const colors = ['#f472b6', '#facc15', '#fb923c', '#f43f5e'];
+  const col = colors[c.tier];
+  const big = c.tier >= 2;
+  const w = big ? 940 : 820, h = big ? 230 : 150, x = (W - w) / 2, y = THANKS_Y - h / 2;
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.translate(W / 2, y + h / 2); ctx.scale(0.8 + 0.2 * k, 0.8 + 0.2 * k); ctx.translate(-W / 2, -(y + h / 2));
+  rr(x, y, w, h, 34);
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, 'rgba(30,10,50,.96)'); g.addColorStop(1, 'rgba(80,10,60,.96)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = big ? 7 : 5; ctx.stroke();
+  // ánh sáng chạy viền cho quà lớn
+  if (big) { ctx.strokeStyle = `rgba(255,255,255,${0.3 + 0.3 * Math.sin(c.age * 8)})`; ctx.lineWidth = 2; ctx.stroke(); }
+  const ar = big ? 72 : 52;
+  avatar(c.by, x + 30 + ar, y + h / 2, ar, col);
+  const gi = avatarImg(c.giftImage);
+  if (gi) ctx.drawImage(gi, x + w - (big ? 150 : 110), y + h / 2 - (big ? 60 : 45), big ? 120 : 90, big ? 120 : 90);
+  const tx = x + 60 + ar * 2, tw = w - (tx - x) - (gi ? (big ? 160 : 120) : 30);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = font(900, big ? 30 : 24); ctx.fillStyle = col;
+  ctx.fillText(c.tier === 3 ? '💎 CẢM ƠN ĐẠI GIA!' : c.tier === 2 ? '🎉 CẢM ƠN NHIỀU LẮM!' : '💖 CẢM ƠN', tx, y + h * 0.27);
+  ctx.font = font(900, big ? 50 : 38); ctx.fillStyle = '#fff';
+  ctx.fillText(fitText(c.by?.name || 'bạn', tw), tx, y + h * 0.55);
+  ctx.font = font(700, big ? 28 : 23); ctx.fillStyle = '#fde68a';
+  ctx.fillText(fitText(`đã tặng ${c.repeat > 1 ? c.repeat + ' × ' : ''}${c.giftName}${c.diamonds ? ` · ${c.diamonds} xu` : ''}`, tw), tx, y + h * 0.81);
+  ctx.restore();
+}
+
 function drawFloaters(dt) {
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -562,6 +669,7 @@ function frame(now) {
   drawFloaters(dt);
   drawEnd(t);
   drawBanner(dt);
+  drawThanks(dt);
   drawConfetti(dt);
   drawPaused(t);
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.5})`; ctx.fillRect(0, 0, W, H); }

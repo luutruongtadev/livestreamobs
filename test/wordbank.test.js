@@ -54,7 +54,7 @@ test('next: lấy từ chưa dùng, không lặp; hết kho thì dùng danh sác
   assert.notEqual(a.word, b.word);
   assert.equal(a.source, 'bank');
   assert.equal(bank.stats().remaining, 0);
-  assert.deepEqual(bank.next(), { word: 'mặt trời', hint: 'Thiên nhiên', source: 'config' });
+  assert.deepEqual(bank.next(), { word: 'mặt trời', hint: 'Thiên nhiên', desc: [], emoji: '', source: 'config' });
 });
 
 test('tự tạo lô mới khi kho sắp hết; không có API key thì dùng config', async () => {
@@ -89,4 +89,43 @@ test('độ khó khi sinh từ: mặc định "hard" (tránh từ quá phổ bi�
   await new WordBank({ filePath: tmpFile(), client: easy, difficulty: 'easy', autoGenerate: false, log: {} }).generate();
   assert.match(easy.calls[0].messages[0].content, /Độ khó: DỄ/);
   assert.equal(new WordBank({ difficulty: 'lung tung' }).stats().difficulty, 'hard');
+});
+
+test('sinh lô mới kèm 2 câu mô tả + 3 emoji; câu lộ đáp án bị loại; next() trả về gợi ý', async () => {
+  const client = fakeClient([
+    { word: 'ống nhòm', hint: 'Đồ vật', desc: ['Dân đi rừng hay mang theo', 'Có hai ống để nhìn xa', 'Nhìn vật ở xa thấy gần'], emoji: '👀 🦅 ⛰️' },
+    { word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' },
+  ]);
+  const bank = new WordBank({ filePath: tmpFile(), client, autoGenerate: false, log: {} });
+  await bank.generate();
+  const w = bank.allWords().find((x) => x.word === 'ống nhòm');
+  assert.deepEqual(w.desc, ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần']); // "Có hai ống…" lộ chữ "ống"
+  assert.equal(w.emoji, '👀 🦅 ⛰️');
+  assert.equal(bank.allWords().find((x) => x.word === 'ký ức').emoji, '');
+  assert.match(client.calls[0].system, /"desc": đúng 2 câu/);
+  const picked = [bank.next(), bank.next()];
+  assert.ok(picked.every((p) => p.desc.length === 2));
+});
+
+test('bổ sung gợi ý cho từ cũ và từ có sẵn (backfillHints)', async () => {
+  const calls = [];
+  const client = { beta: { messages: { create: async (req) => {
+    calls.push(req);
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ items: [
+      { word: 'mặt trời', desc: ['Sáng nào cũng ló dạng ở phía đông', 'Thiếu nó cây cối không lớn được'], emoji: '🌅 ☀️ 🌻' },
+      { word: 'phở', desc: ['Bữa sáng quen thuộc của người Hà Nội', 'Phở bò tái nạm'], emoji: '🍜' },
+      { word: 'không có trong danh sách', desc: ['x', 'y'], emoji: '' },
+    ] }) }] };
+  } } } };
+  const bank = new WordBank({ filePath: tmpFile(), fallbackWords: [{ word: 'mặt trời', hint: 'Thiên nhiên' }, { word: 'phở', hint: 'Món ăn' }], client, autoGenerate: false, log: {} });
+  assert.equal(bank.stats().missingHints, 2);
+  const r = await bank.backfillHints();
+  assert.deepEqual(r, { added: 2, remaining: 0 });
+  assert.match(calls[0].messages[0].content, /- mặt trời \(chủ đề: Thiên nhiên\)/);
+  assert.deepEqual(bank.data.extra['phở'], { desc: ['Bữa sáng quen thuộc của người Hà Nội'], emoji: '' }); // câu lộ "phở" bị loại; 1 emoji → bỏ
+  const w = bank.next();
+  assert.ok(w.desc.length >= 1);
+  const again = new WordBank({ filePath: bank.filePath, fallbackWords: [{ word: 'mặt trời', hint: 'Thiên nhiên' }], log: {} });
+  assert.equal(again.hintsFor({ word: 'mặt trời' }).emoji, '🌅 ☀️ 🌻'); // đã lưu file
+  await assert.rejects(again.backfillHints(), /ANTHROPIC_API_KEY/);
 });

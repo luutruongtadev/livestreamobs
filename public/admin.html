@@ -134,6 +134,10 @@
         <button id="btnWgGen" class="gold">✨ Tạo 100 từ mới bằng Claude</button>
       </div>
       <div class="row" style="margin-bottom:10px">
+        <button id="btnWgBackfill" class="ghost">📝 Bổ sung gợi ý mô tả + emoji cho từ cũ</button>
+        <span class="muted" id="wgBackfillInfo"></span>
+      </div>
+      <div class="row" style="margin-bottom:10px">
         <input id="wgGuess" type="text" placeholder="Giả lập bình luận đoán từ…">
         <button id="btnWgGuess">Đoán</button>
       </div>
@@ -318,6 +322,8 @@
       ? `Kho từ: ${b.remaining} chưa dùng / ${b.total} từ (${b.batches} lô, ${b.model}) · độ khó lô mới: ${({ easy: 'dễ', medium: 'vừa', hard: 'khó' })[b.difficulty] || b.difficulty}` + (b.generating ? ' · ⏳ đang tạo lô mới…' : '') + (b.lastError ? ` · ⚠ lỗi lần trước: ${b.lastError}` : '')
       : `Kho từ: chưa có ANTHROPIC_API_KEY → dùng ${b.fallback} từ trong config.json`;
     $('btnWgGen').disabled = !b.canGenerate || b.generating;
+    $('btnWgBackfill').disabled = !b.canGenerate || !b.missingHints || r.genJob?.state === 'running';
+    $('wgBackfillInfo').textContent = r.genJob?.state === 'running' ? '⏳ ' + r.genJob.message : b.missingHints ? `${b.missingHints} từ chưa có gợi ý mô tả (vẫn chơi được với gợi ý kiểu cũ)` : '✅ Mọi từ đều có gợi ý mô tả';
     const job = r.genJob;
     for (const id of ['btnGenSet', 'btnRegen', 'btnRegenCur']) $(id).disabled = !b.canGenerate || job?.state === 'running';
     $('wgAiNote').textContent = b.canGenerate
@@ -366,6 +372,12 @@
   $('btnWgSet').onclick = () => wgApi('set', { set: $('wgSet').value }).then((r) => log('Đoán từ: chuyển sang bộ ' + r.wg.title)).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
+    .catch((e) => log('Lỗi: ' + e.message));
+  $('btnWgBackfill').onclick = () => wgApi('backfill')
+    .then(() => {
+      log('Đoán từ: đang bổ sung gợi ý cho từ cũ…');
+      const poll = setInterval(() => wgApi('peek').then((r) => { if (r.genJob?.state !== 'running') { clearInterval(poll); log(r.genJob?.message || 'Xong'); } }).catch(() => clearInterval(poll)), 3000);
+    })
     .catch((e) => log('Lỗi: ' + e.message));
   $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then(() => log('Đoán từ: đặt từ mới')).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgGuess').onclick = async () => {

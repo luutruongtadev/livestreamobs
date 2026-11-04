@@ -63,7 +63,7 @@ test('gợi ý theo thời gian và theo quà; hết giờ lộ từ, sang vòng
   const fx = g.handle({ type: 'gift', user: u('a'), diamonds: 10 });
   assert.equal(fx[0].type, 'wg_unlock');
   assert.equal(fx.find((e) => e.type === 'wg_hint').hint, 'Chủ đề: Thiên nhiên');
-  assert.equal(g.handle({ type: 'gift', user: u('a'), diamonds: 1 }).length, 0, 'quà nhỏ không mở gợi ý');
+  assert.equal(g.handle({ type: 'gift', user: u('a'), diamonds: 1 }).filter((e) => e.type !== 'wg_thanks').length, 0, 'quà nhỏ không mở gợi ý');
   now = 121_000;
   assert.equal(g.tick()[0].hint, 'Chữ đầu: M… T…');
   now = 181_000;
@@ -115,7 +115,8 @@ test('lastReject: nêu lý do bỏ qua bình luận', () => {
 test('quà mở khoá: hoa hồng gom 5 = 1 chữ, tim tay = 1 chữ, 10 xu = gợi ý, 30 xu = +60s, 99 xu = 1 tiếng', () => {
   let now = 0;
   const g = mk(fakeScorer({}), () => now, { roundSeconds: 300 });
-  const gift = (giftName, diamonds, repeatCount = 1) => g.handle({ type: 'gift', user: u('a'), giftName, diamonds, repeatCount });
+  // bỏ hiệu ứng cảm ơn (luôn có) để chỉ kiểm tra phần mở khoá
+  const gift = (giftName, diamonds, repeatCount = 1) => g.handle({ type: 'gift', user: u('a'), giftName, diamonds, repeatCount }).filter((e) => e.type !== 'wg_thanks');
   const shown = () => g.snapshot().letters.flat().filter(Boolean).length;
   // 4 bông: chỉ tăng tiến độ
   for (let i = 0; i < 4; i++) assert.equal(gift('Rose', 1)[0].type, 'wg_progress');
@@ -214,4 +215,30 @@ test('config.json: danh sách từ vựng ≥ 140 từ hợp lệ, không trùng
     assert.ok(validWord(w.word), w.word);
     assert.ok(!compact(w.hint).includes(compact(w.word)), `${w.word} / ${w.hint}`);
   }
+});
+
+test('quà nào cũng có hiệu ứng cảm ơn đích danh, kể cả lúc nghỉ giữa vòng', () => {
+  const g = mk(fakeScorer({}));
+  let fx = g.handle({ type: 'gift', user: { id: 'x', name: 'Lan Chi', avatar: 'a.png' }, giftName: 'Rose', diamonds: 1, repeatCount: 7 });
+  const t = fx.find((e) => e.type === 'wg_thanks');
+  assert.deepEqual(t.by, { id: 'x', name: 'Lan Chi', avatar: 'a.png' });
+  assert.equal(t.repeat, 7); assert.equal(t.diamonds, 7); assert.equal(t.giftName, 'Rose');
+  g.skip(); // kết thúc vòng → đang nghỉ
+  fx = g.handle({ type: 'gift', user: u('b'), giftName: 'Doughnut', diamonds: 30 });
+  assert.deepEqual(fx.map((e) => e.type), ['wg_thanks']);
+  assert.deepEqual(g.handle({ type: 'like', user: u('b'), count: 5 }), []);
+});
+
+test('từ vựng có 2 câu mô tả + 3 emoji: gợi ý 1, 2 là mô tả, gợi ý 3 là emoji; không có emoji thì chỉ 2 gợi ý', () => {
+  const g = mk(fakeScorer({}));
+  g.startRound({ word: 'ống nhòm', hint: 'Đồ vật', desc: ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần'], emoji: '👀 🦅 ⛰️' });
+  assert.equal(g.maxHints, 3);
+  g.revealHint(); g.revealHint(); g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần', '👀 🦅 ⛰️']);
+  g.startRound({ word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' });
+  assert.equal(g.maxHints, 2);
+  // từ cũ chưa có mô tả: vẫn gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ)
+  g.startRound({ word: 'con mèo', hint: 'Động vật' });
+  g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['Chủ đề: Động vật']);
 });

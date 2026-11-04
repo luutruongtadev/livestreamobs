@@ -306,7 +306,9 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
   else if (a === 'word') {
     const w = String(req.body?.word || '').trim();
     if (!w) return res.status(400).json({ error: 'Thiếu từ' });
-    wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || '') }));
+    const known = wordBank.hintsFor({ word: w });
+    const desc = Array.isArray(req.body?.desc) ? req.body.desc.map(String).filter(Boolean).slice(0, 2) : known.desc;
+    wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || ''), desc, emoji: req.body?.emoji ?? known.emoji }));
   } else if (a === 'reset') wgBroadcast(wg.resetAll());
   else if (a === 'peek') { /* chỉ xem từ bí mật */ }
   else if (a === 'setwords') {
@@ -360,7 +362,16 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     // trả lời ngay, tạo nền (mất khoảng 20-60 giây); xem tiến độ bằng 'peek'
     wordBank.generate({ theme: req.body?.theme, count: req.body?.count }).catch(() => {});
   }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | set | setwords | regen-hints | genset | delset' });
+  else if (a === 'backfill') {
+    // bổ sung 2 câu mô tả + 3 emoji cho từ cũ / từ có sẵn (mỗi lần tối đa 60 từ, chạy nền)
+    if (genJob?.state === 'running') return res.status(409).json({ error: 'Đang chạy một việc khác, chờ chút' });
+    if (!wordBank.client) return res.status(400).json({ error: 'Chưa có ANTHROPIC_API_KEY' });
+    genJob = { state: 'running', message: `Đang soạn gợi ý mô tả + emoji cho ${Math.min(60, wordBank.missingHints().length)} từ…`, startedAt: Date.now() };
+    wordBank.backfillHints({ limit: 60 })
+      .then((r) => { genJob = { state: 'done', message: `Đã bổ sung gợi ý cho ${r.added} từ${r.remaining ? ` · còn ${r.remaining} từ, bấm tiếp để làm nốt` : ' · xong hết'}` }; })
+      .catch((e) => { genJob = { state: 'error', message: `Bổ sung gợi ý lỗi: ${e.message}` }; });
+  }
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | backfill | set | setwords | regen-hints | genset | delset' });
   res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob });
 });
 
