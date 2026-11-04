@@ -93,16 +93,16 @@ test('độ khó khi sinh từ: mặc định "hard" (tránh từ quá phổ bi�
 
 test('sinh lô mới kèm 2 câu mô tả + 3 emoji; câu lộ đáp án bị loại; next() trả về gợi ý', async () => {
   const client = fakeClient([
-    { word: 'ống nhòm', hint: 'Đồ vật', desc: ['Dân đi rừng hay mang theo', 'Có hai ống để nhìn xa', 'Nhìn vật ở xa thấy gần'], emoji: '👀 🦅 ⛰️' },
+    { word: 'ống nhòm', hint: 'Đồ vật', desc: ['rừng · chim · đi phượt', 'ống kính · nhìn xa', 'nhìn xa · kính · hai mắt'], emoji: '👀 🦅 ⛰️' },
     { word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' },
   ]);
   const bank = new WordBank({ filePath: tmpFile(), client, autoGenerate: false, log: {} });
   await bank.generate();
   const w = bank.allWords().find((x) => x.word === 'ống nhòm');
-  assert.deepEqual(w.desc, ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần']); // "Có hai ống…" lộ chữ "ống"
+  assert.deepEqual(w.desc, ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt']); // "ống kính…" lộ chữ "ống"
   assert.equal(w.emoji, '👀 🦅 ⛰️');
   assert.equal(bank.allWords().find((x) => x.word === 'ký ức').emoji, '');
-  assert.match(client.calls[0].system, /"desc": đúng 2 câu/);
+  assert.match(client.calls[0].system, /"desc": đúng 2 gợi ý/);
   const picked = [bank.next(), bank.next()];
   assert.ok(picked.every((p) => p.desc.length === 2));
 });
@@ -128,4 +128,10 @@ test('bổ sung gợi ý cho từ cũ và từ có sẵn (backfillHints)', async
   const again = new WordBank({ filePath: bank.filePath, fallbackWords: [{ word: 'mặt trời', hint: 'Thiên nhiên' }], log: {} });
   assert.equal(again.hintsFor({ word: 'mặt trời' }).emoji, '🌅 ☀️ 🌻'); // đã lưu file
   await assert.rejects(again.backfillHints(), /ANTHROPIC_API_KEY/);
+});
+
+test('hintsFor: đặt từ chỉ bằng chữ vẫn lấy được gợi ý có sẵn trong danh sách / kho', () => {
+  const bank = new WordBank({ fallbackWords: [{ word: 'la bàn', hint: 'Đồ vật', desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' }], log: {} });
+  assert.deepEqual(bank.hintsFor({ word: 'La Bàn' }), { desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' });
+  assert.deepEqual(bank.hintsFor({ word: 'không có' }), { desc: [], emoji: '' });
 });

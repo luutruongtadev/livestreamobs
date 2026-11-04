@@ -205,15 +205,19 @@ test('đoán bỏ từ chỉ loại vẫn trúng: "chó" = "con chó", "xương 
   assert.ok(!isExact('mèo', 'con chó'));
 });
 
-test('config.json: danh sách từ vựng ≥ 140 từ hợp lệ, không trùng, gợi ý không lộ đáp án', async () => {
+test('config.json: danh sách từ vựng ≥ 350 từ hợp lệ, không trùng, có 2 gợi ý từ liên quan + emoji không lộ đáp án', async () => {
   const { validWord } = await import('../server/wordbank.js');
   const { compact } = await import('../server/scorer.js');
   const words = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf8')).wordgame.words;
-  assert.ok(words.length >= 140);
+  const { cleanDesc, cleanEmoji } = await import('../server/wordbank.js');
+  assert.ok(words.length >= 350);
   assert.equal(new Set(words.map((w) => compact(w.word))).size, words.length);
   for (const w of words) {
     assert.ok(validWord(w.word), w.word);
     assert.ok(!compact(w.hint).includes(compact(w.word)), `${w.word} / ${w.hint}`);
+    // 2 gợi ý từ liên quan, không lộ chữ nào của đáp án; emoji đủ 3 hoặc để trống
+    assert.equal(cleanDesc(w.word, w.desc).length, 2, `gợi ý lộ đáp án: ${w.word}`);
+    assert.ok(w.emoji === '' || cleanEmoji(w.emoji) === w.emoji, `emoji: ${w.word}`);
   }
 });
 
@@ -231,10 +235,10 @@ test('quà nào cũng có hiệu ứng cảm ơn đích danh, kể cả lúc ngh
 
 test('từ vựng có 2 câu mô tả + 3 emoji: gợi ý 1, 2 là mô tả, gợi ý 3 là emoji; không có emoji thì chỉ 2 gợi ý', () => {
   const g = mk(fakeScorer({}));
-  g.startRound({ word: 'ống nhòm', hint: 'Đồ vật', desc: ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần'], emoji: '👀 🦅 ⛰️' });
+  g.startRound({ word: 'ống nhòm', hint: 'Đồ vật', desc: ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt'], emoji: '👀 🦅 ⛰️' });
   assert.equal(g.maxHints, 3);
   g.revealHint(); g.revealHint(); g.revealHint();
-  assert.deepEqual(g.snapshot().hints, ['Dân đi rừng hay mang theo', 'Nhìn vật ở xa thấy gần', '👀 🦅 ⛰️']);
+  assert.deepEqual(g.snapshot().hints, ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt', '👀 🦅 ⛰️']);
   g.startRound({ word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' });
   assert.equal(g.maxHints, 2);
   // từ cũ chưa có mô tả: vẫn gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ)

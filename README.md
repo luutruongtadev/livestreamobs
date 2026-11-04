@@ -88,7 +88,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 
   Chữ đã lộ hiện màu vàng trong ô; luôn chừa lại ít nhất 1 chữ. Quà khớp theo **tên quà** trước (tên tiếng Anh của TikTok), không khớp thì theo **số xu**. Đổi trong `config.json` → `wordgame.giftUnlocks` (`action`: `letter` | `hint` | `time` | `syllable`, `every`: số món cần gom, `gifts`: danh sách tên quà, `minDiamonds`: ngưỡng xu).
 - **Nhiều bộ từ, chuyển qua lại trong trang admin** (ô *Bộ từ* → *Chuyển bộ từ*, bắt đầu vòng mới ngay):
-  - `Đoán từ (từ vựng)`: kho từ Claude sinh + 140 từ mẫu trộn nhiều chủ đề.
+  - `Đoán từ (từ vựng)`: kho từ Claude sinh (nếu có) + 358 từ có sẵn trộn nhiều chủ đề.
   - `Đoán tướng LMHT`: 92 tướng Liên Minh Huyền Thoại (`wordsets/lmht.json`). Mỗi tướng có 5 gợi ý riêng mở dần (vùng đất → cốt truyện / ngoại hình → chiêu thức), có biệt danh tính là trúng (`ez`, `mf`, `tf`, `j4`, `lee`…), gõ liền không dấu nháy vẫn trúng (`kaisa` = Kai'Sa). Có API key thì Claude chấm theo ngữ cảnh LMHT (anh em / kẻ thù / cùng vùng đất / đặc điểm của tướng).
   - **✨ Tạo bằng Claude** (trang admin → mục Đoán từ, cần `ANTHROPIC_API_KEY`):
     - **Tạo bộ từ mới theo chủ đề bất kỳ** (vd "Cầu thủ bóng đá", "Phim hoạt hình Disney"): chọn 30 / 50 / 100 từ, Claude soạn tên bộ, nhãn, mỗi từ 5 gợi ý + biệt danh. Mất khoảng 1–3 phút, xong là có trong ô *Bộ từ*.
@@ -101,9 +101,9 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - Trang admin: xem từ bí mật (không hiện trên live), đặt từ riêng, mở gợi ý, sang vòng mới, giả lập đoán.
 - **Từ bí mật do Claude sinh theo lô 100 từ** (kèm chủ đề gợi ý), lưu ở `data/wordbank.json`, không lặp lại từ đã chơi. Kho còn dưới 10 từ chưa dùng thì tự tạo lô mới. Tạo thủ công: trang admin → ô chủ đề (ví dụ "Tết", "Đồ ăn", để trống = trộn) → **✨ Tạo 100 từ mới**, hoặc `npm run gen-words -- "Tết" 100`. Model sinh từ: `WORDGAME_GEN_MODEL` / `wordgame.generatorModel` (mặc định `claude-opus-5-5`).
 - Độ khó khi Claude sinh lô mới: `"difficulty": "hard"` (mặc định — tránh từ quá phổ biến, ưu tiên từ ghép ít gặp, khái niệm trừu tượng, hiện tượng, đồ vật xưa; chủ đề gợi ý rộng) | `"medium"` | `"easy"` trong khối `wordgame` của `config.json`, hoặc biến môi trường `WORDGAME_DIFFICULTY`.
-- **Gợi ý kiểu mới cho từ vựng**: lần 1 và lần 2 là **2 câu mô tả** (khó → dễ), lần 3 là **3 emoji** (từ trừu tượng khó vẽ bằng emoji thì chỉ có 2 gợi ý). Claude soạn sẵn lúc sinh lô từ; từ cũ / 140 từ có sẵn thì bấm **📝 Bổ sung gợi ý mô tả + emoji cho từ cũ** trong admin (mỗi lần 60 từ). Từ chưa có mô tả vẫn dùng gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ).
+- **Gợi ý kiểu mới cho từ vựng**: lần 1 và lần 2 là **các từ / cụm từ liên quan** (xa → gần, vd "ống nhòm": `rừng · chim · đi phượt` rồi `nhìn xa · hai mắt · phóng to`), lần 3 là **3 emoji** (từ trừu tượng thì chỉ có 2 gợi ý). 358 từ có sẵn đã có đủ gợi ý; lô Claude sinh mới cũng có sẵn; từ cũ trong kho thì bấm **📝 Bổ sung gợi ý mô tả + emoji cho từ cũ** trong admin. Từ chưa có vẫn dùng gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ).
 - **Cảm ơn người tặng quà**: ai tặng quà (kể cả lúc nghỉ giữa vòng) đều hiện thẻ **CẢM ƠN + tên + avatar + món quà**, tim bay; quà ≥ 30 xu thêm pháo giấy, ≥ 99 xu "CẢM ƠN ĐẠI GIA" + lóe sáng. Máy có giọng tiếng Việt (điện thoại Android / iPhone thường có) sẽ **đọc tên**: "Cảm ơn Lan Chi đã tặng 5 bông hồng"; tắt giọng đọc bằng `?tts=0`.
-- Không có API key → dùng 140 từ mẫu trong `config.json` → `wordgame.words` (động vật, món ăn, trái cây, đồ vật, thiên nhiên, nghề nghiệp, thể thao, phương tiện, lễ hội, công nghệ, cảm xúc). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
+- 358 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
 ### ⏸ Tạm dừng game (Đoán từ, Kéo co & Đua thú)

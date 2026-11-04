@@ -4,12 +4,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { canon } from './scorer.js';
 
 /** Quy tắc gợi ý mô tả + emoji (dùng chung khi sinh lô mới và khi bổ sung cho từ cũ). */
-const HINT_RULES = `"desc": đúng 2 câu mô tả, mở lần lượt khi chơi:
-- Câu 1 khó: gián tiếp, gợi công dụng / hoàn cảnh / cảm giác, không nói thẳng nó là gì.
-- Câu 2 dễ hơn: đặc điểm nổi bật hơn nhưng vẫn không lộ đáp án.
-- Mỗi câu tối đa 60 ký tự, tiếng Việt tự nhiên, không dấu chấm cuối câu.
-- TUYỆT ĐỐI không chứa từ bí mật hay bất kỳ tiếng nào của nó (trừ "con", "cái", "quả"), không đánh vần, không nói số chữ.
-"emoji": đúng 3 emoji gợi hình, cách nhau một dấu cách, xếp từ mơ hồ tới rõ (không dùng emoji vẽ thẳng đáp án nếu quá lộ).
+const HINT_RULES = `"desc": đúng 2 gợi ý, mở lần lượt khi chơi. Mỗi gợi ý là 3 TỪ hoặc CỤM TỪ NGẮN (1-3 tiếng) liên quan tới từ bí mật, cách nhau bằng " · ", KHÔNG viết câu mô tả.
+- Gợi ý 1: các từ liên quan xa hơn (nơi chốn, hoàn cảnh, người dùng, cảm giác). Ví dụ cho "ống nhòm": "rừng · chim · đi phượt".
+- Gợi ý 2: các từ liên quan gần hơn, dễ đoán hơn. Ví dụ cho "ống nhòm": "nhìn xa · kính · hai mắt".
+- TUYỆT ĐỐI không chứa từ bí mật hay bất kỳ tiếng nào của nó (kể cả khi bỏ dấu, trừ "con", "cái", "quả").
+"emoji": đúng 3 emoji gợi hình, cách nhau một dấu cách, xếp từ mơ hồ tới rõ.
 Nếu từ trừu tượng / khó diễn tả bằng emoji thì để "emoji" là chuỗi rỗng "".`;
 
 const SYSTEM = `Bạn soạn từ bí mật cho trò chơi đoán từ theo nghĩa trên livestream TikTok tiếng Việt.
@@ -73,7 +72,7 @@ const HINTS_SCHEMA = {
 const CLASSIFIERS = new Set(['con', 'cái', 'quả', 'trái', 'chiếc', 'cây']);
 const plain = (t) => canon(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 
-/** 2 câu mô tả: bỏ câu lộ bất kỳ tiếng nào của đáp án, cắt dài. */
+/** 2 gợi ý (mỗi gợi ý vài từ liên quan, cách nhau " · "): bỏ gợi ý lộ bất kỳ tiếng nào của đáp án, cắt dài. */
 export function cleanDesc(word, desc = []) {
   const syl = canon(word).split(' ').filter((x) => !CLASSIFIERS.has(x)).map(plain);
   const out = [];
@@ -162,6 +161,11 @@ export class WordBank {
 
   /** Gợi ý mô tả + emoji của một từ (trong lô, hoặc bổ sung sau). */
   hintsFor(w) {
+    if (!w.desc?.length) { // chỉ có chữ (vd admin đặt từ): tra trong kho và danh sách có sẵn
+      const k = canon(w.word);
+      const found = [...this.allWords(), ...this.fallback].find((x) => canon(x.word) === k && x.desc?.length);
+      if (found) w = { ...found, ...w, desc: found.desc, emoji: w.emoji || found.emoji };
+    }
     const x = this.data.extra?.[canon(w.word)] || {};
     const desc = w.desc?.length ? w.desc : x.desc || [];
     const emoji = w.desc?.length ? w.emoji || '' : x.emoji || w.emoji || '';
@@ -180,7 +184,7 @@ export class WordBank {
     });
   }
 
-  /** Nhờ Claude soạn 2 câu mô tả + 3 emoji cho các từ cũ chưa có (mỗi lần tối đa `limit` từ). */
+  /** Nhờ Claude soạn 2 gợi ý từ liên quan + 3 emoji cho các từ cũ chưa có (mỗi lần tối đa `limit` từ). */
   async backfillHints({ limit = 60 } = {}) {
     if (!this.client) throw new Error('Chưa có ANTHROPIC_API_KEY');
     const todo = this.missingHints().slice(0, Math.max(1, Math.min(150, limit | 0)));

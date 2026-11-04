@@ -331,7 +331,7 @@
     "generatorModel": "claude-opus-5-5",
     "batchSize": 100,
     "minRemaining": 10,
-    "autoGenerate": true,
+    "autoGenerate": false,
     "difficulty": "hard",
     "scorer": "claude",
     "roundSeconds": 300,
@@ -390,566 +390,364 @@
     "cooldownSec": 2,
     "maxScoredPerRound": 500,
     "words": [
-      {
-        "word": "mặt trời",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "mặt trăng",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "biển",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "núi",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "cầu vồng",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "mưa",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "mùa đông",
-        "hint": "Thời gian"
-      },
-      {
-        "word": "con mèo",
-        "hint": "Động vật"
-      },
-      {
-        "word": "con voi",
-        "hint": "Động vật"
-      },
-      {
-        "word": "con gà",
-        "hint": "Động vật"
-      },
-      {
-        "word": "cá heo",
-        "hint": "Động vật"
-      },
-      {
-        "word": "bánh chưng",
-        "hint": "Món ăn ngày Tết"
-      },
-      {
-        "word": "phở",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "bánh mì",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "cà phê",
-        "hint": "Đồ uống"
-      },
-      {
-        "word": "trà sữa",
-        "hint": "Đồ uống"
-      },
-      {
-        "word": "quả xoài",
-        "hint": "Trái cây"
-      },
-      {
-        "word": "áo dài",
-        "hint": "Trang phục"
-      },
-      {
-        "word": "xe máy",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "máy bay",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "điện thoại",
-        "hint": "Đồ vật"
-      },
-      {
-        "word": "đồng hồ",
-        "hint": "Đồ vật"
-      },
-      {
-        "word": "chìa khoá",
-        "hint": "Đồ vật"
-      },
-      {
-        "word": "cái gương",
-        "hint": "Đồ vật"
-      },
-      {
-        "word": "cây đàn",
-        "hint": "Nhạc cụ"
-      },
-      {
-        "word": "trường học",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "bệnh viện",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "cái chợ",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "bác sĩ",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "giáo viên",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "đầu bếp",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "tình yêu",
-        "hint": "Cảm xúc"
-      },
-      {
-        "word": "hạnh phúc",
-        "hint": "Cảm xúc"
-      },
-      {
-        "word": "sinh nhật",
-        "hint": "Sự kiện"
-      },
-      {
-        "word": "đám cưới",
-        "hint": "Sự kiện"
-      },
-      {
-        "word": "bóng đá",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "hoa sen",
-        "hint": "Loài hoa"
-      },
-      {
-        "word": "cây tre",
-        "hint": "Cây cối"
-      },
-      {
-        "word": "ngôi sao",
-        "hint": "Bầu trời"
-      },
-      {
-        "word": "lửa",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "con chó",
-        "hint": "Thú cưng"
-      },
-      {
-        "word": "con thỏ",
-        "hint": "Động vật"
-      },
-      {
-        "word": "con rùa",
-        "hint": "Bò sát"
-      },
-      {
-        "word": "con ong",
-        "hint": "Côn trùng"
-      },
-      {
-        "word": "con bướm",
-        "hint": "Côn trùng"
-      },
-      {
-        "word": "con khỉ",
-        "hint": "Động vật"
-      },
-      {
-        "word": "hươu cao cổ",
-        "hint": "Động vật hoang dã"
-      },
-      {
-        "word": "chim cánh cụt",
-        "hint": "Động vật xứ lạnh"
-      },
-      {
-        "word": "cá sấu",
-        "hint": "Bò sát"
-      },
-      {
-        "word": "con trâu",
-        "hint": "Vật nuôi"
-      },
-      {
-        "word": "sư tử",
-        "hint": "Động vật hoang dã"
-      },
-      {
-        "word": "bún chả",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "bánh xèo",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "cơm tấm",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "nem rán",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "gỏi cuốn",
-        "hint": "Món ăn"
-      },
-      {
-        "word": "chè",
-        "hint": "Món tráng miệng"
-      },
-      {
-        "word": "bánh trung thu",
-        "hint": "Món ăn lễ hội"
-      },
-      {
-        "word": "kem",
-        "hint": "Món tráng miệng"
-      },
-      {
-        "word": "mì tôm",
-        "hint": "Món ăn nhanh"
-      },
-      {
-        "word": "nước mía",
-        "hint": "Đồ uống"
-      },
-      {
-        "word": "xôi",
-        "hint": "Món ăn sáng"
-      },
-      {
-        "word": "sầu riêng",
-        "hint": "Trái cây"
-      },
-      {
-        "word": "dưa hấu",
-        "hint": "Trái cây"
-      },
-      {
-        "word": "quả chuối",
-        "hint": "Trái cây"
-      },
-      {
-        "word": "quả dừa",
-        "hint": "Trái cây"
-      },
-      {
-        "word": "hoa mai",
-        "hint": "Thực vật"
-      },
-      {
-        "word": "hoa đào",
-        "hint": "Thực vật"
-      },
-      {
-        "word": "cây xương rồng",
-        "hint": "Thực vật"
-      },
-      {
-        "word": "cái ô",
-        "hint": "Đồ dùng"
-      },
-      {
-        "word": "cái kéo",
-        "hint": "Dụng cụ"
-      },
-      {
-        "word": "bút chì",
-        "hint": "Đồ dùng học tập"
-      },
-      {
-        "word": "tủ lạnh",
-        "hint": "Đồ điện gia dụng"
-      },
-      {
-        "word": "quạt máy",
-        "hint": "Đồ điện gia dụng"
-      },
-      {
-        "word": "bàn chải",
-        "hint": "Đồ dùng cá nhân"
-      },
-      {
-        "word": "cái gối",
-        "hint": "Phòng ngủ"
-      },
-      {
-        "word": "nồi cơm",
-        "hint": "Nhà bếp"
-      },
-      {
-        "word": "cái ghế",
-        "hint": "Nội thất"
-      },
-      {
-        "word": "ba lô",
-        "hint": "Đồ dùng"
-      },
-      {
-        "word": "kính râm",
-        "hint": "Phụ kiện"
-      },
-      {
-        "word": "núi lửa",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "sấm sét",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "thác nước",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "sa mạc",
-        "hint": "Địa hình"
-      },
-      {
-        "word": "tuyết",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "cơn bão",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "hang động",
-        "hint": "Địa hình"
-      },
-      {
-        "word": "đại dương",
-        "hint": "Thiên nhiên"
-      },
-      {
-        "word": "cơn gió",
-        "hint": "Thời tiết"
-      },
-      {
-        "word": "phi công",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "lính cứu hoả",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "ca sĩ",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "nông dân",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "cảnh sát",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "thợ cắt tóc",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "nhà báo",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "kỹ sư",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "họa sĩ",
-        "hint": "Nghề nghiệp"
-      },
-      {
-        "word": "bơi lội",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "cầu lông",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "cờ vua",
-        "hint": "Trò chơi trí tuệ"
-      },
-      {
-        "word": "võ thuật",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "bóng rổ",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "bóng chuyền",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "nhảy dây",
-        "hint": "Trò chơi dân gian"
-      },
-      {
-        "word": "thả diều",
-        "hint": "Trò chơi dân gian"
-      },
-      {
-        "word": "đá cầu",
-        "hint": "Thể thao"
-      },
-      {
-        "word": "xe đạp",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "tàu hoả",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "xe buýt",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "tàu ngầm",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "khinh khí cầu",
-        "hint": "Phương tiện"
-      },
-      {
-        "word": "thư viện",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "sân bay",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "công viên",
-        "hint": "Địa điểm"
-      },
-      {
-        "word": "rạp phim",
-        "hint": "Giải trí"
-      },
-      {
-        "word": "siêu thị",
-        "hint": "Mua sắm"
-      },
-      {
-        "word": "bãi biển",
-        "hint": "Du lịch"
-      },
-      {
-        "word": "tết",
-        "hint": "Lễ hội"
-      },
-      {
-        "word": "trung thu",
-        "hint": "Lễ hội"
-      },
-      {
-        "word": "múa lân",
-        "hint": "Lễ hội"
-      },
-      {
-        "word": "lì xì",
-        "hint": "Phong tục"
-      },
-      {
-        "word": "đèn lồng",
-        "hint": "Lễ hội"
-      },
-      {
-        "word": "pháo hoa",
-        "hint": "Lễ hội"
-      },
-      {
-        "word": "nón lá",
-        "hint": "Trang phục truyền thống"
-      },
-      {
-        "word": "máy tính",
-        "hint": "Công nghệ"
-      },
-      {
-        "word": "rô bốt",
-        "hint": "Công nghệ"
-      },
-      {
-        "word": "internet",
-        "hint": "Công nghệ"
-      },
-      {
-        "word": "tai nghe",
-        "hint": "Thiết bị âm thanh"
-      },
-      {
-        "word": "máy ảnh",
-        "hint": "Thiết bị"
-      },
-      {
-        "word": "vệ tinh",
-        "hint": "Vũ trụ"
-      },
-      {
-        "word": "tin nhắn",
-        "hint": "Liên lạc"
-      },
-      {
-        "word": "giấc mơ",
-        "hint": "Khi ngủ"
-      },
-      {
-        "word": "nỗi nhớ",
-        "hint": "Cảm xúc"
-      },
-      {
-        "word": "tình bạn",
-        "hint": "Mối quan hệ"
-      },
-      {
-        "word": "kỳ nghỉ",
-        "hint": "Thời gian"
-      },
-      {
-        "word": "lời hứa",
-        "hint": "Giao tiếp"
-      },
-      {
-        "word": "nụ cười",
-        "hint": "Cảm xúc"
-      },
-      {
-        "word": "nước mắt",
-        "hint": "Cảm xúc"
-      },
-      {
-        "word": "tuổi thơ",
-        "hint": "Kỷ niệm"
-      }
+      {"word": "mặt trời", "hint": "Thiên nhiên", "desc": ["buổi sáng · phía đông · cây xanh", "nắng · nóng · chói chang"], "emoji": "🌅 🌻 ☀️"},
+      {"word": "mặt trăng", "hint": "Thiên nhiên", "desc": ["rằm · chú Cuội · đêm", "ánh vàng · lưỡi liềm · tròn"], "emoji": "🌃 🐇 🌕"},
+      {"word": "biển", "hint": "Thiên nhiên", "desc": ["cát · muối · tàu thuyền", "sóng · nước mặn · tắm"], "emoji": "🐚 🌊 🏖️"},
+      {"word": "núi", "hint": "Thiên nhiên", "desc": ["leo · sương mù · Fansipan", "đỉnh · dốc · cao"], "emoji": "🥾 🏔️ ⛰️"},
+      {"word": "cầu vồng", "hint": "Thời tiết", "desc": ["sau mưa · bầu trời · ánh nắng", "bảy màu · cong · rực rỡ"], "emoji": "🌦️ 🎨 🌈"},
+      {"word": "mưa", "hint": "Thời tiết", "desc": ["mây đen · sấm · ếch nhái", "ô · áo tơi · ướt"], "emoji": "☁️ ☔ 🌧️"},
+      {"word": "mùa đông", "hint": "Thời gian", "desc": ["gió bấc · Noel · tháng mười hai", "lạnh · áo len · khăn quàng"], "emoji": "🧣 ❄️ ⛄"},
+      {"word": "con mèo", "hint": "Động vật", "desc": ["chuột · ngủ ngày · cá", "ria · móng vuốt · thú cưng"], "emoji": "🐁 🧶 🐈"},
+      {"word": "con voi", "hint": "Động vật", "desc": ["Tây Nguyên · rạp xiếc · ngà", "mũi dài · tai to · khổng lồ"], "emoji": "🌴 🥜 🐘"},
+      {"word": "con gà", "hint": "Động vật", "desc": ["sáng sớm · mào đỏ · trứng", "gáy · ò ó o · lông"], "emoji": "🌄 🥚 🐓"},
+      {"word": "cá heo", "hint": "Động vật", "desc": ["thủy cung · nhào lộn · thông minh", "biển · bơi · vây"], "emoji": "🌊 🎪 🐬"},
+      {"word": "bánh chưng", "hint": "Món ăn ngày Tết", "desc": ["Lang Liêu · Tết · lá dong", "nếp · đậu xanh · thịt mỡ"], "emoji": "🍃 🧧 🟩"},
+      {"word": "phở", "hint": "Món ăn", "desc": ["Hà Nội · bữa sáng · bánh bột gạo", "nước dùng · thịt bò · hành"], "emoji": "🌿 🐄 🍜"},
+      {"word": "bánh mì", "hint": "Món ăn", "desc": ["đường phố · Sài Gòn · lò nướng", "pate · giòn · kẹp"], "emoji": "🥖 🥒 🥪"},
+      {"word": "cà phê", "hint": "Đồ uống", "desc": ["buổi sáng · tỉnh táo · đắng", "phin · sữa đặc · nâu"], "emoji": "☕ 🥛 🫘"},
+      {"word": "trà sữa", "hint": "Đồ uống", "desc": ["giới trẻ · ống hút to · quán", "trân châu · ngọt · ly nhựa"], "emoji": "🧋 🥤 ⚫"},
+      {"word": "quả xoài", "hint": "Trái cây", "desc": ["Cát Chu · mùa hè · nhiệt đới", "vàng · hạt dẹt · chín"], "emoji": "🌴 🟡 🥭"},
+      {"word": "áo dài", "hint": "Trang phục", "desc": ["nữ sinh · thứ hai · thướt tha", "trang phục · tà · Việt Nam"], "emoji": "👘 🇻🇳 👗"},
+      {"word": "xe máy", "hint": "Phương tiện", "desc": ["kẹt đường · xăng · ngõ hẻm", "mũ bảo hiểm · hai bánh · yên"], "emoji": "⛽ 🪖 🛵"},
+      {"word": "máy bay", "hint": "Phương tiện", "desc": ["sân · vé · cất cánh", "phi công · cánh · tiếp viên"], "emoji": "🛫 ☁️ ✈️"},
+      {"word": "điện thoại", "hint": "Đồ vật", "desc": ["sạc pin · mạng · cuộc gọi", "màn hình · nhắn tin · cảm ứng"], "emoji": "📶 🔋 📱"},
+      {"word": "đồng hồ", "hint": "Đồ vật", "desc": ["kim · giờ · phút", "đeo tay · tích tắc · báo thức"], "emoji": "⏳ ⌚ ⏰"},
+      {"word": "chìa khoá", "hint": "Đồ vật", "desc": ["ổ · cửa · móc", "mở · xoay · đánh rơi"], "emoji": "🚪 🔒 🔑"},
+      {"word": "cái gương", "hint": "Đồ vật", "desc": ["soi · trang điểm · phòng tắm", "phản chiếu · kính · hình ảnh"], "emoji": "💄 🪞 🤳"},
+      {"word": "cây đàn", "hint": "Nhạc cụ", "desc": ["ca sĩ · nốt nhạc · nghệ sĩ", "dây · phím · gảy"], "emoji": "🎶 🎸 🎹"},
+      {"word": "trường học", "hint": "Địa điểm", "desc": ["sân · tiếng trống · bảng đen", "lớp · thầy cô · bài vở"], "emoji": "🔔 📚 🏫"},
+      {"word": "bệnh viện", "hint": "Địa điểm", "desc": ["xe cấp cứu · thuốc · y tá", "khám · ốm · phẫu thuật"], "emoji": "🚑 💉 🏥"},
+      {"word": "cái chợ", "hint": "Địa điểm", "desc": ["mặc cả · rau · cá thịt", "mua bán · sạp · bà nội trợ"], "emoji": "🥬 🐟 🧺"},
+      {"word": "bác sĩ", "hint": "Nghề nghiệp", "desc": ["áo trắng · ống nghe · thuốc", "khám · chữa bệnh · phòng mạch"], "emoji": "🩺 💊 👨‍⚕️"},
+      {"word": "giáo viên", "hint": "Nghề nghiệp", "desc": ["20 tháng 11 · phấn · bảng", "dạy · lớp học · bục giảng"], "emoji": "💐 📏 👩‍🏫"},
+      {"word": "đầu bếp", "hint": "Nghề nghiệp", "desc": ["nhà hàng · mũ trắng · dao", "nấu ăn · chảo · món ngon"], "emoji": "🔪 🍳 👨‍🍳"},
+      {"word": "tình yêu", "hint": "Cảm xúc", "desc": ["Valentine · hoa hồng · trái tim", "cặp đôi · thương · hẹn hò"], "emoji": "💌 💑 ❤️"},
+      {"word": "hạnh phúc", "hint": "Cảm xúc", "desc": ["nụ cười · gia đình · bình yên", "vui · mãn nguyện · sung sướng"], "emoji": "🌈 😊 🥰"},
+      {"word": "sinh nhật", "hint": "Sự kiện", "desc": ["nến · tuổi · quà", "bánh kem · thổi nến · chúc mừng"], "emoji": "🎁 🎈 🎂"},
+      {"word": "đám cưới", "hint": "Sự kiện", "desc": ["cô dâu · chú rể · nhẫn", "tiệc · rước dâu · trăm năm"], "emoji": "💍 👰 💒"},
+      {"word": "bóng đá", "hint": "Thể thao", "desc": ["World Cup · sân cỏ · cổ động viên", "sút · thủ môn · khung thành"], "emoji": "🥅 🏟️ ⚽"},
+      {"word": "hoa sen", "hint": "Loài hoa", "desc": ["đầm · bùn · Bác Hồ", "hồng · cánh · lá to"], "emoji": "🪷 🌸 🐸"},
+      {"word": "cây tre", "hint": "Cây cối", "desc": ["làng quê · Thánh Gióng · lũy", "đốt · thân rỗng · măng"], "emoji": "🎋 🏡 🎍"},
+      {"word": "ngôi sao", "hint": "Bầu trời", "desc": ["đêm · ước nguyện · thiên văn", "lấp lánh · năm cánh · bầu trời"], "emoji": "🌌 ✨ ⭐"},
+      {"word": "lửa", "hint": "Thiên nhiên", "desc": ["củi · que diêm · cứu hoả", "cháy · nóng · ngọn"], "emoji": "🪵 🧯 🔥"},
+      {"word": "con chó", "hint": "Thú cưng", "desc": ["giữ nhà · xương · trung thành", "sủa · gâu gâu · đuôi vẫy"], "emoji": "🦴 🏠 🐕"},
+      {"word": "con thỏ", "hint": "Động vật", "desc": ["chạy đua · rùa · trăng", "cà rốt · tai dài · nhảy"], "emoji": "🥕 🌙 🐇"},
+      {"word": "con rùa", "hint": "Bò sát", "desc": ["Hồ Gươm · chậm · sống lâu", "mai · bò · cứng"], "emoji": "🏯 🐌 🐢"},
+      {"word": "con ong", "hint": "Côn trùng", "desc": ["vườn hoa · chăm chỉ · tổ", "mật · đốt · vo ve"], "emoji": "🌼 🍯 🐝"},
+      {"word": "con bướm", "hint": "Côn trùng", "desc": ["sâu · kén · vườn hoa", "cánh · sặc sỡ · bay"], "emoji": "🐛 🌸 🦋"},
+      {"word": "con khỉ", "hint": "Động vật", "desc": ["Tôn Ngộ Không · rừng · tinh nghịch", "chuối · leo trèo · đuôi"], "emoji": "🌳 🍌 🐒"},
+      {"word": "hươu cao cổ", "hint": "Động vật hoang dã", "desc": ["châu Phi · thảo nguyên · lá cây", "đốm · chân dài · ngọn cây"], "emoji": "🌳 🦒 📏"},
+      {"word": "chim cánh cụt", "hint": "Động vật xứ lạnh", "desc": ["Nam Cực · băng · đàn đông", "lạch bạch · đen trắng · không bay"], "emoji": "🧊 🐟 🐧"},
+      {"word": "cá sấu", "hint": "Bò sát", "desc": ["đầm lầy · túi da · răng sắc", "bò sát · hàm to · sông"], "emoji": "🌊 👜 🐊"},
+      {"word": "con trâu", "hint": "Vật nuôi", "desc": ["đồng ruộng · nhà nông · mục đồng", "cày · sừng · kéo"], "emoji": "🌾 🧑‍🌾 🐃"},
+      {"word": "sư tử", "hint": "Động vật hoang dã", "desc": ["châu Phi · vua · gầm", "bờm · săn mồi · chúa sơn lâm"], "emoji": "🌍 👑 🦁"},
+      {"word": "bún chả", "hint": "Món ăn", "desc": ["Hà Nội · Obama · than hoa", "thịt nướng · nước mắm · rau sống"], "emoji": "🔥 🥩 🍜"},
+      {"word": "bánh xèo", "hint": "Món ăn", "desc": ["miền Tây · chảo · bột nghệ", "giòn · tôm · cuốn rau"], "emoji": "🍳 🥬 🌕"},
+      {"word": "cơm tấm", "hint": "Món ăn", "desc": ["Sài Gòn · sườn · bì", "chả · trứng · mỡ hành"], "emoji": "🍚 🍖 🍳"},
+      {"word": "nem rán", "hint": "Món ăn", "desc": ["cỗ Tết · chả giò · chảo dầu", "cuốn · giòn · thịt băm"], "emoji": "🎉 🥢 🌯"},
+      {"word": "gỏi cuốn", "hint": "Món ăn", "desc": ["bánh tráng · tôm · thanh mát", "bún · rau sống · chấm tương"], "emoji": "🦐 🥬 🌯"},
+      {"word": "chè", "hint": "Món tráng miệng", "desc": ["cốc · đá bào · miền Nam", "đậu · nước cốt dừa · ngọt"], "emoji": "🫘 🥥 🍧"},
+      {"word": "bánh trung thu", "hint": "Món ăn lễ hội", "desc": ["rằm tháng tám · trà · hộp quà", "nướng · dẻo · nhân thập cẩm"], "emoji": "🏮 🌕 🥮"},
+      {"word": "kem", "hint": "Món tráng miệng", "desc": ["mùa hè · que · ốc quế", "lạnh · ngọt · tan chảy"], "emoji": "☀️ 🍦 🍨"},
+      {"word": "mì tôm", "hint": "Món ăn nhanh", "desc": ["sinh viên · cuối tháng · gói", "nước sôi · ba phút · sợi"], "emoji": "🎓 ⏱️ 🍜"},
+      {"word": "nước mía", "hint": "Đồ uống", "desc": ["vỉa hè · máy ép · tắc", "ngọt · mát · cây dài"], "emoji": "🎋 🧊 🥤"},
+      {"word": "xôi", "hint": "Món ăn sáng", "desc": ["lá chuối · bữa sáng · gánh", "nếp · dẻo · đậu"], "emoji": "🍃 🥜 🍚"},
+      {"word": "sầu riêng", "hint": "Trái cây", "desc": ["miền Tây · mùi nồng · vua trái cây", "gai · múi vàng · béo"], "emoji": "🤢 😋 🌵"},
+      {"word": "dưa hấu", "hint": "Trái cây", "desc": ["Mai An Tiêm · mùa hè · Tết", "vỏ xanh · ruột đỏ · hạt đen"], "emoji": "🏝️ 🔴 🍉"},
+      {"word": "quả chuối", "hint": "Trái cây", "desc": ["khỉ · nải · buồng", "vàng · cong · bóc vỏ"], "emoji": "🐒 🟡 🍌"},
+      {"word": "quả dừa", "hint": "Trái cây", "desc": ["Bến Tre · bãi biển · cây cao", "nước ngọt · cùi trắng · vỏ cứng"], "emoji": "🌴 🏝️ 🥥"},
+      {"word": "hoa mai", "hint": "Thực vật", "desc": ["Tết · miền Nam · xuân", "vàng · năm cánh · chậu"], "emoji": "🧧 🌼 💛"},
+      {"word": "hoa đào", "hint": "Thực vật", "desc": ["Tết · miền Bắc · Nhật Tân", "hồng · cành · nở"], "emoji": "🧧 🌸 💗"},
+      {"word": "cây xương rồng", "hint": "Thực vật", "desc": ["sa mạc · khô hạn · chậu nhỏ", "gai · mọng nước · ít tưới"], "emoji": "🏜️ ☀️ 🌵"},
+      {"word": "cái ô", "hint": "Đồ dùng", "desc": ["mưa · nắng · đi đường", "che · bung ra · cán cầm"], "emoji": "🌦️ 🌂 ☂️"},
+      {"word": "cái kéo", "hint": "Dụng cụ", "desc": ["thủ công · may vá · tiệm tóc", "cắt · lưỡi · sắc"], "emoji": "📄 ✂️ 💇"},
+      {"word": "bút chì", "hint": "Đồ dùng học tập", "desc": ["tẩy · gọt · vẽ phác", "than · viết · nét mờ"], "emoji": "📝 🧽 ✏️"},
+      {"word": "tủ lạnh", "hint": "Đồ điện gia dụng", "desc": ["nhà bếp · thức ăn · điện", "ngăn đá · mát · bảo quản"], "emoji": "🥶 🥦 🧊"},
+      {"word": "quạt máy", "hint": "Đồ điện gia dụng", "desc": ["mùa hè · cúp điện · ổ cắm", "cánh · gió · quay"], "emoji": "💨 🌀 ☀️"},
+      {"word": "bàn chải", "hint": "Đồ dùng cá nhân", "desc": ["buổi sáng · phòng tắm · kem", "đánh răng · lông · sạch"], "emoji": "🦷 🪥 🫧"},
+      {"word": "cái gối", "hint": "Phòng ngủ", "desc": ["giường · chăn · ngủ trưa", "kê đầu · êm · vỏ bọc"], "emoji": "🛏️ 😴 💤"},
+      {"word": "nồi cơm", "hint": "Nhà bếp", "desc": ["nhà bếp · gạo · ổ điện", "nấu · chín · xới"], "emoji": "🍚 🔌 🍲"},
+      {"word": "cái ghế", "hint": "Nội thất", "desc": ["bàn · phòng khách · bốn chân", "ngồi · tựa lưng · đẩu"], "emoji": "🪑 🛋️ 🦵"},
+      {"word": "ba lô", "hint": "Đồ dùng", "desc": ["học sinh · đi phượt · hai quai", "đeo vai · đựng đồ · túi"], "emoji": "🎒 🏕️ 📚"},
+      {"word": "kính râm", "hint": "Phụ kiện", "desc": ["bãi biển · mùa hè · ngầu", "che nắng · tròng tối · đeo mắt"], "emoji": "😎 ☀️ 🕶️"},
+      {"word": "núi lửa", "hint": "Thiên nhiên", "desc": ["Hawaii · nham thạch · tro bụi", "phun trào · miệng · nóng chảy"], "emoji": "🌋 🔥 🪨"},
+      {"word": "sấm sét", "hint": "Thời tiết", "desc": ["mây đen · giông · cột thu lôi", "tia sáng · tiếng nổ · đùng đoàng"], "emoji": "⛈️ ⚡ 🌩️"},
+      {"word": "thác nước", "hint": "Thiên nhiên", "desc": ["Bản Giốc · ghềnh · bọt trắng", "đổ xuống · ầm ầm · vách đá"], "emoji": "🏞️ 💧 🌊"},
+      {"word": "sa mạc", "hint": "Địa hình", "desc": ["lạc đà · ốc đảo · Sahara", "cát · nóng · khô"], "emoji": "🐪 🏜️ 🌵"},
+      {"word": "tuyết", "hint": "Thời tiết", "desc": ["Sa Pa · Hàn Quốc · Noel", "trắng · lạnh · bông rơi"], "emoji": "❄️ ⛄ 🏔️"},
+      {"word": "cơn bão", "hint": "Thời tiết", "desc": ["áp thấp · gió giật · đổ cây", "siêu · mưa to · tâm"], "emoji": "🌀 🌪️ 🌧️"},
+      {"word": "hang động", "hint": "Địa hình", "desc": ["Sơn Đoòng · Phong Nha · thạch nhũ", "tối · dơi · khám phá"], "emoji": "🦇 🔦 🪨"},
+      {"word": "đại dương", "hint": "Thiên nhiên", "desc": ["Thái Bình · cá voi · Trái Đất", "mênh mông · sâu thẳm · nước mặn"], "emoji": "🌍 🐋 🌊"},
+      {"word": "cơn gió", "hint": "Thời tiết", "desc": ["lá rung · diều · mát", "thổi · heo may · lồng lộng"], "emoji": "🍃 🌬️ 🪁"},
+      {"word": "phi công", "hint": "Nghề nghiệp", "desc": ["buồng lái · sân bay · bầu trời", "máy bay · lái · cơ trưởng"], "emoji": "👨‍✈️ 🛫 ✈️"},
+      {"word": "lính cứu hoả", "hint": "Nghề nghiệp", "desc": ["114 · xe đỏ · vòi rồng", "dập lửa · cháy nhà · thang dài"], "emoji": "🚒 🧯 🔥"},
+      {"word": "ca sĩ", "hint": "Nghề nghiệp", "desc": ["sân khấu · khán giả · micro", "hát · bài · album"], "emoji": "🎤 🎶 🌟"},
+      {"word": "nông dân", "hint": "Nghề nghiệp", "desc": ["đồng ruộng · mùa vụ · nón lá", "trồng lúa · cày cấy · gặt"], "emoji": "🌾 🐃 👨‍🌾"},
+      {"word": "cảnh sát", "hint": "Nghề nghiệp", "desc": ["113 · còi · đồng phục", "bắt cướp · giữ trật tự · điều tra"], "emoji": "🚓 👮 🚨"},
+      {"word": "thợ cắt tóc", "hint": "Nghề nghiệp", "desc": ["tiệm · ghế xoay · gương", "kéo · lược · đầu đẹp"], "emoji": "💈 ✂️ 💇"},
+      {"word": "nhà báo", "hint": "Nghề nghiệp", "desc": ["micro · phỏng vấn · máy ảnh", "tin tức · bài viết · tòa soạn"], "emoji": "🗞️ 🎙️ 📰"},
+      {"word": "kỹ sư", "hint": "Nghề nghiệp", "desc": ["bản vẽ · công trình · bách khoa", "thiết kế · xây dựng · máy móc"], "emoji": "📐 🏗️ 👷"},
+      {"word": "họa sĩ", "hint": "Nghề nghiệp", "desc": ["bảng màu · giá vẽ · triển lãm", "tranh · cọ · màu nước"], "emoji": "🎨 🖌️ 🖼️"},
+      {"word": "bơi lội", "hint": "Thể thao", "desc": ["hồ · đuối nước · kính", "sải · ếch · dưới nước"], "emoji": "🏊 🌊 🥽"},
+      {"word": "cầu lông", "hint": "Thể thao", "desc": ["sân · lưới · vợt", "quả · đánh qua lại · đập"], "emoji": "🏸 🪶 🥅"},
+      {"word": "cờ vua", "hint": "Trò chơi trí tuệ", "desc": ["đen trắng · 64 ô · chiếu tướng", "hậu · mã · tốt"], "emoji": "♟️ 👑 🧠"},
+      {"word": "võ thuật", "hint": "Thể thao", "desc": ["đai đen · sàn tập · tự vệ", "đấm · đá · sư phụ"], "emoji": "🥋 🥊 🥷"},
+      {"word": "bóng rổ", "hint": "Thể thao", "desc": ["NBA · cầu thủ cao · Michael Jordan", "ném · vòng sắt · ba điểm"], "emoji": "🏀 🏟️ ⛹️"},
+      {"word": "bóng chuyền", "hint": "Thể thao", "desc": ["lưới cao · sáu người · bãi cát", "đập · chắn · phát"], "emoji": "🏐 🏖️ 🙌"},
+      {"word": "nhảy dây", "hint": "Trò chơi dân gian", "desc": ["giờ ra chơi · bạn gái · sân trường", "sợi thừng · quay · bật"], "emoji": "🪢 🦘 👧"},
+      {"word": "thả diều", "hint": "Trò chơi dân gian", "desc": ["chiều hè · đê · trẻ con", "gió · sợi chỉ · bay cao"], "emoji": "🌾 🌬️ 🪁"},
+      {"word": "đá cầu", "hint": "Thể thao", "desc": ["sân trường · lông gà · tâng", "chân · quả · chuyền"], "emoji": "🪶 🦶 🏸"},
+      {"word": "xe đạp", "hint": "Phương tiện", "desc": ["công viên · không xăng · rèn sức", "pê đan · hai bánh · xích"], "emoji": "🚲 🦵 🔔"},
+      {"word": "tàu hoả", "hint": "Phương tiện", "desc": ["ga · đường ray · Bắc Nam", "toa · còi · xình xịch"], "emoji": "🚂 🛤️ 🚃"},
+      {"word": "xe buýt", "hint": "Phương tiện", "desc": ["trạm · tuyến · vé tháng", "chở khách · bác lái · công cộng"], "emoji": "🚏 🚌 🎫"},
+      {"word": "tàu ngầm", "hint": "Phương tiện", "desc": ["hải quân · đáy biển · kính tiềm vọng", "lặn · dưới nước · thuyền"], "emoji": "⚓ 🌊 🐋"},
+      {"word": "khinh khí cầu", "hint": "Phương tiện", "desc": ["lửa · không trung · lễ hội", "giỏ · bay lên · quả bóng to"], "emoji": "🔥 🎈 ☁️"},
+      {"word": "thư viện", "hint": "Địa điểm", "desc": ["im lặng · thẻ mượn · kệ", "sách · đọc · mượn trả"], "emoji": "📚 🤫 📖"},
+      {"word": "sân bay", "hint": "Địa điểm", "desc": ["vé · hành lý · hải quan", "cất cánh · hạ cánh · đường băng"], "emoji": "🛫 🧳 🛬"},
+      {"word": "công viên", "hint": "Địa điểm", "desc": ["cây xanh · ghế đá · tập thể dục", "đi dạo · cầu trượt · hồ"], "emoji": "🌳 🛝 🏃"},
+      {"word": "rạp phim", "hint": "Giải trí", "desc": ["màn ảnh · bỏng ngô · vé", "xem · ghế đôi · bom tấn"], "emoji": "🍿 🎬 🎟️"},
+      {"word": "siêu thị", "hint": "Mua sắm", "desc": ["xe đẩy · kệ hàng · khuyến mãi", "mua sắm · quầy thu ngân · giỏ"], "emoji": "🛒 🏷️ 🧾"},
+      {"word": "bãi biển", "hint": "Du lịch", "desc": ["cát · dừa · nắng", "tắm · lâu đài cát · sóng"], "emoji": "🏖️ ⛱️ 🐚"},
+      {"word": "tết", "hint": "Lễ hội", "desc": ["đoàn viên · pháo · giao thừa", "lì xì · bánh chưng · năm mới"], "emoji": "🧧 🎆 🐉"},
+      {"word": "trung thu", "hint": "Lễ hội", "desc": ["rằm tháng tám · trẻ em · đèn ông sao", "bánh nướng · rước đèn · ngắm trăng"], "emoji": "🏮 🥮 🌕"},
+      {"word": "múa lân", "hint": "Lễ hội", "desc": ["trống · ông Địa · đầu to", "nhảy · đường phố · lễ hội"], "emoji": "🥁 🦁 🎊"},
+      {"word": "lì xì", "hint": "Phong tục", "desc": ["phong bao · năm mới · trẻ con", "tiền mừng tuổi · đỏ · chúc"], "emoji": "🧧 💵 🎋"},
+      {"word": "đèn lồng", "hint": "Lễ hội", "desc": ["Hội An · phố cổ · đêm", "treo · giấy · thắp sáng"], "emoji": "🏮 🌙 ✨"},
+      {"word": "pháo hoa", "hint": "Lễ hội", "desc": ["giao thừa · bầu trời · đêm", "nổ · rực rỡ · màu sắc"], "emoji": "🎆 🎇 🌃"},
+      {"word": "nón lá", "hint": "Trang phục truyền thống", "desc": ["Huế · hình chóp · cọ", "đội đầu · che nắng · trắng"], "emoji": "🎋 👒 🇻🇳"},
+      {"word": "máy tính", "hint": "Công nghệ", "desc": ["văn phòng · màn hình · chuột", "bàn phím · phần mềm · gõ"], "emoji": "🖥️ ⌨️ 🖱️"},
+      {"word": "rô bốt", "hint": "Công nghệ", "desc": ["viễn tưởng · máy móc · trí tuệ", "kim loại · tự động · hình người"], "emoji": "🤖 ⚙️ 🦾"},
+      {"word": "internet", "hint": "Công nghệ", "desc": ["wifi · lướt web · mạng", "kết nối · toàn cầu · trực tuyến"], "emoji": "🌐 📶 💻"},
+      {"word": "tai nghe", "hint": "Thiết bị âm thanh", "desc": ["bluetooth · không dây · ồn ào", "đeo · nhạc · âm thanh"], "emoji": "🎧 🎵 👂"},
+      {"word": "máy ảnh", "hint": "Thiết bị", "desc": ["du lịch · ống kính · selfie", "chụp · bấm · khoảnh khắc"], "emoji": "📸 📷 🖼️"},
+      {"word": "vệ tinh", "hint": "Vũ trụ", "desc": ["vũ trụ · quỹ đạo · ăng ten", "định vị · sóng · bay quanh"], "emoji": "🛰️ 🌍 📡"},
+      {"word": "tin nhắn", "hint": "Liên lạc", "desc": ["điện thoại · Zalo · hồi âm", "gửi · chữ · đã xem"], "emoji": "💬 📱 ✉️"},
+      {"word": "giấc mơ", "hint": "Khi ngủ", "desc": ["ban đêm · ác mộng · ngủ say", "tưởng tượng · tỉnh dậy · ngủ mê"], "emoji": "😴 💭 🌙"},
+      {"word": "nỗi nhớ", "hint": "Cảm xúc", "desc": ["xa nhà · thương · người cũ", "mong · ký ức · da diết"], "emoji": "💭 🏡 🥺"},
+      {"word": "tình bạn", "hint": "Mối quan hệ", "desc": ["chia sẻ · thân thiết · đồng hành", "tri kỷ · thân · gắn bó"], "emoji": "🤝 👫 💛"},
+      {"word": "kỳ nghỉ", "hint": "Thời gian", "desc": ["hè · du lịch · thư giãn", "vali · không đi làm · xả hơi"], "emoji": "🏖️ 🧳 🌴"},
+      {"word": "lời hứa", "hint": "Giao tiếp", "desc": ["ngoắc tay · giữ · cam kết", "thề · nói · chữ tín"], "emoji": "🤙 🤞 📜"},
+      {"word": "nụ cười", "hint": "Cảm xúc", "desc": ["răng · niềm vui · tươi", "hạnh phúc · rạng rỡ · khoe răng"], "emoji": "😊 😁 😄"},
+      {"word": "nước mắt", "hint": "Cảm xúc", "desc": ["buồn · khóc · xúc động", "giọt · mặn · rơi"], "emoji": "😢 💧 😭"},
+      {"word": "tuổi thơ", "hint": "Kỷ niệm", "desc": ["bắn bi · đá bóng · ngày xưa", "trẻ con · kỷ niệm · vô tư"], "emoji": "🪁 🎈 🧒"},
+      {"word": "ống nhòm", "hint": "Đồ vật", "desc": ["rừng · chim · đi phượt", "nhìn xa · hai mắt · phóng to"], "emoji": "👀 🦅 🔭"},
+      {"word": "la bàn", "hint": "Đồ vật", "desc": ["thám hiểm · lạc đường · thủy thủ", "kim chỉ · hướng bắc · từ tính"], "emoji": "🧭 🗺️ ⛵"},
+      {"word": "đồng hồ cát", "hint": "Đồ vật", "desc": ["thời gian · cổ xưa · lật ngược", "hạt · chảy · hai bầu thủy tinh"], "emoji": "⏳ 🏜️ 🔁"},
+      {"word": "kính lúp", "hint": "Đồ vật", "desc": ["thám tử · con kiến · soi", "phóng to · tay cầm · tròng"], "emoji": "🔍 🐜 🕵️"},
+      {"word": "đèn pin", "hint": "Đồ vật", "desc": ["cúp điện · cắm trại · bóng tối", "soi · chiếu sáng · cầm tay"], "emoji": "🔦 🌑 🔋"},
+      {"word": "bật lửa", "hint": "Đồ vật", "desc": ["túi quần · thuốc lá · bếp", "bấm · ga · ngọn nhỏ"], "emoji": "🔥 🚬 👍"},
+      {"word": "cái thang", "hint": "Đồ vật", "desc": ["trèo · mái nhà · thợ sơn", "bậc · leo lên · gác"], "emoji": "🪜 🏠 🧗"},
+      {"word": "ấm trà", "hint": "Đồ vật", "desc": ["ông bà · buổi sáng · khách đến", "rót · vòi · pha"], "emoji": "🫖 🍵 🌿"},
+      {"word": "cái chổi", "hint": "Đồ vật", "desc": ["phù thủy · sân nhà · rác", "quét · cán dài · lông"], "emoji": "🧹 🍂 🧙"},
+      {"word": "bình hoa", "hint": "Đồ vật", "desc": ["bàn khách · trang trí · gốm", "cắm · cành · lọ"], "emoji": "🏺 💐 🌷"},
+      {"word": "chuông gió", "hint": "Đồ vật", "desc": ["hiên nhà · Nhật Bản · trang trí", "treo · leng keng · ống kim loại"], "emoji": "🎐 🌬️ 🔔"},
+      {"word": "cái cân", "hint": "Đồ vật", "desc": ["chợ · béo gầy · kilôgam", "đo nặng · đĩa · kim"], "emoji": "⚖️ 🍎 🧮"},
+      {"word": "thước kẻ", "hint": "Đồ dùng học tập", "desc": ["hộp bút · hình học · thẳng", "đo · xăng ti mét · vạch"], "emoji": "📏 📐 ✏️"},
+      {"word": "cục tẩy", "hint": "Đồ dùng học tập", "desc": ["viết sai · hộp bút · bút chì", "xoá · cao su · vụn"], "emoji": "✏️ ❌ 🧽"},
+      {"word": "bàn là", "hint": "Đồ điện gia dụng", "desc": ["quần áo · nhăn · sáng thứ hai", "nóng · ủi · phẳng"], "emoji": "👔 🔥 🧺"},
+      {"word": "máy khâu", "hint": "Đồ vật", "desc": ["tiệm áo · vải · cuộn chỉ", "kim · đạp · vá áo"], "emoji": "🧵 🪡 👗"},
+      {"word": "cái võng", "hint": "Đồ vật", "desc": ["trưa hè · hiên nhà · miền Tây", "đung đưa · nằm · mắc"], "emoji": "🌴 😴 🎐"},
+      {"word": "chiếu cói", "hint": "Đồ vật", "desc": ["nhà quê · ngủ trưa · Nga Sơn", "trải · đan · mát"], "emoji": "🛏️ 🌾 🧺"},
+      {"word": "đèn dầu", "hint": "Đồ vật", "desc": ["ngày xưa · bấc · thôn quê", "bóng tù mù · chụp thủy tinh · leo lét"], "emoji": "🪔 🌙 🏚️"},
+      {"word": "cối xay", "hint": "Đồ vật", "desc": ["nhà nông · lúa · tre", "nghiền · tròn · quay tay"], "emoji": "🌾 🔄 🍚"},
+      {"word": "guốc mộc", "hint": "Trang phục", "desc": ["ngày xưa · lộc cộc · gỗ", "mang chân · quai · đế cao"], "emoji": "👡 🪵 👘"},
+      {"word": "quạt nan", "hint": "Đồ vật", "desc": ["trưa hè · bà nội · tre", "phe phẩy · gió · cầm tay"], "emoji": "🎋 💨 👵"},
+      {"word": "bàn tính", "hint": "Đồ vật", "desc": ["nhẩm · Trung Hoa · cửa hàng xưa", "hạt gỗ · cộng trừ · que"], "emoji": "🧮 🔢 🏮"},
+      {"word": "kính vạn hoa", "hint": "Đồ chơi", "desc": ["trẻ con · xoay · gương", "đối xứng · nhiều màu · ống nhìn"], "emoji": "🔭 🌈 🔄"},
+      {"word": "hộp nhạc", "hint": "Đồ vật", "desc": ["quà tặng · búp bê · lên dây", "tinh tang · mở nắp · giai điệu"], "emoji": "🎁 💃 🎶"},
+      {"word": "con nhím", "hint": "Động vật", "desc": ["rừng · ban đêm · cuộn tròn", "lông cứng · gai · phòng thủ"], "emoji": "🌲 🦔 📍"},
+      {"word": "đom đóm", "hint": "Côn trùng", "desc": ["đêm hè · đồng quê · lấp lánh", "phát sáng · đuôi · bay"], "emoji": "🌙 ✨ 🐛"},
+      {"word": "chuồn chuồn", "hint": "Côn trùng", "desc": ["bay thấp · trời mưa · ao", "cánh mỏng · đậu · mắt to"], "emoji": "🌧️ 🪷 🪰"},
+      {"word": "con sứa", "hint": "Động vật", "desc": ["biển · trong suốt · không xương", "chích · ngứa · tua dài"], "emoji": "🌊 🫧 🪼"},
+      {"word": "bạch tuộc", "hint": "Động vật", "desc": ["đáy biển · mực · nướng", "tám chân · giác hút · mực đen"], "emoji": "🌊 🦑 🐙"},
+      {"word": "đà điểu", "hint": "Động vật", "desc": ["châu Phi · chạy nhanh · trứng to", "chim lớn · cổ dài · không bay"], "emoji": "🌍 🥚 🦤"},
+      {"word": "chuột túi", "hint": "Động vật", "desc": ["Úc · đấm bốc · nhảy", "con non · đuôi khỏe · bật nhảy"], "emoji": "🇦🇺 🥊 🦘"},
+      {"word": "con lười", "hint": "Động vật", "desc": ["rừng mưa · chậm chạp · treo cành", "ngủ nhiều · móng dài · lờ đờ"], "emoji": "🌳 😴 🦥"},
+      {"word": "tắc kè", "hint": "Động vật", "desc": ["tường nhà · ban đêm · kêu", "đổi màu · bò sát · lưỡi dài"], "emoji": "🏠 🌙 🦎"},
+      {"word": "con cú", "hint": "Động vật", "desc": ["đêm · rừng · thông thái", "mắt tròn · quay đầu · săn chuột"], "emoji": "🌙 🌲 🦉"},
+      {"word": "chim sẻ", "hint": "Động vật", "desc": ["mái nhà · sân · nhỏ bé", "chiêm chiếp · lúa · nâu"], "emoji": "🏠 🌾 🐦"},
+      {"word": "con công", "hint": "Động vật", "desc": ["vườn thú · kiêu hãnh · múa", "xòe đuôi · lông vũ · sặc sỡ"], "emoji": "🌳 💃 🦚"},
+      {"word": "hà mã", "hint": "Động vật", "desc": ["châu Phi · sông · bùn", "miệng to · nặng · da dày"], "emoji": "🌍 💧 🦛"},
+      {"word": "tê giác", "hint": "Động vật", "desc": ["châu Phi · quý hiếm · săn trộm", "sừng · da dày · to lớn"], "emoji": "🌍 🛡️ 🦏"},
+      {"word": "cá mập", "hint": "Động vật", "desc": ["đại dương · phim · nguy hiểm", "vây lưng · răng sắc · săn mồi"], "emoji": "🌊 🎬 🦈"},
+      {"word": "con cua", "hint": "Động vật", "desc": ["bãi biển · đồng ruộng · gạch", "càng · đi ngang · mai"], "emoji": "🏖️ 🦀 🍲"},
+      {"word": "ốc sên", "hint": "Động vật", "desc": ["vườn · sau mưa · chậm", "vỏ xoắn · nhớt · râu"], "emoji": "🌧️ 🐢 🐌"},
+      {"word": "con dơi", "hint": "Động vật", "desc": ["hang động · đêm · treo ngược", "cánh da · sóng âm · ma cà rồng"], "emoji": "🦇 🌙 🧛"},
+      {"word": "châu chấu", "hint": "Côn trùng", "desc": ["đồng lúa · nhảy · voi", "cánh · chân sau dài · xanh"], "emoji": "🌾 🦗 🐘"},
+      {"word": "ngựa vằn", "hint": "Động vật", "desc": ["châu Phi · thảo nguyên · đàn", "sọc · đen trắng · móng"], "emoji": "🌍 🦓 🦁"},
+      {"word": "nhật thực", "hint": "Hiện tượng", "desc": ["bầu trời · hiếm gặp · kính râm", "mặt trăng che · tối giữa ngày · vành sáng"], "emoji": "🌑 ☀️ 🕶️"},
+      {"word": "cực quang", "hint": "Hiện tượng", "desc": ["Bắc Âu · ban đêm · vùng lạnh", "ánh xanh · uốn lượn · bầu trời"], "emoji": "🌌 💚 🇳🇴"},
+      {"word": "ảo ảnh", "hint": "Hiện tượng", "desc": ["sa mạc · nắng gắt · lạc đà", "hoa mắt · hồ nước giả · lung linh"], "emoji": "🏜️ 🐪 💧"},
+      {"word": "sương mù", "hint": "Thời tiết", "desc": ["sáng sớm · Đà Lạt · ẩm", "mờ mịt · trắng · che khuất"], "emoji": "🌫️ 🌲 🚗"},
+      {"word": "động đất", "hint": "Thiên tai", "desc": ["Nhật Bản · nhà sập · độ Richter", "rung lắc · nứt toác · sập"], "emoji": "🏚️ 📉 🌋"},
+      {"word": "sóng thần", "hint": "Thiên tai", "desc": ["ven biển · động đất · cảnh báo", "nước dâng · ập vào · tàn phá"], "emoji": "🌊 🏝️ ⚠️"},
+      {"word": "thủy triều", "hint": "Hiện tượng", "desc": ["bãi biển · mặt trăng · ngư dân", "lên xuống · nước rút · dâng"], "emoji": "🌕 🌊 🏖️"},
+      {"word": "sao băng", "hint": "Hiện tượng", "desc": ["đêm · ước · thiên văn", "vệt sáng · rơi · lóe qua"], "emoji": "🌠 🙏 🌌"},
+      {"word": "dải ngân hà", "hint": "Vũ trụ", "desc": ["bầu trời đêm · Ngưu Lang · tỷ tỷ", "sao · trắng mờ · vũ trụ"], "emoji": "🌌 ⭐ 🔭"},
+      {"word": "hố đen", "hint": "Vũ trụ", "desc": ["vũ trụ · Einstein · bí ẩn", "hút · ánh sáng · không thoát"], "emoji": "🌌 🕳️ ⚫"},
+      {"word": "mưa đá", "hint": "Thời tiết", "desc": ["vỡ ngói · hè · miền núi", "hạt băng · rơi · lạnh"], "emoji": "🧊 🌩️ 🏠"},
+      {"word": "lốc xoáy", "hint": "Thiên tai", "desc": ["Mỹ · đồng bằng · cuốn bay", "vòi xoắn · gió cực mạnh · phễu"], "emoji": "🌪️ 🏚️ 💨"},
+      {"word": "ốc đảo", "hint": "Địa điểm", "desc": ["sa mạc · lạc đà · nghỉ chân", "nước · cây chà là · xanh"], "emoji": "🏜️ 🌴 💧"},
+      {"word": "rạn san hô", "hint": "Thiên nhiên", "desc": ["lặn biển · Nha Trang · cá nhiều màu", "đáy biển · đá vôi · rực rỡ"], "emoji": "🤿 🐠 🪸"},
+      {"word": "đầm lầy", "hint": "Địa hình", "desc": ["cá sấu · ếch · lau sậy", "bùn · ngập · nước đọng"], "emoji": "🐊 🐸 🌾"},
+      {"word": "núi băng", "hint": "Thiên nhiên", "desc": ["Titanic · Bắc Cực · trôi", "tảng · lạnh · chìm phần lớn"], "emoji": "🚢 🧊 🐻‍❄️"},
+      {"word": "hoàng hôn", "hint": "Thời gian", "desc": ["biển · chiều tà · lãng mạn", "mặt trời lặn · ráng đỏ · cuối ngày"], "emoji": "🌇 🏖️ 🧡"},
+      {"word": "bình minh", "hint": "Thời gian", "desc": ["sáng sớm · gà gáy · tập thể dục", "mặt trời mọc · rạng đông · đầu ngày"], "emoji": "🐓 🌄 🌅"},
+      {"word": "nguyệt thực", "hint": "Hiện tượng", "desc": ["đêm rằm · hiếm · trăng máu", "bóng Trái Đất · đỏ · che khuất"], "emoji": "🌕 🌑 🔴"},
+      {"word": "cát lún", "hint": "Thiên nhiên", "desc": ["phim phiêu lưu · sa mạc · nguy hiểm", "sụt · kéo xuống · mắc kẹt"], "emoji": "🏜️ 🆘 ⬇️"},
+      {"word": "bánh cuốn", "hint": "Món ăn", "desc": ["Thanh Trì · bữa sáng · hấp", "mỏng · nhân thịt · hành phi"], "emoji": "🥟 🧅 🍳"},
+      {"word": "bún bò", "hint": "Món ăn", "desc": ["Huế · cay · sả", "sợi to · giò heo · chả cua"], "emoji": "🌶️ 🍜 🐄"},
+      {"word": "cao lầu", "hint": "Món ăn", "desc": ["Hội An · phố cổ · đặc sản", "sợi vàng · xá xíu · ít nước"], "emoji": "🏮 🍜 🥩"},
+      {"word": "mì quảng", "hint": "Món ăn", "desc": ["Đà Nẵng · miền Trung · bánh tráng", "sợi to · ít nước · đậu phộng"], "emoji": "🍜 🥜 🦐"},
+      {"word": "bánh căn", "hint": "Món ăn", "desc": ["Phan Rang · khuôn đất · nóng giòn", "trứng · nước chấm · nhỏ tròn"], "emoji": "🍳 🥚 🫓"},
+      {"word": "bánh bèo", "hint": "Món ăn", "desc": ["Huế · chén nhỏ · tôm chấy", "bột gạo · mỡ hành · hấp"], "emoji": "🦐 🍚 🥣"},
+      {"word": "hủ tiếu", "hint": "Món ăn", "desc": ["Nam Vang · Sài Gòn · xe đẩy", "sợi dai · nước trong · gan heo"], "emoji": "🍜 🐷 🥢"},
+      {"word": "cháo lòng", "hint": "Món ăn", "desc": ["quán vỉa hè · dồi · tiết", "nóng hổi · gạo · nội tạng"], "emoji": "🥣 🐷 🌶️"},
+      {"word": "ốc luộc", "hint": "Món ăn", "desc": ["vỉa hè · tăm · nhậu", "lá chanh · gừng · khều"], "emoji": "🐚 🍋 🥢"},
+      {"word": "bánh tráng trộn", "hint": "Món ăn", "desc": ["học sinh · cổng trường · Tây Ninh", "xoài · trứng cút · khô bò"], "emoji": "🥗 🥚 🌶️"},
+      {"word": "cơm cháy", "hint": "Món ăn", "desc": ["đáy nồi · Ninh Bình · mỡ hành", "giòn · vàng · chà bông"], "emoji": "🍚 🔥 🥢"},
+      {"word": "bánh flan", "hint": "Món tráng miệng", "desc": ["caramen · trứng · sữa", "mềm · ngọt · hấp"], "emoji": "🍮 🥚 🥛"},
+      {"word": "sữa chua", "hint": "Món tráng miệng", "desc": ["men · tủ lạnh · tiêu hóa", "hũ · mát · lợi khuẩn"], "emoji": "🥛 🧊 🍓"},
+      {"word": "trứng vịt lộn", "hint": "Món ăn", "desc": ["rau răm · muối tiêu · buổi tối", "phôi · luộc · bổ"], "emoji": "🥚 🌿 🧂"},
+      {"word": "bò bía", "hint": "Món ăn", "desc": ["xe đẩy · trường học · lạp xưởng", "cuốn · củ sắn · tôm khô"], "emoji": "🌯 🦐 🥢"},
+      {"word": "lẩu thái", "hint": "Món ăn", "desc": ["chua cay · nồi to · tụ tập", "tôm yum · nấm · sả"], "emoji": "🍲 🌶️ 🦐"},
+      {"word": "bánh khọt", "hint": "Món ăn", "desc": ["Vũng Tàu · khuôn · tôm", "giòn · nhỏ · cuốn rau"], "emoji": "🦐 🍳 🥬"},
+      {"word": "nước sâm", "hint": "Đồ uống", "desc": ["mùa hè · thanh nhiệt · ve chai", "mát · rễ tranh · la hán"], "emoji": "🥤 🌿 🧊"},
+      {"word": "rau má", "hint": "Đồ uống", "desc": ["thanh nhiệt · xay · đậu xanh", "xanh · mát · lá tròn"], "emoji": "🌿 🥤 💚"},
+      {"word": "hải đăng", "hint": "Công trình", "desc": ["biển · ban đêm · tàu thuyền", "tháp · đèn quay · dẫn đường"], "emoji": "🗼 🚢 💡"},
+      {"word": "cối xay gió", "hint": "Công trình", "desc": ["Hà Lan · đồng cỏ · Don Quixote", "cánh quạt · quay · nghiền bột"], "emoji": "🇳🇱 🌬️ 🌾"},
+      {"word": "nhà thờ", "hint": "Công trình", "desc": ["Noel · chuông · lễ", "tháp nhọn · cửa kính màu · thánh giá"], "emoji": "⛪ 🔔 🎄"},
+      {"word": "lâu đài", "hint": "Công trình", "desc": ["công chúa · hoàng tử · cổ tích", "tháp · tường đá · vua"], "emoji": "🏰 👑 👸"},
+      {"word": "kim tự tháp", "hint": "Công trình", "desc": ["Ai Cập · xác ướp · pharaoh", "đá · hình chóp · sa mạc"], "emoji": "🇪🇬 🏜️ 🔺"},
+      {"word": "đấu trường", "hint": "Công trình", "desc": ["La Mã · gladiator · sư tử", "khán đài · hình tròn · giao chiến"], "emoji": "🏛️ ⚔️ 🦁"},
+      {"word": "bảo tàng", "hint": "Địa điểm", "desc": ["hiện vật · lịch sử · tham quan", "trưng bày · cổ vật · không chạm"], "emoji": "🏛️ 🏺 🦖"},
+      {"word": "sở thú", "hint": "Địa điểm", "desc": ["cuối tuần · trẻ con · vé vào cổng", "chuồng · khỉ · voi"], "emoji": "🦁 🦒 🎟️"},
+      {"word": "tiệm bánh", "hint": "Địa điểm", "desc": ["mùi thơm · lò nướng · sáng sớm", "ngọt · bơ · tủ kính"], "emoji": "🥐 🎂 🍞"},
+      {"word": "nhà ga", "hint": "Địa điểm", "desc": ["tàu hoả · sân chờ · vé", "đón · tiễn · đường ray"], "emoji": "🚉 🧳 🎫"},
+      {"word": "bến cảng", "hint": "Địa điểm", "desc": ["container · tàu biển · cần cẩu", "neo · bốc dỡ · cầu tàu"], "emoji": "🚢 ⚓ 🏗️"},
+      {"word": "cây cầu", "hint": "Công trình", "desc": ["sông · Long Biên · xe cộ", "bắc qua · trụ · hai bờ"], "emoji": "🌉 🚗 🌊"},
+      {"word": "đường hầm", "hint": "Công trình", "desc": ["đèo · núi · Hải Vân", "xuyên qua · tối · dưới lòng đất"], "emoji": "🚇 🏔️ 🔦"},
+      {"word": "trạm xăng", "hint": "Địa điểm", "desc": ["xe máy · nhân viên · vòi bơm", "đổ · nhiên liệu · tiền"], "emoji": "⛽ 🏍️ 💵"},
+      {"word": "nhà kính", "hint": "Công trình", "desc": ["Đà Lạt · rau sạch · nông nghiệp", "ấm · tấm nhựa · trồng"], "emoji": "🏡 🌱 🍅"},
+      {"word": "giếng nước", "hint": "Công trình", "desc": ["làng quê · gàu · sân đình", "sâu · múc · trong mát"], "emoji": "🪣 💧 🏡"},
+      {"word": "quảng trường", "hint": "Địa điểm", "desc": ["Ba Đình · đông người · bồ câu", "rộng · lễ hội · trung tâm"], "emoji": "🕊️ 🎉 🏛️"},
+      {"word": "ký túc xá", "hint": "Địa điểm", "desc": ["sinh viên · giường tầng · bạn cùng phòng", "ở · trường đại học · mì gói"], "emoji": "🎓 🛏️ 🍜"},
+      {"word": "tòa án", "hint": "Địa điểm", "desc": ["thẩm phán · luật sư · bị cáo", "xét xử · búa gỗ · công lý"], "emoji": "⚖️ 👨‍⚖️ 🔨"},
+      {"word": "thợ lặn", "hint": "Nghề nghiệp", "desc": ["biển sâu · chân vịt · kính bơi", "bình dưỡng khí · san hô · đáy biển"], "emoji": "🤿 🌊 🐠"},
+      {"word": "thủ thư", "hint": "Nghề nghiệp", "desc": ["sách · im lặng · thẻ mượn", "sắp xếp · cho mượn · kệ"], "emoji": "📚 🤫 🗂️"},
+      {"word": "ảo thuật gia", "hint": "Nghề nghiệp", "desc": ["sân khấu · mũ chóp · thỏ", "biến mất · bài · lừa mắt"], "emoji": "🎩 🐇 🃏"},
+      {"word": "phi hành gia", "hint": "Nghề nghiệp", "desc": ["NASA · tên lửa · không trọng lực", "vũ trụ · mũ kính · đổ bộ"], "emoji": "🚀 👨‍🚀 🌕"},
+      {"word": "thám tử", "hint": "Nghề nghiệp", "desc": ["Sherlock Holmes · manh mối · tẩu thuốc", "điều tra · phá án · kính lúp"], "emoji": "🕵️ 🔍 🧩"},
+      {"word": "bảo vệ", "hint": "Nghề nghiệp", "desc": ["đồng phục · cổng · ca đêm", "canh gác · giữ xe · an ninh"], "emoji": "💂 🚧 🔦"},
+      {"word": "thợ mộc", "hint": "Nghề nghiệp", "desc": ["gỗ · cưa · đục", "đóng · tủ · bàn ghế"], "emoji": "🪵 🪚 🔨"},
+      {"word": "thợ rèn", "hint": "Nghề nghiệp", "desc": ["lò lửa · đe · làng nghề", "sắt nung · búa · dao"], "emoji": "🔥 ⚒️ 🗡️"},
+      {"word": "người mẫu", "hint": "Nghề nghiệp", "desc": ["sàn diễn · thời trang · cao ráo", "catwalk · chụp ảnh · tạo dáng"], "emoji": "👗 📸 💃"},
+      {"word": "diễn viên", "hint": "Nghề nghiệp", "desc": ["phim · kịch bản · thảm đỏ", "đóng vai · vào vai · ống kính"], "emoji": "🎬 🎭 🌟"},
+      {"word": "phiên dịch", "hint": "Nghề nghiệp", "desc": ["ngoại ngữ · hội nghị · tai nghe", "chuyển ngữ · nói · song song"], "emoji": "🗣️ 🌐 🎧"},
+      {"word": "kiến trúc sư", "hint": "Nghề nghiệp", "desc": ["bản vẽ · nhà cao tầng · mô hình", "thiết kế · công trình · ý tưởng"], "emoji": "📐 🏙️ ✏️"},
+      {"word": "nha sĩ", "hint": "Nghề nghiệp", "desc": ["ghế nằm · khoan · sâu răng", "nhổ · niềng · trám"], "emoji": "🦷 🪥 😬"},
+      {"word": "dược sĩ", "hint": "Nghề nghiệp", "desc": ["đơn thuốc · quầy · áo blouse", "bán · kê · liều lượng"], "emoji": "💊 🧾 🏥"},
+      {"word": "thú y", "hint": "Nghề nghiệp", "desc": ["chó mèo · tiêm phòng · chuồng", "chữa · động vật · bệnh"], "emoji": "🐶 💉 🐄"},
+      {"word": "quản gia", "hint": "Nghề nghiệp", "desc": ["biệt thự · lịch sự · đồng phục", "phục vụ · trông nhà · ông chủ"], "emoji": "🎩 🏰 🍷"},
+      {"word": "bưu tá", "hint": "Nghề nghiệp", "desc": ["phong bì · tem · xe đạp", "giao · gõ cửa · địa chỉ"], "emoji": "✉️ 📬 🚲"},
+      {"word": "đạo diễn", "hint": "Nghề nghiệp", "desc": ["phim trường · máy quay · ngôi sao", "cảnh quay · hô cắt · kịch bản"], "emoji": "🎬 🎥 📣"},
+      {"word": "trọng tài", "hint": "Nghề nghiệp", "desc": ["sân bóng · còi · thẻ đỏ", "phạt · bắt lỗi · công bằng"], "emoji": "⚽ 🟥 📣"},
+      {"word": "thủy thủ", "hint": "Nghề nghiệp", "desc": ["tàu biển · mỏ neo · áo sọc", "ra khơi · boong tàu · sóng gió"], "emoji": "⚓ 🚢 🌊"},
+      {"word": "lướt sóng", "hint": "Thể thao", "desc": ["Hawaii · bãi biển · mùa hè", "ván · thăng bằng · biển động"], "emoji": "🏄 🌊 ☀️"},
+      {"word": "nhảy dù", "hint": "Thể thao", "desc": ["máy bay · độ cao · dũng cảm", "rơi tự do · mở · tiếp đất"], "emoji": "🪂 ✈️ ☁️"},
+      {"word": "trượt tuyết", "hint": "Thể thao", "desc": ["núi · Hàn Quốc · mùa đông", "ván · dốc · gậy"], "emoji": "⛷️ 🏔️ ❄️"},
+      {"word": "bắn cung", "hint": "Thể thao", "desc": ["Robin Hood · hồng tâm · tập trung", "mũi tên · dây · nhắm"], "emoji": "🏹 🎯 🌲"},
+      {"word": "đấu kiếm", "hint": "Thể thao", "desc": ["mặt nạ · Pháp · hiệp sĩ", "đâm · gươm mảnh · ra đòn"], "emoji": "🤺 🗡️ 🎭"},
+      {"word": "quyền anh", "hint": "Thể thao", "desc": ["võ đài · găng · hiệp đấu", "đấm · nốc ao · né"], "emoji": "🥊 🥇 💪"},
+      {"word": "leo núi", "hint": "Hoạt động", "desc": ["đỉnh cao · balo · dây an toàn", "vách đá · trèo · chinh phục"], "emoji": "🧗 🏔️ 🎒"},
+      {"word": "cắm trại", "hint": "Hoạt động", "desc": ["lửa · rừng · bạn bè", "lều · ngủ ngoài trời · nướng"], "emoji": "⛺ 🔥 🌲"},
+      {"word": "câu cá", "hint": "Hoạt động", "desc": ["ao hồ · kiên nhẫn · cuối tuần", "cần · mồi · phao"], "emoji": "🎣 🐟 🪱"},
+      {"word": "đua thuyền", "hint": "Thể thao", "desc": ["lễ hội · sông · chèo", "mái chèo · tốc độ · đồng đội"], "emoji": "🚣 🏁 🌊"},
+      {"word": "cưỡi ngựa", "hint": "Hoạt động", "desc": ["cao bồi · trang trại · yên", "phi nước đại · dây cương · lưng"], "emoji": "🤠 🐎 🏇"},
+      {"word": "yoga", "hint": "Thể thao", "desc": ["thiền · thảm · dẻo dai", "tư thế · hít thở · căng cơ"], "emoji": "🧘 🌿 🙏"},
+      {"word": "xếp hình", "hint": "Trò chơi", "desc": ["mảnh ghép · kiên nhẫn · bức tranh", "ráp · khớp · hoàn thiện"], "emoji": "🧩 🖼️ 🧠"},
+      {"word": "đánh đu", "hint": "Trò chơi dân gian", "desc": ["lễ hội · cây tre · Tết", "bay lên · đẩy · dây"], "emoji": "🎋 🎊 🎢"},
+      {"word": "kéo co", "hint": "Trò chơi dân gian", "desc": ["hội làng · đồng đội · hò dô", "sợi thừng · hai bên · giằng"], "emoji": "🪢 💪 🏆"},
+      {"word": "ô ăn quan", "hint": "Trò chơi dân gian", "desc": ["hòn sỏi · sân đất · bàn cờ vẽ", "rải · đếm sỏi · ván cờ"], "emoji": "🪨 ⬜ 👧"},
+      {"word": "bắn bi", "hint": "Trò chơi dân gian", "desc": ["sân đất · trẻ con · lỗ", "viên thủy tinh · búng · trúng"], "emoji": "🔮 👦 🕳️"},
+      {"word": "cờ tướng", "hint": "Trò chơi trí tuệ", "desc": ["công viên · ông cụ · Trung Hoa", "pháo · mã · sông giữa bàn"], "emoji": "♟️ 🧓 🏮"},
+      {"word": "ký ức", "hint": "Khái niệm", "desc": ["ngày xưa · hồi tưởng · album", "nhớ lại · hoài niệm · trong đầu"], "emoji": ""},
+      {"word": "định mệnh", "hint": "Khái niệm", "desc": ["duyên số · số phận · ông Tơ bà Nguyệt", "không tránh được · sắp đặt · gặp gỡ"], "emoji": ""},
+      {"word": "sự im lặng", "hint": "Khái niệm", "desc": ["thư viện · nửa đêm · vàng", "không tiếng · yên ắng · nín thinh"], "emoji": "🤫 🌙 🔇"},
+      {"word": "tự trọng", "hint": "Khái niệm", "desc": ["danh dự · lòng · ngẩng cao đầu", "giữ mình · không cúi · liêm sỉ"], "emoji": ""},
+      {"word": "biết ơn", "hint": "Khái niệm", "desc": ["thầy cô · cha mẹ · uống nước nhớ nguồn", "đền đáp · ghi nhớ · tri ân"], "emoji": "🙏 💐 💛"},
+      {"word": "kiên nhẫn", "hint": "Khái niệm", "desc": ["câu cá · chờ đợi · nước chảy đá mòn", "bền bỉ · không vội · chịu khó"], "emoji": ""},
+      {"word": "tự do", "hint": "Khái niệm", "desc": ["chim bay · không xiềng xích · độc lập", "làm điều mình muốn · thả · bay nhảy"], "emoji": "🕊️ ⛓️ 🗽"},
+      {"word": "công bằng", "hint": "Khái niệm", "desc": ["cán cân · tòa án · chia đều", "không thiên vị · đúng · ngang nhau"], "emoji": "⚖️ 🤝 🍰"},
+      {"word": "may mắn", "hint": "Khái niệm", "desc": ["cỏ bốn lá · xổ số · vía", "hên · trúng · thuận lợi"], "emoji": "🍀 🎰 🧧"},
+      {"word": "bí mật", "hint": "Khái niệm", "desc": ["thì thầm · giữ kín · nhật ký", "giấu · không kể · riêng tư"], "emoji": "🤫 🔐 📔"},
+      {"word": "hy vọng", "hint": "Khái niệm", "desc": ["ngày mai · ánh sáng cuối đường · ước mơ", "mong chờ · niềm tin · tốt đẹp"], "emoji": "🌱 🌅 🙏"},
+      {"word": "tò mò", "hint": "Khái niệm", "desc": ["trẻ con · hỏi nhiều · mèo", "muốn biết · khám phá · ngó nghiêng"], "emoji": "🧐 🐱 ❓"},
+      {"word": "cô đơn", "hint": "Khái niệm", "desc": ["một mình · đêm dài · nhớ nhà", "lẻ loi · không ai · trống vắng"], "emoji": "🌧️ 🪑 🌙"},
+      {"word": "ghen tị", "hint": "Khái niệm", "desc": ["so sánh · hàng xóm · mắt xanh", "đố kỵ · không vui · thèm muốn"], "emoji": "😒 💚 👀"},
+      {"word": "lười biếng", "hint": "Khái niệm", "desc": ["nằm dài · bài tập · ngại", "không muốn làm · trì hoãn · ngủ nướng"], "emoji": "🦥 🛋️ 😴"},
+      {"word": "dũng cảm", "hint": "Khái niệm", "desc": ["anh hùng · chiến sĩ · không sợ", "gan dạ · xông pha · can đảm"], "emoji": "🦁 🛡️ 💪"},
+      {"word": "tha thứ", "hint": "Khái niệm", "desc": ["xin lỗi · bao dung · bỏ qua", "không giận · cho qua · rộng lượng"], "emoji": "🤝 🕊️ 💗"},
+      {"word": "trách nhiệm", "hint": "Khái niệm", "desc": ["người lớn · công việc · gánh vác", "bổn phận · nhận lỗi · làm tròn"], "emoji": ""},
+      {"word": "thành công", "hint": "Khái niệm", "desc": ["nỗ lực · đỉnh cao · vinh quang", "chiến thắng · đạt được · đích đến"], "emoji": "🏆 📈 🎉"},
+      {"word": "kiêu ngạo", "hint": "Khái niệm", "desc": ["tự mãn · coi thường · mũi hếch", "tự cao · hống hách · coi trời bằng vung"], "emoji": "😏 👑 🦚"},
+      {"word": "tò he", "hint": "Văn hoá", "desc": ["hội làng · Phú Xuyên · trẻ con", "bột màu · nặn · que tre"], "emoji": "🎨 🧸 🎋"},
+      {"word": "chong chóng", "hint": "Đồ chơi", "desc": ["gió · trẻ con · giấy màu", "quay tít · cánh · que cầm"], "emoji": "🌬️ 🌀 🎏"},
+      {"word": "bù nhìn", "hint": "Văn hoá", "desc": ["cánh đồng · chim chóc · đuổi", "rơm · nón cũ · đứng yên"], "emoji": "🌾 🐦 👒"},
+      {"word": "đèn kéo quân", "hint": "Văn hoá", "desc": ["Trung thu · giấy · nến", "xoay vòng · bóng hình · lính"], "emoji": "🏮 🕯️ 🔄"},
+      {"word": "câu đối", "hint": "Văn hoá", "desc": ["Tết · ông đồ · giấy đỏ", "chữ · hai vế · treo cửa"], "emoji": "🧧 🖌️ 📜"},
+      {"word": "bánh tét", "hint": "Món ăn ngày Tết", "desc": ["miền Nam · lá chuối · hình trụ", "nếp · đậu · cắt khoanh"], "emoji": "🍃 🧧 🍙"},
+      {"word": "quan họ", "hint": "Văn hoá", "desc": ["Bắc Ninh · liền anh liền chị · thuyền", "hát · dân ca · khăn mỏ quạ"], "emoji": "🎶 🛶 👘"},
+      {"word": "cồng chiêng", "hint": "Văn hoá", "desc": ["Tây Nguyên · lễ hội · nhà rông", "đồng · gõ · âm vang"], "emoji": "🥁 🔥 🛖"},
+      {"word": "rối nước", "hint": "Văn hoá", "desc": ["Thăng Long · chú Tễu · ao làng", "điều khiển · thủy đình · que tre"], "emoji": "🎭 🌊 🪵"},
+      {"word": "áo tứ thân", "hint": "Trang phục", "desc": ["Kinh Bắc · quan họ · dân gian", "bốn vạt · yếm · khăn vấn"], "emoji": "👘 🎶 🌾"},
+      {"word": "mâm ngũ quả", "hint": "Văn hoá", "desc": ["Tết · bàn thờ · cầu may", "năm loại · trái cây · bày"], "emoji": "🍊 🍌 🍈"},
+      {"word": "cây nêu", "hint": "Văn hoá", "desc": ["Tết · trước sân · trừ tà", "tre cao · treo · cờ phướn"], "emoji": "🎋 🧧 🏡"},
+      {"word": "thư pháp", "hint": "Văn hoá", "desc": ["ông đồ · giấy dó · Tết", "chữ đẹp · bút lông · mực tàu"], "emoji": "🖌️ 📜 🧧"},
+      {"word": "đàn bầu", "hint": "Nhạc cụ", "desc": ["truyền thống · một dây · ngân nga", "vỏ hồ lô · cần · gảy"], "emoji": "🎻 🎶 🇻🇳"},
+      {"word": "ca trù", "hint": "Văn hoá", "desc": ["cổ xưa · đào nương · phách", "hát · đàn đáy · trống chầu"], "emoji": "🎶 🥁 🏯"},
+      {"word": "khăn rằn", "hint": "Trang phục", "desc": ["Nam Bộ · miền Tây · dân dã", "ca rô · quàng cổ · đen trắng"], "emoji": "🧣 🌾 🛶"},
+      {"word": "kính hiển vi", "hint": "Khoa học", "desc": ["phòng thí nghiệm · tế bào · sinh học", "phóng đại · tiêu bản · soi"], "emoji": "🔬 🦠 🧪"},
+      {"word": "nam châm", "hint": "Khoa học", "desc": ["tủ lạnh · la bàn · sắt", "hút · hai cực · từ trường"], "emoji": "🧲 🧭 📎"},
+      {"word": "tên lửa", "hint": "Khoa học", "desc": ["vũ trụ · phóng · đếm ngược", "động cơ · khói trắng · bay cao"], "emoji": "🚀 🔥 🌌"},
+      {"word": "trạm vũ trụ", "hint": "Khoa học", "desc": ["quỹ đạo · phi hành gia · không trọng lực", "lơ lửng · Trái Đất · nghiên cứu"], "emoji": "🛰️ 👨‍🚀 🌍"},
+      {"word": "phi thuyền", "hint": "Khoa học", "desc": ["người ngoài hành tinh · UFO · viễn tưởng", "đĩa bay · vũ trụ · hạ cánh"], "emoji": "🛸 👽 🌌"},
+      {"word": "máy in", "hint": "Công nghệ", "desc": ["văn phòng · giấy A4 · photo", "mực · kẹt giấy · tài liệu"], "emoji": "🖨️ 📄 🖋️"},
+      {"word": "mã vạch", "hint": "Công nghệ", "desc": ["siêu thị · quầy thu ngân · sản phẩm", "quét · sọc đen · tít"], "emoji": "🏷️ 🛒 📟"},
+      {"word": "mật khẩu", "hint": "Công nghệ", "desc": ["tài khoản · quên · đăng nhập", "ký tự · đổi định kỳ · giữ kín"], "emoji": "🔐 💻 🤫"},
+      {"word": "máy chiếu", "hint": "Công nghệ", "desc": ["hội trường · thuyết trình · phòng tối", "phông trắng · đèn · slide"], "emoji": "📽️ 🖥️ 👨‍🏫"},
+      {"word": "ổ cứng", "hint": "Công nghệ", "desc": ["máy tính · dữ liệu · sao lưu", "lưu trữ · gigabyte · hỏng"], "emoji": "💾 💻 📁"},
+      {"word": "điều hòa", "hint": "Đồ điện gia dụng", "desc": ["mùa hè · tiền điện · phòng kín", "làm lạnh · remote · mát rượi"], "emoji": "❄️ 🏠 🌡️"},
+      {"word": "máy hút bụi", "hint": "Đồ điện gia dụng", "desc": ["dọn nhà · thảm · cuối tuần", "ống dài · sàn sạch · cắm điện"], "emoji": "🧹 🏠 🔌"},
+      {"word": "lò vi sóng", "hint": "Đồ điện gia dụng", "desc": ["nhà bếp · hâm nóng · quay", "kêu tinh · bỏng ngô · hộp kính"], "emoji": "🍿 🔥 🍲"},
+      {"word": "thang máy", "hint": "Công trình", "desc": ["nhà cao tầng · chung cư · kẹt", "lên xuống · nút bấm · tầng"], "emoji": "🏢 🔼 🔽"},
+      {"word": "camera", "hint": "Công nghệ", "desc": ["an ninh · góc nhà · ghi hình", "quay · theo dõi · ống kính"], "emoji": "📹 👁️ 🏠"},
+      {"word": "đèn đỏ", "hint": "Giao thông", "desc": ["ngã tư · cột tín hiệu · cảnh sát", "dừng lại · chờ · vượt"], "emoji": "🚦 🛑 🚗"},
+      {"word": "bóng đèn", "hint": "Đồ vật", "desc": ["Edison · ý tưởng · trần nhà", "sáng · dây tóc · thủy tinh"], "emoji": "💡 🔌 🏠"},
+      {"word": "nhiệt kế", "hint": "Khoa học", "desc": ["sốt · bác sĩ · trán nóng", "thủy ngân · độ C · kẹp nách"], "emoji": "🌡️ 🤒 💊"},
+      {"word": "ống nghiệm", "hint": "Khoa học", "desc": ["hóa học · áo blouse · phòng lab", "thủy tinh · dung dịch · lắc"], "emoji": "🧪 🥼 ⚗️"},
+      {"word": "dây chuyền", "hint": "Trang sức", "desc": ["cổ · vàng bạc · quà tặng", "đeo · mặt đá · lấp lánh"], "emoji": "💎 💝 ✨"},
+      {"word": "chiếc nhẫn", "hint": "Trang sức", "desc": ["cầu hôn · ngón tay · kim cương", "đeo · tròn · vàng"], "emoji": "💍 💎 💑"},
+      {"word": "mặt nạ", "hint": "Đồ vật", "desc": ["lễ hội · hóa trang · Halloween", "che · giấu · vai diễn"], "emoji": "🎭 🎃 👺"},
+      {"word": "đồng xu", "hint": "Đồ vật", "desc": ["tung · sấp ngửa · ống heo", "kim loại · tròn · tiền lẻ"], "emoji": "🪙 🐷 🎲"},
+      {"word": "ống heo", "hint": "Đồ vật", "desc": ["tiết kiệm · trẻ con · đập vỡ", "bỏ tiền · nhựa · bụng to"], "emoji": "🐷 💰 🔨"},
+      {"word": "bao lì xì", "hint": "Văn hoá", "desc": ["Tết · trẻ con · mừng tuổi", "phong bì · đỏ · tiền"], "emoji": "🧧 🎋 💵"},
+      {"word": "pháo bông", "hint": "Đồ chơi", "desc": ["Tết · que · tóe lửa", "cầm tay · sáng lấp lánh · đốt"], "emoji": "🎇 ✨ 🎆"},
+      {"word": "diều sáo", "hint": "Đồ chơi", "desc": ["Bắc Bộ · đê làng · tiếng vi vu", "bay cao · ống tre · gió"], "emoji": "🪁 🎶 🌾"},
+      {"word": "con quay", "hint": "Đồ chơi", "desc": ["trẻ con · dây quấn · sàn", "xoay tít · cân bằng · gỗ"], "emoji": "🌀 🧒 🪵"},
+      {"word": "búp bê", "hint": "Đồ chơi", "desc": ["con gái · váy · tóc dài", "chơi · đồ hàng · nhựa"], "emoji": "🎎 👗 🧸"},
+      {"word": "xích đu", "hint": "Đồ chơi", "desc": ["sân chơi · công viên · trẻ con", "đung đưa · ngồi · đẩy"], "emoji": "🛝 🌳 👧"},
+      {"word": "cầu trượt", "hint": "Đồ chơi", "desc": ["sân chơi · công viên · mầm non", "dốc · leo bậc · tuột xuống"], "emoji": "🛝 🧒 🌳"},
+      {"word": "bể bơi", "hint": "Địa điểm", "desc": ["mùa hè · áo phao · khu nghỉ dưỡng", "nước xanh · lặn · làn"], "emoji": "🏊 💦 ☀️"},
+      {"word": "sân khấu", "hint": "Địa điểm", "desc": ["đèn chiếu · khán giả · màn nhung", "biểu diễn · diễn viên · hậu trường"], "emoji": "🎭 🎤 💡"},
+      {"word": "khán đài", "hint": "Địa điểm", "desc": ["sân vận động · cổ động viên · hò reo", "ghế · bậc · xem"], "emoji": "🏟️ 📣 🎉"},
+      {"word": "nhà tù", "hint": "Địa điểm", "desc": ["song sắt · cai ngục · tội phạm", "giam · vượt ngục · án"], "emoji": "⛓️ 🔒 👮"},
+      {"word": "mê cung", "hint": "Địa điểm", "desc": ["lạc đường · lối ra · tường cao", "ngõ cụt · rẽ · tìm đường"], "emoji": "🌀 🧱 🚪"},
+      {"word": "cầu thang", "hint": "Công trình", "desc": ["nhà nhiều tầng · lan can · bước", "bậc · leo · lên xuống"], "emoji": "🪜 🏠 ⬆️"},
+      {"word": "mái nhà", "hint": "Công trình", "desc": ["ngói đỏ · dột · chim đậu", "che mưa · trên cùng · nóc"], "emoji": "🏠 🌧️ 🐦"},
+      {"word": "ống khói", "hint": "Công trình", "desc": ["lò sưởi · nhà máy · Noel", "cao · thoát ra · muội đen"], "emoji": "🏭 🎅 💨"},
+      {"word": "tổ chim", "hint": "Thiên nhiên", "desc": ["cành cây · trứng · rơm", "xây · nuôi con · đan"], "emoji": "🌳 🥚 🐣"},
+      {"word": "mạng nhện", "hint": "Thiên nhiên", "desc": ["góc nhà · bụi · sương sớm", "tơ · bẫy · giăng"], "emoji": "🕸️ 🕷️ 💧"}
     ]
   }
 }
