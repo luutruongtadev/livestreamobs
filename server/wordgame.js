@@ -3,6 +3,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { canon, isExact } from './scorer.js';
 import { makePausable } from './pause.js';
+import { TeamMatch } from './teams.js';
 
 /** Tên hiển thị → chuỗi ô chữ: bỏ dấu nháy, chấm, & ... thành khoảng trắng ("Kai'Sa" → "kai sa"). */
 export const toSecret = (name) => canon(String(name || '').replace(/[^\p{L}\p{N} ]+/gu, ' '));
@@ -49,6 +50,7 @@ export class WordGame extends EventEmitter {
   constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {}, weekly = null } = {}) {
     super();
     this.weekly = weekly; // bảng xếp hạng tuần (WeeklyBoard), có thể null
+    this.teams = new TeamMatch(config.team || {}); // chế độ đấu đội (admin bật / tắt)
     // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
     // Bộ "tu-vung" (mặc định) dùng kho từ do Claude sinh + config.words.
     this.wordSets = wordSets;
@@ -75,6 +77,7 @@ export class WordGame extends EventEmitter {
       this.roundNo = s.roundNo || 0;
       this.recent = s.recent || [];
       this.priority = Array.isArray(s.priority) ? s.priority : [];
+      this.teams.load(s.team);
       if (s.activeSet && (s.activeSet === 'tu-vung' || this.wordSets?.[s.activeSet])) this.activeSet = s.activeSet;
     } catch { /* chưa có */ }
   }
@@ -83,7 +86,7 @@ export class WordGame extends EventEmitter {
     this.scorer?.saveCache?.();
     if (!this.statePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority }));
+    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority, team: this.teams.toJSON() }));
     this.dirty = false;
   }
 
@@ -169,6 +172,7 @@ export class WordGame extends EventEmitter {
     this.scoredCount = 0;
     this.recent.push(this.secret);
     this.recent = this.recent.slice(-30);
+    this.teams?.onRoundStart();
     this.dirty = true;
     return [{ type: 'wg_start', round: this.roundNo }];
   }
@@ -205,19 +209,33 @@ export class WordGame extends EventEmitter {
   }
 
   handle(ev) {
-    const fx = this.handleEvent(ev);
     const by = ev.user?.id ? { id: ev.user.id, name: ev.user.name, avatar: ev.user.avatar } : null;
+    // đấu đội: comment "đội đỏ" / "đội xanh" để vào đội (không tính là lượt đoán)
+    const pre = [];
+    if (this.teams.on && ev.type === 'comment' && by && !this.paused) {
+      const joined = this.teams.joinFromText(by, ev.text);
+      if (joined) { this.dirty = true; return joined; }
+      // chưa có đội mà đoán → tự vào đội ít người hơn
+      if (this.phase === 'playing' && parseGuess(ev.text, this.cfg)) pre.push(...this.teams.ensureMember(by));
+    }
+    const fx = [...pre, ...this.handleEvent(ev)];
     // ai tặng quà cũng được cảm ơn đích danh (kể cả lúc nghỉ giữa vòng / tạm dừng) + tích điểm thưởng tuần
     if (ev.type === 'gift' && by) {
       const repeat = Math.max(1, ev.repeatCount | 0 || 1);
       const unit = Math.max(0, Number(ev.diamonds) || 0);
       const bonus = this.weekly?.addBonus(by, { diamonds: unit * repeat }) || { add: 0, total: 0 };
       fx.push({ type: 'wg_thanks', by, giftName: ev.giftName || 'quà', giftImage: ev.giftImage || null, repeat, diamonds: unit * repeat, bonusAdd: bonus.add, bonusTotal: bonus.total });
+      const tp = this.teams.addPoints(by, Math.round(unit * repeat * this.teams.cfg.perDiamond), 'gift');
+      if (tp) { fx.push(tp); this.dirty = true; }
     }
     // chia sẻ live: tích điểm thưởng, cộng vào lần đoán đúng tiếp theo
     if (ev.type === 'share' && by && this.weekly) {
       const bonus = this.weekly.addBonus(by, { shares: 1 });
       fx.push({ type: 'wg_bonus', kind: 'share', by, add: bonus.add, total: bonus.total });
+    }
+    if (ev.type === 'share' && by) {
+      const tp = this.teams.addPoints(by, this.teams.cfg.perShare, 'share');
+      if (tp) { fx.push(tp); this.dirty = true; }
     }
     return fx;
   }
@@ -373,7 +391,13 @@ export class WordGame extends EventEmitter {
     this.winner.points = points;
     this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
+    const fx = [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
+    // đấu đội: đội của người đoán trúng được điểm gốc + tốc độ (không tính thưởng cá nhân)
+    const speed = points ? points.speed : Math.round(100 * Math.max(0, 1 - (this.clock() - this.startedAt) / total));
+    const tp = this.teams.addPoints(by, (points ? points.base : 100) + speed, 'win');
+    if (tp) { fx.push(tp); this.winner.team = tp.team; this.winner.teamPoints = tp.points; }
+    fx.push(...this.teams.onRoundEnd());
+    return fx;
   }
 
   /** Admin: đang chơi thì kết thúc vòng (lộ từ), đang nghỉ thì sang vòng mới. */
@@ -395,7 +419,7 @@ export class WordGame extends EventEmitter {
         this.phase = 'ended';
         this.nextAt = t + this.cfg.breakSeconds * 1000;
         this.dirty = true;
-        return [{ type: 'wg_timeout', round: this.roundNo, secret: this.secret, answer: this.display }];
+        return [{ type: 'wg_timeout', round: this.roundNo, secret: this.secret, answer: this.display }, ...this.teams.onRoundEnd()];
       }
       const elapsed = (t - this.startedAt) / 1000;
       const due = this.hintSchedule().filter((s) => elapsed >= s).length;
@@ -448,6 +472,7 @@ export class WordGame extends EventEmitter {
       totalGuesses: this.guesses.size,
       winner: this.winner,
       weekly: this.weekly?.snapshot() || null,
+      team: this.teams.snapshot(),
       champions: Object.values(this.wins).sort((a, b) => b.wins - a.wins).slice(0, 3),
     };
   }

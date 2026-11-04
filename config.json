@@ -334,6 +334,7 @@
     "autoGenerate": false,
     "difficulty": "hard",
     "weekly": { "base": 100, "speedMax": 100, "perShare": 20, "maxShares": 5, "perDiamond": 2, "maxGiftBonus": 300 },
+    "team": { "rounds": 10, "perDiamond": 1, "perShare": 5 },
     "scorer": "claude",
     "roundSeconds": 300,
     "breakSeconds": 12,

@@ -134,6 +134,32 @@ function thank(e) {
 
 function handle(e) {
   switch (e.type) {
+    case 'wg_team_mode':
+      fx.banner = { text: e.on ? '👥 BẬT CHẾ ĐỘ ĐẤU ĐỘI!' : 'Đã tắt chế độ đấu đội', sub: e.on ? 'Comment "đội đỏ" hoặc "đội xanh" để vào đội' : '', t: 4, color: '#facc15' };
+      sound.play('bell');
+      break;
+    case 'wg_team_join': {
+      const tm = G?.team?.teams?.find((x) => x.id === e.team);
+      if (!tm) break;
+      if (e.locked) { fx.floaters.push({ text: `🔒 ${clip(e.by?.name, 12)} đã ghi điểm cho ${tm.name}`, x: W / 2, y: 330, life: 1, color: tm.color }); break; }
+      fx.floaters.push({ text: `${tm.icon} ${clip(e.by?.name, 12)} ${e.auto ? '→' : 'vào'} ${tm.name}`, x: e.team === G.team.teams[0].id ? 300 : W - 300, y: 330, life: 1, color: tm.color });
+      if (!e.auto) sound.play('chime', { pitch: e.team === G.team.teams[0].id ? 1.1 : 1.3 });
+      break;
+    }
+    case 'wg_team_points': {
+      const tm = G?.team?.teams?.find((x) => x.id === e.team);
+      if (!tm) break;
+      fx.floaters.push({ text: `${tm.icon} +${fmtN(e.points)}`, x: e.team === G.team.teams[0].id ? 220 : W - 220, y: 300, life: 1.2, color: tm.color });
+      break;
+    }
+    case 'wg_team_match': {
+      const tm = G?.team?.teams?.find((x) => x.id === e.winner);
+      fx.matchAt = performance.now();
+      fx.flash = 1;
+      confetti(320);
+      sound.play('levelup');
+      break;
+    }
     case 'wg_bonus':
       if (e.add > 0) {
         fx.banner = { text: `🔁 ${clip(e.by?.name, 16)} chia sẻ live: +${e.add} điểm thưởng`, sub: `Đang giữ ${e.total} điểm thưởng — cộng vào lần đoán đúng tiếp theo`, t: 3.5, color: '#4ade80' };
@@ -464,7 +490,7 @@ function drawFeed() {
     rr(40, y - 24, w, 48, 24);
     ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
     ctx.strokeStyle = f.pending ? 'rgba(255,255,255,.3)' : scoreColor(f.score); ctx.lineWidth = 2; ctx.stroke();
-    avatar(f.by, 66, y, 16, 'rgba(255,255,255,.7)');
+    avatar(f.by, 66, y, 16, teamColor(teamOfUser(f.by?.id)) || 'rgba(255,255,255,.7)');
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
     ctx.fillText(label, 92, y + 1);
     ctx.textAlign = 'right'; ctx.font = font(900, 26);
@@ -475,7 +501,9 @@ function drawFeed() {
 }
 
 function drawGuide() {
-  const items = ['💬 Bình luận 1 từ để đoán', '⚡ Đoán sớm = nhiều điểm', '🔁 Share / 🎁 quà = điểm thưởng'];
+  const items = G.team?.on
+    ? ['💬 Bình luận 1 từ để đoán', `👥 "${G.team.teams[0].keyword}" / "${G.team.teams[1].keyword}" để vào đội`, '⚡ Đoán sớm = nhiều điểm']
+    : ['💬 Bình luận 1 từ để đoán', '⚡ Đoán sớm = nhiều điểm', '🔁 Share / 🎁 quà = điểm thưởng'];
   ctx.save();
   ctx.font = font(800, 21); ctx.textBaseline = 'middle';
   const pad = 14, gap = 10;
@@ -522,7 +550,38 @@ function drawChampions() {
 }
 
 /** Banner trên cùng: Vua tuần trước (được chủ kênh trao quà) hoặc lời mời đua top tuần. */
+const teamColor = (id) => G?.team?.teams?.find((t) => t.id === id)?.color || null;
+const teamOfUser = (uid) => G?.team?.members?.[uid] || null;
+
+/** Đấu đội: thanh tỉ số 2 đội + trận / vòng. */
+function drawTeamBar(t) {
+  const tm = G.team;
+  const [a, b] = tm.teams;
+  const y = 230, h = 62, x0 = 40, w = W - 80;
+  ctx.save();
+  rr(x0, y, w, h, 31); ctx.fillStyle = 'rgba(10,14,40,.9)'; ctx.fill();
+  const total = Math.max(1, a.score + b.score);
+  const split = x0 + w * (a.score + b.score ? a.score / total : 0.5);
+  ctx.save(); rr(x0, y, w, h, 31); ctx.clip();
+  ctx.fillStyle = a.color; ctx.globalAlpha = 0.55; ctx.fillRect(x0, y, split - x0, h);
+  ctx.fillStyle = b.color; ctx.fillRect(split, y, x0 + w - split, h);
+  ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.fillRect(split - 2, y, 4, h);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 3; rr(x0, y, w, h, 31); ctx.stroke();
+  ctx.textBaseline = 'middle';
+  ctx.font = font(900, 26); ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left'; ctx.fillText(`${a.icon} ${a.name} · ${fmtN(a.score)}`, x0 + 22, y + h / 2 + 1);
+  ctx.textAlign = 'right'; ctx.fillText(`${fmtN(b.score)} · ${b.name} ${b.icon}`, x0 + w - 22, y + h / 2 + 1);
+  // giữa: trận / vòng
+  const label = `TRẬN ${tm.matchNo} · ${Math.min(tm.round, tm.rounds)}/${tm.rounds}`;
+  ctx.font = font(900, 18); const lw = ctx.measureText(label).width + 26;
+  rr(W / 2 - lw / 2, y + h - 14, lw, 28, 14); ctx.fillStyle = '#facc15'; ctx.fill();
+  ctx.fillStyle = '#1f2937'; ctx.textAlign = 'center'; ctx.fillText(label, W / 2, y + h);
+  ctx.restore();
+}
+
 function drawKing(t) {
+  if (G.team?.on) return drawTeamBar(t);
   const wk = G.weekly;
   if (!wk) return;
   const y = 236, h = 54;
@@ -576,7 +635,8 @@ function drawEnd(t) {
     if (p) {
       ctx.font = font(900, 34); ctx.fillStyle = '#fde68a';
       ctx.fillText(`+${fmtN(p.total)} điểm tuần${p.rank ? ` · hạng #${p.rank}` : ''}`, W / 2, y + 412);
-      const parts = [`gốc ${p.base}`, `⚡ nhanh +${p.speed}`, p.shareBonus && `🔁 share +${p.shareBonus}`, p.giftBonus && `🎁 quà +${p.giftBonus}`].filter(Boolean);
+      const tmw = win.team && G.team?.teams?.find((x) => x.id === win.team);
+      const parts = [tmw && `${tmw.icon} ${tmw.name} +${fmtN(win.teamPoints)}`, `gốc ${p.base}`, `⚡ nhanh +${p.speed}`, p.shareBonus && `🔁 share +${p.shareBonus}`, p.giftBonus && `🎁 quà +${p.giftBonus}`].filter(Boolean);
       ctx.font = font(700, 21); ctx.fillStyle = 'rgba(255,255,255,.85)';
       ctx.fillText(fitText(parts.join(' · '), W - 220), W / 2, y + 446);
     }
@@ -669,6 +729,48 @@ function drawThanks(dt) {
   ctx.restore();
 }
 
+/** Hết trận đấu đội: công bố đội thắng, tỉ số, MVP (trong lúc nghỉ giữa hai vòng). */
+function drawMatchOver(t) {
+  const mo = G.team?.on && G.team.matchOver;
+  if (!mo || G.phase !== 'ended') return;
+  const tms = G.team.teams;
+  const win = tms.find((x) => x.id === mo.winner);
+  const k = Math.min(1, (performance.now() - (fx.matchAt || 0)) / 400);
+  ctx.save();
+  ctx.globalAlpha = fx.matchAt ? k : 1;
+  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 300, W, 1000);
+  const x = 70, y = 520, w = W - 140, h = 560;
+  rr(x, y, w, h, 40);
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, win ? win.color : '#6366f1'); g.addColorStop(1, 'rgba(15,18,60,.98)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = '#facc15'; ctx.lineWidth = 6; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = font(800, 30); ctx.fillStyle = '#fde68a';
+  ctx.fillText(`KẾT THÚC TRẬN ${mo.matchNo}`, W / 2, y + 60);
+  const s = 1 + 0.05 * Math.sin(t * 5);
+  ctx.save(); ctx.translate(W / 2, y + 140); ctx.scale(s, s);
+  ctx.font = font(900, 64);
+  outlined(win ? `🏆 ${win.name.toUpperCase()} THẮNG!` : '🤝 HOÀ!', 0, 0, '#fff', 'rgba(0,0,0,.5)', 10);
+  ctx.restore();
+  ctx.font = font(900, 56);
+  ctx.fillStyle = tms[0].color; ctx.fillText(fmtN(mo.score[tms[0].id]), W / 2 - 170, y + 250);
+  ctx.fillStyle = '#fff'; ctx.font = font(800, 40); ctx.fillText('–', W / 2, y + 250);
+  ctx.font = font(900, 56); ctx.fillStyle = tms[1].color; ctx.fillText(fmtN(mo.score[tms[1].id]), W / 2 + 170, y + 250);
+  ctx.font = font(700, 24); ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillText(`${tms[0].icon} ${tms[0].name}`, W / 2 - 170, y + 296); ctx.fillText(`${tms[1].name} ${tms[1].icon}`, W / 2 + 170, y + 296);
+  if (mo.mvp) {
+    avatar(mo.mvp, W / 2 - 150, y + 390, 40, teamColor(mo.mvp.team) || '#fde68a');
+    ctx.textAlign = 'left';
+    ctx.font = font(800, 22); ctx.fillStyle = '#fde68a'; ctx.fillText('⭐ MVP CỦA TRẬN', W / 2 - 96, y + 372);
+    ctx.font = font(900, 30); ctx.fillStyle = '#fff'; ctx.fillText(`${clip(mo.mvp.name, 14)} · ${fmtN(mo.mvp.points)}đ`, W / 2 - 96, y + 410);
+    ctx.textAlign = 'center';
+  }
+  ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.8)';
+  ctx.fillText(`Trận mới sau ${G.remaining}s · comment "${tms[0].keyword}" / "${tms[1].keyword}" để đổi đội`, W / 2, y + h - 40);
+  ctx.restore();
+}
+
 function drawFloaters(dt) {
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -721,6 +823,7 @@ function frame(now) {
   drawFloaters(dt);
   drawEnd(t);
   drawBanner(dt);
+  drawMatchOver(t);
   drawThanks(dt);
   drawConfetti(dt);
   drawPaused(t);

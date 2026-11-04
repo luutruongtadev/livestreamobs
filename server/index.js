@@ -405,6 +405,16 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     wg.dirty = true;
   }
   else if (a === 'clearqueue') { wg.priority = []; wg.dirty = true; }
+  else if (a === 'team') {
+    // chế độ đấu đội: op = on | off | reset (xoá đội + điểm, trận mới), rounds = số vòng mỗi trận
+    const b = req.body || {};
+    if (b.rounds) wg.teams.setRounds(Number(b.rounds));
+    if (b.op === 'on') wg.teams.setOn(true);
+    else if (b.op === 'off') wg.teams.setOn(false);
+    else if (b.op === 'reset') wg.teams.reset();
+    wg.dirty = true;
+    wgBroadcast([{ type: 'wg_team_mode', on: wg.teams.on, op: b.op || 'rounds' }]);
+  }
   else if (a === 'backfill') {
     // bổ sung 2 câu mô tả + 3 emoji cho từ cũ / từ có sẵn (mỗi lần tối đa 60 từ, chạy nền)
     if (genJob?.state === 'running') return res.status(409).json({ error: 'Đang chạy một việc khác, chờ chút' });
@@ -414,7 +424,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
       .then((r) => { genJob = { state: 'done', message: `Đã bổ sung gợi ý cho ${r.added} từ${r.remaining ? ` · còn ${r.remaining} từ, bấm tiếp để làm nốt` : ' · xong hết'}` }; })
       .catch((e) => { genJob = { state: 'error', message: `Bổ sung gợi ý lỗi: ${e.message}` }; });
   }
-  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | addword | clearqueue | backfill | set | setwords | regen-hints | genset | delset' });
+  else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | addword | clearqueue | team | backfill | set | setwords | regen-hints | genset | delset' });
   res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word) });
 });
 

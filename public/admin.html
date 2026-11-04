@@ -140,6 +140,17 @@
         </div>
         <p class="muted" id="wgAiResult" style="margin:8px 0 0;white-space:pre-line"></p>
       </details>
+      <div style="margin:6px 0 12px;padding:10px;border:1px solid rgba(250,204,21,.4);border-radius:10px">
+        <b>👥 Chế độ đấu đội</b> <span id="tmStatus" class="muted">(đang tải…)</span>
+        <div class="row" style="margin-top:6px">
+          <button id="btnTmOn" class="gold">Bật đấu đội</button>
+          <button id="btnTmOff" class="ghost">Tắt</button>
+          <label class="muted">Số vòng / trận <input id="tmRounds" type="number" min="1" max="50" value="10" style="width:70px"></label>
+          <button id="btnTmRounds" class="ghost">Lưu số vòng</button>
+          <button id="btnTmReset" class="ghost">Xoá đội &amp; điểm (trận mới)</button>
+        </div>
+        <p class="muted" style="margin:6px 0 0">Người xem comment "đội đỏ" / "đội xanh" để vào đội; chưa chọn mà đoán thì tự vào đội ít người hơn. Đoán trúng: đội +100 + thưởng tốc độ; quà của thành viên +1 điểm đội/xu; chia sẻ +5. Hết số vòng thì công bố đội thắng + MVP rồi sang trận mới.</p>
+      </div>
       <details open style="margin:6px 0 12px">
         <summary><b>➕ Thêm từ mới (chơi ưu tiên)</b></summary>
         <p class="muted" style="margin:6px 0">Từ được lưu vào bộ đang chơi. Gợi ý là vài từ liên quan, cách nhau bằng dấu " · " hoặc dấu phẩy; không được chứa chữ của đáp án.</p>
@@ -351,6 +362,14 @@
       sel.value = r.activeSet;
       loadSetWords();
     }
+    const tm = r?.wg?.team;
+    if (tm) {
+      $('tmStatus').textContent = tm.on
+        ? `· ĐANG BẬT · Trận ${tm.matchNo}, vòng ${Math.min(tm.round, tm.rounds)}/${tm.rounds} · ` + tm.teams.map((t) => `${t.icon} ${t.name}: ${t.score} điểm (${t.count} người)`).join(' · ') + (tm.matchOver ? ' · đã hết trận' : '')
+        : '· đang tắt';
+      $('btnTmOn').disabled = tm.on; $('btnTmOff').disabled = !tm.on;
+      if (tm.rounds && document.activeElement !== $('tmRounds')) $('tmRounds').value = tm.rounds;
+    }
     if (Array.isArray(r?.queue)) $('awQueue').textContent = r.queue.length ? `Hàng ưu tiên (${r.queue.length}): ${r.queue.join(' → ')}` : 'Hàng ưu tiên: trống';
     const b = r?.bank;
     if (!b) return;
@@ -432,6 +451,12 @@
   };
   wkApi('peek').catch(() => {});
   setInterval(() => wkApi('peek').catch(() => {}), 30000);
+
+  const teamApi = (body, msg) => wgApi('team', body).then(() => log('Đoán từ: ' + msg)).catch((e) => log('Lỗi: ' + e.message));
+  $('btnTmOn').onclick = () => teamApi({ op: 'on', rounds: $('tmRounds').value }, 'bật đấu đội');
+  $('btnTmOff').onclick = () => teamApi({ op: 'off' }, 'tắt đấu đội');
+  $('btnTmRounds').onclick = () => teamApi({ rounds: $('tmRounds').value }, `mỗi trận ${$('tmRounds').value} vòng`);
+  $('btnTmReset').onclick = () => { if (confirm('Xoá hết thành viên các đội và điểm trận hiện tại?')) teamApi({ op: 'reset' }, 'xoá đội & điểm'); };
 
   const addWord = (mode) => {
     const body = { mode, word: $('awWord').value, aliases: $('awAliases').value, hint1: $('awHint1').value, hint2: $('awHint2').value, emoji: $('awEmoji').value, topic: $('awTopic').value };
