@@ -182,7 +182,7 @@ export class WordBank {
     const x = this.data.extra?.[canon(w.word)] || {};
     const desc = w.desc?.length ? w.desc : x.desc || [];
     const emoji = w.desc?.length ? w.emoji || '' : x.emoji || w.emoji || '';
-    return { desc, emoji };
+    return { ...(w.hint ? { hint: w.hint } : {}), ...(w.aliases?.length ? { aliases: w.aliases } : {}), desc, emoji };
   }
 
   /** Các từ (kho + có sẵn) chưa có gợi ý mô tả. */

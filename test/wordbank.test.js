@@ -132,7 +132,7 @@ test('bổ sung gợi ý cho từ cũ và từ có sẵn (backfillHints)', async
 
 test('hintsFor: đặt từ chỉ bằng chữ vẫn lấy được gợi ý có sẵn trong danh sách / kho', () => {
   const bank = new WordBank({ fallbackWords: [{ word: 'la bàn', hint: 'Đồ vật', desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' }], log: {} });
-  assert.deepEqual(bank.hintsFor({ word: 'La Bàn' }), { desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' });
+  assert.deepEqual(bank.hintsFor({ word: 'La Bàn' }), { hint: 'Đồ vật', desc: ['thám hiểm · thủy thủ', 'kim chỉ · hướng bắc'], emoji: '🧭 🗺️ ⛵' });
   assert.deepEqual(bank.hintsFor({ word: 'không có' }), { desc: [], emoji: '' });
 });
 

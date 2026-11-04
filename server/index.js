@@ -321,7 +321,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     if (inSet) { wgBroadcast(wg.startRound(inSet)); return res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob }); }
     const known = wordBank.hintsFor({ word: w });
     const desc = Array.isArray(req.body?.desc) ? req.body.desc.map(String).filter(Boolean).slice(0, 2) : known.desc;
-    wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || ''), desc, emoji: req.body?.emoji ?? known.emoji }));
+    wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || known.hint || ''), desc, emoji: req.body?.emoji ?? known.emoji, ...(known.aliases ? { aliases: known.aliases } : {}) }));
   } else if (a === 'reset') wgBroadcast(wg.resetAll());
   else if (a === 'peek') { /* chỉ xem từ bí mật */ }
   else if (a === 'setwords') {
