@@ -244,7 +244,7 @@ export class WordBank {
     const list = fresh.length ? fresh : this.fallback;
     if (!list.length) return { word: 'mặt trời', hint: 'Thiên nhiên', source: 'default' };
     const w = list[Math.floor(this.random() * list.length)];
-    return { word: w.word, hint: w.hint, ...this.hintsFor(w), source: 'config' };
+    return { word: w.word, hint: w.hint, ...this.hintsFor(w), ...(w.aliases?.length ? { aliases: w.aliases } : {}), source: 'config' };
   }
 
   /** Sinh một lô từ mới bằng Claude. theme: chủ đề cho cả lô (tuỳ chọn). */

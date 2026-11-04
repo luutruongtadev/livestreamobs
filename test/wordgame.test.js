@@ -282,3 +282,16 @@ test('hàng ưu tiên: từ admin thêm được chơi trước, theo thứ tự
   g2.skip(); g2.skip();
   assert.equal(g2.secret, 'mặt trời'); // hết hàng ưu tiên → về bình thường
 });
+
+test('từ vựng có sẵn: cách gõ khác (aliases) không xuất hiện nguyên trong gợi ý, và được tính trúng', async () => {
+  const { compact } = await import('../server/scorer.js');
+  const { WordBank } = await import('../server/wordbank.js');
+  const words = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf8')).wordgame.words;
+  for (const w of words) for (const a of w.aliases || []) for (const d of w.desc || []) assert.ok(!compact(d).includes(compact(a)), `${w.word}: gợi ý "${d}" chứa "${a}"`);
+  const bank = new WordBank({ fallbackWords: words.filter((w) => w.word === 'doraemon'), log: {} });
+  const pick = bank.next();
+  assert.deepEqual(pick.aliases, ['đô rê mon', 'doremon', 'đôrêmon']);
+  const g = new WordGame({ words: [] }, { scorer: { score: async () => 1 }, wordBank: bank });
+  g.startRound(pick);
+  assert.equal(g.handle({ type: 'comment', user: { id: 'x', name: 'X' }, text: 'Đô rê mon' })[0].type, 'wg_win');
+});
