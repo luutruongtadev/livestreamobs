@@ -204,11 +204,7 @@ function handle(e) {
       sound.play('bell');
       fx.banner = { text: e.by ? `💡 ${clip(e.by.name, 18)} tặng quà mở gợi ý!` : '💡 Gợi ý mới!', sub: e.hint, t: 4, color: '#facc15' };
       break;
-    case 'wg_win':
-      fx.flash = 1;
-      confetti();
-      sound.play('levelup');
-      break;
+    case 'wg_win': startWinFx(e); break;
     case 'wg_timeout':
       sound.play('bell');
       break;
@@ -218,6 +214,180 @@ function handle(e) {
       fx.banner = { text: `VÒNG ${e.round} BẮT ĐẦU!`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
   }
+}
+
+// ---------------- hiệu ứng đoán trúng theo mức ----------------
+// lightning ⚡ 10 giây đầu · nohint 🔥 chưa gợi ý · hint1 💡 1 gợi ý · clutch ⏱️ phút chót · hint2 👍 · hint3 🎉
+const WIN_TIERS = {
+  lightning: { title: '⚡ THẦN ĐỒNG!', sub: (e) => `Trúng phóc sau ${e.seconds} giây!`, color: '#facc15', dur: 4.6, card: ['#a16207', '#422006'] },
+  nohint: { title: '🔥 KHÔNG CẦN GỢI Ý!', sub: (e) => `${e.seconds} giây · chưa mở gợi ý nào`, color: '#fb923c', dur: 3.8, card: ['#c2410c', '#431407'] },
+  hint1: { title: '💡 CHỈ CẦN 1 GỢI Ý!', sub: (e) => `Đoán trúng sau ${e.seconds} giây`, color: '#7dd3fc', dur: 3.2, card: ['#1d4ed8', '#172554'] },
+  clutch: { title: '⏱️ PHÚT CHÓT!', sub: (e) => `Còn ${e.left} giây nữa là hết giờ!`, color: '#f87171', dur: 3.2, card: ['#b91c1c', '#450a0a'] },
+  hint2: { title: '👍 ĐOÁN HAY!', sub: (e) => `Sau 2 gợi ý · ${e.seconds} giây`, color: '#86efac', dur: 2.4, card: ['#166534', '#052e16'] },
+  hint3: { title: '🎉 ĐOÁN TRÚNG!', sub: (e) => `Sau ${e.hintLevel} gợi ý · ${e.seconds} giây`, color: '#bbf7d0', dur: 2.2, card: ['#166534', '#052e16'] },
+};
+const wfx = { win: null, sparks: [], rings: [], bolts: [], shake: 0 };
+const pickC = (a) => a[Math.floor(Math.random() * a.length)];
+function spark(x, y, n, colors, spd = 500, size = 10, g = 400, life = 1.2) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = spd * (0.3 + Math.random() * 0.8);
+    wfx.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g, life, max: life, size: size * (0.5 + Math.random()), color: pickC(colors), star: Math.random() < 0.3 });
+  }
+  if (wfx.sparks.length > 900) wfx.sparks.splice(0, wfx.sparks.length - 900);
+}
+function wring(x, y, color, r1 = 400, dur = 0.7, lw = 16, delay = 0) { wfx.rings.push({ x, y, color, r1, dur, lw, t: -delay }); }
+function wbolt(x0, y0, x1, y1, color = '#fef9c3') {
+  const pts = [[x0, y0]];
+  for (let i = 1; i < 10; i++) pts.push([lerp(x0, x1, i / 10) + (Math.random() - 0.5) * 90, lerp(y0, y1, i / 10)]);
+  pts.push([x1, y1]);
+  wfx.bolts.push({ pts, color, t: 0, dur: 0.35 });
+}
+const WIN_CX = W / 2, WIN_CY = 760;
+function startWinFx(e) {
+  const tier = WIN_TIERS[e.tier] ? e.tier : 'hint3';
+  wfx.win = { ...e, tier, t: 0, cfg: WIN_TIERS[tier], beats: 0 };
+  if (tier === 'lightning') {
+    sound.play('thunder'); setTimeout(() => sound.play('gong'), 250); setTimeout(() => sound.play('levelup'), 700);
+    fx.flash = 1; wfx.shake = 1.6;
+    for (let i = 0; i < 6; i++) setTimeout(() => { wbolt(Math.random() * W, 0, WIN_CX + (Math.random() - 0.5) * 160, WIN_CY); fx.flash = Math.max(fx.flash, 0.5); }, i * 110);
+    spark(WIN_CX, WIN_CY, 220, ['#facc15', '#fde68a', '#fff', '#f59e0b'], 1000, 14, 350, 1.6);
+    for (let i = 0; i < 3; i++) wring(WIN_CX, WIN_CY, i % 2 ? '#fff' : '#facc15', 900, 0.9, 26, i * 0.15);
+    confetti(360);
+  } else if (tier === 'nohint') {
+    sound.play('boom', { big: true }); setTimeout(() => sound.play('levelup'), 300);
+    fx.flash = 0.8; wfx.shake = 1.1;
+    spark(WIN_CX, WIN_CY, 160, ['#ff4d00', '#fb923c', '#facc15', '#fff1a8'], 850, 13, 200, 1.4);
+    wring(WIN_CX, WIN_CY, '#fb923c', 750, 0.8, 24); wring(WIN_CX, WIN_CY, '#facc15', 520, 0.6, 14, 0.12);
+    confetti(280);
+  } else if (tier === 'hint1') {
+    [1, 1.25, 1.5, 2].forEach((p, i) => setTimeout(() => sound.play('chime', { pitch: p }), i * 110)); setTimeout(() => sound.play('levelup'), 450);
+    fx.flash = 0.6; wfx.shake = 0.5;
+    spark(WIN_CX, WIN_CY, 120, ['#7dd3fc', '#a5b4fc', '#fff', '#c4b5fd'], 650, 11, 120, 1.4);
+    wring(WIN_CX, WIN_CY, '#7dd3fc', 600, 0.7, 18);
+    confetti(220);
+  } else if (tier === 'clutch') {
+    sound.play('boom'); setTimeout(() => sound.play('levelup'), 350);
+    fx.flash = 0.7; wfx.shake = 1;
+    spark(WIN_CX, WIN_CY, 110, ['#f87171', '#fecaca', '#fff', '#facc15'], 700, 12, 300, 1.2);
+    wring(WIN_CX, WIN_CY, '#f87171', 650, 0.7, 20);
+    confetti(240);
+  } else {
+    fx.flash = 0.8; sound.play('levelup');
+    spark(WIN_CX, WIN_CY, 60, ['#86efac', '#fff', '#fde68a'], 500, 10, 300, 1.1);
+    confetti(tier === 'hint2' ? 220 : 180);
+  }
+}
+
+function drawWinFx(t, dt) {
+  // hạt, vòng sóng, tia sét
+  for (const r of wfx.rings) {
+    r.t += dt; if (r.t < 0) continue;
+    const k = r.t / r.dur; if (k >= 1) continue;
+    ctx.save(); ctx.globalAlpha = 1 - k; ctx.strokeStyle = r.color; ctx.lineWidth = r.lw * (1 - k) + 2;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 40 + (r.r1 - 40) * ease(k), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+  wfx.rings = wfx.rings.filter((r) => r.t < r.dur);
+  for (const b of wfx.bolts) {
+    b.t += dt; const a = 1 - b.t / b.dur; if (a <= 0) continue;
+    ctx.save(); ctx.globalAlpha = a; ctx.lineJoin = 'round'; ctx.shadowColor = '#fde047'; ctx.shadowBlur = 24;
+    ctx.strokeStyle = b.color; ctx.lineWidth = 9; ctx.beginPath(); b.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+  }
+  wfx.bolts = wfx.bolts.filter((b) => b.t < b.dur);
+  const w = wfx.win;
+  if (w) {
+    w.t += dt;
+    const C = w.cfg, k = w.t, dur = C.dur;
+    if (k > dur) wfx.win = null;
+    else {
+      const fade = Math.min(1, k / 0.25, (dur - k) / 0.45);
+      const epic = w.tier === 'lightning' || w.tier === 'nohint' || w.tier === 'hint1' || w.tier === 'clutch';
+      ctx.save();
+      // nền: tối lại + hiệu ứng riêng từng mức
+      if (epic) { ctx.globalAlpha = fade * (w.tier === 'lightning' ? 0.78 : 0.6); ctx.fillStyle = '#05030d'; ctx.fillRect(0, 0, W, H); }
+      else { // mức thường: dải nền tối sau chữ cho dễ đọc
+        ctx.globalAlpha = fade * 0.82;
+        const g = ctx.createLinearGradient(0, 380, 0, 650);
+        g.addColorStop(0, 'rgba(5,3,13,0)'); g.addColorStop(0.2, 'rgba(5,3,13,1)'); g.addColorStop(0.8, 'rgba(5,3,13,1)'); g.addColorStop(1, 'rgba(5,3,13,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 380, W, 270);
+      }
+      ctx.globalAlpha = fade;
+      if (w.tier === 'lightning' || w.tier === 'nohint' || w.tier === 'hint1') {
+        // tia sáng quay sau avatar
+        ctx.save(); ctx.translate(WIN_CX, WIN_CY); ctx.rotate(t * (w.tier === 'lightning' ? 0.9 : 0.5));
+        const n = w.tier === 'lightning' ? 20 : 14;
+        for (let i = 0; i < n; i++) {
+          ctx.rotate(Math.PI * 2 / n);
+          ctx.fillStyle = w.tier === 'lightning' ? `hsla(${45 + (i % 2) * 10},100%,60%,.22)` : w.tier === 'nohint' ? 'rgba(251,146,60,.18)' : 'rgba(125,211,252,.16)';
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(1400, -70); ctx.lineTo(1400, 70); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+      }
+      if (w.tier === 'lightning') {
+        // sét đánh liên tục + mưa xu vàng
+        if (Math.random() < dt * 3) { wbolt(Math.random() * W, 0, Math.random() * W, 300 + Math.random() * 600); if (Math.random() < 0.4) sound.play('thunder'); }
+        if (Math.random() < 0.8) wfx.sparks.push({ x: Math.random() * W, y: -20, vx: (Math.random() - 0.5) * 60, vy: 300 + Math.random() * 250, g: 120, life: 3, max: 3, size: 14 + Math.random() * 10, color: pickC(['#facc15', '#fde68a', '#f59e0b']), coin: true });
+      }
+      if (w.tier === 'nohint' && Math.random() < 0.9) {
+        // tàn lửa bốc lên
+        wfx.sparks.push({ x: Math.random() * W, y: H + 10, vx: (Math.random() - 0.5) * 50, vy: -300 - Math.random() * 300, g: -40, life: 2.4, max: 2.4, size: 8 + Math.random() * 12, color: pickC(['#ff4d00', '#fb923c', '#facc15']) });
+      }
+      if (w.tier === 'hint1' && Math.random() < 0.6) wfx.sparks.push({ x: Math.random() * W, y: Math.random() * H, vx: 0, vy: -30, g: 0, life: 1, max: 1, size: 18, color: pickC(['#e0f2fe', '#c4b5fd', '#fff']), star: true });
+      if (w.tier === 'clutch') {
+        // nhịp tim đỏ ở viền màn hình
+        const beat = Math.pow(Math.max(0, Math.sin(k * Math.PI * 2.4)), 6);
+        if (beat > 0.9 && w.beats < Math.floor(k * 1.2) + 1) { w.beats++; sound.play('boom'); wfx.shake = 0.5; }
+        const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
+        g.addColorStop(0, 'rgba(220,38,38,0)'); g.addColorStop(1, `rgba(220,38,38,${0.35 + 0.4 * beat})`);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      }
+      // avatar to giữa màn hình
+      const pop = Math.min(1, k / 0.35);
+      const s = pop < 1 ? 0.3 + 0.9 * ease(pop) : 1 + 0.03 * Math.sin(t * 6);
+      const r = (epic ? 120 : 84) * Math.min(1.15, s);
+      if (epic) { const g = ctx.createRadialGradient(WIN_CX, WIN_CY, r * 0.8, WIN_CX, WIN_CY, r * 2); g.addColorStop(0, C.color); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = fade * 0.55; ctx.fillStyle = g; ctx.fillRect(WIN_CX - r * 2, WIN_CY - r * 2, r * 4, r * 4); ctx.globalAlpha = fade; }
+      if (epic) avatar(w.by, WIN_CX, WIN_CY, r, C.color);
+      // tiêu đề đóng dấu từng chữ
+      const ty = epic ? WIN_CY - r - 110 : 470;
+      const letters = [...C.title];
+      const size = w.tier === 'lightning' ? 96 : epic ? 80 : 64;
+      ctx.font = font(900, size);
+      let widths = letters.map((ch) => ctx.measureText(ch).width);
+      let total = widths.reduce((a, b) => a + b, 0);
+      const fitK = Math.min(1, (W - 60) / total);
+      let x = WIN_CX - (total * fitK) / 2;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      letters.forEach((ch, i) => {
+        const lk = Math.min(1, Math.max(0, (k - 0.15 - i * 0.045) / 0.18));
+        if (lk > 0) {
+          const sc = (lk < 1 ? 2.4 - 1.4 * ease(lk) : 1) * fitK;
+          const wob = w.tier === 'clutch' ? Math.sin(t * 30 + i) * 3 : 0;
+          ctx.save(); ctx.translate(x + widths[i] * fitK / 2 + wob, ty); ctx.scale(sc, sc); ctx.globalAlpha = fade * lk;
+          const fill = w.tier === 'lightning' ? `hsl(${45 + 12 * Math.sin(t * 8 + i)},100%,${62 + 10 * Math.sin(t * 6 + i)}%)` : C.color;
+          outlined(ch, 0, 0, fill, '#000', 12);
+          ctx.restore();
+        }
+        x += widths[i] * fitK;
+      });
+      if (k > 0.6) {
+        ctx.globalAlpha = fade * Math.min(1, (k - 0.6) * 3);
+        ctx.font = font(900, epic ? 50 : 42);
+        outlined(fitText(w.by?.name || '', W - 120), WIN_CX, epic ? WIN_CY + r + 64 : 548, '#fff', '#000', 9);
+        ctx.font = font(800, epic ? 32 : 28);
+        outlined(C.sub(w), WIN_CX, epic ? WIN_CY + r + 120 : 600, C.color, '#000', 7);
+      }
+      ctx.restore();
+    }
+  }
+  for (const p of wfx.sparks) {
+    p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985;
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life / p.max * 1.5)); ctx.fillStyle = p.color;
+    if (p.coin) { ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size / 2 * Math.abs(Math.sin(p.life * 8)) + 1, p.size / 2, 0, 0, Math.PI * 2); ctx.fill(); }
+    else if (p.star) { const z = p.size / 2; ctx.beginPath(); ctx.moveTo(p.x, p.y - z * 2); ctx.lineTo(p.x + z * 0.4, p.y - z * 0.4); ctx.lineTo(p.x + z * 2, p.y); ctx.lineTo(p.x + z * 0.4, p.y + z * 0.4); ctx.lineTo(p.x, p.y + z * 2); ctx.lineTo(p.x - z * 0.4, p.y + z * 0.4); ctx.lineTo(p.x - z * 2, p.y); ctx.lineTo(p.x - z * 0.4, p.y - z * 0.4); ctx.closePath(); ctx.fill(); }
+    else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+  wfx.sparks = wfx.sparks.filter((p) => p.life > 0 && p.y < H + 60);
 }
 
 function connect() {
@@ -613,12 +783,14 @@ function drawEnd(t) {
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, L.rankTop - 6, W, 640);
   const y = L.rankTop + 54;
   const win = G.winner;
+  const WT = win ? WIN_TIERS[win.tier] || WIN_TIERS.hint3 : null;
   rr(80, y, W - 160, win?.points ? 505 : 470, 34);
-  ctx.fillStyle = win ? '#166534' : '#3730a3'; ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
+  if (WT) { const g = ctx.createLinearGradient(0, y, 0, y + 505); g.addColorStop(0, WT.card[0]); g.addColorStop(1, WT.card[1]); ctx.fillStyle = g; } else ctx.fillStyle = '#3730a3';
+  ctx.fill();
+  ctx.strokeStyle = WT && win.tier === 'lightning' ? `hsl(45,100%,${60 + 15 * Math.sin(t * 5)}%)` : WT ? WT.color : '#fff'; ctx.lineWidth = 6; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = font(800, 34); ctx.fillStyle = '#fff';
-  ctx.fillText(win ? '🎉 ĐOÁN TRÚNG! 🎉' : '⏰ HẾT GIỜ!', W / 2, y + 56);
+  ctx.font = font(900, 36); ctx.fillStyle = WT ? WT.color : '#fff';
+  ctx.fillText(WT ? `${WT.title} · ${win.seconds ?? ''}s` : '⏰ HẾT GIỜ!', W / 2, y + 56);
   ctx.font = font(600, 26); ctx.fillStyle = 'rgba(255,255,255,.85)';
   ctx.fillText('Đáp án là', W / 2, y + 108);
   const s = 1 + 0.04 * Math.sin(t * 6);
@@ -815,6 +987,9 @@ function frame(now) {
   fx.flash = Math.max(0, fx.flash - dt);
   fx.hintFlash = Math.max(0, fx.hintFlash - dt * 0.5);
 
+  wfx.shake = Math.max(0, wfx.shake - dt * 2);
+  ctx.save();
+  if (wfx.shake > 0) ctx.translate((Math.random() - 0.5) * 22 * wfx.shake, (Math.random() - 0.5) * 16 * wfx.shake);
   drawBackground(t);
   drawKing(t);
   drawHeader();
@@ -828,7 +1003,9 @@ function frame(now) {
   drawBanner(dt);
   drawMatchOver(t);
   drawThanks(dt);
+  drawWinFx(t, dt);
   drawConfetti(dt);
+  ctx.restore();
   drawPaused(t);
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.5})`; ctx.fillRect(0, 0, W, H); }
   if (opt.debug) {

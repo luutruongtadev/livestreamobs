@@ -12,6 +12,19 @@ export const isEmojiHint = (h) => /^[\p{Extended_Pictographic}\p{Regional_Indica
  * Từ vựng: tối đa 3 gợi ý — emoji → chủ đề của từ → gợi ý từ liên quan gần nghĩa nhất.
  * Không có emoji thì: chủ đề → gợi ý xa → gợi ý gần.
  */
+/**
+ * Mức hiệu ứng khi đoán trúng:
+ *   lightning ⚡ trong 10 giây đầu · nohint 🔥 chưa mở gợi ý nào · hint1 💡 mới 1 gợi ý
+ *   clutch ⏱️ còn ≤ 10 giây là hết giờ · hint2 👍 sau 2 gợi ý · hint3 🎉 sau đủ gợi ý
+ */
+export function winTier({ seconds, left, hintLevel, flashSeconds = 10, clutchSeconds = 10 }) {
+  if (seconds <= flashSeconds && hintLevel === 0) return 'lightning';
+  if (hintLevel === 0) return 'nohint';
+  if (hintLevel === 1) return 'hint1';
+  if (left <= clutchSeconds) return 'clutch';
+  return hintLevel === 2 ? 'hint2' : 'hint3';
+}
+
 export function vocabHints(w) {
   const desc = (w.desc || []).filter(Boolean).slice(0, 2);
   const topic = w.hint ? [`Chủ đề: ${w.hint}`] : [];
@@ -405,9 +418,14 @@ export class WordGame extends EventEmitter {
     const total = Math.max(1, this.endsAt - this.startedAt);
     const points = this.weekly?.award(by, 1 - (this.clock() - this.startedAt) / total) || null;
     this.winner.points = points;
+    // mức hiệu ứng: càng sớm / càng ít gợi ý càng hoành tráng
+    const seconds = Math.round((this.clock() - this.startedAt) / 1000);
+    const left = Math.max(0, Math.ceil((this.endsAt - this.clock()) / 1000));
+    const tier = winTier({ seconds, left, hintLevel: this.hintLevel, flashSeconds: this.cfg.flashSeconds ?? 10, clutchSeconds: this.cfg.clutchSeconds ?? 10 });
+    Object.assign(this.winner, { tier, seconds, left, hintLevel: this.hintLevel });
     this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    const fx = [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
+    const fx = [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds, left, hintLevel: this.hintLevel, tier }];
     // đấu đội: đội của người đoán trúng được điểm gốc + tốc độ (không tính thưởng cá nhân)
     const speed = points ? points.speed : Math.round(100 * Math.max(0, 1 - (this.clock() - this.startedAt) / total));
     const tp = this.teams.addPoints(by, (points ? points.base : 100) + speed, 'win');

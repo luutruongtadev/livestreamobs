@@ -110,6 +110,20 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
+### 🎆 Hiệu ứng đoán trúng theo mức
+
+Đoán càng sớm, càng ít gợi ý thì màn chúc mừng càng hoành tráng (chữ đóng dấu từng chữ, avatar to giữa màn hình, âm thanh riêng):
+
+| Mức | Khi nào | Hiệu ứng |
+|---|---|---|
+| ⚡ THẦN ĐỒNG! | Trúng trong **10 giây đầu** | Màn tối, sét đánh liên tục, tia vàng quay, mưa xu vàng, rung màn hình, sấm + cồng |
+| 🔥 KHÔNG CẦN GỢI Ý! | Chưa mở gợi ý nào | Bùng lửa, tàn lửa bốc lên, vòng sóng cam, tiếng nổ |
+| 💡 CHỈ CẦN 1 GỢI Ý! | Sau gợi ý 1 | Lấp lánh xanh, sao nhấp nháy, chuỗi chuông |
+| ⏱️ PHÚT CHÓT! | Còn ≤ 10 giây là hết giờ | Viền đỏ đập theo nhịp tim, chữ rung |
+| 👍 ĐOÁN HAY! / 🎉 ĐOÁN TRÚNG! | Sau gợi ý 2 / đủ gợi ý | Pháo giấy như cũ |
+
+Thẻ kết quả cũng đổi màu + tiêu đề theo mức (vd "⚡ THẦN ĐỒNG! · 3s"). Chỉnh mốc bằng `wordgame.flashSeconds` (mặc định 10) và `wordgame.clutchSeconds` (10).
+
 ### ⏸ Tạm dừng game (Đoán từ, Kéo co, Đua thú & Đấu trường)
 
 - **Tự tạm dừng khi chưa live**: khi server chưa kết nối được phiên live TikTok, cả hai game đứng yên —

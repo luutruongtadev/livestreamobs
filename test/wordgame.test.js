@@ -309,3 +309,25 @@ test('bộ riêng (trend…): gợi ý emoji cũng được đưa lên đầu', 
   g.revealHint();
   assert.deepEqual(g.snapshot().hints, ['Vùng đất: Ionia']);
 });
+
+test('đoán trúng: mức hiệu ứng theo tốc độ và số gợi ý đã mở', async () => {
+  const { winTier } = await import('../server/wordgame.js');
+  assert.equal(winTier({ seconds: 7, left: 200, hintLevel: 0 }), 'lightning');
+  assert.equal(winTier({ seconds: 40, left: 200, hintLevel: 0 }), 'nohint');
+  assert.equal(winTier({ seconds: 90, left: 200, hintLevel: 1 }), 'hint1');
+  assert.equal(winTier({ seconds: 170, left: 100, hintLevel: 2 }), 'hint2');
+  assert.equal(winTier({ seconds: 250, left: 40, hintLevel: 3 }), 'hint3');
+  assert.equal(winTier({ seconds: 292, left: 8, hintLevel: 3 }), 'clutch');
+  // qua game thật: đoán ở giây 5 → THẦN ĐỒNG; mở 1 gợi ý rồi đoán → 1 GỢI Ý
+  const clock = { t: 1_000_000 };
+  const g = new WordGame({ words: [{ word: 'mặt trời' }, { word: 'con mèo' }], roundSeconds: 300, cooldownSec: 0 }, { scorer: { score: async () => 10 }, now: () => clock.t });
+  clock.t += 5000;
+  const w1 = g.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: g.display }).find((e) => e.type === 'wg_win');
+  assert.deepEqual([w1.tier, w1.seconds, w1.hintLevel], ['lightning', 5, 0]);
+  assert.equal(g.snapshot().winner.tier, 'lightning');
+  g.skip();
+  g.revealHint(null);
+  clock.t += 20_000;
+  const w2 = g.handle({ type: 'comment', user: { id: 'b', name: 'B' }, text: g.display }).find((e) => e.type === 'wg_win');
+  assert.equal(w2.tier, 'hint1');
+});
