@@ -5,6 +5,9 @@ import { canon, isExact } from './scorer.js';
 import { makePausable } from './pause.js';
 import { TeamMatch } from './teams.js';
 
+/** Gợi ý chỉ gồm emoji (vd "🧭 🗺️ ⛵"). */
+export const isEmojiHint = (h) => /^[\p{Extended_Pictographic}\p{Regional_Indicator}\u200d\ufe0f\s]+$/u.test(String(h || '').trim()) && /\p{Extended_Pictographic}/u.test(String(h));
+
 /** Tên hiển thị → chuỗi ô chữ: bỏ dấu nháy, chấm, & ... thành khoảng trắng ("Kai'Sa" → "kai sa"). */
 export const toSecret = (name) => canon(String(name || '').replace(/[^\p{L}\p{N} ]+/gu, ' '));
 
@@ -156,9 +159,11 @@ export class WordGame extends EventEmitter {
     this.secret = toSecret(w.word);
     this.category = w.hint || '';
     // gợi ý riêng của từ: bộ LMHT… (hints), hoặc từ vựng có 2 câu mô tả + 3 emoji (desc, emoji)
-    this.customHints = Array.isArray(w.hints) ? w.hints.filter(Boolean)
+    const raw = Array.isArray(w.hints) ? w.hints.filter(Boolean)
       : Array.isArray(w.desc) && w.desc.length ? [...w.desc.filter(Boolean).slice(0, 2), ...(w.emoji ? [w.emoji] : [])]
       : null;
+    // gợi ý emoji luôn mở trước, rồi mới tới các gợi ý chữ
+    this.customHints = raw ? [...raw.filter(isEmojiHint), ...raw.filter((h) => !isEmojiHint(h))] : null;
     this.aliases = Array.isArray(w.aliases) ? w.aliases : [];
     this.hintLevel = 0;
     this.revealedIdx = new Set(); // vị trí chữ cái đã lộ (đánh số liên tục, bỏ khoảng trắng)

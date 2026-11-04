@@ -235,12 +235,12 @@ test('quà nào cũng có hiệu ứng cảm ơn đích danh, kể cả lúc ngh
   assert.deepEqual(g.handle({ type: 'like', user: u('b'), count: 5 }), []);
 });
 
-test('từ vựng có 2 câu mô tả + 3 emoji: gợi ý 1, 2 là mô tả, gợi ý 3 là emoji; không có emoji thì chỉ 2 gợi ý', () => {
+test('từ vựng có 2 gợi ý chữ + 3 emoji: emoji mở trước, rồi tới 2 gợi ý chữ; không có emoji thì chỉ 2 gợi ý', () => {
   const g = mk(fakeScorer({}));
   g.startRound({ word: 'ống nhòm', hint: 'Đồ vật', desc: ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt'], emoji: '👀 🦅 ⛰️' });
   assert.equal(g.maxHints, 3);
   g.revealHint(); g.revealHint(); g.revealHint();
-  assert.deepEqual(g.snapshot().hints, ['rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt', '👀 🦅 ⛰️']);
+  assert.deepEqual(g.snapshot().hints, ['👀 🦅 ⛰️', 'rừng · chim · đi phượt', 'nhìn xa · kính · hai mắt']); // emoji mở trước
   g.startRound({ word: 'ký ức', hint: 'Khái niệm', desc: ['Thứ ai cũng mang theo mà không thấy', 'Nhớ về ngày xưa'], emoji: '' });
   assert.equal(g.maxHints, 2);
   // từ cũ chưa có mô tả: vẫn gợi ý kiểu cũ (chủ đề → chữ đầu → lộ chữ)
@@ -294,4 +294,14 @@ test('từ vựng có sẵn: cách gõ khác (aliases) không xuất hiện nguy
   const g = new WordGame({ words: [] }, { scorer: { score: async () => 1 }, wordBank: bank });
   g.startRound(pick);
   assert.equal(g.handle({ type: 'comment', user: { id: 'x', name: 'X' }, text: 'Đô rê mon' })[0].type, 'wg_win');
+});
+
+test('bộ riêng (trend…): gợi ý emoji cũng được đưa lên đầu', () => {
+  const g = new WordGame({ words: [{ word: 'mặt trời' }] }, { scorer: { score: async () => 1 } });
+  g.startRound({ word: 'chill', hints: ['thư giãn · cà phê', 'nhẹ nhàng · lofi', '😌 🎧 ☕'] });
+  g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['😌 🎧 ☕']);
+  g.startRound({ word: 'Ahri', hints: ['Vùng đất: Ionia', 'Hồ ly chín đuôi'] }); // không có emoji: giữ nguyên
+  g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['Vùng đất: Ionia']);
 });
