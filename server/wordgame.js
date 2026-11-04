@@ -46,8 +46,9 @@ export function parseGuess(text, cfg = WG_DEFAULTS) {
  * Trò chơi đoán từ theo nghĩa. Phát sự kiện 'effects' (mảng hiệu ứng) khi có kết quả chấm điểm bất đồng bộ.
  */
 export class WordGame extends EventEmitter {
-  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {} } = {}) {
+  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {}, weekly = null } = {}) {
     super();
+    this.weekly = weekly; // bảng xếp hạng tuần (WeeklyBoard), có thể null
     // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
     // Bộ "tu-vung" (mặc định) dùng kho từ do Claude sinh + config.words.
     this.wordSets = wordSets;
@@ -205,11 +206,18 @@ export class WordGame extends EventEmitter {
 
   handle(ev) {
     const fx = this.handleEvent(ev);
-    // ai tặng quà cũng được cảm ơn đích danh (kể cả lúc nghỉ giữa vòng / tạm dừng)
-    if (ev.type === 'gift' && ev.user?.id) {
+    const by = ev.user?.id ? { id: ev.user.id, name: ev.user.name, avatar: ev.user.avatar } : null;
+    // ai tặng quà cũng được cảm ơn đích danh (kể cả lúc nghỉ giữa vòng / tạm dừng) + tích điểm thưởng tuần
+    if (ev.type === 'gift' && by) {
       const repeat = Math.max(1, ev.repeatCount | 0 || 1);
       const unit = Math.max(0, Number(ev.diamonds) || 0);
-      fx.push({ type: 'wg_thanks', by: { id: ev.user.id, name: ev.user.name, avatar: ev.user.avatar }, giftName: ev.giftName || 'quà', giftImage: ev.giftImage || null, repeat, diamonds: unit * repeat });
+      const bonus = this.weekly?.addBonus(by, { diamonds: unit * repeat }) || { add: 0, total: 0 };
+      fx.push({ type: 'wg_thanks', by, giftName: ev.giftName || 'quà', giftImage: ev.giftImage || null, repeat, diamonds: unit * repeat, bonusAdd: bonus.add, bonusTotal: bonus.total });
+    }
+    // chia sẻ live: tích điểm thưởng, cộng vào lần đoán đúng tiếp theo
+    if (ev.type === 'share' && by && this.weekly) {
+      const bonus = this.weekly.addBonus(by, { shares: 1 });
+      fx.push({ type: 'wg_bonus', kind: 'share', by, add: bonus.add, total: bonus.total });
     }
     return fx;
   }
@@ -359,9 +367,13 @@ export class WordGame extends EventEmitter {
     if (by.name) w.name = by.name;
     if (by.avatar) w.avatar = by.avatar;
     this.guesses.set(this.secret, { word: this.secret, score: 100, pending: false, by, at: this.clock(), count: 1, source: 'exact' });
+    // điểm tuần: đoán đúng càng sớm càng nhiều (+ điểm thưởng chia sẻ / quà đã tích)
+    const total = Math.max(1, this.endsAt - this.startedAt);
+    const points = this.weekly?.award(by, 1 - (this.clock() - this.startedAt) / total) || null;
+    this.winner.points = points;
     this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
+    return [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds: Math.round((this.clock() - this.startedAt) / 1000) }];
   }
 
   /** Admin: đang chơi thì kết thúc vòng (lộ từ), đang nghỉ thì sang vòng mới. */
@@ -435,6 +447,7 @@ export class WordGame extends EventEmitter {
       feed: this.feed.slice(0, 6),
       totalGuesses: this.guesses.size,
       winner: this.winner,
+      weekly: this.weekly?.snapshot() || null,
       champions: Object.values(this.wins).sort((a, b) => b.wins - a.wins).slice(0, 3),
     };
   }

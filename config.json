@@ -333,6 +333,7 @@
     "minRemaining": 10,
     "autoGenerate": false,
     "difficulty": "hard",
+    "weekly": { "base": 100, "speedMax": 100, "perShare": 20, "maxShares": 5, "perDiamond": 2, "maxGiftBonus": 300 },
     "scorer": "claude",
     "roundSeconds": 300,
     "breakSeconds": 12,

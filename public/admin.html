@@ -101,6 +101,18 @@
     </section>
 
     <section>
+      <h2>🏆 Bảng xếp hạng tuần (Đoán từ)</h2>
+      <p class="muted" style="margin-top:0">Đoán đúng = 100 điểm + thưởng tốc độ (tối đa +100, càng sớm càng nhiều) + điểm thưởng chia sẻ (+20/lượt, tối đa 5) và quà (+2/xu, tối đa 300) tích từ trước. Tuần tính từ thứ 2 00:00 (giờ VN); hết tuần người nhất được ghim tên "👑 Vua tuần" trên màn hình cả tuần sau.</p>
+      <div id="wkInfo" class="muted">Đang tải…</div>
+      <table id="wkTable" style="width:100%;border-collapse:collapse;margin:8px 0;font-size:14px"></table>
+      <div class="row">
+        <button id="btnWkRefresh" class="ghost">↻ Làm mới</button>
+        <button id="btnWkClose" class="ghost">🏁 Chốt tuần ngay (lưu top, xoá điểm để đua lại)</button>
+      </div>
+      <details style="margin-top:8px"><summary>Lịch sử các tuần (để trao quà)</summary><div id="wkHistory" class="muted" style="white-space:pre-line;margin-top:6px"></div></details>
+    </section>
+
+    <section>
       <h2>🔤 Đoán từ</h2>
       <div class="row" style="margin-bottom:10px">
         <label class="muted" for="wgSet">Bộ từ:</label>
@@ -397,6 +409,30 @@
   $('btnWgGen').onclick = () => wgApi('generate', { theme: $('wgTheme').value.trim() })
     .then(() => { log('Đoán từ: đang tạo 100 từ mới…'); setTimeout(() => wgApi('peek').catch(() => {}), 1500); })
     .catch((e) => log('Lỗi: ' + e.message));
+  // ---------- bảng xếp hạng tuần ----------
+  const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(n || 0);
+  const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  function wkShow(w) {
+    if (!w) return;
+    const d = Math.floor(w.endsInSec / 86400), h = Math.floor((w.endsInSec % 86400) / 3600);
+    $('wkInfo').textContent = `Tuần bắt đầu ${w.week} · còn ${d} ngày ${h} giờ · ${w.top.length} người có điểm`;
+    $('wkTable').innerHTML = w.top.length
+      ? '<tr><th align="left">#</th><th align="left">Người chơi</th><th align="right">Điểm</th><th align="right">Lần trúng</th></tr>' +
+        w.top.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.name)} <span class="muted">(${esc(s.id)})</span></td><td align="right"><b>${fmtN(s.points)}</b></td><td align="right">${s.wins}</td></tr>`).join('')
+      : '<tr><td class="muted">Chưa có ai ghi điểm tuần này.</td></tr>';
+    $('wkHistory').textContent = w.history.length
+      ? w.history.map((h) => `Tuần ${h.week}: ` + h.top.slice(0, 3).map((s, i) => `${['🥇', '🥈', '🥉'][i]} ${s.name} (${fmtN(s.points)}đ)`).join(' · ')).join('\n')
+      : 'Chưa có tuần nào được chốt.';
+  }
+  const wkApi = (a) => api('/api/weekly/' + a).then((r) => { wkShow(r.weekly); return r; });
+  $('btnWkRefresh').onclick = () => wkApi('peek').catch((e) => log('Lỗi: ' + e.message));
+  $('btnWkClose').onclick = () => {
+    if (!confirm('Chốt tuần ngay? Top hiện tại được lưu vào lịch sử, người nhất thành "Vua tuần", điểm tuần này bị xoá để đua lại.')) return;
+    wkApi('close').then((r) => log(`Đã chốt tuần: ${r.closed?.top?.[0]?.name || 'chưa ai có điểm'}`)).catch((e) => log('Lỗi: ' + e.message));
+  };
+  wkApi('peek').catch(() => {});
+  setInterval(() => wkApi('peek').catch(() => {}), 30000);
+
   const addWord = (mode) => {
     const body = { mode, word: $('awWord').value, aliases: $('awAliases').value, hint1: $('awHint1').value, hint2: $('awHint2').value, emoji: $('awEmoji').value, topic: $('awTopic').value };
     wgApi('addword', body)

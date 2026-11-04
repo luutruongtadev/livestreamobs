@@ -14,6 +14,7 @@ import { WordBank, claudeClientFromEnv, cleanDesc, cleanEmoji, validWord } from 
 import { WordSetStore } from './wordsets.js';
 import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
 import { PauseController } from './pause.js';
+import { WeeklyBoard } from './weekly.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -84,7 +85,8 @@ const setStore = new WordSetStore({ repoDir: path.join(ROOT, 'wordsets'), dataDi
 const wordSets = setStore.sets;
 const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5' });
 let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
-const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, statePath: path.join(ROOT, 'data', 'wordgame.json') });
+const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 'data', 'weekly.json') });
+const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
 const pauser = new PauseController([wg, tug, race], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
@@ -224,7 +226,7 @@ setInterval(() => {
   if (temple.prunePresence()) scheduleState();
   try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
   try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
-  try { wg.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
+  try { wg.save(); weekly.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
   try { race.save(); } catch (e) { console.warn('[race] save lỗi:', e.message); }
 }, 5000).unref();
 
@@ -297,6 +299,14 @@ app.post('/api/race/:action', requireAdmin, (req, res) => {
   else if (a === 'reset') raceBroadcast(race.resetAll());
   else return res.status(400).json({ error: 'action: next | lobby | reset' });
   res.json({ ok: true, race: race.snapshot() });
+});
+
+// Bảng xếp hạng tuần (admin): xem top + lịch sử, chốt tuần thủ công
+app.post('/api/weekly/:action', requireAdmin, (req, res) => {
+  const a = req.params.action;
+  if (a === 'close') { const rec = weekly.closeWeek(); weekly.save(); wgBroadcast([]); return res.json({ ok: true, closed: rec, weekly: weekly.admin() }); }
+  if (a === 'peek') return res.json({ ok: true, weekly: weekly.admin() });
+  res.status(400).json({ error: 'action: peek | close' });
 });
 
 app.post('/api/wg/:action', requireAdmin, async (req, res) => {
@@ -432,7 +442,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); tug.save(); wg.save(); race.save(); } catch { /* bỏ qua */ }
+  try { temple.save(); tug.save(); wg.save(); weekly.save(); race.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

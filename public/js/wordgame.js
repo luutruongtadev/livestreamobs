@@ -127,13 +127,19 @@ function thank(e) {
   const tier = tierOf(e.diamonds);
   // quà nhỏ dồn dập: gộp vào thẻ đang chờ của cùng người
   const same = thanks.queue.find((q) => q.by?.id === e.by?.id && q.giftName === e.giftName);
-  if (same) { same.repeat += e.repeat; same.diamonds += e.diamonds; same.tier = Math.max(same.tier, tierOf(same.diamonds)); return; }
+  if (same) { same.repeat += e.repeat; same.diamonds += e.diamonds; same.bonusTotal = e.bonusTotal; same.tier = Math.max(same.tier, tierOf(same.diamonds)); return; }
   if (thanks.queue.length >= 6) { const i = thanks.queue.findIndex((q) => q.tier < tier); if (i < 0) return; thanks.queue.splice(i, 1); }
   thanks.queue.push({ ...e, tier });
 }
 
 function handle(e) {
   switch (e.type) {
+    case 'wg_bonus':
+      if (e.add > 0) {
+        fx.banner = { text: `🔁 ${clip(e.by?.name, 16)} chia sẻ live: +${e.add} điểm thưởng`, sub: `Đang giữ ${e.total} điểm thưởng — cộng vào lần đoán đúng tiếp theo`, t: 3.5, color: '#4ade80' };
+        sound.play('chime', { pitch: 1.6 });
+      }
+      break;
     case 'wg_thanks':
       thank(e);
       break;
@@ -469,10 +475,10 @@ function drawFeed() {
 }
 
 function drawGuide() {
-  const items = ['💬 Bình luận 1 từ để đoán', '🎯 100 điểm = trúng'];
+  const items = ['💬 Bình luận 1 từ để đoán', '⚡ Đoán sớm = nhiều điểm', '🔁 Share / 🎁 quà = điểm thưởng'];
   ctx.save();
-  ctx.font = font(800, 24); ctx.textBaseline = 'middle';
-  const pad = 18, gap = 12;
+  ctx.font = font(800, 21); ctx.textBaseline = 'middle';
+  const pad = 14, gap = 10;
   const ws = items.map((s) => ctx.measureText(s).width + pad * 2);
   let x = (W - ws.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2;
   const y = L.rankBottom + 18;
@@ -488,20 +494,57 @@ function drawGuide() {
   ctx.restore();
 }
 
+const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(n || 0);
+/** Bảng xếp hạng tuần (góc phải, ngang hàng "Vừa đoán"). */
 function drawChampions() {
-  const list = G.champions || [];
-  if (!list.length) return;
+  const wk = G.weekly;
+  const list = wk?.top || [];
   ctx.save();
-  ctx.font = font(700, 20); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-  const medals = ['🥇', '🥈', '🥉'];
-  list.forEach((c, i) => {
-    const y = L.feedY + i * 44;
-    const label = `${medals[i]} ${clip(c.name, 12)} · ${c.wins} lần`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+  ctx.font = font(800, 20); ctx.fillStyle = '#fde68a';
+  ctx.fillText('🏆 ĐIỂM TUẦN NÀY', W - 50, L.feedY - 44);
+  if (!list.length) {
+    ctx.font = font(700, 20); ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.fillText('Chưa ai ghi điểm — đoán ngay!', W - 50, L.feedY);
+  }
+  const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
+  list.slice(0, 4).forEach((c, i) => {
+    const y = L.feedY + i * 50;
+    ctx.font = font(800, 22);
+    const label = `${medals[i]} ${clip(c.name, 10)} · ${fmtN(c.points)}đ`;
     const w = ctx.measureText(label).width + 30;
-    rr(W - 40 - w, y - 19, w, 38, 19);
-    ctx.fillStyle = 'rgba(15,18,60,.8)'; ctx.fill();
-    ctx.fillStyle = '#fde68a'; ctx.fillText(label, W - 55, y + 1);
+    rr(W - 40 - w, y - 21, w, 42, 21);
+    ctx.fillStyle = i === 0 ? 'rgba(120,80,0,.9)' : 'rgba(15,18,60,.85)'; ctx.fill();
+    ctx.strokeStyle = i === 0 ? '#facc15' : 'rgba(250,204,21,.4)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = i === 0 ? '#fde68a' : '#fff'; ctx.fillText(label, W - 55, y + 1);
   });
+  ctx.restore();
+}
+
+/** Banner trên cùng: Vua tuần trước (được chủ kênh trao quà) hoặc lời mời đua top tuần. */
+function drawKing(t) {
+  const wk = G.weekly;
+  if (!wk) return;
+  const y = 236, h = 54;
+  ctx.save();
+  const g = ctx.createLinearGradient(40, y, W - 40, y);
+  g.addColorStop(0, 'rgba(120,70,0,.92)'); g.addColorStop(0.5, 'rgba(180,120,10,.92)'); g.addColorStop(1, 'rgba(120,70,0,.92)');
+  rr(40, y, W - 80, h, 27); ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3; ctx.stroke();
+  // ánh sáng chạy qua banner
+  const sx = ((t * 260) % (W + 400)) - 200;
+  const sh = ctx.createLinearGradient(sx - 80, 0, sx + 80, 0);
+  sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.5, 'rgba(255,255,255,.25)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.save(); rr(40, y, W - 80, h, 27); ctx.clip(); ctx.fillStyle = sh; ctx.fillRect(40, y, W - 80, h); ctx.restore();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (wk.king) {
+    avatar(wk.king, 82, y + h / 2, 20, '#fde68a');
+    ctx.font = font(900, 25); ctx.fillStyle = '#fff7d6';
+    ctx.fillText(fitText(`👑 VUA TUẦN TRƯỚC: ${wk.king.name} · ${fmtN(wk.king.points)} điểm`, W - 200), W / 2 + 16, y + h / 2 + 1);
+  } else {
+    ctx.font = font(800, 23); ctx.fillStyle = '#fff7d6';
+    ctx.fillText(fitText('👑 Top 1 điểm tuần được ghim tên + nhận quà từ chủ kênh!', W - 140), W / 2, y + h / 2 + 1);
+  }
   ctx.restore();
 }
 
@@ -510,8 +553,8 @@ function drawEnd(t) {
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, L.rankTop - 6, W, 640);
   const y = L.rankTop + 54;
-  rr(80, y, W - 160, 470, 34);
   const win = G.winner;
+  rr(80, y, W - 160, win?.points ? 505 : 470, 34);
   ctx.fillStyle = win ? '#166534' : '#3730a3'; ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -526,16 +569,24 @@ function drawEnd(t) {
   outlined(fitText((G.answer || G.secret || '').toUpperCase(), W - 240), 0, 0, '#fde68a', 'rgba(0,0,0,.5)', 10);
   ctx.restore();
   if (win) {
-    avatar(win, W / 2, y + 300, 56, '#fde68a');
+    avatar(win, W / 2, y + 290, 52, '#fde68a');
     ctx.font = font(800, 32); ctx.fillStyle = '#fff';
-    ctx.fillText(fitText(win.name, 600), W / 2, y + 392);
+    ctx.fillText(fitText(win.name, 600), W / 2, y + 372);
+    const p = win.points;
+    if (p) {
+      ctx.font = font(900, 34); ctx.fillStyle = '#fde68a';
+      ctx.fillText(`+${fmtN(p.total)} điểm tuần${p.rank ? ` · hạng #${p.rank}` : ''}`, W / 2, y + 412);
+      const parts = [`gốc ${p.base}`, `⚡ nhanh +${p.speed}`, p.shareBonus && `🔁 share +${p.shareBonus}`, p.giftBonus && `🎁 quà +${p.giftBonus}`].filter(Boolean);
+      ctx.font = font(700, 21); ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.fillText(fitText(parts.join(' · '), W - 220), W / 2, y + 446);
+    }
   } else {
     const best = (G.ranked || [])[0];
     ctx.font = font(700, 28); ctx.fillStyle = '#fff';
     if (best) ctx.fillText(fitText(`Gần nhất: ${best.word} (${best.score}) — ${best.by?.name || ''}`, W - 220), W / 2, y + 300);
   }
   ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.8)';
-  ctx.fillText(`Vòng mới sau ${G.remaining}s`, W / 2, y + 440);
+  ctx.fillText(`Vòng mới sau ${G.remaining}s`, W / 2, y + (win?.points ? 478 : 440));
   ctx.restore();
 }
 
@@ -614,7 +665,7 @@ function drawThanks(dt) {
   ctx.font = font(900, big ? 50 : 38); ctx.fillStyle = '#fff';
   ctx.fillText(fitText(c.by?.name || 'bạn', tw), tx, y + h * 0.55);
   ctx.font = font(700, big ? 28 : 23); ctx.fillStyle = '#fde68a';
-  ctx.fillText(fitText(`đã tặng ${c.repeat > 1 ? c.repeat + ' × ' : ''}${c.giftName}${c.diamonds ? ` · ${c.diamonds} xu` : ''}`, tw), tx, y + h * 0.81);
+  ctx.fillText(fitText(`đã tặng ${c.repeat > 1 ? c.repeat + ' × ' : ''}${c.giftName}${c.bonusTotal ? ` · 🎯 +${c.bonusTotal} điểm khi đoán đúng` : c.diamonds ? ` · ${c.diamonds} xu` : ''}`, tw), tx, y + h * 0.81);
   ctx.restore();
 }
 
@@ -660,6 +711,7 @@ function frame(now) {
   fx.hintFlash = Math.max(0, fx.hintFlash - dt * 0.5);
 
   drawBackground(t);
+  drawKing(t);
   drawHeader();
   drawSecret(t);
   drawRanking(t);
