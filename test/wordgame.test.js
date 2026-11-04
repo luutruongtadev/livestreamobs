@@ -246,3 +246,21 @@ test('từ vựng có 2 câu mô tả + 3 emoji: gợi ý 1, 2 là mô tả, g�
   g.revealHint();
   assert.deepEqual(g.snapshot().hints, ['Chủ đề: Động vật']);
 });
+
+test('wordsets/: mọi bộ có sẵn hợp lệ — tên từ đúng dạng, không trùng, gợi ý không lộ đáp án / biệt danh', async () => {
+  const { validSecretName, cleanHints } = await import('../server/setgen.js');
+  const { compact } = await import('../server/scorer.js');
+  const dir = new URL('../wordsets/', import.meta.url);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+  assert.ok(files.includes('trend-mxh.json'));
+  for (const f of files) {
+    const set = JSON.parse(fs.readFileSync(new URL(f, dir), 'utf8'));
+    assert.ok(set.title && set.words.length >= 20, f);
+    assert.equal(new Set(set.words.map((w) => compact(w.word))).size, set.words.length, `${f}: trùng từ`);
+    for (const w of set.words) {
+      assert.ok(validSecretName(w.word), `${f}: ${w.word}`);
+      const text = w.hints.filter((h) => /\p{L}/u.test(h)); // bỏ dòng emoji
+      assert.equal(cleanHints(w.word, w.aliases || [], text).length, text.length, `${f}: gợi ý lộ đáp án ở "${w.word}"`);
+    }
+  }
+});

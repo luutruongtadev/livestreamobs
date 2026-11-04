@@ -9,7 +9,7 @@ import { TikTokBridge } from './tiktok.js';
 import { TugWar } from './tugwar.js';
 import { Race } from './race.js';
 import { WordGame } from './wordgame.js';
-import { ClaudeScorer, SimpleScorer } from './scorer.js';
+import { ClaudeScorer, SimpleScorer, compact } from './scorer.js';
 import { WordBank, claudeClientFromEnv } from './wordbank.js';
 import { WordSetStore } from './wordsets.js';
 import { SetGenerator } from './setgen.js';
@@ -306,6 +306,9 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
   else if (a === 'word') {
     const w = String(req.body?.word || '').trim();
     if (!w) return res.status(400).json({ error: 'Thiếu từ' });
+    // đang chơi bộ riêng (LMHT, trend…) mà từ có trong bộ: dùng đủ gợi ý + biệt danh của bộ
+    const inSet = wg.set?.words?.find((x) => compact(x.word) === compact(w));
+    if (inSet) { wgBroadcast(wg.startRound(inSet)); return res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob }); }
     const known = wordBank.hintsFor({ word: w });
     const desc = Array.isArray(req.body?.desc) ? req.body.desc.map(String).filter(Boolean).slice(0, 2) : known.desc;
     wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || ''), desc, emoji: req.body?.emoji ?? known.emoji }));

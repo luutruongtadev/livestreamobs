@@ -1,0 +1,843 @@
+{
+ "title": "Đoán trend MXH",
+ "topic": "Trend / hot trên mạng xã hội",
+ "secretLabel": "TREND BÍ MẬT",
+ "scoreContext": "Từ bí mật là một từ lóng, trend, món / đồ đang hot hoặc thuật ngữ quen thuộc trên mạng xã hội Việt Nam (TikTok, Facebook, YouTube), nhiều từ là tiếng Anh hoặc teencode của Gen Z. Chấm theo NGHĨA trên mạng xã hội, không theo nghĩa đen: ví dụ 'trà xanh' là người chen chân vào chuyện tình cảm, 'flex' là khoe khoang, 'chữa lành' là đi chơi thư giãn tinh thần. Từ đồng nghĩa / cách nói khác hoặc dịch tiếng Anh ↔ tiếng Việt của đúng khái niệm đó 80-95; từ cùng bối cảnh gần (drama ↔ hóng biến, livestream ↔ chốt đơn) 55-80; cùng chủ đề mạng xã hội nhưng khác ý 25-50; không liên quan 1-15.",
+ "words": [
+  {
+   "word": "sống ảo",
+   "aliases": [],
+   "hints": [
+    "mạng xã hội · khoe · like",
+    "ảnh lung linh · filter · góc chụp đẹp",
+    "📸 ✨ 🤳"
+   ]
+  },
+  {
+   "word": "check in",
+   "aliases": [],
+   "hints": [
+    "du lịch · quán cà phê · định vị",
+    "đánh dấu · địa điểm · khoe đang đâu",
+    "📍 🗺️ 📸"
+   ]
+  },
+  {
+   "word": "selfie",
+   "aliases": [
+    "tự sướng"
+   ],
+   "hints": [
+    "điện thoại · camera trước · cười",
+    "chụp mình · gậy · góc nghiêng",
+    "🤳 📱 😁"
+   ]
+  },
+  {
+   "word": "hashtag",
+   "aliases": [
+    "thẻ tag"
+   ],
+   "hints": [
+    "bài đăng · xu hướng · tìm kiếm",
+    "dấu thăng · từ khóa · gắn",
+    "🏷️ 📈 🔎"
+   ]
+  },
+  {
+   "word": "livestream",
+   "aliases": [
+    "live",
+    "phát trực tiếp"
+   ],
+   "hints": [
+    "bán hàng · mắt xem · thả tim",
+    "phát sóng · real time · bình luận",
+    "🔴 🎥 💬"
+   ]
+  },
+  {
+   "word": "idol",
+   "aliases": [
+    "thần tượng"
+   ],
+   "hints": [
+    "fan · concert · K-pop",
+    "ngôi sao · hâm mộ · chữ ký",
+    "🌟 🎤 💖"
+   ]
+  },
+  {
+   "word": "fan cứng",
+   "aliases": [
+    "fan ruột"
+   ],
+   "hints": [
+    "thần tượng · lâu năm · trung thành",
+    "ủng hộ · hâm mộ · đu từ đầu",
+    "💪 💖 🎤"
+   ]
+  },
+  {
+   "word": "anti fan",
+   "aliases": [],
+   "hints": [
+    "ghét · bình luận · tẩy chay",
+    "chê · công kích · đối thủ",
+    "👎 😡 💬"
+   ]
+  },
+  {
+   "word": "drama",
+   "aliases": [
+    "đờ ra ma"
+   ],
+   "hints": [
+    "lùm xùm · cãi nhau · ồn ào",
+    "scandal · hóng · bóc phốt",
+    "🍿 😱 🔥"
+   ]
+  },
+  {
+   "word": "hóng biến",
+   "aliases": [],
+   "hints": [
+    "bỏng ngô · hội nhóm · ngồi chờ",
+    "tin nóng · ăn dưa · scandal",
+    "🍿 👀 🍉"
+   ]
+  },
+  {
+   "word": "cà khịa",
+   "aliases": [],
+   "hints": [
+    "mỉa mai · trêu · bình luận",
+    "châm chọc · đá đểu · xỏ xiên",
+    "😏 💬 🌶️"
+   ]
+  },
+  {
+   "word": "flex",
+   "aliases": [
+    "phờ lếch"
+   ],
+   "hints": [
+    "giàu · hàng hiệu · siêu xe",
+    "thể hiện · đẳng cấp · lên đồ",
+    "💎 🚗 💪"
+   ]
+  },
+  {
+   "word": "gato",
+   "aliases": [
+    "ghen ăn tức ở"
+   ],
+   "hints": [
+    "người khác giỏi · so sánh · tức",
+    "ghen tị · đố kỵ · khó chịu",
+    "😒 💚 🍰"
+   ]
+  },
+  {
+   "word": "trà xanh",
+   "aliases": [],
+   "hints": [
+    "tình địch · giả ngây thơ · phim",
+    "chen chân · cướp người yêu · tâm cơ",
+    "😇 💔 🍵"
+   ]
+  },
+  {
+   "word": "crush",
+   "aliases": [
+    "cờ rút"
+   ],
+   "hints": [
+    "thầm thương · lớp bên · tim đập",
+    "thích thầm · tỏ tình · ngại ngùng",
+    "💘 😳 💌"
+   ]
+  },
+  {
+   "word": "thả thính",
+   "aliases": [],
+   "hints": [
+    "mập mờ · trai gái · câu cá",
+    "tán tỉnh · rắc · dụ dỗ",
+    "🎣 😉 💘"
+   ]
+  },
+  {
+   "word": "ét o ét",
+   "aliases": [
+    "sos"
+   ],
+   "hints": [
+    "khẩn cấp · bài hát · Gen Z",
+    "cứu với · nguy · kêu cứu",
+    "🆘 😱 📢"
+   ]
+  },
+  {
+   "word": "u là trời",
+   "aliases": [],
+   "hints": [
+    "ngạc nhiên · than thở · Gen Z",
+    "ôi chao · bất ngờ · thốt lên",
+    "😱 🙀 🤯"
+   ]
+  },
+  {
+   "word": "khum",
+   "aliases": [],
+   "hints": [
+    "không · dễ thương · nhõng nhẽo",
+    "từ chối · lắc đầu · nói lái",
+    "🙅 😝 ❌"
+   ]
+  },
+  {
+   "word": "chill",
+   "aliases": [
+    "chil"
+   ],
+   "hints": [
+    "thư giãn · cà phê · cuối tuần",
+    "nhẹ nhàng · thả lỏng · nhạc lofi",
+    "😌 🎧 ☕"
+   ]
+  },
+  {
+   "word": "vibe",
+   "aliases": [
+    "vibes"
+   ],
+   "hints": [
+    "năng lượng · không khí · âm nhạc",
+    "cảm giác · bầu không khí · hợp gu",
+    "✨ 🎶 🌈"
+   ]
+  },
+  {
+   "word": "slay",
+   "aliases": [],
+   "hints": [
+    "đỉnh · thời trang · tự tin",
+    "xuất sắc · cháy · ăn đứt",
+    "💅 🔥 👑"
+   ]
+  },
+  {
+   "word": "deadline",
+   "aliases": [
+    "đét lai"
+   ],
+   "hints": [
+    "sếp · nộp bài · thức khuya",
+    "hạn chót · gấp · chạy",
+    "⏰ 📄 😵"
+   ]
+  },
+  {
+   "word": "phông bạt",
+   "aliases": [],
+   "hints": [
+    "sống ảo · khoe · giả",
+    "giả giàu · màu mè · làm màu",
+    "🎭 💸 📸"
+   ]
+  },
+  {
+   "word": "ao trình",
+   "aliases": [
+    "ảo tưởng trình độ"
+   ],
+   "hints": [
+    "tự tin thái quá · game thủ · chê",
+    "tự cao · tưởng mình giỏi · gáy",
+    "🤡 🎮 📉"
+   ]
+  },
+  {
+   "word": "ối dồi ôi",
+   "aliases": [],
+   "hints": [
+    "Hà Nội · trend · bất ngờ",
+    "thốt lên · trời đất · ngạc nhiên",
+    "😲 🤭 🎵"
+   ]
+  },
+  {
+   "word": "viral",
+   "aliases": [
+    "lan truyền"
+   ],
+   "hints": [
+    "triệu view · nổi tiếng · mạng",
+    "chia sẻ · nhanh · hot",
+    "🚀 📈 🔥"
+   ]
+  },
+  {
+   "word": "meme",
+   "aliases": [
+    "mim"
+   ],
+   "hints": [
+    "ảnh chế · hài · mạng",
+    "chế · cười · lan truyền",
+    "😂 🐸 🖼️"
+   ]
+  },
+  {
+   "word": "reaction",
+   "aliases": [
+    "react"
+   ],
+   "hints": [
+    "video · xem lại · biểu cảm",
+    "phản ứng · YouTuber · bình luận",
+    "😮 🎥 🙀"
+   ]
+  },
+  {
+   "word": "unbox",
+   "aliases": [
+    "đập hộp",
+    "mở hộp"
+   ],
+   "hints": [
+    "đồ mới · YouTuber · hàng về",
+    "bóc · khui · quà",
+    "📦 ✂️ 🎁"
+   ]
+  },
+  {
+   "word": "review",
+   "aliases": [
+    "riviu"
+   ],
+   "hints": [
+    "nhận xét · quán ăn · đánh giá sao",
+    "trải nghiệm · chê khen · YouTuber",
+    "⭐ 🍜 📝"
+   ]
+  },
+  {
+   "word": "KOL",
+   "aliases": [],
+   "hints": [
+    "quảng cáo · người nổi tiếng · nhãn hàng",
+    "ảnh hưởng · booking · hợp đồng",
+    "📣 🌟 💼"
+   ]
+  },
+  {
+   "word": "tiktoker",
+   "aliases": [],
+   "hints": [
+    "video ngắn · lip sync · follow",
+    "sáng tạo · nhảy · triệu view",
+    "🎵 📱 💃"
+   ]
+  },
+  {
+   "word": "streamer",
+   "aliases": [
+    "stream"
+   ],
+   "hints": [
+    "game · donate · máy tính",
+    "phát trực tiếp · camera · fan",
+    "🎮 🎙️ 💰"
+   ]
+  },
+  {
+   "word": "donate",
+   "aliases": [
+    "đô nết"
+   ],
+   "hints": [
+    "streamer · ủng hộ · tiền",
+    "tặng · cảm ơn · gửi",
+    "💸 🎁 🙏"
+   ]
+  },
+  {
+   "word": "giveaway",
+   "aliases": [],
+   "hints": [
+    "quà · bốc thăm · follow",
+    "tặng miễn phí · chia sẻ · may mắn",
+    "🎁 🍀 📣"
+   ]
+  },
+  {
+   "word": "flash sale",
+   "aliases": [],
+   "hints": [
+    "nửa đêm · đồng hồ đếm · ứng dụng",
+    "giảm giá · nhanh tay · hết hàng",
+    "⚡ 🛒 ⏰"
+   ]
+  },
+  {
+   "word": "săn sale",
+   "aliases": [],
+   "hints": [
+    "11 tháng 11 · mã giảm · giỏ hàng",
+    "giá rẻ · chốt · voucher",
+    "🛒 🏷️ 💳"
+   ]
+  },
+  {
+   "word": "chốt đơn",
+   "aliases": [],
+   "hints": [
+    "live bán hàng · inbox · ship",
+    "mua · đặt hàng · xác nhận",
+    "📦 ✅ 💬"
+   ]
+  },
+  {
+   "word": "hot girl",
+   "aliases": [],
+   "hints": [
+    "xinh · nổi tiếng · mạng",
+    "gái xinh · follow · ảnh đẹp",
+    "💁‍♀️ 📸 🔥"
+   ]
+  },
+  {
+   "word": "cà phê muối",
+   "aliases": [],
+   "hints": [
+    "Huế · trend · mặn ngọt",
+    "kem mặn · đắng · uống",
+    "🧂 ☕ 🥛"
+   ]
+  },
+  {
+   "word": "trà mãng cầu",
+   "aliases": [],
+   "hints": [
+    "ly to · trend 2024 · xếp hàng",
+    "chua ngọt · thơm · ly khổng lồ",
+    "🧋 🍈 📏"
+   ]
+  },
+  {
+   "word": "mì cay",
+   "aliases": [
+    "mì cay 7 cấp độ"
+   ],
+   "hints": [
+    "thử thách · Hàn Quốc · nước",
+    "cấp độ · bỏng miệng · đỏ",
+    "🌶️ 🍜 🔥"
+   ]
+  },
+  {
+   "word": "Labubu",
+   "aliases": [],
+   "hints": [
+    "Pop Mart · hộp mù · Lisa",
+    "búp bê · răng nhọn · móc khóa",
+    "🧸 📦 🐰"
+   ]
+  },
+  {
+   "word": "capybara",
+   "aliases": [
+    "chuột lang nước"
+   ],
+   "hints": [
+    "bình thản · hội động vật · meme",
+    "chill · lì lợm · ngâm nước",
+    "🐹 😌 🛁"
+   ]
+  },
+  {
+   "word": "pickleball",
+   "aliases": [
+    "pick ơ bôn"
+   ],
+   "hints": [
+    "sân · vợt · trend 2024",
+    "bóng nhựa lỗ · đánh đôi · người nổi tiếng",
+    "🏓 🎾 👟"
+   ]
+  },
+  {
+   "word": "run club",
+   "aliases": [
+    "chạy bộ"
+   ],
+   "hints": [
+    "công viên · sáng sớm · hội nhóm",
+    "km · giày · đồng hồ thông minh",
+    "🏃 👟 ⌚"
+   ]
+  },
+  {
+   "word": "photobooth",
+   "aliases": [],
+   "hints": [
+    "bốn khung ảnh · đạo cụ · bạn bè",
+    "chụp · in ảnh · tạo dáng",
+    "📸 🎞️ 🤪"
+   ]
+  },
+  {
+   "word": "concert",
+   "aliases": [
+    "con sợt"
+   ],
+   "hints": [
+    "sân vận động · lightstick · vé",
+    "ca sĩ · khán giả · đêm nhạc",
+    "🎤 🎟️ 🌟"
+   ]
+  },
+  {
+   "word": "chữa lành",
+   "aliases": [
+    "healing"
+   ],
+   "hints": [
+    "Đà Lạt · đi trốn · trend",
+    "thư giãn · bình yên · tâm hồn",
+    "🌿 🧘 🏞️"
+   ]
+  },
+  {
+   "word": "thao túng tâm lý",
+   "aliases": [
+    "thao túng"
+   ],
+   "hints": [
+    "câu nói hot · gaslighting · 2023",
+    "điều khiển · gây áp lực · dắt mũi",
+    "🧠 🎭 🪢"
+   ]
+  },
+  {
+   "word": "red flag",
+   "aliases": [
+    "cờ đỏ"
+   ],
+   "hints": [
+    "người yêu · cảnh báo · né",
+    "dấu hiệu xấu · độc hại · chạy ngay",
+    "🚩 ⚠️ 🏃"
+   ]
+  },
+  {
+   "word": "green flag",
+   "aliases": [
+    "cờ xanh"
+   ],
+   "hints": [
+    "người yêu · đáng tin · tốt",
+    "dấu hiệu tốt · tử tế · giữ lấy",
+    "💚 ✅ 🤝"
+   ]
+  },
+  {
+   "word": "overthinking",
+   "aliases": [
+    "nghĩ nhiều"
+   ],
+   "hints": [
+    "đêm khuya · lo âu · suy diễn",
+    "lo lắng · trằn trọc · tưởng tượng",
+    "🌀 🌙 😟"
+   ]
+  },
+  {
+   "word": "FOMO",
+   "aliases": [
+    "sợ bị bỏ lỡ"
+   ],
+   "hints": [
+    "trend · lướt mạng · sợ",
+    "theo đám đông · vội · sợ thua kém",
+    "😨 📱 🏃"
+   ]
+  },
+  {
+   "word": "ghosting",
+   "aliases": [
+    "ghost"
+   ],
+   "hints": [
+    "nhắn tin · bỏ đi · im lặng",
+    "biến mất · seen · không trả lời",
+    "👻 💬 🚪"
+   ]
+  },
+  {
+   "word": "Gen Z",
+   "aliases": [],
+   "hints": [
+    "sinh năm 2000 · TikTok · trẻ",
+    "thế hệ · teen code · tuổi trẻ",
+    "📱 🧢 ✌️"
+   ]
+  },
+  {
+   "word": "boomer",
+   "aliases": [
+    "bùm mơ"
+   ],
+   "hints": [
+    "thế hệ trước · khó tính · Facebook",
+    "người lớn tuổi · lạc hậu · chê giới trẻ",
+    "👴 📺 📰"
+   ]
+  },
+  {
+   "word": "đu trend",
+   "aliases": [],
+   "hints": [
+    "TikTok · bắt chước · hot",
+    "theo · thử thách · nhảy",
+    "🕺 📈 🔥"
+   ]
+  },
+  {
+   "word": "thử thách",
+   "aliases": [
+    "challenge"
+   ],
+   "hints": [
+    "TikTok · bạn bè · gắn tên",
+    "nhiệm vụ · làm theo · quay video",
+    "🎯 💪 🎥"
+   ]
+  },
+  {
+   "word": "lip sync",
+   "aliases": [],
+   "hints": [
+    "video ngắn · bài hát · môi",
+    "nhép · biểu cảm · âm thanh",
+    "👄 🎵 📱"
+   ]
+  },
+  {
+   "word": "mukbang",
+   "aliases": [],
+   "hints": [
+    "ăn uống · Hàn Quốc · camera",
+    "ăn nhiều · nhai · đồ ăn khổng lồ",
+    "🍗 🍜 🎥"
+   ]
+  },
+  {
+   "word": "skincare",
+   "aliases": [],
+   "hints": [
+    "da mặt · buổi tối · serum",
+    "dưỡng da · kem · các bước",
+    "🧴 ✨ 🧖‍♀️"
+   ]
+  },
+  {
+   "word": "outfit",
+   "aliases": [
+    "ootd"
+   ],
+   "hints": [
+    "thời trang · phối đồ · gương",
+    "trang phục · set đồ · mặc",
+    "👗 👟 🧥"
+   ]
+  },
+  {
+   "word": "gym",
+   "aliases": [
+    "tập gym"
+   ],
+   "hints": [
+    "tạ · cơ bắp · máy chạy",
+    "phòng tập · thể hình · PT",
+    "🏋️ 💪 🥤"
+   ]
+  },
+  {
+   "word": "detox",
+   "aliases": [
+    "thải độc"
+   ],
+   "hints": [
+    "nước ép · cân nặng · rau củ",
+    "thanh lọc · nhịn ăn · cơ thể",
+    "🥤 🥦 🧘"
+   ]
+  },
+  {
+   "word": "podcast",
+   "aliases": [
+    "pót cát"
+   ],
+   "hints": [
+    "tai nghe · trò chuyện · Spotify",
+    "âm thanh · tập · người dẫn",
+    "🎙️ 🎧 📻"
+   ]
+  },
+  {
+   "word": "vlog",
+   "aliases": [
+    "vờ lóc"
+   ],
+   "hints": [
+    "du lịch · máy quay · YouTube",
+    "nhật ký · quay · đời thường",
+    "🎥 ✈️ 📔"
+   ]
+  },
+  {
+   "word": "filter",
+   "aliases": [
+    "phin tơ"
+   ],
+   "hints": [
+    "ảnh · làm đẹp · camera",
+    "lọc màu · mịn da · tai thỏ",
+    "✨ 🐰 📸"
+   ]
+  },
+  {
+   "word": "ChatGPT",
+   "aliases": [],
+   "hints": [
+    "AI · OpenAI · hỏi đáp",
+    "trả lời · viết bài · trợ lý ảo",
+    "🤖 💬 🧠"
+   ]
+  },
+  {
+   "word": "deepfake",
+   "aliases": [],
+   "hints": [
+    "AI · video giả · lừa đảo",
+    "ghép mặt · giả giọng · cảnh giác",
+    "🎭 🤖 ⚠️"
+   ]
+  },
+  {
+   "word": "lừa đảo online",
+   "aliases": [
+    "lừa đảo qua mạng"
+   ],
+   "hints": [
+    "tin nhắn lạ · link · chuyển khoản",
+    "giả danh · mất tiền · cảnh giác",
+    "🎣 💸 ⚠️"
+   ]
+  },
+  {
+   "word": "tiền ảo",
+   "aliases": [
+    "bitcoin",
+    "crypto"
+   ],
+   "hints": [
+    "đầu tư · ví · biến động",
+    "blockchain · lên xuống · đào coin",
+    "🪙 📈 💻"
+   ]
+  },
+  {
+   "word": "bóc phốt",
+   "aliases": [],
+   "hints": [
+    "drama · tố · ồn ào",
+    "vạch trần · lộ · scandal",
+    "🔍 📢 😱"
+   ]
+  },
+  {
+   "word": "trẩu tre",
+   "aliases": [
+    "trẻ trâu"
+   ],
+   "hints": [
+    "game · bình luận · tuổi teen",
+    "hổ báo · nhóc · ồn",
+    "🧒 🎮 😤"
+   ]
+  },
+  {
+   "word": "tấu hài",
+   "aliases": [],
+   "hints": [
+    "bình luận · comment · mặn",
+    "gây cười · lầy · diễn sâu",
+    "🤣 🎭 💬"
+   ]
+  },
+  {
+   "word": "xu cà na",
+   "aliases": [
+    "xui"
+   ],
+   "hints": [
+    "đen đủi · ngày tệ · than",
+    "số nhọ · vận đen · không may",
+    "😩 🌧️ 🐈‍⬛"
+   ]
+  },
+  {
+   "word": "mãi mận",
+   "aliases": [],
+   "hints": [
+    "bạn bè · thân · Gen Z",
+    "vĩnh viễn · luôn luôn · không đổi",
+    "♾️ 🤝 💞"
+   ]
+  },
+  {
+   "word": "ra dẻ",
+   "aliases": [],
+   "hints": [
+    "khoe · ta đây · sĩ",
+    "làm màu · tự đắc · gáy",
+    "😎 💸 🦚"
+   ]
+  },
+  {
+   "word": "thả tim",
+   "aliases": [],
+   "hints": [
+    "livestream · bình luận · màn hình",
+    "like · ủng hộ · chạm hai lần",
+    "❤️ 👆 📱"
+   ]
+  },
+  {
+   "word": "follow",
+   "aliases": [
+    "theo dõi"
+   ],
+   "hints": [
+    "tài khoản · fan · tăng",
+    "nút · người hâm mộ · ủng hộ",
+    "➕ 👥 📈"
+   ]
+  },
+  {
+   "word": "trending",
+   "aliases": [
+    "trend"
+   ],
+   "hints": [
+    "xu hướng · top · hot",
+    "thịnh hành · nổi bật · nhiều view",
+    "📈 🔥 🏆"
+   ]
+  }
+ ]
+}
