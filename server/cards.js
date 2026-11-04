@@ -89,27 +89,51 @@ export class CardStore {
     return { ...inst, rar: def.rar, chest, isNew, firstEver: serial === 1, total: p.cards.length, dropped: dropped ? dropped.card : null };
   }
 
-  /** Lá ra trận: lá đã chọn ("dùng rồng"), không thì lá mạnh nhất. */
+  /** Kho thẻ xếp mạnh nhất trước — số thứ tự 1, 2, 3… dùng khi comment "vào 2" / "dùng 2". */
+  sorted(id) {
+    const p = this.players[id];
+    return p ? [...p.cards].sort((a, b) => cardScore(b) - cardScore(a) || a.serial - b.serial) : [];
+  }
+
+  /** Lá ra trận: lá đã chọn ("dùng 2", "dùng rồng"), không thì lá mạnh nhất. */
   main(id) {
     const p = this.players[id];
     if (!p?.cards.length) return null;
-    return p.cards.find((c) => c.uid === p.pick) || [...p.cards].sort((a, b) => cardScore(b) - cardScore(a))[0];
+    return p.cards.find((c) => c.uid === p.pick) || this.sorted(id)[0];
   }
 
-  /** Comment "dùng rồng" / "chọn gà chọi" → chọn lá mạnh nhất của loài đó. */
+  /** Tên loài / tên gọi ngắn → loài; trùng nhiều loài thì ưu tiên loài người chơi đang có. */
+  resolveSpecies(text, owned = new Set()) {
+    const n = normalize(text);
+    if (!n) return null;
+    const names = (c) => [c.name, c.short, ...(c.alias || [])].filter(Boolean).map(normalize);
+    const exact = CARDS.filter((c) => names(c).includes(n));
+    const word = CARDS.filter((c) => names(c).some((x) => x.split(' ').includes(n) || (n.length >= 3 && x.includes(n))));
+    return exact.find((c) => owned.has(c.id)) || word.find((c) => owned.has(c.id)) || exact[0] || word[0] || null;
+  }
+
+  /**
+   * Chọn lá ra trận theo số thứ tự trong kho ("2") hoặc tên loài ("rồng", "rùa").
+   * → lá đã chọn | { missing: loài chưa có } | { missingIndex, total } | null (không hiểu).
+   */
   pickByText(id, text) {
     const p = this.players[id];
-    if (!p?.cards.length) return null;
-    const n = normalize(text);
-    const def = CARDS.find((c) => normalize(c.name) === n || normalize(c.short || '') === n)
-      || CARDS.find((c) => normalize(c.name).split(' ').some((w) => w.length >= 3 && w === n))
-      || CARDS.find((c) => n.length >= 3 && normalize(c.name).includes(n));
+    const cards = this.sorted(id);
+    const n = normalize(text).replace(/^(?:so|la|the)\s+/, '');
+    if (/^\d{1,2}$/.test(n)) {
+      const inst = cards[Number(n) - 1];
+      if (!inst) return { missingIndex: Number(n), total: cards.length };
+      p.pick = inst.uid;
+      this.dirty = true;
+      return { ...inst, n: Number(n) };
+    }
+    const def = this.resolveSpecies(n, new Set(cards.map((c) => c.card)));
     if (!def) return null;
-    const best = p.cards.filter((c) => c.card === def.id).sort((a, b) => b.q - a.q)[0];
+    const best = cards.filter((c) => c.card === def.id).sort((a, b) => b.q - a.q)[0];
     if (!best) return { missing: def.id };
     p.pick = best.uid;
     this.dirty = true;
-    return best;
+    return { ...best, n: cards.indexOf(best) + 1 };
   }
 
   /** Cộng mảnh; đủ chestEvery mảnh thì trả về số rương được mở (tối đa `max` lần một lúc, dư để dành). */
@@ -130,10 +154,11 @@ export class CardStore {
     this.dirty = true;
   }
 
-  summary(id, n = 3) {
+  summary(id, n = 5) {
     const p = this.players[id];
     if (!p) return null;
-    const top = [...p.cards].sort((a, b) => cardScore(b) - cardScore(a)).slice(0, n);
+    const pickUid = this.main(id)?.uid;
+    const top = this.sorted(id).slice(0, n).map((c, i) => ({ ...c, n: i + 1, picked: c.uid === pickUid }));
     const byRar = {};
     for (const c of p.cards) { const r = CARD_BY_ID[c.card]?.rar; byRar[r] = (byRar[r] || 0) + 1; }
     const species = new Set(p.cards.map((c) => c.card)).size;
@@ -160,7 +185,7 @@ export class CardStore {
     const list = Object.values(this.players).filter((p) => !String(p.id).startsWith('bot:'));
     const exact = list.filter((p) => normalize(p.name) === n || normalize(p.id) === n);
     const res = exact.length ? exact : list.filter((p) => normalize(p.name).includes(n) || normalize(p.id).includes(n));
-    return res.slice(0, 10).map((p) => ({ ...pub(p), wins: p.wins, kills: p.kills, games: p.games, shards: p.shards, chestEvery: this.chestEvery, pick: p.pick, cards: [...p.cards].sort((a, b) => cardScore(b) - cardScore(a)) }));
+    return res.slice(0, 10).map((p) => ({ ...pub(p), wins: p.wins, kills: p.kills, games: p.games, shards: p.shards, chestEvery: this.chestEvery, pick: this.main(p.id)?.uid || null, cards: this.sorted(p.id) }));
   }
 
   stats() {

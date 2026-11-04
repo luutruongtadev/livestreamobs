@@ -207,3 +207,43 @@ test('mọi kỹ năng chủ động đều tung được', () => {
     assert.ok(fx.some((e) => e.type === 'arena_skill' && e.i === me.i), `${c.id} (${CARD_BY_ID[c.id].skill})`);
   }
 });
+
+test('kho nhiều thẻ: "vào 2" thả lá số 2, "vào rùa" theo tên ngắn, "dùng 3" đổi lá; "thẻ" hiện 5 lá đánh số', () => {
+  const { a, cards } = mk();
+  for (const id of ['rong', 'kimquy', 'ga', 'trau', 'ho', 'bachho']) cards.open(u('a'), 'normal', { cardId: id });
+  const list = cards.sorted('a').map((c) => c.card);
+  assert.deepEqual(list.slice(0, 3).sort(), ['bachho', 'kimquy', 'rong'], 'xếp mạnh nhất trước: 3 lá Huyền thoại đứng đầu');
+  // "vào 2": chọn lá số 2 rồi vào sân luôn
+  const fx = say(a, 'a', 'vào 2');
+  assert.equal(fx.find((e) => e.type === 'arena_pick').card.n, 2);
+  assert.equal(a.byId.get('a').card.id, list[1]);
+  // đang ở sảnh: "vào rùa" / "dùng 3" đổi lá ngay
+  say(a, 'a', 'vào rùa');
+  assert.equal(a.byId.get('a').card.id, 'kimquy');
+  say(a, 'a', 'dùng 3');
+  assert.equal(a.byId.get('a').card.id, list[2]);
+  // "hổ" có cả Hổ Xám lẫn Bạch Hổ: ra đúng Hổ Xám; người chỉ có Bạch Hổ thì "hổ" ra Bạch Hổ
+  say(a, 'a', 'dùng hổ');
+  assert.equal(a.byId.get('a').card.id, 'ho');
+  cards.open(u('b'), 'normal', { cardId: 'bachho' });
+  say(a, 'b', 'vào hổ');
+  assert.equal(a.byId.get('b').card.id, 'bachho');
+  // số vượt kho / loài chưa có: báo lỗi, vẫn giữ lá cũ
+  assert.equal(say(a, 'a', 'dùng 9')[0].missingIndex, 9);
+  assert.equal(say(a, 'a', 'dùng gióng')[0].missing, 'giong');
+  assert.equal(a.byId.get('a').card.id, 'ho');
+  // "thẻ": 5 lá mạnh nhất có số, đánh dấu lá đang dùng
+  const show = say(a, 'a', 'thẻ')[0].summary;
+  assert.deepEqual(show.top.map((c) => c.n), [1, 2, 3, 4, 5]);
+  assert.equal(show.top.find((c) => c.picked).card, 'ho');
+  // người mới "vào rồng": chưa có rồng → nhận thẻ khởi đầu và vẫn vào sân; "vào đây" không phải lệnh
+  const nw = say(a, 'c', 'vào rồng');
+  assert.ok(nw.some((e) => e.type === 'arena_pick' && e.missing === 'rong'));
+  assert.ok(nw.some((e) => e.type === 'arena_join' && e.starter));
+  assert.deepEqual(say(a, 'd', 'vào đây'), []);
+  assert.ok(!a.byId.has('d'));
+  // lá đã chọn được nhớ cho trận sau
+  a.skip(); a.skip(); a.skip();
+  say(a, 'a', 'vào');
+  assert.equal(a.byId.get('a').card.id, 'ho');
+});

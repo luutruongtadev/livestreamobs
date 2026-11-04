@@ -132,7 +132,10 @@ Battle royale cho live đông người: **comment "vào"** → thần thú (lá 
   - 🛡️ **5 xu** khiên 5 giây · 💖 **10 xu** hồi sinh (đã bị hạ) / đầy máu · 💣 **30 xu** bom rơi vào con mạnh nhất
   - ⚡ **99 xu** hóa khổng lồ 8 giây (to 1,6 lần, đánh x2) · 🌪️ **299 xu** lốc xoáy cuốn bay cả vùng. Đã bị hạ mà tặng 99 / 299 xu thì sống lại luôn.
   - 👻 Bị hạ thì comment **"báo thù"**: hồn ma bay tới cắn kẻ đã hạ mình 15% máu (mỗi lần chết 1 lần).
-  - 🎴 Comment **"thẻ"** để khoe bộ sưu tập lên màn hình (60 giây / lần) · **"dùng rồng"**, **"dùng gà chọi"**… để chọn lá ra trận.
+  - 🎴 Comment **"thẻ"** để khoe kho lên màn hình (60 giây / lần): 5 lá mạnh nhất **đánh số 1–5**, lá đang dùng có nhãn ⚔️ ĐANG DÙNG.
+  - **Chọn lá khi kho nhiều thẻ**: không làm gì = tự ra lá mạnh nhất · **"vào 2"** = thả lá số 2 · **"vào rồng"**, **"vào rùa"**, **"vào hổ"** = chọn theo loài
+    (tên ngắn, trùng tên thì ưu tiên loài mình có; nhiều lá cùng loài thì lấy lá phẩm chất cao nhất) · **"dùng 3"** / **"dùng gióng"** = đổi lá
+    (đang ở sảnh thì đổi ngay, đang đánh thì áp dụng trận sau). Lá đã chọn được nhớ cho các trận sau. Số thứ tự xem đủ ở trang `/thebai`.
 - **Thẻ bài** (`public/js/cards-data.js`): 21 loài, 5 độ hiếm ⚪ Thường · 🔵 Hiếm · 🟣 Sử thi · 🟡 Huyền thoại · 🌈 Thần thoại.
   Mỗi lá có **3 chỉ số** (❤️ Máu · ⚔️ Công · 💨 Tốc), **1 kỹ năng riêng** (Long hỏa, Mai thần, Lôi long, Phi ngựa sắt, Tái sinh, Múa lân…),
   **phẩm chất 60–100%** (1–5 sao) và **số seri** theo loài (#0001 = bản đầu tiên của kênh).

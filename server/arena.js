@@ -547,14 +547,23 @@ export class Arena {
       } else if (!this.byId.has(user.id)) for (const e of this.enqueue(user)) this.emit(e);
       return;
     }
-    const pick = n.match(/^(?:dung|chon|doi|ra tran)\s+(?:the\s+|con\s+)?(.+)$/);
-    if (pick) {
-      const r = this.cards.pickByText(user.id, pick[1]);
+    // "vào 2" / "vào rồng": chọn lá rồi vào sân · "dùng 2" / "dùng rùa": chỉ đổi lá
+    const jm = n.match(/^(?:vao|vo|join|chien)\s+(?:bang\s+|voi\s+|the\s+|con\s+|so\s+|la\s+)?(.+)$/);
+    const pm = n.match(/^(?:dung|chon|doi|ra tran)\s+(?:the\s+|con\s+|so\s+|la\s+)?(.+)$/);
+    if (jm || pm) {
+      if (jm && !this.cards.main(user.id) && this.cards.resolveSpecies(jm[1]) == null && !/^\d{1,2}$/.test(jm[1])) return; // "vào đây" → không phải lệnh
+      const r = this.cards.pickByText(user.id, (jm || pm)[1]);
       if (!r) return;
-      if (r.missing) { this.emit({ type: 'arena_pick', by: pub(user), missing: r.missing }); return; }
       const f = this.byId.get(user.id);
-      if (f && this.phase === 'lobby') { this.setCard(f, r); this.emit({ type: 'arena_join', f: this.pubFighter(f), swap: true }); }
-      this.emit({ type: 'arena_pick', by: pub(user), card: { ...r, rar: CARD_BY_ID[r.card].rar }, nextRound: this.phase !== 'lobby' || !f });
+      if (r.missing || r.missingIndex) this.emit({ type: 'arena_pick', by: pub(user), ...(r.missing ? { missing: r.missing } : { missingIndex: r.missingIndex, total: r.total }) });
+      else {
+        if (f && this.phase === 'lobby') { this.setCard(f, r); this.emit({ type: 'arena_join', f: this.pubFighter(f), swap: true }); }
+        this.emit({ type: 'arena_pick', by: pub(user), card: { ...r, rar: CARD_BY_ID[r.card].rar }, nextRound: this.phase !== 'lobby' || (!f && !jm) });
+      }
+      if (jm && !f) {
+        if (this.phase === 'lobby' && this.fighters.length < this.cfg.maxFighters) for (const e of this.join(user)) this.emit(e);
+        else for (const e of this.enqueue(user)) this.emit(e);
+      }
       return;
     }
     if (['the', 'the bai', 'kho', 'kho the', 'bo suu tap', 'xem the', 'the cua toi', 'bst'].includes(n)) {

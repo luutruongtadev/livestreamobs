@@ -90,16 +90,16 @@
       cell.append(sm); g1.append(cell);
     }
     s1.append(g1); out.append(s1);
-    const s2 = document.createElement('section'); s2.innerHTML = `<h2 style="margin-top:20px">Tất cả ${p.cards.length} lá (mạnh nhất trước)</h2>`;
+    const s2 = document.createElement('section'); s2.innerHTML = `<h2 style="margin-top:20px">Tất cả ${p.cards.length} lá (mạnh nhất trước)</h2><p class="lede" style="margin:0 0 12px">Trên live comment <b>vào 3</b> để thả lá số 3 ra trận, hoặc <b>dùng 3</b> để đổi lá (đổi xong giữ cho các trận sau).</p>`;
     const g2 = document.createElement('div'); g2.className = 'grid';
-    for (const c of p.cards) {
+    p.cards.forEach((c, i) => {
       const cell = document.createElement('div'); cell.className = 'cell';
       cell.append(cardCanvas(c, p.name));
       const sm = document.createElement('small');
-      sm.textContent = `${'★'.repeat(stars(c.q))} ${c.q}% · #${String(c.serial).padStart(4, '0')}`;
+      sm.textContent = `Số ${i + 1} · ${'★'.repeat(stars(c.q))} ${c.q}% · #${String(c.serial).padStart(4, '0')}`;
       if (c.uid === p.pick) { sm.textContent += ' · đang ra trận'; sm.className = 'pick'; }
       cell.append(sm); g2.append(cell);
-    }
+    });
     s2.append(g2); out.append(s2);
   }
 

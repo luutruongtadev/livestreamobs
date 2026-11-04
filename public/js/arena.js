@@ -279,7 +279,8 @@ function handle(e) {
     case 'arena_show': fx.shows.push({ ...e, t: 0 }); if (fx.shows.length > 3) fx.shows.splice(1, 1); break;
     case 'arena_pick':
       if (e.missing) toast(`${clip(e.by.name, 14)} chưa có thẻ ${CARD_BY_ID[e.missing].emoji} ${CARD_BY_ID[e.missing].name}`, '#fca5a5', '🎴');
-      else toast(`${clip(e.by.name, 14)} chọn ${CARD_BY_ID[e.card.card].emoji} ${CARD_BY_ID[e.card.card].name} ${'★'.repeat(stars(e.card.q))}${e.nextRound ? ' (trận sau)' : ''}`, RARITIES[e.card.rar].color, '🎴');
+      else if (e.missingIndex) toast(`${clip(e.by.name, 14)} chỉ có ${e.total} thẻ · comment "thẻ" để xem số`, '#fca5a5', '🎴');
+      else toast(`${clip(e.by.name, 14)} chọn lá số ${e.card.n}: ${CARD_BY_ID[e.card.card].emoji} ${CARD_BY_ID[e.card.card].name} ${'★'.repeat(stars(e.card.q))}${e.nextRound ? ' (trận sau)' : ''}`, RARITIES[e.card.rar].color, '🎴');
       break;
   }
 }
@@ -820,7 +821,8 @@ function drawBottom(t) {
     `🧩 Mỗi xu = 1 mảnh · đủ ${A.chestEvery} mảnh tự MỞ RƯƠNG THẺ`,
     '🏆 Sống sót cuối cùng = RƯƠNG VÀNG (không ra thẻ Thường)',
     '💬 Comment "thẻ" để khoe bộ sưu tập của bạn',
-    '💬 Comment "dùng rồng" để chọn thẻ ra trận',
+    '💬 "thẻ" xem kho đánh số · "vào 2" thả lá số 2 ra trận',
+    '💬 "vào rồng", "vào rùa", "dùng hổ" = chọn loài ra trận',
     '👻 Bị hạ? Comment "báo thù" — hồn ma cắn kẻ hạ bạn',
     '💖 Bị hạ rồi? Tặng 10 xu là HỒI SINH ngay',
     '⭐ Thẻ hiếm + phẩm chất cao = mạnh hơn · có kỹ năng riêng',
@@ -920,7 +922,7 @@ function drawShows(t, dt) {
   const s = fx.shows[0]; if (!s || rv) return;
   s.t += dt; if (s.t > 5.5) { fx.shows.shift(); return; }
   const k = Math.min(1, s.t / 0.3, (5.5 - s.t) / 0.4);
-  const y = 640, h = 560;
+  const y = 640, h = (s.summary?.top?.length || 0) > 3 ? 470 : 560;
   ctx.save(); ctx.globalAlpha = clamp01(k);
   ctx.translate((1 - ease(s.t / 0.35)) * -700, 0);
   rr(40, y, W - 80, h, 34); ctx.fillStyle = 'rgba(13,11,20,.94)'; ctx.fill(); ctx.strokeStyle = '#f5c542'; ctx.lineWidth = 4; ctx.stroke();
@@ -941,8 +943,21 @@ function drawShows(t, dt) {
   rr(W - 330, y + 40, 250, 22, 11); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fill();
   rr(W - 330, y + 40, Math.max(22, 250 * pk), 22, 11); ctx.fillStyle = '#a78bfa'; ctx.fill();
   ctx.textAlign = 'right'; ctx.font = font(800, 19); ctx.fillStyle = '#ddd6fe'; ctx.fillText(`🧩 ${S.shards}/${S.chestEvery} mảnh`, W - 80, y + 82);
-  const cw = 270;
-  S.top.forEach((c, i) => drawCard(ctx, c, W / 2 + (i - (S.top.length - 1) / 2) * (cw + 24), y + 140 + (cw * CARD_H / CARD_W) / 2, cw, { t: t + i, owner: '' }));
+  // tối đa 5 lá mạnh nhất, đánh số để comment "vào 2" / "dùng 2"
+  const cw = S.top.length > 3 ? 176 : 250, chh = cw * CARD_H / CARD_W;
+  const cy = y + 128 + chh / 2;
+  S.top.forEach((c, i) => {
+    const cx = W / 2 + (i - (S.top.length - 1) / 2) * (cw + 16);
+    drawCard(ctx, c, cx, cy, cw, { t: t + i, owner: '' });
+    // số thứ tự
+    ctx.beginPath(); ctx.arc(cx - cw / 2 + 6, cy - chh / 2 + 6, 26, 0, Math.PI * 2);
+    ctx.fillStyle = c.picked ? '#3ddc97' : '#f5c542'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = '#0d0b14'; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font(900, 30); ctx.fillStyle = '#0d0b14';
+    ctx.fillText(String(c.n), cx - cw / 2 + 6, cy - chh / 2 + 8);
+    if (c.picked) chip('⚔️ ĐANG DÙNG', cx, cy + chh / 2 + 4, 30, '#3ddc97', '#062b1c', 17);
+  });
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font(800, 25); ctx.fillStyle = '#fde68a';
+  ctx.fillText(fitText(`💬 "vào 2" thả lá số 2 · "dùng 3" đổi lá${S.total > S.top.length ? ` · còn ${S.total - S.top.length} lá ở ${location.host}/thebai` : ''}`, W - 120), W / 2, y + h - 30);
   ctx.restore();
 }
 
