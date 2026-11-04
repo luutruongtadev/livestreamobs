@@ -141,7 +141,7 @@ function handle(e) {
     case 'wg_team_join': {
       const tm = G?.team?.teams?.find((x) => x.id === e.team);
       if (!tm) break;
-      if (e.locked) { fx.floaters.push({ text: `🔒 ${clip(e.by?.name, 12)} đã ghi điểm cho ${tm.name}`, x: W / 2, y: 330, life: 1, color: tm.color }); break; }
+      if (e.locked) { fx.floaters.push({ text: `🔒 ${clip(e.by?.name, 12)} đang ở ${tm.name} — hết trận mới đổi`, x: W / 2, y: 330, life: 1, color: tm.color }); break; }
       fx.floaters.push({ text: `${tm.icon} ${clip(e.by?.name, 12)} ${e.auto ? '→' : 'vào'} ${tm.name}`, x: e.team === G.team.teams[0].id ? 300 : W - 300, y: 330, life: 1, color: tm.color });
       if (!e.auto) sound.play('chime', { pitch: e.team === G.team.teams[0].id ? 1.1 : 1.3 });
       break;
@@ -767,7 +767,10 @@ function drawMatchOver(t) {
     ctx.textAlign = 'center';
   }
   ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.8)';
-  ctx.fillText(`Trận mới sau ${G.remaining}s · comment "${tms[0].keyword}" / "${tms[1].keyword}" để đổi đội`, W / 2, y + h - 40);
+  ctx.font = font(800, 24); ctx.fillStyle = '#fde68a';
+  ctx.fillText(`👥 Chọn đội cho trận mới: comment "${tms[0].keyword}" / "${tms[1].keyword}"`, W / 2, y + h - 74);
+  ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.8)';
+  ctx.fillText(`Trận mới sau ${G.remaining}s · đã chọn: ${tms.map((x) => `${x.icon} ${x.count}`).join('  ')}`, W / 2, y + h - 38);
   ctx.restore();
 }
 

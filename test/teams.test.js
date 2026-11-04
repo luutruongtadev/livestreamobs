@@ -51,21 +51,22 @@ test('đấu đội: đoán trúng / quà / chia sẻ cộng điểm đội; h�
   assert.deepEqual(match.score, { red: 180, blue: 35 });
   assert.equal(match.mvp.id, 'a');
   assert.ok(g.snapshot().team.matchOver);
-  // quà sau khi hết trận không tính nữa
+  // hết trận: xoá hết thành viên 2 đội; quà lúc này không tính điểm đội
+  assert.deepEqual(g.snapshot().team.members, {});
   assert.ok(!g.handle({ type: 'gift', user: u('a'), diamonds: 10 }).some((e) => e.type === 'wg_team_points'));
-  // vòng kế tiếp: trận mới, giữ nguyên đội, điểm về 0
+  // trong lúc công bố, mọi người chọn lại đội cho trận mới (a đổi sang xanh được)
+  assert.equal(say(g, 'a', 'đội xanh')[0].team, 'blue');
+  // vòng kế tiếp: trận mới, điểm về 0, giữ đội vừa chọn
   clock.t += 6_000; g.tick();
   const snap = g.snapshot().team;
   assert.equal(snap.matchNo, 2); assert.equal(snap.round, 1); assert.equal(snap.matchOver, null);
   assert.deepEqual(snap.teams.map((t) => t.score), [0, 0]);
-  assert.equal(snap.members.a, 'red');
+  assert.deepEqual(snap.members, { a: 'blue' });
 });
 
-test('đấu đội: đã ghi điểm thì không đổi phe trong trận; tắt chế độ thì "đội đỏ" là lượt đoán bình thường', () => {
+test('đấu đội: trong trận đã vào đội thì không đổi được (kể cả chưa ghi điểm); tắt chế độ thì "đội đỏ" là lượt đoán bình thường', () => {
   const { g, clock } = mk(5);
   say(g, 'a', 'đội đỏ');
-  clock.t += 1000;
-  say(g, 'a', g.display); // ghi điểm cho đội đỏ
   const fx = say(g, 'a', 'đội xanh');
   assert.equal(fx[0].locked, true);
   assert.equal(g.teams.members.a.team, 'red');

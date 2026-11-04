@@ -16,7 +16,8 @@ const pub = (u) => ({ id: u.id, name: u.name, avatar: u.avatar || null });
  * Chế độ đấu đội cho Đoán từ (admin bật / tắt).
  * - Comment "đội đỏ" / "đội xanh" để vào đội; chưa có đội mà đoán thì tự vào đội ít người hơn.
  * - Đoán trúng: đội được điểm của vòng; quà / chia sẻ của thành viên cộng thêm điểm đội.
- * - Mỗi trận N vòng; hết trận công bố đội thắng + MVP rồi sang trận mới (giữ nguyên đội).
+ * - Mỗi trận N vòng; trong trận đã vào đội thì không đổi được. Hết trận công bố đội thắng + MVP,
+ *   xoá hết thành viên 2 đội → mọi người chọn lại đội cho trận mới.
  */
 export class TeamMatch {
   constructor(config = {}) {
@@ -51,8 +52,8 @@ export class TeamMatch {
     if (!teamId) return null;
     const cur = this.members[user.id];
     if (cur?.team === teamId) return [];
-    // đã ghi điểm cho đội trong trận này thì không được đổi phe
-    if (cur && this.mvp[user.id]) return [{ type: 'wg_team_join', by: pub(user), team: cur.team, locked: true }];
+    // đang trong trận: đã có đội thì không đổi được (hết trận mới chọn lại)
+    if (cur) return [{ type: 'wg_team_join', by: pub(user), team: cur.team, locked: true }];
     this.members[user.id] = { ...pub(user), team: teamId };
     return [{ type: 'wg_team_join', by: pub(user), team: teamId, switched: !!cur }];
   }
@@ -93,6 +94,7 @@ export class TeamMatch {
     const mvpId = Object.entries(this.mvp).sort((a, b) => b[1] - a[1])[0]?.[0];
     const mvp = mvpId ? { ...pub(this.members[mvpId]), team: this.members[mvpId].team, points: this.mvp[mvpId] } : null;
     this.matchOver = { winner: draw ? null : ranked[0].id, score: { ...this.score }, mvp, matchNo: this.matchNo };
+    this.members = {}; // hết trận: xoá thành viên 2 đội, mọi người chọn lại đội cho trận mới
     return [{ type: 'wg_team_match', ...this.matchOver }];
   }
 
