@@ -46,11 +46,12 @@ export class PauseController {
     this.online = online;
     this.manual = false;
     this.force = false;
+    this.sleeping = false; // dừng sau màn chào tạm biệt: lần lên live sau tự chạy lại
     this.apply();
   }
 
   reason() {
-    if (this.manual) return 'manual';
+    if (this.manual) return this.sleeping ? 'goodnight' : 'manual';
     if (this.autoPauseOffline && !this.online && !this.force) return 'offline';
     return null;
   }
@@ -69,16 +70,20 @@ export class PauseController {
 
   setOnline(online) {
     if (online === this.online) return false;
+    // vừa lên live lại sau khi chào tạm biệt (đã mất live trước đó) → bỏ tạm dừng
+    if (online && this.sleeping) { this.manual = false; this.sleeping = false; }
     // vừa mất live: bỏ chế độ "chạy dù offline" để lần sau tự dừng lại
     if (!online && this.online) this.force = false;
     this.online = online;
     return this.apply();
   }
 
-  pause() { this.manual = true; this.force = false; return this.apply(); }
-  resume() { this.manual = false; if (!this.online) this.force = true; return this.apply(); }
+  pause() { this.manual = true; this.force = false; this.sleeping = false; return this.apply(); }
+  /** Tạm dừng sau khi chào tạm biệt: giữ dừng cho tới lần lên live kế tiếp (không cần bấm Tiếp tục). */
+  sleep() { this.manual = true; this.force = false; this.sleeping = true; return this.apply(); }
+  resume() { this.manual = false; this.sleeping = false; if (!this.online) this.force = true; return this.apply(); }
 
   status() {
-    return { paused: !!this.reason(), reason: this.reason(), manual: this.manual, online: this.online, autoPauseOffline: this.autoPauseOffline };
+    return { paused: !!this.reason(), reason: this.reason(), manual: this.manual, sleeping: this.sleeping, online: this.online, autoPauseOffline: this.autoPauseOffline };
   }
 }
