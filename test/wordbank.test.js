@@ -159,3 +159,42 @@ test('admin thêm từ: vào bộ riêng (lưu file riêng, tải lại vẫn c�
   assert.deepEqual(bank.next(), { word: 'cầu thủ', hint: 'Thể thao', desc: ['sân cỏ · áo số'], emoji: '⚽ 👟 🏟️', source: 'bank' });
   assert.throws(() => bank.addManual({ word: 'quá nhiều tiếng ở đây' }), /1-4 tiếng/);
 });
+
+test('từ có sẵn (config) cũng được đánh dấu: chơi hết mới lặp lại; số còn lại hiện ở stats', () => {
+  const fallbackWords = ['mặt trời', 'con mèo', 'cái ô'].map((word) => ({ word, hint: 'X' }));
+  const file = tmpFile();
+  const bank = new WordBank({ filePath: file, fallbackWords, autoGenerate: false, log: {} });
+  assert.deepEqual([bank.stats().fallbackRemaining, bank.stats().totalRemaining], [3, 3]);
+  const seen = new Set([bank.next().word, bank.next().word, bank.next().word]);
+  assert.equal(seen.size, 3, 'không lặp');
+  assert.equal(bank.stats().fallbackRemaining, 0);
+  assert.equal(bank.next().source, 'repeat', 'hết sạch, không có API key → tạm chơi lại');
+  // lưu qua khởi động lại
+  assert.equal(new WordBank({ filePath: file, fallbackWords, log: {} }).stats().fallbackRemaining, 0);
+});
+
+test('kho Claude + từ có sẵn còn ≤ 10 → tự tạo thêm 200 từ (2 lô × 100), không trùng, giữ từ cũ', async () => {
+  const n = { i: 0 };
+  const calls = [];
+  const client = { beta: { messages: { create: async (req) => {
+    calls.push(req);
+    // mỗi lô: 100 từ mới + 1 từ trùng với từ đã có
+    const words = [{ word: 'mặt trời', hint: 'Thiên nhiên' }];
+    for (let k = 0; k < 100; k++) { const id = n.i++; words.push({ word: `từ ${String.fromCharCode(97 + Math.floor(id / 26) % 26)}${String.fromCharCode(97 + id % 26)}`, hint: 'Thử' }); }
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ words }) }] };
+  } } } };
+  const fallbackWords = Array.from({ length: 12 }, (_, k) => ({ word: `có sẵn ${String.fromCharCode(97 + k)}`, hint: 'X' })).concat([{ word: 'mặt trời', hint: 'Thiên nhiên' }]);
+  const bank = new WordBank({ filePath: tmpFile(), fallbackWords, client, autoGenerate: false, log: {} });
+  bank.next(); bank.next(); bank.next();
+  assert.equal(calls.length, 0, 'còn > 10 từ thì chưa tạo');
+  bank.next();
+  await bank.generating;
+  assert.equal(calls.length, 2, 'chia 2 lô');
+  assert.match(calls[0].messages[0].content, /Soạn 100 từ/);
+  const st = bank.stats();
+  assert.equal(st.total, 200, 'thêm 200 từ mới, bỏ từ trùng');
+  assert.equal(st.fallback, 13, 'từ có sẵn giữ nguyên');
+  assert.equal(st.totalRemaining, 200 + 9);
+  assert.equal(new Set(bank.allWords().map((w) => w.word)).size, 200);
+  assert.equal(bank.next().source, 'bank');
+});

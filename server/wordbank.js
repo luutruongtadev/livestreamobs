@@ -104,10 +104,11 @@ export function validWord(w) {
 
 /**
  * Kho từ bí mật: các lô từ do Claude sinh, lưu ở data/wordbank.json.
- * next() lấy một từ chưa dùng; hết thì dùng danh sách dự phòng (config.json).
+ * next() lấy một từ chưa dùng trong kho; hết thì lấy từ có sẵn (config.json) CHƯA DÙNG — cả hai đều được đánh dấu,
+ * không lặp. Tổng số từ chưa dùng còn ≤ minRemaining → tự nhờ Claude soạn thêm refillCount từ (không trùng, thêm vào kho, không xoá từ cũ).
  */
 export class WordBank {
-  constructor({ filePath = null, fallbackWords = [], client = null, model = 'claude-opus-5-5', batchSize = 100, minRemaining = 10, autoGenerate = true, difficulty = 'hard', random = Math.random, log = console } = {}) {
+  constructor({ filePath = null, fallbackWords = [], client = null, model = 'claude-opus-5-5', batchSize = 100, minRemaining = 10, autoGenerate = true, refillWhenEmpty = true, refillCount = 200, difficulty = 'hard', random = Math.random, log = console } = {}) {
     this.difficulty = DIFFICULTY[difficulty] ? difficulty : 'hard';
     this.filePath = filePath;
     this.fallback = fallbackWords.filter((w) => w?.word);
@@ -115,7 +116,9 @@ export class WordBank {
     this.model = model;
     this.batchSize = batchSize;
     this.minRemaining = minRemaining;
-    this.autoGenerate = autoGenerate;
+    this.autoGenerate = autoGenerate; // kho Claude sắp hết thì tạo lô mới (kể cả khi còn từ có sẵn)
+    this.refillWhenEmpty = refillWhenEmpty; // kho Claude + từ có sẵn đều sắp hết thì tạo thêm refillCount từ
+    this.refillCount = refillCount;
     this.random = random;
     this.log = log;
     this.data = { batches: [], used: [], extra: {} }; // extra: gợi ý bổ sung cho từ cũ / từ có sẵn { từ: { desc, emoji } }
@@ -144,12 +147,23 @@ export class WordBank {
     return this.allWords().filter((w) => !used.has(canon(w.word)));
   }
 
+  /** Từ có sẵn trong config.json chưa chơi. */
+  fallbackUnused() {
+    const used = new Set(this.data.used);
+    const bank = new Set(this.allWords().map((w) => canon(w.word)));
+    return this.fallback.filter((w) => !used.has(canon(w.word)) && !bank.has(canon(w.word)));
+  }
+
   stats() {
     return {
       batches: this.data.batches.length,
       total: this.allWords().length,
       remaining: this.unused().length,
       fallback: this.fallback.length,
+      fallbackRemaining: this.fallbackUnused().length,
+      totalRemaining: this.unused().length + this.fallbackUnused().length,
+      refillWhenEmpty: this.refillWhenEmpty && !!this.client,
+      refillCount: this.refillCount,
       generating: !!this.generating,
       canGenerate: !!this.client,
       difficulty: this.difficulty,
@@ -231,34 +245,53 @@ export class WordBank {
   /** Lấy một từ cho vòng mới. avoid: các từ vừa chơi (khi dùng danh sách dự phòng). */
   next(avoid = []) {
     const pool = this.unused();
-    if (pool.length <= this.minRemaining && this.client && this.autoGenerate && !this.generating) {
-      this.generate().catch(() => {}); // tạo nền, không chặn vòng chơi
+    const fb = this.fallbackUnused();
+    if (this.client && !this.generating) {
+      if (pool.length <= this.minRemaining && this.autoGenerate) this.generate().catch(() => {}); // tạo nền, không chặn vòng chơi
+      else if (pool.length + fb.length <= this.minRemaining && this.refillWhenEmpty) this.generate({ count: this.refillCount }).catch(() => {});
     }
+    const mark = (w) => { this.data.used.push(canon(w.word)); this.save(); };
     if (pool.length) {
       const w = pool[Math.floor(this.random() * pool.length)];
-      this.data.used.push(canon(w.word));
-      this.save();
+      mark(w);
       return { word: w.word, hint: w.hint, ...this.hintsFor(w), source: 'bank' };
     }
-    const fresh = this.fallback.filter((w) => !avoid.includes(canon(w.word)));
-    const list = fresh.length ? fresh : this.fallback;
+    const cfgWord = (w, source) => ({ word: w.word, hint: w.hint, ...this.hintsFor(w), ...(w.aliases?.length ? { aliases: w.aliases } : {}), source });
+    if (fb.length) {
+      const fresh = fb.filter((w) => !avoid.includes(canon(w.word)));
+      const list = fresh.length ? fresh : fb;
+      const w = list[Math.floor(this.random() * list.length)];
+      mark(w);
+      return cfgWord(w, 'config');
+    }
+    // hết sạch (đang chờ Claude soạn thêm / không có API key): tạm chơi lại từ có sẵn, tránh 30 từ gần nhất
+    const again = this.fallback.filter((w) => !avoid.includes(canon(w.word)));
+    const list = again.length ? again : this.fallback;
     if (!list.length) return { word: 'mặt trời', hint: 'Thiên nhiên', source: 'default' };
-    const w = list[Math.floor(this.random() * list.length)];
-    return { word: w.word, hint: w.hint, ...this.hintsFor(w), ...(w.aliases?.length ? { aliases: w.aliases } : {}), source: 'config' };
+    return cfgWord(list[Math.floor(this.random() * list.length)], 'repeat');
   }
 
   /** Sinh một lô từ mới bằng Claude. theme: chủ đề cho cả lô (tuỳ chọn). */
   generate({ theme = '', count = this.batchSize } = {}) {
     if (!this.client) return Promise.reject(new Error('Chưa có ANTHROPIC_API_KEY'));
     if (this.generating) return this.generating;
-    this.generating = this.#generate(String(theme || '').slice(0, 80), Math.max(10, Math.min(200, count | 0)))
-      .finally(() => { this.generating = null; });
+    // chia lô ≤ 100 từ / lần gọi (lô lớn dễ bị cắt ngang); lô nào xong lưu luôn lô đó
+    const total = Math.max(10, Math.min(300, count | 0));
+    const t = String(theme || '').slice(0, 80);
+    this.generating = (async () => {
+      let added = 0, batch = null;
+      for (let left = total; left > 0; left -= 100) {
+        const r = await this.#generate(t, Math.min(100, left));
+        added += r.added; batch = r.batch;
+      }
+      return { added, batch };
+    })().finally(() => { this.generating = null; });
     return this.generating;
   }
 
   async #generate(theme, count) {
     const existing = new Set([...this.allWords().map((w) => canon(w.word)), ...this.fallback.map((w) => canon(w.word)), ...this.data.used]);
-    const avoidList = [...existing].slice(-600);
+    const avoidList = [...existing].slice(-1500);
     try {
       const response = await this.client.beta.messages.create({
         model: this.model,

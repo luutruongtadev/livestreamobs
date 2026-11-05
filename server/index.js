@@ -81,6 +81,8 @@ const wordBank = new WordBank({
   batchSize: wgCfg.batchSize || 100,
   minRemaining: wgCfg.minRemaining ?? 10,
   autoGenerate: wgCfg.autoGenerate !== false,
+  refillWhenEmpty: wgCfg.refillWhenEmpty !== false,
+  refillCount: wgCfg.refillCount || 200,
   difficulty: process.env.WORDGAME_DIFFICULTY || wgCfg.difficulty || 'hard',
 });
 // Bộ từ riêng: wordsets/<id>.json (có sẵn trong repo) + data/wordsets/<id>.json (tạo / sửa bằng Claude)
