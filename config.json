@@ -271,6 +271,12 @@
     "ambient": ""
   },
   "ambientVolume": 0.25,
+  "voice": {
+    "enabled": true,
+    "voiceId": "pNInz6obpgDQGcFmaJgB",
+    "modelId": "eleven_flash_v2_5",
+    "maxPerHour": 150
+  },
   "goodbye": {
     "enabled": true,
     "at": "01:00",

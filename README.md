@@ -110,6 +110,15 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
+### 🎙️ Giọng MC trêu đùa (ElevenLabs, giọng Adam)
+
+Khi có người **đoán trúng** hoặc **tặng quà**, Claude viết một câu ngắn chúc mừng / cảm ơn kiểu trêu đùa có gọi tên (vd trúng sau 6 giây thì tung hô "thần đồng", trúng phút chót thì trêu "suýt toang"; 1 bông hồng thì trêu khéo, quà to thì cảm ơn rối rít), rồi **ElevenLabs đọc bằng giọng Adam** và phát trên trang `/doantu`.
+
+- Bật: thêm `ELEVENLABS_API_KEY=...` vào `.env` trên VPS rồi deploy lại (không có key thì trình duyệt tự đọc tên như cũ).
+- Quà liên tiếp của cùng một người trong 4 giây được gom thành 1 câu; câu chúc mừng đoán trúng được ưu tiên; tối đa 4 câu chờ; giới hạn `maxPerHour` câu / giờ để kiểm soát chi phí.
+- Chỉnh trong khối `voice` của `config.json`: `voiceId` (giọng khác), `modelId` (`eleven_flash_v2_5` nhanh, rẻ), `maxPerHour`, `enabled`.
+- Admin → Đoán từ → nút 🎙️ Thử giọng MC (nghe ở trang `/doantu`). `?tts=0` hoặc `?mute=1` trên trang game để tắt tiếng đọc.
+
 ### 🎆 Hiệu ứng đoán trúng theo mức
 
 Đoán càng sớm, càng ít gợi ý thì màn chúc mừng càng hoành tráng (chữ đóng dấu từng chữ, avatar to giữa màn hình, âm thanh riêng):

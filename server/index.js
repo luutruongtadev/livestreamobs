@@ -18,6 +18,7 @@ import { WeeklyBoard } from './weekly.js';
 import { Arena } from './arena.js';
 import { CardStore } from './cards.js';
 import { Goodbye } from './goodbye.js';
+import { Voice } from './voice.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,6 +98,9 @@ const cardStore = new CardStore({ filePath: path.join(ROOT, 'data', 'cards.json'
 const arena = new Arena(arenaCfg, { cards: cardStore });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
+// Giọng MC (ElevenLabs, giọng Adam) đọc câu chúc mừng / cảm ơn trêu đùa do Claude viết — cần ELEVENLABS_API_KEY
+const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API_KEY || null, claude: claudeClientFromEnv(), dir: path.join(ROOT, 'data', 'voice') });
+if (voice.enabled) console.log('[voice] Giọng MC ElevenLabs: bật'); else if (!process.env.ELEVENLABS_API_KEY) console.log('[voice] Chưa có ELEVENLABS_API_KEY → đọc tên bằng giọng của trình duyệt');
 const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
 const pauser = new PauseController([wg, tug, race, arena], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
@@ -135,7 +139,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status() });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: { enabled: voice.enabled } });
 });
 
 function ingest(ev) {
@@ -195,6 +199,7 @@ setInterval(() => {
 let wgTimer = null;
 function wgBroadcast(effects) {
   if (effects?.length) broadcast({ type: 'wgfx', effects });
+  for (const e of effects || []) { if (e.type === 'wg_win') voice.win(e); else if (e.type === 'wg_thanks') voice.gift(e); }
   if (wgTimer) return;
   wgTimer = setTimeout(() => {
     wgTimer = null;
@@ -202,6 +207,7 @@ function wgBroadcast(effects) {
   }, 150);
 }
 wg.on('effects', wgBroadcast);
+voice.on('voice', (v) => broadcast({ type: 'voice', game: 'wg', voice: v }));
 let wgLastRemaining = -1;
 setInterval(() => {
   const fx = wg.tick();
@@ -293,6 +299,7 @@ app.use(express.static(path.join(ROOT, 'public'), {
     else res.setHeader('Cache-Control', 'public, max-age=86400');
   },
 }));
+app.use('/voice', express.static(path.join(ROOT, 'data', 'voice'), { maxAge: '1h' }));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
 app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
@@ -378,6 +385,18 @@ app.post('/api/arena/:action', requireAdmin, (req, res) => {
 // Tra kho thẻ công khai (trang /thebai): ?q=tên
 app.get('/api/arena/collection', (req, res) => res.json({ players: cardStore.find(String(req.query.q || '').slice(0, 40)) }));
 app.get('/api/arena/top', (_req, res) => res.json({ wins: cardStore.top(10, 'wins'), collectors: cardStore.top(10, 'collection'), stats: cardStore.stats() }));
+
+// Giọng MC: xem trạng thái / đọc thử
+app.post('/api/voice/:action', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  if (req.params.action === 'test') {
+    if (!voice.enabled) return res.status(400).json({ error: 'Chưa bật: cần ELEVENLABS_API_KEY trong .env trên VPS (và "voice.enabled": true)' });
+    const by = { id: 'sim:test-voice', name: String(b.name || 'Minh Anh').slice(0, 40) };
+    if (b.kind === 'gift') voice.gift({ by, giftName: b.giftName || 'Hoa hồng', repeat: Number(b.repeat) || 10, diamonds: Number(b.diamonds) || 10 });
+    else voice.win({ by, answer: b.word || 'lò vi sóng', seconds: Number(b.seconds) || 7, hintLevel: 0, tier: b.tier || 'lightning', left: 280 });
+  }
+  res.json({ ok: true, voice: voice.status() });
+});
 
 // Bảng xếp hạng tuần (admin): xem top + lịch sử, chốt tuần thủ công
 app.post('/api/weekly/:action', requireAdmin, (req, res) => {

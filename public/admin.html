@@ -189,6 +189,12 @@
         <p class="muted" id="awQueue" style="margin:4px 0 0"></p>
       </details>
       <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
+      <div class="row" style="margin-top:6px">
+        <button class="ghost" data-voice='{"kind":"win","tier":"lightning","seconds":6}'>🎙️ Thử giọng MC: đoán trúng</button>
+        <button class="ghost" data-voice='{"kind":"gift","giftName":"Hoa hồng","repeat":1,"diamonds":1}'>🎙️ Thử: tặng 1 hoa hồng</button>
+        <button class="ghost" data-voice='{"kind":"gift","giftName":"Sư tử","repeat":1,"diamonds":29999}'>🎙️ Thử: tặng Sư tử</button>
+      </div>
+      <p class="muted" id="voiceText">Giọng MC: (bấm thử để xem trạng thái)</p>
       <div class="row" style="margin-bottom:10px">
         <input id="wgTheme" type="text" placeholder="Chủ đề cho lô từ mới (để trống = trộn nhiều chủ đề)">
         <button id="btnWgGen" class="gold">✨ Tạo 100 từ mới bằng Claude</button>
@@ -564,6 +570,17 @@
     if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
     api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
+  function renderVoice(v) {
+    $('voiceText').textContent = v.enabled
+      ? `🎙️ Giọng MC ElevenLabs: bật (câu do ${v.writer} viết) · đã đọc ${v.spoken} câu · giờ này ${v.thisHour}/${v.maxPerHour}` + (v.queue ? ` · ${v.queue} câu đang chờ` : '') + (v.lastError ? ` · ⚠ ${v.lastError}` : '')
+      : '🎙️ Giọng MC: tắt — thêm ELEVENLABS_API_KEY vào .env trên VPS để bật (đang dùng giọng đọc của trình duyệt)';
+  }
+  document.querySelectorAll('[data-voice]').forEach((b) => (b.onclick = () => {
+    api('/api/voice/test', { ...JSON.parse(b.dataset.voice), name: simName() })
+      .then((r) => { renderVoice(r.voice); log('Đã gửi đọc thử — nghe ở trang /doantu (vài giây)'); setTimeout(() => api('/api/voice/status').then((x) => renderVoice(x.voice)), 6000); })
+      .catch((e) => log('Lỗi: ' + e.message));
+  }));
+  api('/api/voice/status').then((r) => renderVoice(r.voice)).catch(() => {});
   document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => {
     const raw = b.dataset.arena;
     const body = raw.startsWith('{') ? JSON.parse(raw) : { action: raw };
