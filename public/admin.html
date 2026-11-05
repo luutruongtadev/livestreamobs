@@ -401,6 +401,7 @@
       const msg = JSON.parse(m.data);
       if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
       if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
+      if (msg.type === 'voice') playVoiceHere(msg.voice);
       if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
       if (msg.type === 'state') renderState(msg.state);
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }
@@ -585,9 +586,18 @@
     if (!confirm('Tạo sẵn toàn bộ câu chúc mừng đoán trúng (khoảng 72 câu, tốn khoảng 3.000 credit một lần, sau đó dùng lại miễn phí)?')) return;
     api('/api/voice/library').then((r) => { renderVoice(r.voice); log('Đang tạo thư viện câu đoán trúng (vài phút)…'); }).catch((e) => log('Lỗi: ' + e.message));
   };
+  // Nghe thử ngay trên trang admin (khung xem trước luôn tắt tiếng): chỉ phát trong 60 giây sau khi bấm thử
+  let voiceTestUntil = 0;
+  function playVoiceHere(v) {
+    if (!v?.url || Date.now() > voiceTestUntil) return;
+    log(`🎙️ ${v.reused ? '(phát lại từ thư viện) ' : ''}${v.text}`);
+    new Audio(v.url).play().catch((e) => log(e?.name === 'NotAllowedError' ? 'Trình duyệt chặn phát tiếng — bấm vào trang admin một lần rồi thử lại' : 'Không phát được file âm thanh: ' + (e?.message || e)));
+  }
   document.querySelectorAll('[data-voice]').forEach((b) => (b.onclick = () => {
+    voiceTestUntil = Date.now() + 60_000;
+    new Audio('data:audio/mp3;base64,').play().catch(() => {}); // mở khoá phát tiếng ngay trong cú bấm
     api('/api/voice/test', { ...JSON.parse(b.dataset.voice), name: simName() })
-      .then((r) => { renderVoice(r.voice); log('Đã gửi đọc thử — nghe ở trang /doantu (vài giây)'); setTimeout(() => api('/api/voice/status').then((x) => renderVoice(x.voice)), 6000); })
+      .then((r) => { renderVoice(r.voice); log('Đã gửi đọc thử — vài giây nữa nghe ngay trên trang này'); setTimeout(() => api('/api/voice/status').then((x) => renderVoice(x.voice)), 6000); })
       .catch((e) => log('Lỗi: ' + e.message));
   }));
   api('/api/voice/status').then((r) => renderVoice(r.voice)).catch(() => {});
