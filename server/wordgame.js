@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { canon, isExact } from './scorer.js';
+import { canon, isExact, containsAnswer } from './scorer.js';
 import { makePausable } from './pause.js';
 import { TeamMatch } from './teams.js';
 
@@ -282,6 +282,11 @@ export class WordGame extends EventEmitter {
     const user = ev.user;
     if (ev.type === 'gift') return this.handleGift(ev);
     if (ev.type !== 'comment' || !user?.id) return [];
+    // Câu có chứa đúng đáp án ("trứng vịt lộn ạ", "đáp án là trứng vịt lộn nha") → trúng luôn, không tính giãn cách 2 giây
+    if (containsAnswer(ev.text, this.secret, this.aliases) || isExact(parseGuess(ev.text, { ...this.cfg, maxGuessWords: 8, maxGuessChars: 60 }) || '', this.secret, this.aliases)) {
+      this.lastGuessAt.set(user.id, this.clock());
+      return this.win({ id: user.id, name: user.name, avatar: user.avatar }, this.secret);
+    }
     const word = parseGuess(ev.text, this.cfg);
     if (!word) {
       this.lastReject = `Không tính là từ đoán: tối đa ${this.cfg.maxGuessWords} tiếng / ${this.cfg.maxGuessChars} ký tự, phải có chữ cái, không chứa link`;

@@ -28,6 +28,29 @@ export function isExact(guess, secret, aliases = []) {
   return c.length >= 1 && (c === core(secret) || aliases.some((a) => core(a) === c));
 }
 
+// Chữ phủ định đứng trước đáp án → không tính là đoán trúng
+const NEGATION = /(^| )(khong|ko|k|hok|hong|cha|chang|chu|dau|deo)( phai| la)?( |$)|(^| )(sai|nham)( |$)/;
+/**
+ * Bình luận CÓ CHỨA đáp án (hoặc biệt danh) như một cụm nguyên vẹn: "trứng vịt lộn ạ", "đáp án là trứng vịt lộn nha".
+ * Không phân biệt dấu / hoa thường. Bỏ qua câu quá dài (> đáp án + 5 tiếng) và câu phủ định ("không phải trứng vịt lộn").
+ */
+export function containsAnswer(text, secret, aliases = []) {
+  const t = normalize(String(text || '').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, ' '));
+  if (!t) return false;
+  const words = t.split(' ');
+  for (const ans of [secret, ...aliases]) {
+    const a = normalize(ans).split(' ').filter(Boolean);
+    if (!a.length || words.length > a.length + 5) continue;
+    // đáp án 1 tiếng ngắn (vd "ô", "đá") dễ trùng chữ thường → chỉ nhận khi câu rất ngắn
+    if (a.length === 1 && a[0].length <= 3 && words.length > 3) continue;
+    for (let i = 0; i + a.length <= words.length; i++) {
+      // phủ định đứng TRƯỚC đáp án ("không phải trứng vịt lộn") thì không tính; "trứng vịt lộn đúng hông" vẫn tính
+      if (a.every((w, k) => words[i + k] === w) && !NEGATION.test(words.slice(0, i).join(' '))) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Bộ chấm dự phòng khi không có API key: so trùng âm tiết / chữ cái.
  * Không hiểu nghĩa, chỉ để game vẫn chạy được.

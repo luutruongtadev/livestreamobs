@@ -331,3 +331,20 @@ test('đoán trúng: mức hiệu ứng theo tốc độ và số gợi ý đã 
   const w2 = g.handle({ type: 'comment', user: { id: 'b', name: 'B' }, text: g.display }).find((e) => e.type === 'wg_win');
   assert.equal(w2.tier, 'hint1');
 });
+
+test('bình luận có chứa đáp án vẫn tính trúng ("… ạ", "đáp án là …"), câu phủ định thì không; trúng không bị giãn cách 2 giây', async () => {
+  const { containsAnswer } = await import('../server/scorer.js');
+  const ok = ['trứng vịt lộn ạ', 'là trứng vịt lộn', 'đáp án là trứng vịt lộn nha', 'TRUNG VIT LON 🥚🥚', 'trứng vịt lộn đúng hông'];
+  for (const t of ok) assert.ok(containsAnswer(t, 'trứng vịt lộn'), t);
+  const no = ['không phải trứng vịt lộn', 'ko phải trứng vịt lộn đâu', 'vịt lộn', 'trứng gà', 'hôm nay mình đi ăn trứng vịt lộn với bạn bè ở quán đầu ngõ'];
+  for (const t of no) assert.ok(!containsAnswer(t, 'trứng vịt lộn'), t);
+  assert.ok(containsAnswer('ô ạ', 'ô'));
+  assert.ok(!containsAnswer('ô hay quá ta ơi', 'ô'), 'đáp án 1 chữ ngắn: câu dài không tính');
+  assert.ok(containsAnswer('hột vịt lộn nha', 'trứng vịt lộn', ['hột vịt lộn']), 'biệt danh');
+  const clock = { t: 1_000_000 };
+  const g = new WordGame({ words: [{ word: 'trứng vịt lộn' }], roundSeconds: 300, cooldownSec: 2 }, { scorer: { score: async () => 10 }, now: () => clock.t });
+  g.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: 'vịt lộn' });
+  clock.t += 500;
+  const fx = g.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: 'trứng vịt lộn ạ' });
+  assert.equal(fx.find((e) => e.type === 'wg_win')?.by.id, 'a', 'trúng ngay dù mới đoán 0,5 giây trước');
+});
