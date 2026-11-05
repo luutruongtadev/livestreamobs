@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 
 export const VOICE_DEFAULTS = {
   enabled: true,
-  voiceId: 'pNInz6obpgDQGcFmaJgB', // giọng "Adam" của ElevenLabs
+  voiceId: 'eGSd0uV8dNQnZuEEX9lu', // giọng MC chọn trên ElevenLabs
   modelId: 'eleven_flash_v2_5', // nhanh, đọc được tiếng Việt
   languageCode: 'vi',
   claudeModel: 'claude-opus-5-5', // viết câu chọc cười

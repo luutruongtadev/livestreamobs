@@ -29,7 +29,7 @@ test('đoán trúng: Claude viết câu trêu, ElevenLabs đọc giọng Adam (t
   assert.match(out.text, /Minh Anh/);
   assert.match(out.url, /^\/voice\/.+\.mp3$/);
   assert.ok(fs.existsSync(path.join(d, path.basename(out.url))));
-  assert.match(tts[0].url, /text-to-speech\/pNInz6obpgDQGcFmaJgB/);
+  assert.match(tts[0].url, /text-to-speech\/eGSd0uV8dNQnZuEEX9lu/);
   assert.equal(tts[0].opts.headers['xi-api-key'], 'k');
   assert.deepEqual([tts[0].body.model_id, tts[0].body.language_code], ['eleven_flash_v2_5', 'vi']);
   const ctx = JSON.parse(cl[0].messages[0].content);
