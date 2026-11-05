@@ -193,6 +193,7 @@
         <button class="ghost" data-voice='{"kind":"win","tier":"lightning","seconds":6}'>🎙️ Thử giọng MC: đoán trúng</button>
         <button class="ghost" data-voice='{"kind":"gift","giftName":"Hoa hồng","repeat":1,"diamonds":1}'>🎙️ Thử: tặng 1 hoa hồng</button>
         <button class="ghost" data-voice='{"kind":"gift","giftName":"Sư tử","repeat":1,"diamonds":29999}'>🎙️ Thử: tặng Sư tử</button>
+        <button class="ghost" id="btnVoiceLib">📚 Tạo sẵn thư viện câu đoán trúng</button>
       </div>
       <p class="muted" id="voiceText">Giọng MC: (bấm thử để xem trạng thái)</p>
       <div class="row" style="margin-bottom:10px">
@@ -571,10 +572,19 @@
     api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
   }));
   function renderVoice(v) {
-    $('voiceText').textContent = v.enabled
-      ? `🎙️ Giọng MC ElevenLabs: bật (câu do ${v.writer} viết) · đã đọc ${v.spoken} câu · giờ này ${v.thisHour}/${v.maxPerHour}` + (v.queue ? ` · ${v.queue} câu đang chờ` : '') + (v.lastError ? ` · ⚠ ${v.lastError}` : '')
-      : '🎙️ Giọng MC: tắt — thêm ELEVENLABS_API_KEY vào .env trên VPS để bật (đang dùng giọng đọc của trình duyệt)';
+    if (!v.enabled) { $('voiceText').textContent = '🎙️ Giọng MC: tắt — thêm ELEVENLABS_API_KEY vào .env trên VPS để bật (đang dùng giọng đọc của trình duyệt)'; return; }
+    const lib = Object.values(v.library || {});
+    const libTotal = lib.reduce((a, b) => a + b, 0);
+    $('voiceText').textContent = `🎙️ Giọng MC: ${v.active ? 'đang bật' : '⏸ tạm ngừng (hết ngân sách / gần hết credit) → trình duyệt tự đọc'}`
+      + ` · 💳 hôm nay ${fmt.format(v.today)}${v.dailyCredits ? '/' + fmt.format(v.dailyCredits) : ''} credit · tổng đã dùng ${fmt.format(v.total)}`
+      + (v.account ? ` · tài khoản còn ${fmt.format(v.account.remaining)} credit` : v.accountError ? ` · (không đọc được số dư: ${v.accountError})` : '')
+      + ` · 📚 thư viện câu đoán trúng ${libTotal}/${v.libraryPerTier * lib.length}${v.building ? ' (đang tạo…)' : ''}`
+      + ` · đã đọc ${v.spoken} câu` + (v.queue ? ` · ${v.queue} chờ` : '') + (v.lastError ? ` · ⚠ ${v.lastError}` : '');
   }
+  $('btnVoiceLib').onclick = () => {
+    if (!confirm('Tạo sẵn toàn bộ câu chúc mừng đoán trúng (khoảng 72 câu, tốn khoảng 3.000 credit một lần, sau đó dùng lại miễn phí)?')) return;
+    api('/api/voice/library').then((r) => { renderVoice(r.voice); log('Đang tạo thư viện câu đoán trúng (vài phút)…'); }).catch((e) => log('Lỗi: ' + e.message));
+  };
   document.querySelectorAll('[data-voice]').forEach((b) => (b.onclick = () => {
     api('/api/voice/test', { ...JSON.parse(b.dataset.voice), name: simName() })
       .then((r) => { renderVoice(r.voice); log('Đã gửi đọc thử — nghe ở trang /doantu (vài giây)'); setTimeout(() => api('/api/voice/status').then((x) => renderVoice(x.voice)), 6000); })

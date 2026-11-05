@@ -392,7 +392,8 @@ function drawWinFx(t, dt) {
 
 // ---------------- giọng MC (ElevenLabs) ----------------
 // Server gửi file mp3 câu chúc mừng / cảm ơn; phát lần lượt, không chồng tiếng. Có giọng MC thì tắt giọng đọc của trình duyệt.
-let voiceOn = false;
+let voiceOn = false; // giọng MC còn hoạt động (bật + còn ngân sách credit)
+let voiceMinGift = 1; // quà nhỏ hơn: trình duyệt tự đọc
 const voiceQueue = [];
 let voicePlaying = null;
 function playNextVoice() {
@@ -421,7 +422,7 @@ function connect() {
     let msg; try { msg = JSON.parse(m.data); } catch { return; }
     if (msg.type === 'hello') {
       const first = !G;
-      cfg = msg.config; G = msg.wg; voiceOn = !!msg.voice?.enabled;
+      cfg = msg.config; G = msg.wg; voiceOn = !!msg.voice?.enabled; voiceMinGift = msg.voice?.minGiftDiamonds ?? 1;
       if (first) {
         sound = new SoundBoard({ muted: opt.mute, theme: 'game' }); // không mõ, không chuông chùa, không nhạc nền tụng kinh
         sound.init();
@@ -432,6 +433,8 @@ function connect() {
       G = msg.wg;
     } else if (msg.type === 'wgfx') {
       for (const e of msg.effects) handle(e);
+    } else if (msg.type === 'voice_state') {
+      voiceOn = !!msg.voice?.enabled; voiceMinGift = msg.voice?.minGiftDiamonds ?? 1;
     } else if (msg.type === 'voice' && msg.game === 'wg') {
       onVoice(msg.voice);
     }
@@ -875,7 +878,7 @@ function drawThanks(dt) {
     if (c.tier >= 2) confetti(c.tier === 3 ? 260 : 140);
     if (c.tier === 3) fx.flash = Math.max(fx.flash, 0.6);
     const gift = `${c.repeat > 1 ? c.repeat + ' ' : ''}${giftVi(c.giftName)}`;
-    if (!voiceOn) speak(c.tier >= 2 ? `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}! Yêu bạn nhiều lắm!` : `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}`);
+    if (!(voiceOn && (c.diamonds || 0) >= voiceMinGift)) speak(c.tier >= 2 ? `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}! Yêu bạn nhiều lắm!` : `Cảm ơn ${speakName(c.by?.name)} đã tặng ${gift}`);
     for (let i = 0; i < 10 + c.tier * 10; i++) {
       thanks.hearts.push({ x: W / 2 + (Math.random() - 0.5) * 500, y: THANKS_Y + Math.random() * 60, vx: (Math.random() - 0.5) * 160, vy: -180 - Math.random() * 260, life: 1, s: 26 + Math.random() * 22, e: ['❤️', '💖', '💕', '🌹', '✨'][i % 5] });
     }

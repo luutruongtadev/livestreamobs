@@ -275,7 +275,12 @@
     "enabled": true,
     "voiceId": "eGSd0uV8dNQnZuEEX9lu",
     "modelId": "eleven_flash_v2_5",
-    "maxPerHour": 150
+    "claudeModel": "claude-haiku-5-5",
+    "libraryPerTier": 12,
+    "minGiftDiamonds": 1,
+    "dailyCredits": 5000,
+    "reserveCredits": 1000,
+    "maxPerHour": 120
   },
   "goodbye": {
     "enabled": true,

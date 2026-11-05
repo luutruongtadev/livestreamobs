@@ -139,7 +139,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: { enabled: voice.enabled } });
+  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState() });
 });
 
 function ingest(ev) {
@@ -208,6 +208,9 @@ function wgBroadcast(effects) {
 }
 wg.on('effects', wgBroadcast);
 voice.on('voice', (v) => broadcast({ type: 'voice', game: 'wg', voice: v }));
+voice.on('state', (st) => broadcast({ type: 'voice_state', voice: st }));
+// số credit còn lại trên tài khoản ElevenLabs: lúc khởi động + mỗi 10 phút
+if (voice.enabled) { voice.refreshAccount(); setInterval(() => voice.refreshAccount(), 10 * 60e3).unref(); }
 let wgLastRemaining = -1;
 setInterval(() => {
   const fx = wg.tick();
@@ -387,14 +390,17 @@ app.get('/api/arena/collection', (req, res) => res.json({ players: cardStore.fin
 app.get('/api/arena/top', (_req, res) => res.json({ wins: cardStore.top(10, 'wins'), collectors: cardStore.top(10, 'collection'), stats: cardStore.stats() }));
 
 // Giọng MC: xem trạng thái / đọc thử
-app.post('/api/voice/:action', requireAdmin, (req, res) => {
+app.post('/api/voice/:action', requireAdmin, async (req, res) => {
   const b = req.body || {};
   if (req.params.action === 'test') {
     if (!voice.enabled) return res.status(400).json({ error: 'Chưa bật: cần ELEVENLABS_API_KEY trong .env trên VPS (và "voice.enabled": true)' });
     const by = { id: 'sim:test-voice', name: String(b.name || 'Minh Anh').slice(0, 40) };
     if (b.kind === 'gift') voice.gift({ by, giftName: b.giftName || 'Hoa hồng', repeat: Number(b.repeat) || 10, diamonds: Number(b.diamonds) || 10 });
     else voice.win({ by, answer: b.word || 'lò vi sóng', seconds: Number(b.seconds) || 7, hintLevel: 0, tier: b.tier || 'lightning', left: 280 });
-  }
+  } else if (req.params.action === 'library') {
+    if (!voice.enabled) return res.status(400).json({ error: 'Chưa bật: cần ELEVENLABS_API_KEY' });
+    voice.buildLibrary(); // chạy nền
+  } else if (req.params.action === 'status') await voice.refreshAccount();
   res.json({ ok: true, voice: voice.status() });
 });
 

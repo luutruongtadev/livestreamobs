@@ -5,27 +5,118 @@ import { EventEmitter } from 'node:events';
 export const VOICE_DEFAULTS = {
   enabled: true,
   voiceId: 'eGSd0uV8dNQnZuEEX9lu', // giọng MC chọn trên ElevenLabs
-  modelId: 'eleven_flash_v2_5', // nhanh, đọc được tiếng Việt
+  modelId: 'eleven_flash_v2_5', // nhanh, đọc được tiếng Việt, rẻ: 0,5 credit / ký tự
+  creditsPerChar: 0.5, // dùng để ước tính khi ElevenLabs không trả số credit đã tính
   languageCode: 'vi',
-  claudeModel: 'claude-opus-5-5', // viết câu chọc cười
+  claudeModel: 'claude-haiku-5-5', // viết câu chọc cười (ngắn, rẻ, nhanh)
+  // Đoán trúng: thư viện câu KHÔNG có tên, mỗi mức N câu; đủ rồi thì phát lại (miễn phí), không lặp câu vừa nói
+  libraryPerTier: 12,
+  // Tặng quà: gọi ElevenLabs có tên người tặng
+  minGiftDiamonds: 1, // quà nhỏ hơn mức này → trình duyệt tự đọc (miễn phí)
   giftWindowSec: 4, // gom quà liên tiếp của cùng một người trong N giây thành 1 câu
-  maxQueue: 4, // tối đa câu chờ đọc; đầy thì bỏ câu cảm ơn quà nhỏ nhất
-  maxPerHour: 150, // giới hạn số câu / giờ (kiểm soát chi phí ElevenLabs)
-  keepFiles: 40, // giữ N file mp3 gần nhất
+  maxChars: 130, // câu dài hơn thì cắt bớt (credit tính theo ký tự)
+  // Ngân sách
+  dailyCredits: 5000, // tối đa credit / ngày (giờ VN); 0 = không giới hạn
+  reserveCredits: 1000, // tài khoản còn dưới mức này thì ngừng gọi ElevenLabs
+  maxQueue: 4,
+  maxPerHour: 120,
+  keepFiles: 40, // file mp3 câu cảm ơn quà (thư viện đoán trúng không bị xoá)
   stability: 0.35,
   similarity: 0.8,
   style: 0.55,
 };
 
-const SYSTEM = `Bạn là MC nam dẫn game đoán chữ trên TikTok Live: vui tính, lầy lội, hay trêu chọc người chơi kiểu bạn bè thân.
-Mỗi lần nhận một sự kiện (có người đoán trúng hoặc tặng quà), viết MỘT câu nói tiếng Việt để đọc thành giọng nói.
-Quy tắc:
-- Tối đa 30 chữ, nói tự nhiên như đang live, gọi đúng tên người chơi.
-- Trêu đùa nhẹ nhàng, hài hước, có chút "troll" nhưng thân thiện; luôn kết bằng ý chúc mừng hoặc cảm ơn.
-- Đoán trúng: trúng cực nhanh / không cần gợi ý thì tung hô quá lố; trúng sau nhiều gợi ý hoặc phút chót thì trêu là "nhờ gợi ý", "suýt toang".
-- Tặng quà: quà to thì làm quá lên, cảm ơn rối rít; quà nhỏ (hoa hồng) thì trêu khéo nhưng vẫn cảm ơn thật lòng.
+export const WIN_TIERS = ['lightning', 'nohint', 'hint1', 'clutch', 'hint2', 'hint3'];
+
+const TIER_DESC = {
+  lightning: 'đoán trúng chỉ trong vài giây đầu, chưa có gợi ý nào (thần đồng)',
+  nohint: 'đoán trúng mà chưa cần mở gợi ý nào',
+  hint1: 'đoán trúng ngay sau gợi ý đầu tiên (gợi ý emoji)',
+  clutch: 'đoán trúng ở mấy giây cuối, suýt hết giờ (phút chót nghẹt thở)',
+  hint2: 'đoán trúng sau hai gợi ý',
+  hint3: 'đoán trúng sau khi đã mở hết gợi ý',
+};
+
+// Câu đoán trúng soạn sẵn (không tên, đọc được cho mọi người) — đọc lần đầu thì lưu mp3, lần sau phát lại
+export const WIN_LINES = {
+  lightning: [
+    'Trời đất ơi, chưa kịp uống ngụm nước đã có người trúng rồi! Thần đồng xuất hiện!',
+    'Mới mấy giây thôi mà trúng phóc, ăn gian hay là thiên tài vậy trời?',
+    'Ê khoan, mình còn chưa đọc xong luật mà đã có người đoán trúng! Quá đỉnh!',
+    'Tốc độ ánh sáng! Chắc là nhìn trộm đáp án của mình rồi, đùa thôi, quá giỏi!',
+    'Ủa alo? Trúng luôn rồi hả? Cả phòng live chưa kịp chớp mắt!',
+    'Thần đồng đoán chữ đây rồi! Mọi người vỗ tay cho một bộ não siêu việt!',
+    'Mình chuẩn bị ba gợi ý mà giờ thất nghiệp hết rồi! Chúc mừng thần đồng!',
+    'Đề khó vậy mà trúng trong nháy mắt, kiếp trước chắc làm từ điển hả trời?',
+  ],
+  nohint: [
+    'Không cần một gợi ý nào mà vẫn trúng! Bộ não này phải đem đi triển lãm!',
+    'Gợi ý còn nằm trong túi chưa kịp lấy ra, vậy mà trúng rồi! Giỏi quá!',
+    'Đoán trúng không cần gợi ý, đúng là cao thủ ẩn danh trong phòng live!',
+    'Tự thân vận động, không nhờ gợi ý, trúng ngon lành! Chúc mừng nha!',
+    'Đây mới gọi là thực lực! Không gợi ý, không trợ giúp, vẫn trúng phóc!',
+    'Cả phòng còn đang loay hoay thì có người âm thầm trúng luôn rồi! Quá đẳng cấp!',
+    'Không cần gợi ý vẫn trúng, chắc sáng nay ăn nhiều óc chó lắm đây!',
+    'Mình định mở gợi ý mà giờ khỏi luôn! Chúc mừng người chơi hệ thông minh!',
+  ],
+  hint1: [
+    'Mới một gợi ý đã đoán ra, nhạy bén quá trời! Chúc mừng nha!',
+    'Một gợi ý là đủ rồi, bắt sóng nhanh như wifi năm gờ!',
+    'Nhìn emoji là hiểu liền, chắc cả ngày chat toàn bằng icon đây! Trúng rồi!',
+    'Một gợi ý thôi mà trúng ngay, đầu óc nhanh như chớp, chúc mừng!',
+    'Chỉ cần gợi ý nhẹ một cái là trúng, hiểu ý nhau quá trời luôn!',
+    'Một gợi ý, một phát ăn ngay! Phản xạ này đi thi gameshow được rồi đó!',
+    'Gợi ý vừa hiện lên là có người trúng liền, nhanh tay nhanh mắt ghê!',
+    'Một gợi ý là đủ để thiên tài tỏa sáng! Chúc mừng nha!',
+  ],
+  clutch: [
+    'Suýt toang rồi! Còn có mấy giây mà trúng kịp, tim mình muốn rớt ra ngoài!',
+    'Phút chót nghẹt thở! Trúng đúng lúc đồng hồ sắp điểm, quá căng!',
+    'Chỉ còn vài giây! Người chơi này thích làm mình đứng tim hay sao vậy, chúc mừng!',
+    'Bàn thắng phút bù giờ! Trúng sát nút, cả phòng live thở phào!',
+    'Mình tưởng hết giờ rồi chứ! Ai cho phép trúng phút chót kịch tính vậy hả!',
+    'Đúng kiểu nước đến chân mới nhảy, nhưng mà nhảy rất đẹp! Chúc mừng!',
+    'Còn chút xíu nữa là toang, may mà có người cứu cả vòng chơi!',
+    'Kịch tính như phim hành động! Trúng ở giây cuối, quá đỉnh!',
+  ],
+  hint2: [
+    'Sau hai gợi ý cuối cùng cũng có người trúng! Từ từ mà chắc, chúc mừng!',
+    'Hai gợi ý mới ra, nhưng thôi trúng là được, mình không chấp đâu!',
+    'Phải nhờ tới hai gợi ý cơ, nhưng công nhận đoán hay, chúc mừng nha!',
+    'Gợi ý thứ hai đã cứu cả phòng live! Chúc mừng người chơi đã trúng!',
+    'Chậm mà chắc, rùa thắng thỏ! Chúc mừng đã đoán trúng!',
+    'Gợi ý tới mức này rồi mà còn không ai trúng thì mình khóc mất, may quá!',
+    'Hai gợi ý, một chiến thắng! Chúc mừng nha!',
+    'Cuối cùng thì ánh sáng cũng đã đến! Đoán trúng rồi, vỗ tay!',
+  ],
+  hint3: [
+    'Mở hết gợi ý rồi mới trúng, nhưng thôi, chiến thắng nào cũng đáng trân trọng!',
+    'Gợi ý gần như lộ đáp án luôn rồi đó, nhưng mà trúng thì vẫn được khen!',
+    'Ba gợi ý mới ra, mình mệt luôn rồi đó, nhưng chúc mừng nha!',
+    'Phải tới gợi ý cuối cùng mới chịu trúng, đúng là thích hồi hộp!',
+    'Mình gợi ý muốn khô cả họng, cuối cùng cũng có người trúng! Cảm ơn trời đất!',
+    'Trúng rồi! Hơi muộn một chút nhưng vẫn là người chiến thắng!',
+    'Gợi ý cứu cả thế giới! Chúc mừng người chơi đã về đích!',
+    'Đoán trúng sau khi được mớm tận miệng, nhưng mà thôi, chúc mừng nha!',
+  ],
+};
+
+const RULES = `- Trêu đùa nhẹ nhàng, hài hước, có chút "troll" nhưng thân thiện.
 - Tuyệt đối không xúc phạm ngoại hình, giới tính, vùng miền, tôn giáo, không chửi thề, không nội dung người lớn, không chính trị.
-- Không emoji, không ký hiệu, không hashtag, không ngoặc kép. Không lặp lại câu đã nói gần đây.`;
+- Không emoji, không ký hiệu, không hashtag, không ngoặc kép.`;
+
+const GIFT_SYSTEM = `Bạn là MC nam dẫn game đoán chữ trên TikTok Live: vui tính, lầy lội, hay trêu người xem kiểu bạn bè thân.
+Có người vừa tặng quà. Viết MỘT câu cảm ơn tiếng Việt để đọc thành giọng nói.
+- Tối đa 18 chữ, gọi đúng tên người tặng, kết bằng lời cảm ơn.
+- Quà to thì làm quá lên, cảm ơn rối rít; quà nhỏ (hoa hồng) thì trêu khéo nhưng vẫn cảm ơn thật lòng.
+${RULES}
+- Không lặp lại câu đã nói gần đây.`;
+
+const WIN_SYSTEM = `Bạn là MC nam dẫn game đoán chữ trên TikTok Live: vui tính, lầy lội, hay trêu người chơi kiểu bạn bè thân.
+Viết MỘT câu chúc mừng tiếng Việt để đọc thành giọng nói khi có người đoán trúng.
+- Tối đa 20 chữ. KHÔNG nhắc tên người chơi, KHÔNG nhắc đáp án (câu này được dùng lại cho nhiều người, nhiều vòng).
+- Đúng với tình huống được mô tả, khác hẳn các câu đã có.
+${RULES}`;
 
 const SCHEMA = {
   type: 'object',
@@ -34,26 +125,29 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const TEMPLATES = {
-  win: [
-    '{name} đoán trúng rồi! Não to thế này chắc ăn nhiều óc chó lắm đây, chúc mừng nha!',
-    'Ối giời ơi {name} trúng phóc! Cả phòng live đứng hình, chúc mừng {name}!',
-    'Chúc mừng {name}! Đoán hay thế này chắc nhìn trộm đáp án rồi, đùa thôi, giỏi lắm!',
-  ],
-  gift: [
-    'Cảm ơn {name} đã tặng {gift}! Giàu thế này cho mình xin làm người yêu với!',
-    '{name} vừa tặng {gift}, cả phòng live xin cúi đầu cảm ơn đại gia!',
-    'Ui cảm ơn {name} nha, {gift} này mình xin ghi vào sổ ân tình suốt đời!',
-  ],
-};
+const GIFT_TEMPLATES = [
+  'Cảm ơn {name} đã tặng {gift}! Giàu thế này cho mình xin làm người yêu với!',
+  '{name} vừa tặng {gift}, cả phòng live xin cúi đầu cảm ơn đại gia!',
+  'Ui cảm ơn {name} nha, {gift} này mình ghi vào sổ ân tình suốt đời!',
+];
 
 /** Tên đọc được: bỏ emoji / ký hiệu, tối đa 24 ký tự. */
 export const speakableName = (n) => String(n || '').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 24) || 'bạn';
-const clean = (s) => String(s || '').replace(/[\p{Extended_Pictographic}#*"“”]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 220);
+const clean = (s) => String(s || '').replace(/[\p{Extended_Pictographic}#*"“”]/gu, '').replace(/\s+/g, ' ').trim();
+/** Cắt câu theo số ký tự tối đa, ở ranh giới từ. */
+export function clip(text, max) {
+  const t = clean(text);
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return cut.slice(0, Math.max(cut.lastIndexOf(' '), Math.floor(max * 0.6))).replace(/[,\s]+$/, '') + '!';
+}
 
 /**
- * Giọng MC đọc câu chúc mừng / cảm ơn bằng ElevenLabs (giọng Adam); câu nói do Claude viết theo kiểu trêu đùa.
- * Phát sự kiện 'voice' { id, url, text, kind, by } khi có file mp3 sẵn sàng.
+ * Giọng MC (ElevenLabs).
+ * - Đoán trúng: thư viện câu không tên theo mức (data/voice/lib), đọc lần đầu thì lưu, sau đó phát lại miễn phí.
+ * - Tặng quà: Claude viết câu cảm ơn có tên, ElevenLabs đọc.
+ * - Ngân sách credit / ngày + dự trữ tài khoản; hết thì ngừng (trang game tự đọc bằng giọng trình duyệt).
+ * Phát 'voice' { id, url, text, kind, by } và 'state' khi bật / tắt.
  */
 export class Voice extends EventEmitter {
   constructor(config = {}, { apiKey = null, claude = null, dir, fetchImpl = globalThis.fetch, now = () => Date.now(), random = Math.random, log = console } = {}) {
@@ -69,23 +163,88 @@ export class Voice extends EventEmitter {
     this.queue = [];
     this.pendingGifts = new Map(); // id người tặng -> { job, timer }
     this.busy = false;
-    this.recent = []; // câu đã nói gần đây (để Claude tránh lặp)
+    this.recent = []; // câu cảm ơn gần đây (để Claude tránh lặp)
+    this.recentLib = []; // câu thư viện vừa phát (không phát lại ngay)
     this.hour = { start: now(), count: 0 };
     this.lastError = null;
     this.spoken = 0;
     this.seq = 0;
+    this.account = null; // { used, limit, remaining, at } từ ElevenLabs
+    this.building = false;
+    this.libPath = dir ? path.join(dir, 'library.json') : null;
+    this.usagePath = dir ? path.join(dir, 'usage.json') : null;
+    this.lib = this.readJson(this.libPath, {}); // tier -> [{ text, url }]
+    this.usage = this.readJson(this.usagePath, { day: null, today: 0, total: 0 });
+    this.lastCanSpend = this.canSpend();
   }
+
+  readJson(p, def) { try { return p ? JSON.parse(fs.readFileSync(p, 'utf8')) : def; } catch { return def; } }
+  writeJson(p, v) { if (!p) return; fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, JSON.stringify(v, null, 1)); }
 
   get enabled() { return !!(this.cfg.enabled && this.apiKey); }
 
+  dayKey() { return new Date(this.now() + 7 * 3600e3).toISOString().slice(0, 10); }
+  todayCredits() { return this.usage.day === this.dayKey() ? this.usage.today : 0; }
+
+  /** Còn được gọi ElevenLabs không (bật + chưa hết ngân sách ngày + tài khoản còn trên mức dự trữ). */
+  canSpend() {
+    if (!this.enabled) return false;
+    if (this.cfg.dailyCredits > 0 && this.todayCredits() >= this.cfg.dailyCredits) return false;
+    if (this.account && this.account.remaining <= this.cfg.reserveCredits) return false;
+    return true;
+  }
+
+  /** Trạng thái gửi cho trang game: có giọng MC đọc quà không (không thì trình duyệt tự đọc). */
+  publicState() { return { enabled: this.canSpend(), minGiftDiamonds: this.cfg.minGiftDiamonds }; }
+
+  checkState() {
+    const now = this.canSpend();
+    if (now !== this.lastCanSpend) { this.lastCanSpend = now; this.emit('state', this.publicState()); }
+  }
+
+  recordCredits(n) {
+    const day = this.dayKey();
+    if (this.usage.day !== day) this.usage = { ...this.usage, day, today: 0 };
+    this.usage.today += n;
+    this.usage.total += n;
+    if (this.account) { this.account.used += n; this.account.remaining = Math.max(0, this.account.remaining - n); }
+    this.writeJson(this.usagePath, this.usage);
+    this.checkState();
+  }
+
+  /** Số credit thật còn lại trên tài khoản ElevenLabs (key cần quyền đọc thông tin tài khoản). */
+  async refreshAccount() {
+    if (!this.apiKey) return null;
+    try {
+      const res = await this.fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': this.apiKey } });
+      if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
+      const s = await res.json();
+      const used = Number(s.character_count) || 0, limit = Number(s.character_limit) || 0;
+      this.account = { used, limit, remaining: Math.max(0, limit - used), resetAt: s.next_character_count_reset_unix ? s.next_character_count_reset_unix * 1000 : null, at: this.now() };
+      this.checkState();
+    } catch (e) { this.accountError = e.message; }
+    return this.account;
+  }
+
+  libCounts() { return Object.fromEntries(WIN_TIERS.map((t) => [t, (this.lib[t] || []).length])); }
+
   status() {
-    return { enabled: this.enabled, hasKey: !!this.apiKey, writer: this.claude ? 'claude' : 'mẫu có sẵn', voiceId: this.cfg.voiceId, model: this.cfg.modelId, queue: this.queue.length, spoken: this.spoken, thisHour: this.hour.count, maxPerHour: this.cfg.maxPerHour, lastError: this.lastError };
+    return {
+      enabled: this.enabled, active: this.canSpend(), hasKey: !!this.apiKey, writer: this.claude ? 'claude' : 'mẫu có sẵn',
+      voiceId: this.cfg.voiceId, model: this.cfg.modelId, queue: this.queue.length, spoken: this.spoken,
+      thisHour: this.hour.count, maxPerHour: this.cfg.maxPerHour,
+      today: Math.round(this.todayCredits()), dailyCredits: this.cfg.dailyCredits, total: Math.round(this.usage.total),
+      account: this.account, accountError: this.account ? null : this.accountError || null, reserveCredits: this.cfg.reserveCredits,
+      library: this.libCounts(), libraryPerTier: this.cfg.libraryPerTier, building: this.building,
+      minGiftDiamonds: this.cfg.minGiftDiamonds, lastError: this.lastError,
+    };
   }
 
   /** Có người đoán trúng. e = hiệu ứng wg_win. */
   win(e) {
     if (!this.enabled || !e?.by) return;
-    this.enqueue({ kind: 'win', priority: 3, by: e.by, ctx: { tu_dap_an: e.answer || e.secret, so_giay: e.seconds, so_goi_y_da_mo: e.hintLevel, muc: e.tier, con_lai_giay: e.left } });
+    const tier = WIN_TIERS.includes(e.tier) ? e.tier : 'hint3';
+    this.enqueue({ kind: 'win', priority: 3, by: e.by, tier });
   }
 
   /** Có người tặng quà. e = hiệu ứng wg_thanks. Gom quà liên tiếp của cùng người. */
@@ -101,6 +260,7 @@ export class Voice extends EventEmitter {
     const job = { kind: 'gift', priority: 1, by: e.by, ctx: { qua: e.giftName || 'quà', so_mon: e.repeat || 1, so_xu: e.diamonds || 0 } };
     const timer = setTimeout(() => {
       this.pendingGifts.delete(e.by.id);
+      if (job.ctx.so_xu < this.cfg.minGiftDiamonds) return; // quà nhỏ: trình duyệt tự đọc
       job.priority = job.ctx.so_xu >= 99 ? 2.5 : job.ctx.so_xu >= 30 ? 2 : 1;
       this.enqueue(job);
     }, this.cfg.giftWindowSec * 1000);
@@ -109,7 +269,6 @@ export class Voice extends EventEmitter {
 
   enqueue(job) {
     if (this.queue.length >= this.cfg.maxQueue) {
-      // đầy: bỏ câu ít quan trọng nhất (nếu câu mới quan trọng hơn)
       const low = this.queue.reduce((a, b) => (b.priority < a.priority ? b : a));
       if (low.priority >= job.priority) return;
       this.queue.splice(this.queue.indexOf(low), 1);
@@ -125,17 +284,12 @@ export class Voice extends EventEmitter {
     try {
       while (this.queue.length) {
         const job = this.queue.shift();
-        const t = this.now();
-        if (t - this.hour.start >= 3600e3) this.hour = { start: t, count: 0 };
-        if (this.hour.count >= this.cfg.maxPerHour) { this.lastError = `Đã đủ ${this.cfg.maxPerHour} câu trong giờ này`; continue; }
         try {
-          const text = await this.writeLine(job);
-          const file = await this.tts(text);
-          this.hour.count++;
+          const out = job.kind === 'win' ? await this.winLine(job.tier) : await this.giftLine(job);
+          if (!out) continue;
           this.spoken++;
-          this.recent.push(text); this.recent = this.recent.slice(-6);
           this.lastError = null;
-          this.emit('voice', { id: file.id, url: file.url, text, kind: job.kind, by: { id: job.by.id, name: job.by.name } });
+          this.emit('voice', { id: out.id || out.url, url: out.url, text: out.text, kind: job.kind, tier: job.tier, reused: !!out.reused, by: { id: job.by.id, name: job.by.name } });
         } catch (e) {
           this.lastError = `${e?.status || ''} ${e?.message || e}`.trim();
           this.log.warn?.(`[voice] lỗi: ${this.lastError}`);
@@ -144,45 +298,97 @@ export class Voice extends EventEmitter {
     } finally { this.busy = false; }
   }
 
-  template(job) {
-    const list = TEMPLATES[job.kind] || TEMPLATES.win;
-    return list[Math.floor(this.random() * list.length)].replaceAll('{name}', speakableName(job.by.name)).replaceAll('{gift}', job.ctx.qua || 'quà');
+  hourOk() {
+    const t = this.now();
+    if (t - this.hour.start >= 3600e3) this.hour = { start: t, count: 0 };
+    if (this.hour.count >= this.cfg.maxPerHour) { this.lastError = `Đã đủ ${this.cfg.maxPerHour} câu gọi ElevenLabs trong giờ này`; return false; }
+    return true;
   }
 
-  /** Câu nói: Claude viết (trêu đùa theo ngữ cảnh), lỗi / không có Claude thì dùng câu mẫu. */
-  async writeLine(job) {
-    if (!this.claude) return this.template(job);
+  /** Câu đoán trúng: thư viện chưa đủ thì tạo câu mới (lưu lại), đủ rồi thì phát lại câu cũ không trùng câu vừa nói. */
+  async winLine(tier) {
+    const lib = (this.lib[tier] ||= []);
+    if (lib.length < this.cfg.libraryPerTier && this.canSpend() && this.hourOk()) {
+      const entry = await this.addLibraryLine(tier).catch((e) => { this.lastError = e.message; return null; });
+      if (entry) { this.remember(entry.url); return entry; }
+    }
+    if (!lib.length) return null;
+    const avoid = new Set(this.recentLib.slice(-Math.min(6, lib.length - 1)));
+    const pool = lib.filter((x) => !avoid.has(x.url));
+    const pick = (pool.length ? pool : lib)[Math.floor(this.random() * (pool.length || lib.length))];
+    this.remember(pick.url);
+    return { ...pick, reused: true };
+  }
+
+  remember(url) { this.recentLib.push(url); this.recentLib = this.recentLib.slice(-20); }
+
+  async addLibraryLine(tier) {
+    const lib = (this.lib[tier] ||= []);
+    const have = new Set(lib.map((x) => x.text));
+    let text = (WIN_LINES[tier] || []).find((t) => !have.has(t));
+    if (!text && this.claude) text = await this.claudeLine(WIN_SYSTEM, { tinh_huong: TIER_DESC[tier], cac_cau_da_co: [...have] });
+    if (!text || have.has(text)) return null;
+    text = clip(text, this.cfg.maxChars);
+    const file = await this.tts(text, `lib/${tier}`);
+    this.hour.count++;
+    const entry = { text, url: file.url };
+    lib.push(entry);
+    this.writeJson(this.libPath, this.lib);
+    return entry;
+  }
+
+  /** Admin: tạo sẵn đủ thư viện câu đoán trúng cho mọi mức (chạy nền). */
+  async buildLibrary() {
+    if (this.building || !this.enabled) return this.libCounts();
+    this.building = true;
+    try {
+      for (const tier of WIN_TIERS) {
+        while ((this.lib[tier] || []).length < this.cfg.libraryPerTier && this.canSpend()) {
+          const e = await this.addLibraryLine(tier);
+          if (!e) break;
+        }
+      }
+    } catch (e) { this.lastError = e.message; } finally { this.building = false; }
+    return this.libCounts();
+  }
+
+  /** Câu cảm ơn quà có tên: Claude viết, ElevenLabs đọc. */
+  async giftLine(job) {
+    if (!this.canSpend() || !this.hourOk()) return null;
+    let text = this.claude
+      ? await this.claudeLine(GIFT_SYSTEM, { ten_nguoi_tang: speakableName(job.by.name), ...job.ctx, cau_da_noi_gan_day: this.recent }).catch(() => null)
+      : null;
+    if (!text) text = GIFT_TEMPLATES[Math.floor(this.random() * GIFT_TEMPLATES.length)].replaceAll('{name}', speakableName(job.by.name)).replaceAll('{gift}', job.ctx.qua || 'quà');
+    text = clip(text, this.cfg.maxChars);
+    const file = await this.tts(text);
+    this.hour.count++;
+    this.recent.push(text); this.recent = this.recent.slice(-6);
+    return { ...file, text };
+  }
+
+  async claudeLine(system, payload) {
     try {
       const response = await this.claude.beta.messages.create({
         model: this.cfg.claudeModel,
         max_tokens: 2000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
+        // tự chuyển model khi bị từ chối: không có trên Haiku
+        ...(/haiku/.test(this.cfg.claudeModel) ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }),
         output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-        system: SYSTEM,
-        messages: [{
-          role: 'user',
-          content: JSON.stringify({
-            su_kien: job.kind === 'win' ? 'doan_trung' : 'tang_qua',
-            ten_nguoi_choi: speakableName(job.by.name),
-            ...job.ctx,
-            cau_da_noi_gan_day: this.recent,
-          }),
-        }],
+        system,
+        messages: [{ role: 'user', content: JSON.stringify(payload) }],
       });
       if (response.stop_reason === 'refusal') throw new Error('refusal');
       const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
       const line = clean(JSON.parse(text).line);
-      if (!line) throw new Error('câu trống');
-      return line;
+      return line || null;
     } catch (e) {
       this.log.warn?.(`[voice] Claude viết câu lỗi (${e?.message || e}) — dùng câu mẫu`);
-      return this.template(job);
+      return null;
     }
   }
 
-  /** ElevenLabs: chữ → mp3, lưu vào dir, trả về { id, url }. */
-  async tts(text) {
+  /** ElevenLabs: chữ → mp3, lưu vào dir[/sub], trả về { id, url }; ghi nhận credit đã dùng. */
+  async tts(text, sub = '') {
     const res = await this.fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(this.cfg.voiceId)}?output_format=mp3_44100_128`, {
       method: 'POST',
       headers: { 'xi-api-key': this.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
@@ -201,13 +407,17 @@ export class Voice extends EventEmitter {
       throw err;
     }
     const buf = Buffer.from(await res.arrayBuffer());
+    const cost = Number(res.headers?.get?.('character-cost')) || Math.ceil(text.length * this.cfg.creditsPerChar);
+    this.recordCredits(cost);
     const id = `${this.now().toString(36)}-${(this.seq++).toString(36)}`;
-    fs.mkdirSync(this.dir, { recursive: true });
-    fs.writeFileSync(path.join(this.dir, `${id}.mp3`), buf);
-    this.prune();
-    return { id, url: `/voice/${id}.mp3` };
+    const folder = path.join(this.dir, sub);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, `${id}.mp3`), buf);
+    if (!sub) this.prune();
+    return { id, url: `/voice/${sub ? sub + '/' : ''}${id}.mp3` };
   }
 
+  /** Xoá file câu cảm ơn quà cũ (chỉ thư mục gốc; thư viện đoán trúng ở lib/ giữ nguyên). */
   prune() {
     try {
       const files = fs.readdirSync(this.dir).filter((f) => f.endsWith('.mp3')).map((f) => ({ f, t: fs.statSync(path.join(this.dir, f)).mtimeMs })).sort((a, b) => b.t - a.t);
