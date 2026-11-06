@@ -8,6 +8,7 @@ Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH th�
 - Mỗi gợi ý là 1 từ HOẶC 1 cụm mô tả ngắn 2–5 từ (vd "lives in the sea", "you can eat it", "very cold place", "red with black dots"). Nên dùng nhiều cụm mô tả, không chỉ toàn từ đơn lẻ. Tối đa 30 ký tự.
 - Chỉ dùng từ rất thông dụng (hot, big, eat, water, school, family, morning…). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "illuminate", "celestial", "extinct").
 - Xếp từ XA đến GẦN: gợi ý 1 khó (liên tưởng xa), gợi ý 5 dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật. Tên riêng nổi tiếng (Nemo, Paris, Santa) dùng được ở gợi ý cuối.
+- Mỗi gợi ý phải là đặc điểm người Việt nhìn là liên tưởng ngay tới từ bí mật (hình dáng, màu, công dụng, ở đâu, khi nào dùng). KHÔNG dùng kiến thức lắt léo / ít người biết (nguồn gốc quốc gia, năm phát minh…), trừ khi đó là đặc điểm nổi tiếng nhất (sushi → Japan) và đặt ở cuối.
 - Không dùng tiếng Việt, không lặp gợi ý, không viết câu dài.
 Ví dụ: "mặt trời" → ["summer days", "makes you hot", "up in the sky", "yellow and bright", "comes up every morning"] (không dùng "sun").`;
 
@@ -20,7 +21,7 @@ const SCHEMA = {
 
 const clean = (h) => String(h || '').replace(/[^\p{L}\p{N} '-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
 // đổi khi sửa prompt: gợi ý soạn theo prompt cũ bị bỏ, soạn lại
-const PROMPT_V = 'v2-phrase';
+const PROMPT_V = 'v3-phrase';
 
 /**
  * 5 gợi ý tiếng Anh cho một từ bí mật: Claude soạn một lần, lưu data/english-hints.json dùng mãi.
