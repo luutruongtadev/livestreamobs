@@ -1,7 +1,7 @@
 {
   "name": "livestream-chua-online",
   "version": "1.0.0",
-  "description": "Chùa Online - TikTok Live interactive temple overlay cho OBS",
+  "description": "Đoán từ - game đoán từ tương tác cho TikTok Live",
   "main": "server/index.js",
   "scripts": {
     "prestart": "node scripts/check-node.cjs",

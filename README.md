@@ -1,72 +1,14 @@
-# ☸ Chùa Online — TikTok Live tương tác "Xây Chùa"
+# 🔤 Đoán từ — game đoán từ tương tác cho TikTok Live
 
-Overlay livestream tương tác kiểu **Viếng chùa / Xây chùa online**, chạy self-hosted, mã nguồn mở, không tốn phí.
-Người xem thả tim, bình luận, chia sẻ, tặng quà → tích **công đức** → chùa được **xây dần qua 8 cấp** ngay trên live.
+Game livestream self-hosted: người xem **bình luận để đoán từ bí mật**, Claude chấm **độ gần nghĩa** từng từ đoán,
+gợi ý mở dần (emoji → chủ đề → từ liên quan), quà mở chữ / thêm giờ, giọng MC trêu đùa khi có người trúng hoặc tặng quà,
+bảng xếp hạng tuần, chế độ đấu đội.
 
 ```
-TikTok Live ──(WebSocket, tiktok-live-connector)──► Node.js server ──(WebSocket)──► Overlay Canvas ──► OBS ──RTMP──► TikTok
-                                                        │
-                                                        └── /admin: kết nối, giả lập sự kiện, reset
+TikTok Live ──(tiktok-live-connector)──► Node.js server ──(WebSocket)──► /doantu (canvas 1080×1920) ──► OBS / LIVE Studio / điện thoại ──► TikTok
+                                             │
+                                             └── /admin: kết nối, đặt / thêm từ, giả lập, hẹn giờ kết thúc live
 ```
-
-## Tính năng
-
-| Tương tác người xem | Hiệu ứng trên live | Công đức mặc định |
-|---|---|---|
-| Thả tim ❤️ | Gõ mõ (tiếng mõ gỗ) | +1 / tim |
-| Bình luận `gõ mõ` | Gõ mõ | +3 |
-| Bình luận `thắp nhang` | Cắm thêm nén nhang, khói bay | +3 |
-| Bình luận `thỉnh chuông` | Đại hồng chung đung đưa, ngân vang | +3 |
-| Bình luận `xin quẻ` | Hiện thẻ quẻ ngẫu nhiên | +3 |
-| Bình luận `cầu an …`, `cầu nguyện …` | Thả đèn trời mang lời nguyện bay lên | +3 |
-| Bình luận thường | +1 bay lên | +1 |
-| Chia sẻ | Thỉnh chuông | +10 |
-| Theo dõi | Treo đèn lồng đỏ có tên người theo dõi | +20 |
-| Tặng quà 🎁 | Thông báo vinh danh + hiệu ứng theo giá trị: hoa rơi → hoa sen → hào quang vàng → **tượng Phật hiện hào quang** | +10 / kim cương |
-
-- **8 cấp chùa** tự vẽ bằng Canvas (không cần ảnh): Đất phát tâm → Am tranh → Chùa gỗ → Chùa ngói → Gác chuông → Bảo tháp → Đại chùa ba tầng mái → Đại tùng lâm. Lên cấp có hiệu ứng xây dựng + chuông lớn.
-- **Bảng vàng công đức** top 6, có avatar TikTok.
-- Trời **ngày / hoàng hôn / đêm** theo giờ thật (hoặc cố định qua URL).
-- Âm thanh **tự tổng hợp bằng WebAudio** (mõ, đại hồng chung, chuông nhỏ). Có thể thay bằng file mp3 riêng.
-- Chống spam: mỗi người chỉ được cộng công đức bình luận 1 lần / 3 giây.
-- Combo quà (Rose x10…) chỉ tính một lần khi kết thúc combo, đúng số lượng.
-- Công đức **lưu vào `data/state.json`**, tắt máy mở lại vẫn còn.
-- Tự kết nối lại khi rớt mạng / khi live kết thúc / khi chủ kênh chưa lên live.
-
-## Hai giao diện
-
-| Trang | Mô tả |
-|---|---|
-| `/chanhdien` | **Chánh điện**: tượng Phật lớn, bàn thờ, lư hương. Mỗi người xem tương tác thành một phật tử chibi quỳ trên sàn, có thẻ tên + avatar, bình luận hiện thành bong bóng trên đầu. Bảng công đức bên trái, bảng "Cách tham gia" bên phải, dòng "N phật tử đang lễ Phật trong chánh điện". |
-| `/overlay` | **Xây chùa**: chùa ngoài trời được xây qua 8 cấp theo tổng công đức. |
-
-### Chánh điện hoạt động thế nào
-
-Bố cục: tượng Phật trên cùng · **quà gần đây** góc trái · **TÂM LÒNG THÀNH** (top 3) góc phải · **băng rôn lời nguyện** giữa màn hình · **6 bục lễ** trước bàn thờ · phật tử mặc áo tràng (lam / nâu / trắng) đứng hai bên thảm đỏ · **bảng giá** dưới cùng.
-
-- **Bình luận bất kỳ** → vào chùa (đi từ cửa vào chỗ đứng), lời bình luận hiện thành bong bóng trên đầu 6 giây.
-- **Thắp hương** → cúi lạy, nén hương bay lên cắm vào lư.
-- **Xin xăm / xin quẻ** → lời quẻ hiện trên băng rôn (đọc to với `?tts=1`).
-- **Nam mô… / cầu…** → bong bóng lời khấn + đèn lồng bay lên.
-- **Thả tim** → gõ mõ, **Follow / Chia sẻ** → thỉnh chuông.
-- **Mọi món quà** → bong bóng "🙏 dâng Rose x1", nén hương lên bàn thờ, hiện ở thanh quà góc trái. Rose / Love you so much → hoa sen dâng lên Phật; Finger Heart → mưa hoa; ≥100 xu → hào quang vàng; ≥1000 xu → băng rôn "đại cúng dường".
-- **Từ 5 xu → lên bục lễ**: người tặng đi dọc thảm đỏ lên một trong 6 bục, quỳ lạy trước tượng; băng rôn đọc lời nguyện ("X thành tâm dâng Rose, lên bục quỳ trước Tam Bảo. Nguyện…" hoặc "X đã dâng lễ 9 lần, mời lên bục lễ Phật…"). Giữ bục 60 giây + 4 giây mỗi xu thêm (tối đa 5 phút); tặng tiếp thì được gia hạn; hết bục thì người sắp hết giờ nhất nhường chỗ.
-- Phật tử **xếp chỗ theo công đức**: người nhiều công đức đứng hàng trên, gần bàn thờ hơn.
-- Ai không tương tác quá `hall.presenceMinutes` phút (mặc định 15) sẽ rời chánh điện. Tối đa `hall.maxWorshippers` người (mặc định 60).
-
-Chỉnh trong `config.json` → `hall`: `platform` (số bục, số xu tối thiểu, thời gian, danh sách lời nguyện `wishes`), `priceTags` (bảng giá dưới cùng), `leaderboardTitle`.
-
-Tuỳ chọn URL riêng: `?tts=1` (đọc tên người dâng quà bằng giọng tiếng Việt của trình duyệt, OBS có thể không hỗ trợ), `?bg=assets/chanh-dien.jpg` (dùng ảnh nền tự vẽ/AI thay cho cảnh vẽ bằng code, đặt file trong `public/assets/`), `?guide=0`, `?board=0`, `?mute=1`, `?debug=1`, `?phone=1` / `?phone=0` (bật / tắt hẳn chế độ điện thoại; trang tự bật khi mở toàn màn hình nên OBS/Chrome kiosk trên VPS cần `?phone=0`).
-
-**Ảnh tượng Phật**: mặc định dùng ảnh `public/assets/buddha.webp`, đặt trong khung vòm sau bàn thờ (tường, bàn thờ, phật tử, hiệu ứng vẫn vẽ bằng code). Đổi ảnh khác: chép ảnh vào `public/assets/` rồi sửa `config.json` → `hall.buddhaImage`:
-
-```json
-"buddhaImage": { "src": "assets/anh-cua-ban.jpg", "headTop": 0.264, "base": 0.765, "centerX": 0.5 }
-```
-
-`headTop`, `base`, `centerX` là vị trí (tỉ lệ 0–1 theo chiều cao/rộng ảnh) của đỉnh đầu tượng, chân toà sen và tâm tượng, để ảnh tự căn đúng chỗ. Xoá `buddhaImage` hoặc thêm `?buddha=draw` vào URL để quay lại tượng vẽ bằng code.
-
-Nội dung bảng "Cách tham gia", tiêu đề bảng công đức, quà nào ra hiệu ứng gì đều chỉnh trong `config.json` → `hall.guide`, `hall.giftGuide`, `hall.leaderboardTitle`, `giftEffects` (`{"Tên quà gốc tiếng Anh": "petals" | "lotus" | "golden" | "buddha"}`).
 
 ## 🔤 Game Đoán từ (`/doantu`)
 
@@ -132,7 +74,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 
 Thẻ kết quả cũng đổi màu + tiêu đề theo mức (vd "⚡ THẦN ĐỒNG! · 3s"). Chỉnh mốc bằng `wordgame.flashSeconds` (mặc định 10) và `wordgame.clutchSeconds` (10).
 
-### ⏸ Tạm dừng game (Đoán từ, Kéo co, Đua thú & Đấu trường)
+### ⏸ Tạm dừng game
 
 - **Tự tạm dừng khi chưa live**: khi server chưa kết nối được phiên live TikTok, cả hai game đứng yên —
   đồng hồ không chạy, không tự mở gợi ý, không sang vòng mới nên **không tốn từ bí mật**. Kênh lên live là game tự chạy tiếp
@@ -140,41 +82,6 @@ Thẻ kết quả cũng đổi màu + tiêu đề theo mức (vd "⚡ THẦN Đ�
 - **Nút trong admin** (mục Kết nối TikTok Live): ⏸ Tạm dừng game / ▶ Tiếp tục — dùng bất cứ lúc nào, kể cả đang live.
   Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
 - Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
-
-## ⚔️ Đấu Trường Thần Thú (`/dautruong`) — sưu tầm thẻ
-
-Battle royale cho live đông người: **comment "vào"** → thần thú (lá bài mạnh nhất trong kho của bạn) nhảy vào sân,
-**tối đa 100 con / trận**. Các con tự đánh nhau, vòng an toàn thu hẹp dần, **con cuối cùng sống sót thắng RƯƠNG VÀNG**.
-
-- **Trận**: sảnh 30 giây (đủ 100 người thì 5 giây sau đánh luôn; ít người thì thêm bot cho đủ 16) → đánh ~1,5 phút
-  (10 giây đầu vòng an toàn đứng yên, thu dần 70 giây, sau đó ☠️ TỬ CHIẾN khép hẳn nên trận luôn kết thúc) → công bố + mở rương 16 giây.
-  Còn 3 con thì camera zoom vào, 2 con cuối có màn ⚔ CHUNG KẾT, người thắng được rọi đèn.
-- **Người xem làm gì**:
-  - ❤️ **Thả tim** = hồi máu cho con của mình · 🌹 1–4 xu = hồi 12 máu mỗi món
-  - 🛡️ **5 xu** khiên 5 giây · 💖 **10 xu** hồi sinh (đã bị hạ) / đầy máu · 💣 **30 xu** bom rơi vào con mạnh nhất
-  - ⚡ **99 xu** hóa khổng lồ 8 giây (to 1,6 lần, đánh x2) · 🌪️ **299 xu** lốc xoáy cuốn bay cả vùng. Đã bị hạ mà tặng 99 / 299 xu thì sống lại luôn.
-  - 👻 Bị hạ thì comment **"báo thù"**: hồn ma bay tới cắn kẻ đã hạ mình 15% máu (mỗi lần chết 1 lần).
-  - 🎴 Comment **"thẻ"** để khoe kho lên màn hình (60 giây / lần): 5 lá mạnh nhất **đánh số 1–5**, lá đang dùng có nhãn ⚔️ ĐANG DÙNG.
-  - **Chọn lá khi kho nhiều thẻ**: không làm gì = tự ra lá mạnh nhất · **"vào 2"** = thả lá số 2 · **"vào rồng"**, **"vào rùa"**, **"vào hổ"** = chọn theo loài
-    (tên ngắn, trùng tên thì ưu tiên loài mình có; nhiều lá cùng loài thì lấy lá phẩm chất cao nhất) · **"dùng 3"** / **"dùng gióng"** = đổi lá
-    (đang ở sảnh thì đổi ngay, đang đánh thì áp dụng trận sau). Lá đã chọn được nhớ cho các trận sau. Số thứ tự xem đủ ở trang `/thebai`.
-- **Thẻ bài** (`public/js/cards-data.js`): 21 loài, 5 độ hiếm ⚪ Thường · 🔵 Hiếm · 🟣 Sử thi · 🟡 Huyền thoại · 🌈 Thần thoại.
-  Mỗi lá có **3 chỉ số** (❤️ Máu · ⚔️ Công · 💨 Tốc), **1 kỹ năng riêng** (Long hỏa, Mai thần, Lôi long, Phi ngựa sắt, Tái sinh, Múa lân…),
-  **phẩm chất 60–100%** (1–5 sao) và **số seri** theo loài (#0001 = bản đầu tiên của kênh).
-  Cân bằng: thẻ hiếm nhất chỉ mạnh hơn thẻ thường ~1/3, nên người mới vẫn có cửa thắng.
-- **Nhận thẻ**: người mới vào lần đầu được 1 thẻ Thường · thắng trận = rương vàng (không ra thẻ Thường: Hiếm 45% · Sử thi 38% · Huyền thoại 14% · Thần thoại 3%) ·
-  **mỗi xu quà = 1 mảnh 🧩, mỗi mạng hạ = 3 mảnh, người nhiều mạng nhất +30 mảnh, chia sẻ live +5 → đủ 100 mảnh tự mở 1 rương thường**
-  (Thường 52% · Hiếm 30% · Sử thi 13% · Huyền thoại 4,5% · Thần thoại 0,5%). Kho tối đa 40 lá, đầy thì lá yếu nhất đổi thành 10 mảnh.
-- **Mở thẻ**: thẻ Thường / Hiếm hiện nhỏ bên phải (không che trận). Sử thi trở lên và rương vô địch có màn mở toàn màn hình:
-  rương rung, ánh sáng trong rương leo dần qua từng màu độ hiếm, nổ tung, nắp bay, cột sáng + tia quay, lá bài bay lên xoay 2 vòng,
-  chữ độ hiếm đóng dấu từng chữ, mưa xu vàng (Huyền thoại) / cầu vồng + sấm sét (Thần thoại), huy hiệu "BẢN ĐẦU TIÊN CỦA KÊNH", "LOÀI MỚI".
-- **Lưu thẻ**: `data/cards.json` (không mất khi deploy). Người xem tra kho thẻ bằng điện thoại ở **`/thebai`** (gõ tên TikTok), có bảng Vua đấu trường.
-- **Chịu tải**: server mô phỏng trận 10 lần / giây (100 con ≈ 0,3 ms / lần), gom hiệu ứng rồi gửi 10 gói / giây, gói vị trí 100 con ≈ 2,5 KB.
-  Đã thử 100 con + ~400 bình luận / tim mỗi giây. Màn hình vẽ sẵn emoji / lá bài vào bộ nhớ đệm nên giữ ~60 fps.
-- **Admin**: mục ⚔️ Đấu trường — giả lập vào / quà / báo thù / "thẻ", nút ⏭ đánh ngay / kết thúc / trận mới, 👥 thử tải 50 / 100 người,
-  🟣🟡🌈 thử màn mở thẻ, 📊 xem kho thẻ. Chỉnh luật trong khối `arena` của `config.json` (`maxFighters`, `minFighters`, `lobbySeconds`,
-  `damage` — hệ số sát thương, tăng thì trận nhanh hơn, `chestEvery`, `maxCards`; các mức quà `shield`/`revive`/`bomb`/`giant`/`tornado` `.minDiamonds`).
-- Phát bằng OBS: `http://localhost:8686/dautruong?phone=0`. Điện thoại: `https://<tên miền>/dautruong?phone=1`.
 
 ## 🌙 Hẹn giờ kết thúc live (mặc định 01:00)
 
@@ -187,52 +94,6 @@ Battle royale cho live đông người: **comment "vào"** → thần thú (lá 
   bash deploy/macos/hen-gio-tat-may.sh 01:30    # đổi giờ · "huy" để gỡ · "thu" để thử ngay
   ```
   App phát live bị tắt → TikTok tự kết thúc live sau ~1–3 phút. Máy cần cắm sạc và không gập (máy ngủ thì không tự tắt; mở máy lại sau đó cũng không bị tắt bất ngờ).
-
-## 🏁 Game Đua thú (`/duathu`)
-
-- **Comment `OK`** (oke, okay, oki… đều được) để nhận một con vật và một làn đua. **Tối đa 6 con / vòng**;
-  người đến sau (hoặc comment OK lúc đang đua) được **đăng ký vòng sau** và tự vào đua khi mở vòng mới.
-- Sảnh chờ **30 giây**. Hết giờ mà chưa đủ 6 người thì **tự thêm 🤖 bot** cho đủ 6 con (bot tự chạy theo từng đợt, không lên bảng Vua tốc độ); không ai vào thì 6 bot vẫn đua để màn hình luôn chạy. Đủ 6 người thật thì xuất phát sau 5 giây. Đếm ngược 3‑2‑1 → CHẠY!
-- **Bot có phong độ ngẫu nhiên** (0,75–1,25 lần tốc độ chuẩn) nên con nhanh con chậm, và **tự ném 🍌 chuối / 💣 bom ngẫu nhiên** vào con dẫn đầu sau 8 giây đầu (5 bot ≈ 1 quả chuối / 10 giây, 1 quả bom / 40 giây; chỉnh trong `race.bots`).
-- **Người đua**: **bình luận không làm con vật chạy** — thả tim = chạy (2 đơn vị / tim), tặng quà = phóng. **Tặng quà theo mức** (tính theo giá một món, combo thì nhân lên):
-
-  | Quà | Tác dụng |
-  |---|---|
-  | 🌹 1 xu (Rose…) | Tăng tốc (+25 / bông). Mỗi **10 bông** cho cùng một con → **🌹 Mưa hoa** phóng thêm 120 |
-  | 💖 5 xu (Finger Heart…) | Tăng tốc mạnh hơn + **hồi phục** ngay nếu đang bị choáng |
-  | 🛡️ 10 xu | **Khiên** 20 giây: chặn 1 chướng ngại vật (khiên vỡ) |
-  | 🍌 30 xu | Ném **chuối** vào con dẫn đầu (không phải con mình): trượt chân, xoay vòng 2,5 giây |
-  | 💣 99 xu | Ném **bom**: nổ tung, hất lên, cháy đen, bị đẩy lùi 6% đường, choáng 3,5 giây |
-  | 🚀 299 xu | **Siêu tốc** 6 giây: chạy nhanh gấp đôi, bật dậy nếu đang choáng, **né** mọi chướng ngại vật |
-
-  **🎯 Chọn mục tiêu**: comment `ném 3` (hoặc `chuối 3`, `bom 3`, `ném ngựa`) rồi tặng quà chuối / bom trong 30 giây → bay vào con làn 3 thay vì con dẫn đầu (nhắm con mình thì vẫn ném con dẫn đầu). Khán giả chưa cổ vũ ai cũng ném được.
-
-  Mọi quà đều đẩy thêm quãng đường (1 xu = 12 đơn vị, đường dài 1000, một lần tặng tối đa 320). Mức xu chỉnh trong khối `race` của `config.json`.
-- **Thanh 💡 MẸO tự xoay vòng** dưới đường đua (6 giây / mẹo): lúc chờ thì xen kẽ mẹo vào đua, giữ chỗ, cổ vũ; lúc đua thì xoay qua bình luận, tim, từng mức quà, khiên, chuối, bom, siêu tốc. Thêm mẹo riêng bằng `"tips": ["…"]` trong khối `race` của `config.json`.
-- Đường đua dựng theo phối cảnh 3D (làn xa nhỏ, làn gần to, bóng đổ, bụi, khán đài, cờ đích); chướng ngại vật bay theo đường cong tới mục tiêu rồi mới phát nổ.
-- **Khán giả không đua**: gõ số làn (`1`–`6`) hoặc tên con vật để chọn con cổ vũ (kể cả bot); tim / quà sau đó đều tính cho con đó.
-- Vòng **chỉ kết thúc khi có con chạm vạch đích**. Sau 90 giây mà chưa ai về đích → **⚡ NƯỚC RÚT**: tốc độ nền của tất cả nhân 3 cho tới khi có con về đích (chỉnh `raceSeconds`, `sprintMultiplier`). Bục 1‑2‑3, rồi nghỉ 12 giây sang vòng mới.
-- **Lưu thành tích theo người** (số lần thắng, lên bục, số vòng đã đua) vào `data/race.json` → bảng 🏆 Vua tốc độ, không mất khi deploy.
-- Tự tạm dừng khi chưa live như Đoán từ / Kéo co. Admin có nút giả lập (OK, bình luận, cổ vũ, tim, quà, chuối) và ⏭ xuất phát ngay / kết thúc / vòng mới.
-- Phát bằng OBS: `http://localhost:8686/duathu?phone=0`. Điện thoại: `https://<tên miền>/duathu?phone=1`. Chỉnh luật trong khối `race` của `config.json`.
-
-## 🪢 Game Kéo co (`/keoco`)
-
-Game kéo co hai đội, mỗi ván 3 phút, dùng chung server / admin / cách triển khai với Chánh điện.
-
-| Người xem làm | Kết quả |
-|---|---|
-| Bình luận **"đỏ"** / **"xanh"** | Vào đội (đổi được khi chưa kéo lần nào) |
-| Thả tim | Kéo 1 lực / tim. Chưa chọn đội thì được xếp vào đội ít người hơn |
-| Chia sẻ / Follow | Kéo 15 / 25 lực |
-| Tặng quà | Kéo mạnh: **1 xu = 5 lực**. Mỗi món quà kéo tối đa nửa quãng đường nên ván không kết thúc ngay |
-| Tặng nhiều xu nhất ván | Lên **👑 Ngai vàng** giữa màn hình; bị vượt thì bị "hất khỏi ngai" |
-
-- Dây qua vạch đích là thắng ngay; hết giờ thì đội đang kéo lệch về phía mình thắng (đứng giữa là hoà). Màn hình kết thúc hiện đội thắng và **MVP**, nghỉ 15 giây rồi tự sang ván mới.
-- Tỉ số các ván lưu trong `data/tugwar.json`.
-- Trang admin có nút giả lập vào đội, kéo, tặng quà và điều khiển ván (kết thúc / chơi lại / xoá tỉ số).
-- Đổi tên đội, màu, từ khoá, thời gian ván, lực của từng tương tác trong `config.json` → `tugwar` (ví dụ đội "Phở" / "Bún": đổi `name` và `keywords`).
-- Phát bằng OBS: Browser Source `http://localhost:8686/keoco?phone=0`. Phát bằng điện thoại: `https://<tên miền>/keoco?phone=1`.
 
 ## Cài đặt
 
@@ -248,8 +109,7 @@ npm start
 Mở:
 
 - Bảng điều khiển: <http://127.0.0.1:8686/admin>
-- Chánh điện: <http://127.0.0.1:8686/chanhdien>
-- Xây chùa: <http://127.0.0.1:8686/overlay>
+- Màn hình game: <http://127.0.0.1:8686/doantu>
 
 Ở trang admin, nhập TikTok username (không cần `@`) và bấm **Kết nối** — tài khoản phải **đang phát live**.
 Chưa live vẫn test được bằng các nút **Giả lập sự kiện** (hoặc bật *Tự động bắn sự kiện ngẫu nhiên*).
@@ -258,23 +118,19 @@ Chưa live vẫn test được bằng các nút **Giả lập sự kiện** (ho�
 
 1. OBS → *Settings → Video*: Base/Output resolution **1080×1920** (dọc).
 2. *Sources → + → Browser*:
-   - URL: `http://127.0.0.1:8686/chanhdien` (hoặc `/overlay`)
+   - URL: `http://127.0.0.1:8686/doantu?phone=0`
    - Width **1080**, Height **1920**
-   - Tích **Control audio via OBS** (để thu tiếng mõ/chuông vào live).
+   - Tích **Control audio via OBS** (để thu tiếng hiệu ứng + giọng MC vào live).
 3. Phát lên TikTok: dùng **TikTok LIVE Studio** (thêm nguồn từ OBS Virtual Camera / cửa sổ OBS) hoặc dùng **Stream Key (RTMP)** nếu tài khoản được cấp: *OBS → Settings → Stream → Custom*, dán Server URL và Stream Key lấy từ TikTok.
 
-### Tuỳ chọn URL overlay
+### Tuỳ chọn URL
 
 | Tham số | Ý nghĩa |
 |---|---|
-| `?sky=day` / `dusk` / `night` | Cố định bầu trời (mặc định theo giờ máy) |
-| `?transparent=1` | Bỏ trời & núi (nền trong suốt, ghép lên video/camera riêng) |
-| `?scene=0` | Chỉ hiện HUD + hiệu ứng, không vẽ chùa |
+| `?phone=1` / `?phone=0` | Chế độ điện thoại (nút Bắt đầu, toàn màn hình) / OBS (nền trong suốt) |
 | `?mute=1` | Tắt âm thanh |
-| `?hints=0` | Ẩn dòng hướng dẫn lệnh bình luận |
+| `?tts=0` | Tắt giọng đọc (giọng MC / trình duyệt) |
 | `?debug=1` | Hiện FPS và trạng thái kết nối |
-
-Có thể ghép: `/overlay?sky=night&hints=0`.
 
 ## Triển khai lên VPS & phát live 24/7
 
@@ -282,14 +138,14 @@ Có 2 cách dùng VPS:
 
 | Cách | Ai phát lên TikTok | Khi nào dùng |
 |---|---|---|
-| **A. Phát 24/7 từ VPS** | VPS tự mở Chrome ẩn hiển thị chánh điện, ffmpeg quay lại và đẩy RTMP lên TikTok | Muốn chùa live liên tục, tắt máy tính vẫn chạy |
+| **A. Phát 24/7 từ VPS** | VPS tự mở Chrome ẩn hiển thị game Đoán từ, ffmpeg quay lại và đẩy RTMP lên TikTok | Muốn live liên tục, tắt máy tính vẫn chạy |
 | **B. VPS chỉ chạy server** | OBS trên máy bạn (Browser Source trỏ tới VPS) | Muốn ghép camera/micro, chỉnh cảnh trong OBS |
 
 Hai cách dùng chung một bộ cài; cách B chỉ không bật dịch vụ phát.
 
 ```
-VPS ─┬─ chua-app     (Node: nghe TikTok, tính công đức, phục vụ /chanhdien, /admin)
-     └─ chua-stream  (Xvfb + Chrome hiển thị /chanhdien + PulseAudio + ffmpeg ──RTMP──► TikTok)
+VPS ─┬─ chua-app     (Node: nghe TikTok, chạy game, phục vụ /doantu, /admin)
+     └─ chua-stream  (Xvfb + Chrome hiển thị /doantu + PulseAudio + ffmpeg ──RTMP──► TikTok)
 ```
 
 ### 1. Chuẩn bị
@@ -334,7 +190,7 @@ TIKTOK_USERNAME=ten_kenh bash deploy/docker-init.sh phone    # hoặc: server | 
 
 ### Phát bằng điện thoại (không cần stream key, không cần Windows)
 
-VPS Linux chạy server và mở trang chánh điện qua HTTPS. Điện thoại Android mở trang đó toàn màn hình, rồi dùng app TikTok chia sẻ màn hình lên live.
+VPS Linux chạy server và mở trang game qua HTTPS. Điện thoại Android mở trang đó toàn màn hình, rồi dùng app TikTok chia sẻ màn hình lên live.
 
 **Cài đặt bằng một lệnh**, SSH vào VPS bằng root rồi chạy:
 
@@ -355,19 +211,19 @@ Cuối cùng lệnh in ra hai đường link: link cho điện thoại và link 
 
 **Trên điện thoại** (Android):
 
-1. Mở Chrome vào `https://IP-VPS.sslip.io/chanhdien?phone=1`. Bấm menu ⋮ → **Thêm vào màn hình chính** để trang chạy toàn màn hình, không có thanh địa chỉ.
-2. Mở trang từ biểu tượng *Chánh điện* vừa tạo, rồi bấm **🙏 Bắt đầu**. Nút này bật toàn màn hình, bật âm thanh và giữ màn hình luôn sáng.
+1. Mở Chrome vào `https://IP-VPS.sslip.io/doantu?phone=1`. Bấm menu ⋮ → **Thêm vào màn hình chính** để trang chạy toàn màn hình, không có thanh địa chỉ.
+2. Mở trang từ biểu tượng *Đoán từ* vừa tạo, rồi bấm **Bắt đầu**. Nút này bật toàn màn hình, bật âm thanh và giữ màn hình luôn sáng.
 3. Bật **Không làm phiền** và cắm sạc.
-4. Mở app TikTok → **LIVE** → chọn **Mobile gaming / Chia sẻ màn hình** → Go LIVE, rồi quay lại trang Chánh điện.
+4. Mở app TikTok → **LIVE** → chọn **Mobile gaming / Chia sẻ màn hình** → Go LIVE, rồi quay lại trang game.
 
-Có thể thu được tiếng mõ/chuông qua chia sẻ màn hình hay không là tuỳ máy và phiên bản Android. Nếu live không có tiếng, bật loa ngoài để micro thu lại.
+Có thể thu được tiếng game qua chia sẻ màn hình hay không là tuỳ máy và phiên bản Android. Nếu live không có tiếng, bật loa ngoài để micro thu lại.
 
 ### VPS Windows (dùng TikTok LIVE Studio, không cần stream key)
 
 Trên Windows, mọi thứ chạy trên cùng một VPS:
 
 ```
-Server Node (công đức, /chanhdien)
+Server Node (game Đoán từ, /doantu)
   → OBS Browser Source 1080×1920
   → OBS Virtual Camera + âm thanh qua VB-CABLE
   → TikTok LIVE Studio
@@ -390,12 +246,12 @@ Server Node (công đức, /chanhdien)
 5. Chạy **`start-chua.bat`** (giữ cửa sổ này mở). Kiểm tra bằng cách mở `http://localhost:8686/admin?token=...` trong Chrome.
    - Khi có `TIKTOK_USERNAME`, server tự kết nối và tự thử lại cho tới khi kênh lên live.
 
-**2. OBS: dựng hình chánh điện**
+**2. OBS: dựng hình game**
 
 1. Cài [OBS Studio](https://obsproject.com/) và [VB-CABLE](https://vb-audio.com/Cable/). Cài VB-CABLE xong thì khởi động lại VPS.
 2. OBS → *Settings → Video*: Base và Output đều là **1080x1920**, FPS 30.
 3. Thêm **Browser Source**:
-   - URL `http://localhost:8686/chanhdien`
+   - URL `http://localhost:8686/doantu?phone=0`
    - Width 1080, Height 1920
    - tích **Control audio via OBS**
 4. Đưa âm thanh sang LIVE Studio:
@@ -455,7 +311,7 @@ ssh -L 8686:127.0.0.1:8686 root@IP_VPS
 
 Rồi mở <http://localhost:8686/admin?token=ADMIN_TOKEN> trên máy bạn. Trang này dùng để kết nối TikTok, giả lập sự kiện và xem trước.
 
-**Cách B (OBS ở nhà)**: giữ SSH tunnel đó và đặt Browser Source trong OBS là `http://localhost:8686/chanhdien`.
+**Cách B (OBS ở nhà)**: giữ SSH tunnel đó và đặt Browser Source trong OBS là `http://localhost:8686/doantu?phone=0`.
 
 ### 4. Vận hành hằng ngày
 
@@ -472,7 +328,7 @@ Dịch vụ phát tự nối lại khi RTMP rớt (5 giây), tự khởi động
 ### Lưu ý khi phát 24/7
 
 - TikTok có thể hạn chế phòng live chạy lặp hoặc không có người dẫn ("unoriginal / static content"). Nên có người trực tương tác, đổi cảnh/âm thanh định kỳ, và không để phòng trống hàng giờ.
-- Âm thanh lấy trực tiếp từ trang (tiếng mõ, chuông, nhạc nền nếu đặt `sounds.ambient`). Muốn có tiếng tụng kinh nền thì đặt file vào `public/assets/` và khai báo trong `config.json`.
+- Âm thanh lấy trực tiếp từ trang game (hiệu ứng + giọng MC).
 
 ## Cấu hình (`config.json`)
 
@@ -481,8 +337,7 @@ Muốn chỉnh mà không sửa file gốc, tạo `config.local.json` (đã giti
 ```json
 {
   "tiktokUsername": "ten_kenh_cua_ban",
-  "templeName": "Chùa Phúc Lâm Online",
-  "merit": { "perDiamond": 20 }
+  "wordgame": { "roundSeconds": 240 }
 }
 ```
 
@@ -491,16 +346,11 @@ Muốn chỉnh mà không sửa file gốc, tạo `config.local.json` (đã giti
 | `tiktokUsername`, `autoConnect` | Tự kết nối khi khởi động server |
 | `signApiKey` | API key Euler Stream (không bắt buộc, giúp kết nối ổn định hơn khi bị giới hạn) |
 | `server.host` / `server.port` | Mặc định `127.0.0.1:8686`. Chạy VPS thì đặt `0.0.0.0` **và** đặt `adminToken` |
-| `hall` | Cấu hình chánh điện (xem phần trên); `joinOnMember: true` để người vừa vào phòng live cũng hiện trong chánh điện (dễ quá tải với phòng đông) |
 | `server.adminToken` | Bảo vệ API admin. Mở admin bằng `/admin?token=...` |
-| `merit` | Điểm công đức cho từng loại tương tác |
-| `commentCooldownSec` | Giãn cách cộng công đức bình luận / người |
-| `commands` | Lệnh bình luận: keyword so khớp **không dấu, nguyên từ** (`mo` khớp "gõ mõ" nhưng không khớp "một") |
-| `levels` | Tên và mốc công đức của từng cấp chùa (8 cấp ứng với 8 kiểu hình vẽ) |
-| `giftTiers` | Mốc kim cương → hiệu ứng (`petals`, `lotus`, `golden`, `buddha`) và động từ hiển thị |
-| `giftNames` | Việt hoá tên quà |
-| `fortunes` | Danh sách quẻ |
-| `sounds` | Đường dẫn file âm thanh tuỳ chỉnh, đặt trong `public/` (vd `"mo": "assets/mo.mp3"`). Có `ambient` để phát nhạc nền tụng kinh lặp lại |
+| `autoPauseOffline` | Tự tạm dừng game khi chưa live (mặc định bật) |
+| `wordgame` | Luật game Đoán từ: thời gian vòng, gợi ý, kho từ, chấm điểm, điểm tuần (`weekly`), đấu đội (`team`), 468 từ có sẵn (`words`) |
+| `voice` | Giọng MC ElevenLabs (xem phần Giọng MC) |
+| `goodbye` | Hẹn giờ chào tạm biệt / kết thúc live |
 
 Biến môi trường cũng được hỗ trợ: `TIKTOK_USERNAME`, `SIGN_API_KEY`, `HOST`, `PORT`, `ADMIN_TOKEN`.
 
@@ -508,30 +358,27 @@ Biến môi trường cũng được hỗ trợ: `TIKTOK_USERNAME`, `SIGN_API_KE
 
 ```
 server/
-  index.js    HTTP + WebSocket hub, API admin, lưu state
-  tiktok.js   Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
-  temple.js   Luật game: công đức, cấp chùa, bảng vàng, lệnh bình luận
-  text.js     Bỏ dấu tiếng Việt, so khớp keyword
+  index.js      HTTP + WebSocket hub, API admin, lưu state
+  tiktok.js     Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
+  wordgame.js   Luật game Đoán từ (vòng, gợi ý, quà, thắng / thua)
+  scorer.js     Chấm độ gần nghĩa (Claude) + nhận đáp án
+  wordbank.js   Kho từ: sinh từ bằng Claude, từ có sẵn, đánh dấu từ đã chơi, chống trùng
+  wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
+  weekly.js     Bảng xếp hạng tuần · teams.js đấu đội
+  voice.js      Giọng MC ElevenLabs · goodbye.js hẹn giờ kết thúc live · pause.js tạm dừng
+  text.js       Bỏ dấu tiếng Việt
 public/
-  overlay.html, js/overlay.js   Vòng lặp vẽ, hiệu ứng, HUD
-  js/scene.js                   Vẽ trời, núi, chùa 8 cấp, lư hương, mõ, chuông
-  js/sound.js                   Âm thanh WebAudio
-  chanhdien.html, js/hall.js    Chánh điện: phật tử, bảng công đức, hiệu ứng
-  js/hall-scene.js              Vẽ tượng Phật, khám thờ, bàn thờ, sàn, phật tử chibi
-  keoco.html, js/tug.js         Game kéo co (server/tugwar.js là luật chơi)
-  duathu.html, js/race.js       Game đua thú (server/race.js là luật chơi)
-  dautruong.html, js/arena.js   Đấu trường thần thú (server/arena.js luật chơi, server/cards.js kho thẻ)
-  js/cards-data.js, js/cardart.js  Dữ liệu thẻ (dùng chung server + trình duyệt) · vẽ lá bài
-  thebai.html                   Trang tra kho thẻ cho người xem
-  doantu.html, js/wordgame.js   Game đoán từ (server/wordgame.js luật chơi, server/scorer.js chấm điểm, server/wordbank.js sinh từ,
-                                server/setgen.js tạo bộ / gợi ý bằng Claude, server/wordsets.js lưu bộ từ)
+  doantu.html, js/wordgame.js   Màn hình game (canvas 1080×1920)
+  js/sound.js, js/goodbye.js    Âm thanh WebAudio · màn "Chúc cả nhà ngủ ngon"
   admin.html                    Bảng điều khiển
-test/temple.test.js             npm test
+wordsets/                       Bộ từ có sẵn (trend MXH…)
+test/                           npm test
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
 deploy/bootstrap.sh             Cài trọn gói một lệnh (mặc định: chế độ điện thoại)
 deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd (--phone: chỉ server)
 deploy/setup-https.sh           Caddy + HTTPS (tên miền miễn phí sslip.io) cho điện thoại
 deploy/remote-deploy.sh         Chạy trên VPS khi GitHub Actions deploy (.github/workflows/deploy.yml)
+deploy/macos/                   Hẹn giờ tắt MacBook sau khi kết thúc live
 deploy/windows/                 Cài và chạy trên VPS Windows (install.bat, start-chua.bat, disconnect-keep-live.bat)
 Dockerfile, docker-compose.yml  Docker: app (nhẹ) / caddy (HTTPS) / streamer (RTMP), xem deploy/docker-init.sh
 ```
@@ -547,4 +394,4 @@ Thư viện [`tiktok-live-connector`](https://github.com/zerodytrash/TikTok-Live
 ## Lưu ý
 
 - Dùng API không chính thức có thể vi phạm điều khoản TikTok; tự cân nhắc rủi ro tài khoản.
-- Nội dung tâm linh nên giữ sự trang nghiêm, minh bạch về việc quà tặng là ủng hộ kênh, không phải cúng dường thật cho một ngôi chùa cụ thể.
+- Minh bạch với người xem rằng quà tặng là ủng hộ kênh; phần thưởng top tuần do chủ kênh tự trao.

@@ -48,6 +48,6 @@ systemctl restart chua-app 2>/dev/null || true
 
 echo
 echo "XONG (chứng chỉ HTTPS có thể mất ~30 giây cho lần đầu)."
-echo "  Điện thoại mở:  https://$DOMAIN/chanhdien?phone=1"
+echo "  Điện thoại mở:  https://$DOMAIN/doantu?phone=1"
 echo "  Trang admin:    https://$DOMAIN/admin?token=$TOKEN"
 echo "Nếu không vào được: mở cổng 80 và 443 trong tường lửa của nhà cung cấp VPS."

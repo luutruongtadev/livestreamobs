@@ -38,7 +38,7 @@ echo
 docker compose ps
 echo
 if [[ "$MODE" == "phone" ]]; then
-  echo "Điện thoại:  https://$D/chanhdien?phone=1"
+  echo "Điện thoại:  https://$D/doantu?phone=1"
   echo "Admin:       https://$D/admin?token=$TOKEN"
   echo "(Cần mở cổng 80 và 443 trên tường lửa nhà cung cấp VPS)"
 else

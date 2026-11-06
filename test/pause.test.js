@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WordGame } from '../server/wordgame.js';
-import { TugWar } from '../server/tugwar.js';
 import { PauseController } from '../server/pause.js';
 
 const scorer = { score: async () => 50 };
@@ -52,19 +51,6 @@ test('tạm dừng lúc nghỉ giữa vòng giữ nguyên thời gian nghỉ', (
   clock.t += 6000;
   assert.equal(g.tick()[0]?.type, 'wg_start');
   assert.equal(g.roundNo, 2);
-});
-
-test('kéo co: tạm dừng chặn kéo dây và giữ giờ', () => {
-  const clock = { t: 0 };
-  const tug = new TugWar({ roundSeconds: 60 }, { now: () => clock.t });
-  tug.pause('manual');
-  clock.t = 500_000;
-  assert.deepEqual(tug.tick(), []);
-  assert.deepEqual(tug.handle({ type: 'comment', user: u('a'), text: 'đỏ' }), []);
-  assert.equal(tug.snapshot().remaining, 60);
-  tug.resume();
-  clock.t += 60_000;
-  assert.equal(tug.tick()[0]?.type, 'tug_end');
 });
 
 test('PauseController: tự dừng khi offline, chạy khi live, nút Tiếp tục ép chạy', () => {

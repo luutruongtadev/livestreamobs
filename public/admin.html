@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chùa Online — Điều khiển</title>
+  <title>Đoán từ — Điều khiển</title>
   <style>
     :root { --bg: #160b06; --card: #26140c; --line: #4a2a18; --gold: #f5c542; --text: #f6ead6; --muted: #b9a58c; --red: #b3241a; --ok: #49c26b; }
     * { box-sizing: border-box; }
@@ -37,7 +37,7 @@
 </head>
 <body>
 <main>
-  <h1>☸ Chùa Online — Bảng điều khiển</h1>
+  <h1>🔤 Đoán từ — Bảng điều khiển</h1>
   <div class="col">
     <section>
       <h2>Kết nối TikTok Live</h2>
@@ -53,7 +53,7 @@
         <button id="btnPause" class="ghost">⏸ Tạm dừng game</button>
         <button id="btnResume">▶ Tiếp tục</button>
       </div>
-      <p class="muted">Đoán từ, Kéo co &amp; Đua thú tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
+      <p class="muted">Game tự tạm dừng khi chưa live (không tốn từ, không chạy vòng trống) và tự chạy khi lên live. Bấm “Tiếp tục” khi chưa live để thử bằng giả lập.</p>
       <h3 style="margin:16px 0 8px">🌙 Hẹn giờ kết thúc live</h3>
       <div class="row" style="align-items:center">
         <label style="display:flex;gap:6px;align-items:center"><input id="gbOn" type="checkbox"> Mỗi ngày lúc</label>
@@ -71,45 +71,20 @@
     </section>
 
     <section>
-      <h2>Thống kê công đức</h2>
-      <div class="stats" id="stats"></div>
-    </section>
-
-    <section>
       <h2>Giả lập sự kiện (test không cần live)</h2>
       <div class="row" style="margin-bottom:10px">
-        <input id="simName" type="text" placeholder="Tên thí chủ (để trống = ngẫu nhiên)">
-      </div>
-      <div class="grid" style="margin-bottom:10px">
-        <button data-sim='{"type":"like","count":5}'>❤️ 5 tim (gõ mõ)</button>
-        <button data-sim='{"type":"comment","text":"gõ mõ"}'>🪵 Gõ mõ</button>
-        <button data-sim='{"type":"comment","text":"thắp nhang"}'>🕯️ Thắp nhang</button>
-        <button data-sim='{"type":"comment","text":"thỉnh chuông"}'>🔔 Thỉnh chuông</button>
-        <button data-sim='{"type":"comment","text":"xin quẻ"}'>🎋 Xin quẻ</button>
-        <button data-sim='{"type":"comment","text":"cầu an cho gia đình"}'>🏮 Cầu an</button>
-        <button data-sim='{"type":"share"}'>↗️ Chia sẻ</button>
-        <button data-sim='{"type":"follow"}'>➕ Theo dõi</button>
-        <button data-sim='{"type":"comment","text":"Nam mô A Di Đà Phật"}'>🏮 Nam mô…</button>
-        <button data-sim='{"type":"comment","text":"xin xăm"}'>🎋 Xin xăm</button>
-        <button data-sim='{"type":"member"}'>🚪 Vào phòng (member)</button>
-        <button id="btnCrowd" class="ghost">👥 Thêm 30 phật tử</button>
-      </div>
-      <div class="grid" style="margin-bottom:10px">
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":5}'>🌹 5× Rose (1💎)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Finger Heart","diamonds":5}'>🫰 Finger Heart (5💎)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Love you so much","diamonds":1}'>💕 Love you so much</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍩 Doughnut (30💎)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Hand Hearts","diamonds":100}'>🫶 Hand Hearts (100💎)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Galaxy","diamonds":1000}'>🌌 Galaxy (1000💎)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Lion","diamonds":29999}'>🦁 Lion (29999💎)</button>
+        <input id="simName" type="text" placeholder="Tên người xem (để trống = ngẫu nhiên)">
       </div>
       <div class="row">
-        <input id="simText" type="text" placeholder="Nội dung bình luận tuỳ ý…">
+        <input id="simText" type="text" placeholder="Bình luận tuỳ ý (vd một từ đoán)…">
         <button id="btnComment">Gửi bình luận</button>
       </div>
+      <div class="grid" style="margin-top:10px">
+        <button data-sim='{"type":"like","count":5}'>❤️ 5 tim</button>
+        <button data-sim='{"type":"share"}'>↗️ Chia sẻ</button>
+        <button data-sim='{"type":"follow"}'>➕ Theo dõi</button>
+      </div>
       <div class="row" style="margin-top:10px">
-        <input id="manualMerit" type="number" value="1000" style="width:120px">
-        <button id="btnManual" class="ghost">Cộng công đức thủ công</button>
         <label class="muted"><input id="auto" type="checkbox"> Tự động bắn sự kiện ngẫu nhiên</label>
       </div>
     </section>
@@ -239,103 +214,18 @@
     </section>
 
     <section>
-      <h2>🏁 Đua thú</h2>
-      <div class="grid" style="margin-bottom:10px">
-        <button data-sim='{"type":"comment","text":"ok"}'>💬 OK (vào đua)</button>
-        <button data-sim='{"type":"comment","text":"1"}'>🔢 Cổ vũ làn 1</button>
-        <button data-sim='{"type":"like","count":15}'>❤️ 15 tim</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1}'>🌹 1 Rose</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":10}'>🌹 10× Rose (mưa hoa)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Finger Heart","diamonds":5}'>💖 5 xu (hồi phục)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Perfume","diamonds":20}'>🛡️ 20 xu (khiên)</button>
-        <button data-sim='{"type":"comment","text":"ném 2"}'>🎯 Nhắm làn 2 (ném 2)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>🍌 30 xu (chuối)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Hand Hearts","diamonds":100}'>💣 100 xu (bom)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Corgi","diamonds":299}'>🚀 299 xu (siêu tốc)</button>
-      </div>
-      <div class="row">
-        <button class="ghost" data-race="next">⏭ Xuất phát ngay / kết thúc / vòng mới</button>
-        <button class="ghost" data-race="lobby">↺ Mở đăng ký lại</button>
-        <button class="ghost" data-race="reset">⟲ Xoá bảng Vua tốc độ</button>
-      </div>
-      <p class="muted">Đổi ô "Tên thí chủ" ở trên rồi bấm OK để giả lập nhiều người đua (tối đa 6 con / vòng; người đến sau được đăng ký vòng sau). Chờ 30 giây rồi xuất phát, thiếu người thì tự thêm bot cho đủ 6 con; nút ⏭ cho xuất phát ngay (cũng thêm bot). Bình luận không làm con vật chạy — chỉ tim và quà.</p>
-    </section>
-
-    <section>
-      <h2>⚔️ Đấu trường thần thú</h2>
-      <div class="grid" style="margin-bottom:10px">
-        <button data-sim='{"type":"comment","text":"vào"}'>💬 VÀO (thả thần thú)</button>
-        <button data-sim='{"type":"comment","text":"thẻ"}'>🎴 "thẻ" (khoe bộ sưu tập)</button>
-        <button data-sim='{"type":"comment","text":"vào 2"}'>💬 "vào 2" (thả lá số 2)</button>
-        <button data-sim='{"type":"comment","text":"dùng rồng"}'>🐉 "dùng rồng" (chọn loài)</button>
-        <button data-sim='{"type":"comment","text":"báo thù"}'>👻 "báo thù" (khi đã bị hạ)</button>
-        <button data-sim='{"type":"like","count":15}'>❤️ 15 tim (hồi máu)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":10}'>🌹 10× Rose (hồi máu)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Finger Heart","diamonds":5}'>🛡️ 5 xu (khiên)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rosa","diamonds":10}'>💖 10 xu (hồi sinh)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Doughnut","diamonds":30}'>💣 30 xu (bom)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Hand Hearts","diamonds":100}'>⚡ 100 xu (khổng lồ + 1 rương)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Corgi","diamonds":299}'>🌪️ 299 xu (lốc xoáy + rương)</button>
-      </div>
-      <div class="row">
-        <button class="ghost" data-arena="next">⏭ Đánh ngay / kết thúc / trận mới</button>
-        <button class="ghost" data-arena="lobby">↺ Mở sảnh lại</button>
-        <button class="ghost" data-arena='{"action":"stress","n":50}'>👥 Thử tải: 50 người vào</button>
-        <button class="ghost" data-arena='{"action":"stress","n":100}'>👥 Thử tải: 100 người vào</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="ghost" data-arena='{"action":"chest","rar":"E"}'>🟣 Thử mở thẻ Sử thi</button>
-        <button class="ghost" data-arena='{"action":"chest","rar":"L"}'>🟡 Thử mở thẻ Huyền thoại</button>
-        <button class="ghost" data-arena='{"action":"chest","rar":"M"}'>🌈 Thử mở thẻ Thần thoại</button>
-        <button class="ghost" data-arena="peek">📊 Xem kho thẻ</button>
-        <button class="ghost" data-arena="reset">⟲ Xoá bảng Vua đấu trường</button>
-      </div>
-      <div id="arenaInfo" class="muted" style="margin-top:8px"></div>
-      <p class="muted">Comment "vào" để thả thần thú (người mới được tặng 1 thẻ Thường), tối đa 100 con / trận, ít người thì thêm bot cho đủ 16. Sảnh 30 giây → tự đánh, vòng an toàn thu hẹp, con cuối cùng thắng RƯƠNG VÀNG. Mỗi xu quà = 1 mảnh, đủ 100 mảnh tự mở 1 rương. Kho thẻ lưu ở <code>data/cards.json</code>; người xem tra kho thẻ ở trang <code>/thebai</code>. Xoá bảng Vua đấu trường chỉ xoá số trận thắng / mạng, không xoá thẻ.</p>
-    </section>
-
-    <section>
-      <h2>🪢 Kéo co</h2>
-      <div class="grid" style="margin-bottom:10px">
-        <button data-sim='{"type":"comment","text":"đỏ"}' style="background:#c0392b">🔴 Vào đội Đỏ</button>
-        <button data-sim='{"type":"comment","text":"xanh"}' style="background:#1f6fd0;border-color:#5aa0ff">🔵 Vào đội Xanh</button>
-        <button data-sim='{"type":"like","count":10}'>❤️ 10 tim (kéo)</button>
-        <button class="gold" data-sim='{"type":"gift","giftName":"Rose","diamonds":1,"repeatCount":10}'>🌹 10× Rose</button>
-      </div>
-      <div class="row">
-        <button class="ghost" data-tug="next">⏭ Kết thúc ván / sang ván mới</button>
-        <button class="ghost" data-tug="restart">↺ Chơi lại ván này</button>
-        <button class="ghost" data-tug="reset">⟲ Xoá tỉ số</button>
-      </div>
-      <p class="muted">Dùng ô "Tên thí chủ" ở trên để giả lập nhiều người. Người chưa chọn đội mà thả tim / tặng quà sẽ được xếp vào đội ít người hơn.</p>
-    </section>
-
-    <section>
-      <h2>Quản trị</h2>
-      <div class="row">
-        <button id="btnReset" class="ghost">⟲ Reset toàn bộ công đức</button>
-      </div>
-      <div id="log" style="margin-top:12px"></div>
+      <h2>Nhật ký</h2>
+      <div id="log"></div>
     </section>
   </div>
 
   <div class="col preview">
     <section>
-      <h2>Xem trước overlay</h2>
-      <div class="row" style="margin-bottom:10px">
-        <button class="ghost" data-view="/chanhdien">🛕 Chánh điện</button>
-        <button class="ghost" data-view="/overlay">🏯 Xây chùa</button>
-        <button class="ghost" data-view="/keoco">🪢 Kéo co</button>
-        <button class="ghost" data-view="/duathu">🏁 Đua thú</button>
-        <button class="ghost" data-view="/dautruong">⚔️ Đấu trường</button>
-        <button class="ghost" data-view="/doantu">🔤 Đoán từ</button>
-      </div>
-      <iframe id="preview" src="/chanhdien?mute=1" title="Overlay preview"></iframe>
+      <h2>Xem trước màn hình game</h2>
+      <iframe id="preview" src="/doantu?mute=1" title="Xem trước Đoán từ"></iframe>
       <div class="links muted">
-        <div>OBS Browser Source (1080×1920): <code id="obsUrl"></code></div>
-        <div>Chánh điện: <code>?tts=1</code> đọc tên người dâng quà · <code>?bg=assets/anh.jpg</code> ảnh nền riêng · <code>?guide=0</code> <code>?board=0</code></div>
-        <div>Xây chùa: <code>?sky=day|dusk|night</code> <code>?transparent=1</code> <code>?scene=0</code> <code>?hints=0</code></div>
-        <div>Chung: <code>?mute=1</code> <code>?debug=1</code></div>
+        <div>OBS / LIVE Studio (1080×1920): <code id="obsUrl"></code> · điện thoại thêm <code>?phone=1</code></div>
+        <div>Tuỳ chọn: <code>?mute=1</code> tắt tiếng · <code>?tts=0</code> tắt giọng đọc · <code>?debug=1</code></div>
       </div>
     </section>
   </div>
@@ -345,11 +235,7 @@
   if (token) localStorage.setItem('chua-token', token);
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat('vi-VN');
-  $('obsUrl').textContent = location.origin + '/chanhdien';
-  document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => {
-    $('preview').src = b.dataset.view + '?mute=1';
-    $('obsUrl').textContent = location.origin + b.dataset.view;
-  }));
+  $('obsUrl').textContent = location.origin + '/doantu?phone=0';
 
   function log(msg) {
     const el = $('log');
@@ -393,27 +279,15 @@
   $('gbNow').onclick = () => { if (!confirm('Chào tạm biệt ngay bây giờ? Hết đếm ngược sẽ tạm dừng game.')) return; api('/api/goodbye', { action: 'now', seconds: Number($('gbSec').value), message: $('gbMsg').value }).then((r) => renderGoodbye(r.goodbye)).catch((e) => log('Lỗi: ' + e.message)); };
   $('gbCancel').onclick = () => api('/api/goodbye', { action: 'cancel' }).then((r) => { renderGoodbye(r.goodbye); renderPause(r.pause); }).catch((e) => log('Lỗi: ' + e.message));
 
-  function renderState(st) {
-    const c = st.counts;
-    const items = [
-      ['Tổng công đức', st.total], ['Cấp', `${st.level} · ${st.levelName}`],
-      ['Tim', c.likes], ['Bình luận', c.comments], ['Chia sẻ', c.shares], ['Theo dõi', c.follows],
-      ['Quà', c.gifts], ['Kim cương', c.diamonds], ['Nhang', c.incense], ['Mõ', c.mo],
-    ];
-    $('stats').innerHTML = items.map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${typeof v === 'number' ? fmt.format(v) : v}</b></div>`).join('');
-  }
-
   function ws() {
     const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     s.onmessage = (m) => {
       const msg = JSON.parse(m.data);
-      if (msg.type === 'hello') { renderStatus(msg.status); renderState(msg.state); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
+      if (msg.type === 'hello') { renderStatus(msg.status); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
       if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
       if (msg.type === 'voice') playVoiceHere(msg.voice);
       if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
-      if (msg.type === 'state') renderState(msg.state);
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }
-      if (msg.type === 'fx') for (const e of msg.effects) log(`${e.type} · ${e.user?.name || ''} ${e.text ? '“' + e.text + '”' : ''} +${e.merit ?? 0}`);
     };
     s.onclose = () => { renderStatus({ state: 'idle', message: 'Mất kết nối server — đang thử lại…' }); setTimeout(ws, 2000); };
   }
@@ -423,7 +297,6 @@
   $('btnPause').onclick = () => api('/api/pause').then((r) => renderPause(r.pause)).catch((e) => log('Lỗi: ' + e.message));
   $('btnResume').onclick = () => api('/api/resume').then((r) => renderPause(r.pause)).catch((e) => log('Lỗi: ' + e.message));
   $('btnDisconnect').onclick = () => api('/api/disconnect').catch((e) => log('Lỗi: ' + e.message));
-  $('btnReset').onclick = () => { if (confirm('Xoá toàn bộ công đức và bảng vàng?')) api('/api/reset').then(() => log('Đã reset')).catch((e) => log('Lỗi: ' + e.message)); };
 
   const simName = () => $('simName').value.trim() || undefined;
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
@@ -604,10 +477,6 @@
   };
   $('wgGuess').onkeydown = (e) => { if (e.key === 'Enter') $('btnWgGuess').click(); };
   wgApi('peek').catch(() => {});
-  document.querySelectorAll('[data-tug]').forEach((b) => (b.onclick = () => {
-    if (b.dataset.tug === 'reset' && !confirm('Xoá tỉ số các ván kéo co?')) return;
-    api('/api/tug/' + b.dataset.tug).then(() => log('Kéo co: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
-  }));
   function renderVoice(v) {
     if (!v.enabled) { $('voiceText').textContent = '🎙️ Giọng MC: tắt — thêm ELEVENLABS_API_KEY vào .env trên VPS để bật (đang dùng giọng đọc của trình duyệt)'; return; }
     const lib = Object.values(v.library || {});
@@ -637,35 +506,16 @@
       .catch((e) => log('Lỗi: ' + e.message));
   }));
   api('/api/voice/status').then((r) => renderVoice(r.voice)).catch(() => {});
-  document.querySelectorAll('[data-arena]').forEach((b) => (b.onclick = () => {
-    const raw = b.dataset.arena;
-    const body = raw.startsWith('{') ? JSON.parse(raw) : { action: raw };
-    if (body.action === 'reset' && !confirm('Xoá bảng Vua đấu trường (số trận thắng / mạng)? Thẻ của người chơi vẫn giữ nguyên.')) return;
-    api('/api/arena/' + body.action, body).then((r) => {
-      const a = r.arena, c = r.cards;
-      $('arenaInfo').textContent = `Trận #${a.round} · ${a.phase} · ${a.alive}/${a.total} còn sống · ${a.queue} chờ trận sau · Kho: ${c.players} người, ${c.cards} thẻ`
-        + (r.top?.length ? ' · Top: ' + r.top.slice(0, 5).map((p) => `${p.name} (${p.wins} thắng, ${p.total} thẻ)`).join(', ') : '');
-      log('Đấu trường: ' + b.textContent);
-    }).catch((e) => log('Lỗi: ' + e.message));
-  }));
-  document.querySelectorAll('[data-race]').forEach((b) => (b.onclick = () => {
-    if (b.dataset.race === 'reset' && !confirm('Xoá bảng Vua tốc độ (số lần thắng đua thú)?')) return;
-    api('/api/race/' + b.dataset.race).then(() => log('Đua thú: ' + b.textContent)).catch((e) => log('Lỗi: ' + e.message));
-  }));
   document.querySelectorAll('[data-sim]').forEach((b) => (b.onclick = () => sim(JSON.parse(b.dataset.sim))));
   $('btnComment').onclick = () => { const t = $('simText').value.trim(); if (t) sim({ type: 'comment', text: t }); };
   $('simText').onkeydown = (e) => { if (e.key === 'Enter') $('btnComment').click(); };
-  $('btnManual').onclick = () => sim({ type: 'manual', merit: Number($('manualMerit').value) || 0, text: 'Công đức thủ công' });
 
   const names = ['Minh Anh', 'Tuấn', 'Hà Linh', 'Bảo Ngọc', 'Quang Huy', 'Thu Trang', 'Đức Phúc', 'Lan Chi', 'Hoàng Nam', 'Mai Phương',
     'Tịnh Tâm', 'Mỹ Quỳnh', 'Ngọc Vy', 'Dũng', 'Thương Thư', 'Hồng Thái', 'Khánh', 'Yến', 'Sơn', 'Trang', 'Bình', 'Quân', 'Nhi', 'Hải', 'Long'];
-  $('btnCrowd').onclick = async () => {
-    for (let i = 0; i < 30; i++) await sim({ type: 'like', count: 1, name: 'Phật tử ' + Math.floor(Math.random() * 900 + 100) });
-  };
   const randomEvents = [
-    { type: 'like', count: 3 }, { type: 'like', count: 8 }, { type: 'comment', text: 'gõ mõ' },
-    { type: 'comment', text: 'thắp nhang' }, { type: 'comment', text: 'cầu bình an' }, { type: 'comment', text: 'xin quẻ' },
-    { type: 'comment', text: 'Nam mô A Di Đà Phật' }, { type: 'comment', text: 'con chào cả nhà ạ' }, { type: 'share' }, { type: 'follow' },
+    { type: 'like', count: 3 }, { type: 'like', count: 8 }, { type: 'comment', text: 'mặt trời' },
+    { type: 'comment', text: 'con mèo' }, { type: 'comment', text: 'bánh mì' }, { type: 'comment', text: 'điện thoại' },
+    { type: 'comment', text: 'hello cả nhà' }, { type: 'comment', text: 'trà sữa' }, { type: 'share' }, { type: 'follow' },
     { type: 'gift', giftName: 'Rose', diamonds: 1, repeatCount: 3 }, { type: 'gift', giftName: 'Finger Heart', diamonds: 5 },
   ];
   let timer = null;
@@ -677,7 +527,7 @@
     }, 900);
   };
 
-  fetch('/api/status').then((r) => r.json()).then((d) => { renderStatus(d.status); renderState(d.state); });
+  fetch('/api/status').then((r) => r.json()).then((d) => { renderStatus(d.status); });
 </script>
 </body>
 </html>

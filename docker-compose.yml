@@ -10,7 +10,7 @@ x-env: &env
       required: false
 
 services:
-  # Server: nghe TikTok Live, tính công đức, phục vụ /chanhdien, /overlay, /admin
+  # Server: nghe TikTok Live, chạy game Đoán từ, phục vụ /doantu, /admin
   app:
     <<: *env
     build: { context: ., target: app }
@@ -23,7 +23,7 @@ services:
     ports:
       - "127.0.0.1:8686:8686"   # chỉ mở trong VPS; ra internet qua Caddy (HTTPS)
     volumes:
-      - chua-data:/app/data                       # công đức, bảng vàng (giữ khi cập nhật)
+      - chua-data:/app/data                       # kho từ, điểm tuần, giọng MC (giữ khi cập nhật)
       - ./config.json:/app/config.json:ro         # sửa config.json rồi: docker compose restart app
       - ./public/assets:/app/public/assets:ro     # ảnh nền, âm thanh riêng
 
@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
     depends_on: [app]
     environment:
-      PAGE_URL: http://app:8686/${PAGE:-chanhdien}?phone=0
+      PAGE_URL: http://app:8686/${PAGE:-doantu}?phone=0
       CHROME_FLAGS: --no-sandbox
     shm_size: 1gb
 

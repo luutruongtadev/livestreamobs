@@ -35,7 +35,7 @@ sudo -u "$APP_USER" npm ci --omit=dev
 echo "==> Dịch vụ systemd"
 cat >/etc/systemd/system/chua-app.service <<UNIT
 [Unit]
-Description=Chua Online - server overlay + TikTok listener
+Description=Doan tu - TikTok Live word game
 After=network-online.target
 Wants=network-online.target
 

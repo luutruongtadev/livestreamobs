@@ -96,7 +96,7 @@ $DOCKER compose "${PROFILES[@]}" ps
 
 echo
 if [[ "$MODE" == "phone" ]]; then
-  echo "Điện thoại:  https://$D/chanhdien?phone=1  |  /keoco  |  /doantu"
+  echo "Điện thoại:  https://$D/doantu?phone=1"
   echo "Admin:       https://$D/admin?token=<ADMIN_TOKEN trong $DIR/.env>"
 else
   echo "Admin qua SSH tunnel: ssh -L 8686:127.0.0.1:8686 <user>@<VPS>  →  http://localhost:8686/admin?token=..."

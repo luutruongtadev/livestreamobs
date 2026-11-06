@@ -4,10 +4,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { WebSocketServer } from 'ws';
-import { Temple } from './temple.js';
 import { TikTokBridge } from './tiktok.js';
-import { TugWar } from './tugwar.js';
-import { Race } from './race.js';
 import { WordGame } from './wordgame.js';
 import { ClaudeScorer, SimpleScorer, compact } from './scorer.js';
 import { WordBank, claudeClientFromEnv, cleanDesc, cleanEmoji, validWord } from './wordbank.js';
@@ -15,8 +12,6 @@ import { WordSetStore } from './wordsets.js';
 import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
 import { PauseController } from './pause.js';
 import { WeeklyBoard } from './weekly.js';
-import { Arena } from './arena.js';
-import { CardStore } from './cards.js';
 import { Goodbye } from './goodbye.js';
 import { Voice } from './voice.js';
 
@@ -65,9 +60,6 @@ if (process.env.REQUIRE_ADMIN_TOKEN === '1') {
     process.exit(1);
   }
 }
-const temple = new Temple(config, { statePath: path.join(ROOT, 'data', 'state.json') });
-const tug = new TugWar(config.tugwar || {}, { statePath: path.join(ROOT, 'data', 'tugwar.json') });
-const race = new Race(config.race || {}, { statePath: path.join(ROOT, 'data', 'race.json') });
 const wgCfg = config.wordgame || {};
 const hasClaudeCreds = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
 const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
@@ -93,16 +85,13 @@ const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.
 let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 'data', 'weekly.json') });
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, statePath: path.join(ROOT, 'data', 'wordgame.json') });
-const arenaCfg = config.arena || {};
-const cardStore = new CardStore({ filePath: path.join(ROOT, 'data', 'cards.json'), chestEvery: arenaCfg.chestEvery || 100, maxCards: arenaCfg.maxCards || 40 });
-const arena = new Arena(arenaCfg, { cards: cardStore });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
-// Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
 // Giọng MC (ElevenLabs, giọng Adam) đọc câu chúc mừng / cảm ơn trêu đùa do Claude viết — cần ELEVENLABS_API_KEY
 const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API_KEY || null, claude: claudeClientFromEnv(), dir: path.join(ROOT, 'data', 'voice') });
 if (voice.enabled) console.log('[voice] Giọng MC ElevenLabs: bật'); else if (!process.env.ELEVENLABS_API_KEY) console.log('[voice] Chưa có ELEVENLABS_API_KEY → đọc tên bằng giọng của trình duyệt');
 const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
-const pauser = new PauseController([wg, tug, race, arena], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
+// Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
+const pauser = new PauseController([wg], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -117,83 +106,21 @@ function broadcast(msg) {
   for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(data);
 }
 
-let stateTimer = null;
-function scheduleState() {
-  if (stateTimer) return;
-  stateTimer = setTimeout(() => {
-    stateTimer = null;
-    broadcast({ type: 'state', state: temple.snapshot() });
-  }, 200);
-}
-
 function publicConfig() {
-  return {
-    templeName: config.templeName,
-    sounds: config.sounds,
-    ambientVolume: config.ambientVolume,
-    levels: config.levels.map((l) => l.name),
-    commands: config.commands.map((c) => ({ action: c.action, label: c.label, keyword: c.keywords[0] })),
-    merit: config.merit,
-    hall: config.hall || {},
-  };
+  return { name: config.name || 'Đoán từ' };
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), state: temple.snapshot(), status: tiktok.status, tug: tug.snapshot(), wg: wg.snapshot(), race: race.snapshot(), arena: arena.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState() });
+  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState() });
 });
 
 function ingest(ev) {
-  const effects = temple.handle(ev);
-  if (effects.length) broadcast({ type: 'fx', effects });
-  scheduleState();
-  tugBroadcast(tug.handle(ev));
-  raceBroadcast(race.handle(ev));
-  arenaQueue(arena.handle(ev));
   const wgFx = wg.handle(ev);
   wgBroadcast(wgFx);
   lastWg = { effects: wgFx, reject: wg.lastReject };
-  return effects;
+  return wgFx;
 }
 let lastWg = null;
-
-// ---------------- Đua thú ----------------
-let raceTimer = null;
-function raceBroadcast(effects) {
-  if (effects?.length) broadcast({ type: 'racefx', effects });
-  if (raceTimer) return;
-  raceTimer = setTimeout(() => {
-    raceTimer = null;
-    broadcast({ type: 'race', race: race.snapshot() });
-  }, 120);
-}
-let raceLast = '';
-setInterval(() => {
-  const fx = race.tick();
-  const s = race.snapshot();
-  // đang đua: gửi vị trí liên tục; lúc khác chỉ khi đổi giây
-  const key = s.phase === 'racing' ? Math.random() : `${s.phase}${s.remaining}${s.paused}`;
-  if (fx.length || key !== raceLast) { raceLast = key; raceBroadcast(fx); }
-}, 250).unref();
-
-// ---------------- Đấu trường thần thú ----------------
-// Gom hiệu ứng rồi gửi 10 lần / giây cùng vị trí các con (100 con ≈ 2,5 KB / lần) → chịu được hàng trăm bình luận / giây.
-let arenaFx = [];
-let arenaSnapAt = 0;
-let arenaPhase = '';
-let arenaTick = 0;
-function arenaQueue(effects) { if (effects?.length) arenaFx.push(...effects); }
-function arenaSnapshot() { arenaSnapAt = Date.now(); broadcast({ type: 'arena', arena: arena.snapshot() }); }
-setInterval(() => {
-  arenaQueue(arena.tick());
-  arenaTick++;
-  const fx = arenaFx;
-  arenaFx = [];
-  if (fx.length) broadcast({ type: 'arenafx', effects: fx.slice(0, 400) });
-  const moving = arena.phase === 'fight' || (arena.fighters.length && arenaTick % 2 === 0);
-  if (moving && !arena.paused) broadcast({ type: 'ap', p: arena.positions() });
-  const big = fx.some((e) => e.type === 'arena_lobby' || e.type === 'arena_go' || e.type === 'arena_win');
-  if (big || arena.phase !== arenaPhase || Date.now() - arenaSnapAt >= 1000) { arenaPhase = arena.phase; arenaSnapshot(); }
-}, 100).unref();
 
 // ---------------- Đoán từ ----------------
 let wgTimer = null;
@@ -218,23 +145,6 @@ setInterval(() => {
   if (fx.length || rem !== wgLastRemaining) { wgLastRemaining = rem; wgBroadcast(fx); }
 }, 250).unref();
 
-// ---------------- Kéo co ----------------
-let tugTimer = null;
-function tugBroadcast(effects) {
-  if (effects?.length) broadcast({ type: 'tugfx', effects });
-  if (tugTimer) return;
-  tugTimer = setTimeout(() => {
-    tugTimer = null;
-    broadcast({ type: 'tug', tug: tug.snapshot() });
-  }, 150);
-}
-let lastRemaining = -1;
-setInterval(() => {
-  const fx = tug.tick();
-  const rem = tug.snapshot().remaining;
-  if (fx.length || rem !== lastRemaining) { lastRemaining = rem; tugBroadcast(fx); }
-}, 250).unref();
-
 tiktok.on('event', ingest);
 tiktok.on('status', (status) => {
   console.log(`[tiktok] ${status.state}: ${status.message}`);
@@ -257,9 +167,6 @@ function pauseBroadcast() {
   console.log(`[pause] ${p.paused ? 'tạm dừng (' + p.reason + ')' : 'đang chạy'}`);
   broadcast({ type: 'pause', pause: p });
   wgBroadcast([]);
-  tugBroadcast([]);
-  raceBroadcast([]);
-  arenaSnapshot();
 }
 
 app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
@@ -278,18 +185,7 @@ app.post('/api/goodbye', express.json({ limit: '16kb' }), requireAdmin, (req, re
 });
 
 setInterval(() => {
-  const fx = temple.prunePlatforms();
-  if (fx.length) { broadcast({ type: 'fx', effects: fx }); scheduleState(); }
-}, 1000).unref();
-
-setInterval(() => {
-  temple.pruneCooldowns();
-  if (temple.prunePresence()) scheduleState();
-  try { temple.save(); } catch (e) { console.warn('[temple] save lỗi:', e.message); }
-  try { tug.save(); } catch (e) { console.warn('[tugwar] save lỗi:', e.message); }
   try { wg.save(); weekly.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
-  try { race.save(); } catch (e) { console.warn('[race] save lỗi:', e.message); }
-  try { cardStore.save(); } catch (e) { console.warn('[cards] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -304,12 +200,7 @@ app.use(express.static(path.join(ROOT, 'public'), {
 }));
 app.use('/voice', express.static(path.join(ROOT, 'data', 'voice'), { maxAge: '1h' }));
 app.get('/', (_req, res) => res.redirect('/admin'));
-app.get('/chanh-dien', (_req, res) => res.redirect('/chanhdien'));
-app.get('/keo-co', (_req, res) => res.redirect('/keoco'));
-app.get('/dua-thu', (_req, res) => res.redirect('/duathu'));
 app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
-app.get('/dau-truong', (_req, res) => res.redirect('/dautruong'));
-app.get('/the-bai', (_req, res) => res.redirect('/thebai'));
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -318,7 +209,7 @@ function requireAdmin(req, res, next) {
   res.status(401).json({ error: 'Sai admin token' });
 }
 
-app.get('/api/status', (_req, res) => res.json({ status: tiktok.status, state: temple.snapshot(), config: publicConfig() }));
+app.get('/api/status', (_req, res) => res.json({ status: tiktok.status, config: publicConfig() }));
 
 app.post('/api/connect', requireAdmin, async (req, res) => {
   try {
@@ -338,7 +229,7 @@ app.post('/api/disconnect', requireAdmin, async (_req, res) => {
 let simCounter = 0;
 app.post('/api/simulate', requireAdmin, (req, res) => {
   const b = req.body || {};
-  const name = String(b.name || 'Thí chủ ' + (++simCounter % 50)).slice(0, 40);
+  const name = String(b.name || 'Người xem ' + (++simCounter % 50)).slice(0, 40);
   const user = { id: 'sim:' + name, name, avatar: b.avatar || null };
   const ev = { ...b, user };
   if (!['like', 'comment', 'share', 'follow', 'gift', 'manual', 'member'].includes(ev.type)) {
@@ -347,47 +238,6 @@ app.post('/api/simulate', requireAdmin, (req, res) => {
   const effects = ingest(ev);
   res.json({ ok: true, effects, wordgame: lastWg });
 });
-
-app.post('/api/tug/:action', requireAdmin, (req, res) => {
-  const a = req.params.action;
-  if (a === 'next') tugBroadcast(tug.phase === 'playing' ? tug.finish() : tug.startRound());
-  else if (a === 'restart') tugBroadcast(tug.startRound());
-  else if (a === 'reset') { tug.resetAll(); tugBroadcast([{ type: 'tug_start', round: tug.roundNo }]); }
-  else return res.status(400).json({ error: 'action: next | restart | reset' });
-  res.json({ ok: true, tug: tug.snapshot() });
-});
-
-app.post('/api/race/:action', requireAdmin, (req, res) => {
-  const a = req.params.action;
-  if (a === 'next') raceBroadcast(race.skip());
-  else if (a === 'lobby') raceBroadcast(race.newLobby());
-  else if (a === 'reset') raceBroadcast(race.resetAll());
-  else return res.status(400).json({ error: 'action: next | lobby | reset' });
-  res.json({ ok: true, race: race.snapshot() });
-});
-
-app.post('/api/arena/:action', requireAdmin, (req, res) => {
-  const a = req.params.action;
-  const b = req.body || {};
-  if (a === 'next') arenaQueue(arena.skip());
-  else if (a === 'lobby') arenaQueue(arena.newLobby());
-  else if (a === 'reset') arenaQueue(arena.resetAll());
-  else if (a === 'stress') {
-    // thử tải: n khán giả giả lập comment "vào" cùng lúc
-    const n = Math.max(1, Math.min(150, Number(b.n) || 50));
-    for (let i = 1; i <= n; i++) arenaQueue(arena.handle({ type: 'comment', user: { id: `sim:Khán giả ${i}`, name: `Khán giả ${i}` }, text: 'vào' }));
-  } else if (a === 'chest') {
-    // mở thử một rương (xem hiệu ứng mở thẻ): rar = C | R | E | L | M
-    const name = String(b.name || 'Admin thử').slice(0, 40);
-    const rar = ['C', 'R', 'E', 'L', 'M'].includes(b.rar) ? b.rar : undefined;
-    const user = { id: 'sim:' + name, name };
-    arenaQueue([{ type: 'arena_chest', reason: 'admin', by: user, card: cardStore.open(user, 'normal', { rar }) }]);
-  } else if (a !== 'peek') return res.status(400).json({ error: 'action: next | lobby | reset | stress | chest | peek' });
-  res.json({ ok: true, arena: { phase: arena.phase, round: arena.roundNo, total: arena.fighters.length, alive: arena.alive().length, queue: arena.queue.length }, cards: cardStore.stats(), top: cardStore.top(10) });
-});
-// Tra kho thẻ công khai (trang /thebai): ?q=tên
-app.get('/api/arena/collection', (req, res) => res.json({ players: cardStore.find(String(req.query.q || '').slice(0, 40)) }));
-app.get('/api/arena/top', (_req, res) => res.json({ wins: cardStore.top(10, 'wins'), collectors: cardStore.top(10, 'collection'), stats: cardStore.stats() }));
 
 // Giọng MC: xem trạng thái / đọc thử
 app.post('/api/voice/:action', requireAdmin, async (req, res) => {
@@ -538,22 +388,14 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
   res.json({ ok: true, warn, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word) });
 });
 
-app.post('/api/reset', requireAdmin, (_req, res) => {
-  temple.reset();
-  temple.save();
-  broadcast({ type: 'reset' });
-  scheduleState();
-  res.json({ ok: true });
-});
-
 // ---------------- Start ----------------
 const { host, port } = config.server;
 server.listen(port, host, () => {
   const base = `http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`;
   console.log('==============================================');
-  console.log(`  ${config.templeName} đang chạy`);
-  console.log(`  Overlay (OBS Browser Source): ${base}/overlay`);
-  console.log(`  Bảng điều khiển:              ${base}/admin`);
+  console.log('  Đoán từ đang chạy');
+  console.log(`  Màn hình game (OBS / điện thoại): ${base}/doantu`);
+  console.log(`  Bảng điều khiển:                  ${base}/admin`);
   console.log('==============================================');
   if (config.autoConnect && config.tiktokUsername) {
     tiktok.connect(config.tiktokUsername).catch((e) => console.warn('[tiktok]', e.message));
@@ -561,8 +403,8 @@ server.listen(port, host, () => {
 });
 
 async function shutdown() {
-  console.log('\nĐang lưu công đức và tắt...');
-  try { temple.save(); tug.save(); wg.save(); weekly.save(); race.save(); cardStore.save(); } catch { /* bỏ qua */ }
+  console.log('\nĐang lưu dữ liệu và tắt...');
+  try { wg.save(); weekly.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

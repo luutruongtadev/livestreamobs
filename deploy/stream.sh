@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Phát live 24/7 không cần máy tính: Xvfb (màn hình ảo) + Chromium hiển thị overlay
+# Phát live 24/7 không cần máy tính: Xvfb (màn hình ảo) + Chromium hiển thị game Đoán từ
 # + PulseAudio (thu tiếng mõ/chuông) + ffmpeg đẩy RTMP lên TikTok.
 set -uo pipefail
 
-PAGE_URL="${PAGE_URL:-http://127.0.0.1:8686/${PAGE:-chanhdien}?phone=0}"
+PAGE_URL="${PAGE_URL:-http://127.0.0.1:8686/${PAGE:-doantu}?phone=0}"
 W="${STREAM_WIDTH:-1080}"
 H="${STREAM_HEIGHT:-1920}"
 FPS="${STREAM_FPS:-30}"
@@ -49,7 +49,7 @@ for _ in 1 2 3 4 5; do pactl info >/dev/null 2>&1 && break; sleep 1; done
 pactl load-module module-null-sink sink_name=chua sink_properties=device.description=chua >/dev/null
 pactl set-default-sink chua
 
-# Chờ server overlay sẵn sàng
+# Chờ server sẵn sàng
 for _ in $(seq 1 60); do curl -fsS -o /dev/null "$PAGE_URL" && break; echo "[stream] chờ $PAGE_URL ..."; sleep 2; done
 
 echo "[stream] Mở $PAGE_URL"
