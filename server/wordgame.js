@@ -369,7 +369,7 @@ export class WordGame extends EventEmitter {
   }
 
   /** Gợi ý theo mức: 1 = chủ đề, 2 = chữ cái đầu mỗi tiếng, 3 = lộ một tiếng. */
-  get maxHints() { return this.mode === 'english' ? 5 : this.customHints?.length || 3; }
+  get maxHints() { return this.mode === 'english' ? this.englishHints?.length || 5 : this.customHints?.length || 3; }
 
   /** Mốc giây tự mở gợi ý: dùng hintAtSeconds, nhiều gợi ý riêng thì rải đều trong vòng. */
   hintSchedule() {

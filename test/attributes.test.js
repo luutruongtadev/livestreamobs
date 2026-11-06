@@ -218,7 +218,7 @@ test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho c�
   const enWords = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
   assert.ok(attrWords.length >= 200 && enWords.length >= 200);
   for (const w of attrWords) for (const a of ATTRS.filter((x) => !x.text)) { const v = w.attrs[a.id]; assert.ok(v === null || (a.multi ? v.every((x) => a.values.includes(x)) : a.values.includes(v)), `${w.word}.${a.id}`); }
-  for (const w of enWords) assert.equal(w.en.length, 5, w.word);
+  for (const w of enWords) assert.ok(w.en.length >= 4, w.word);
   let calls = 0;
   const store = { available: true, get: async () => { calls++; return null; } };
   const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['attr', 'english'], alternateEvery: 1, cooldownSec: 0 },
@@ -291,11 +291,22 @@ test('chế độ tiếng Anh: gợi ý đầu tiên là dịch từng chữ (k�
   const fs = await import('node:fs');
   const words = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
   assert.ok(words.length >= 260);
-  for (const w of words) { assert.equal(w.en.length, 5, w.word); assert.match(w.en[0], /^WBW:\S/, w.word); }
+  for (const w of words) assert.ok(w.en.length >= 4 && w.en.length <= 5, w.word);
+  const wbw = (name) => words.find((w) => w.word === name).en[0].startsWith('WBW:');
+  assert.ok(wbw('xấu hổ') && wbw('bánh xe'), 'từ thường có dịch từng chữ');
+  assert.ok(!wbw('suzuki') && !wbw('hà nội') && !wbw('lý hải') && !wbw('sushi'), 'tên riêng / từ mượn thì không');
   const keo = words.find((w) => w.word === 'kẹo cao su');
   const g = new WordGame({ words: [], modes: ['english'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, englishStore: { available: true, get: async () => null }, modeWords: { english: [keo] } });
   g.revealHint(); g.revealHint();
   assert.deepEqual(g.snapshot().hints, ['Dịch từng chữ: candy high coin', keo.en[1]]);
   const attr = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
   assert.ok(attr.length >= 280 && attr.some((w) => w.word === 'trống đồng'));
+});
+
+test('tên riêng chỉ có 4 gợi ý mô tả: số gợi ý tối đa theo đúng số gợi ý có', () => {
+  const g = new WordGame({ words: [], modes: ['english'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, englishStore: { available: true, get: async () => null }, modeWords: { english: [{ word: 'suzuki', en: ['from Japan', 'small cars', 'also motorbikes', 'Swift'] }] } });
+  assert.equal(g.maxHints, 4);
+  for (let i = 0; i < 6; i++) g.revealHint();
+  assert.equal(g.snapshot().hints.length, 4);
+  assert.equal(g.likeRule().action, 'letter', 'mở hết gợi ý thì tim quay về lộ chữ');
 });
