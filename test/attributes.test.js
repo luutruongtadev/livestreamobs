@@ -85,7 +85,7 @@ test('luân phiên: mặc định 3 chế độ, mỗi 2 vòng đổi; admin b�
   assert.deepEqual(modes, ['meaning', 'meaning', 'attr', 'attr', 'english', 'english', 'meaning']);
   g.applySettings({ modes: ['meaning'] }); g.skip(); g.skip();
   assert.equal(g.mode, 'meaning');
-  assert.deepEqual(g.settings(), { modes: ['meaning'], alternateEvery: 2, likeEvery: 1000 });
+  assert.deepEqual(g.settings(), { modes: ['meaning'], alternateEvery: 2, likeEvery: 1000, englishLikeEvery: 2000 });
   g.applySettings({ modes: ['attr', 'english'], alternateEvery: 1 });
   const seq = []; for (let i = 0; i < 4; i++) { g.skip(); g.skip(); seq.push(g.mode); }
   assert.ok(seq.includes('attr') && seq.includes('english') && !seq.includes('meaning'));
@@ -154,4 +154,26 @@ test('EnglishHintStore: bỏ gợi ý trùng / chứa đáp án / ký tự lạ,
   await s.get('con mèo');
   assert.equal(calls.length, 1, 'lấy từ cache');
   assert.equal(await new EnglishHintStore({}).get('x'), null, 'không có client → null');
+});
+
+test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 tim mở thêm từ (tối đa 5), hết từ thì tim quay về lộ chữ', async () => {
+  const en = { available: true, get: async () => ['pet', 'whiskers', 'meow', 'kitten', 'tabby'] };
+  const clock = { t: 1 };
+  const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['english'], roundSeconds: 300, cooldownSec: 0 }, { scorer: { score: async () => ({ score: 5 }) }, now: () => clock.t, englishStore: en });
+  await flush();
+  clock.t += 299_000; g.tick(); g.tick(); g.tick(); g.tick();
+  assert.equal(g.hintLevel, 3, 'hết giờ cũng chỉ tự mở 3 từ');
+  assert.equal(g.snapshot().unlocks[0].label, '2.000 tim = thêm 1 từ 🇬🇧');
+  let fx = g.handle({ type: 'like', count: 1999 });
+  assert.equal(g.hintLevel, 3);
+  fx = g.handle({ type: 'like', count: 1 });
+  assert.equal(g.hintLevel, 4);
+  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.likes && e.action === 'hint' && e.hint === '🇬🇧 kitten'));
+  g.handle({ type: 'like', count: 2000 });
+  assert.deepEqual(g.snapshot().hints.at(-1), '🇬🇧 tabby');
+  assert.equal(g.hintLevel, 5);
+  // đủ 5 từ: tim lộ chữ cái theo mức thường (1000)
+  assert.equal(g.snapshot().unlocks[0].label, '1.000 tim = 1 chữ');
+  fx = g.handle({ type: 'like', count: 1000 });
+  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.action === 'letter'));
 });

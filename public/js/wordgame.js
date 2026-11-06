@@ -225,7 +225,9 @@ function handle(e) {
       if (e.likes) {
         for (const i of e.indexes || []) fx.letterAt.set(i, now);
         fx.unlockFlash.set('likes', now);
-        fx.banner = { text: '❤️ CẢ PHÒNG THẢ ĐỦ TIM: LỘ 1 CHỮ CÁI!', sub: 'Thả tim tiếp để mở thêm chữ', t: 3.5, color: '#f472b6' };
+        fx.banner = e.action === 'hint'
+          ? { text: '❤️ CẢ PHÒNG THẢ ĐỦ TIM: THÊM 1 TỪ TIẾNG ANH!', sub: e.hint || 'Thả tim tiếp để mở thêm từ', t: 4, color: '#f472b6' }
+          : { text: '❤️ CẢ PHÒNG THẢ ĐỦ TIM: LỘ 1 CHỮ CÁI!', sub: 'Thả tim tiếp để mở thêm chữ', t: 3.5, color: '#f472b6' };
         fx.hintFlash = 1; sound.play('bell'); confetti(120);
         break;
       }
@@ -241,7 +243,7 @@ function handle(e) {
       fx.banner = { text: '✨ Gợi ý vừa được làm mới!', sub: '', t: 2.5, color: '#a5b4fc' };
       break;
     case 'wg_hint':
-      if (e.by) break; // gợi ý do quà mở đã có thông báo wg_unlock
+      if (e.by || e.likes) break; // gợi ý do quà / tim mở đã có thông báo wg_unlock
       fx.hintFlash = 1;
       sound.play('bell');
       fx.banner = { text: e.by ? `💡 ${clip(e.by.name, 18)} tặng quà mở gợi ý!` : '💡 Gợi ý mới!', sub: e.hint, t: 4, color: '#facc15' };

@@ -116,6 +116,7 @@
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="english"> 🇬🇧 Gợi ý tiếng Anh</label>
         <label style="display:flex;gap:6px;align-items:center">đổi sau mỗi <input id="stEvery" type="number" min="1" max="20" value="2" style="max-width:70px"> vòng</label>
         <label style="display:flex;gap:6px;align-items:center">❤️ <input id="stLikes" type="number" min="0" step="100" value="1000" style="max-width:100px"> tim = 1 chữ</label>
+        <label style="display:flex;gap:6px;align-items:center">🇬🇧 <input id="stEnLikes" type="number" min="0" step="100" value="2000" style="max-width:100px"> tim = thêm 1 từ tiếng Anh</label>
         <button id="btnSettings" class="ghost">💾 Lưu</button>
       </div>
       <p class="muted" id="stText" style="margin-top:0"></p>
@@ -319,11 +320,11 @@
       if (!settingsFilled) {
         settingsFilled = true;
         document.querySelectorAll('[data-mode]').forEach((c) => { c.checked = st.modes.includes(c.dataset.mode); });
-        $('stEvery').value = st.alternateEvery; $('stLikes').value = st.likeEvery;
+        $('stEvery').value = st.alternateEvery; $('stLikes').value = st.likeEvery; $('stEnLikes').value = st.englishLikeEvery ?? 2000;
       }
       const MODE_NAME = { meaning: '🎯 gần nghĩa', attr: '🧩 đoán thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' };
       $('stText').textContent = (st.aiAvailable ? '' : '⚠ Chưa có ANTHROPIC_API_KEY → chế độ thuộc tính / tiếng Anh không chạy, luôn chơi gần nghĩa. ')
-        + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim');
+        + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim') + (st.englishLikeEvery ? ` · vòng tiếng Anh: tự mở 3 từ, ${fmt.format(st.englishLikeEvery)} tim mở thêm 1 từ (tối đa 5)` : ' · vòng tiếng Anh: chỉ 3 từ');
     }
     if (r?.sets) {
       const sel = $('wgSet');
@@ -451,7 +452,7 @@
       const poll = setInterval(() => wgApi('peek').then((r) => { if (r.genJob?.state !== 'running') { clearInterval(poll); log(r.genJob?.message || 'Xong'); } }).catch(() => clearInterval(poll)), 3000);
     })
     .catch((e) => log('Lỗi: ' + e.message));
-  $('btnSettings').onclick = () => wgApi('settings', { modes: [...document.querySelectorAll('[data-mode]')].filter((c) => c.checked).map((c) => c.dataset.mode), alternateEvery: Number($('stEvery').value), likeEvery: Number($('stLikes').value) })
+  $('btnSettings').onclick = () => wgApi('settings', { modes: [...document.querySelectorAll('[data-mode]')].filter((c) => c.checked).map((c) => c.dataset.mode), alternateEvery: Number($('stEvery').value), likeEvery: Number($('stLikes').value), englishLikeEvery: Number($('stEnLikes').value) })
     .then(() => log('Đoán từ: đã lưu kiểu chơi')).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then((r) => log('Đoán từ: đặt từ mới' + (r.warn ? ` · ⚠ ${r.warn}` : ''))).catch((e) => log('Lỗi: ' + e.message));
   // Tra từ đã chơi chưa (kể cả gần trùng: "tàu hoả" = "tàu hỏa", "con tắc kè" = "tắc kè")

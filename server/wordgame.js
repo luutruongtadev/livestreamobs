@@ -60,6 +60,8 @@ export const WG_DEFAULTS = {
   modes: ['meaning', 'attr', 'english'],
   alternateEvery: 2, // mỗi N vòng đổi kiểu
   likeEvery: 1000, // cả phòng thả đủ N tim → lộ 1 chữ cái (0 = tắt)
+  englishFreeHints: 3, // chế độ tiếng Anh: hệ thống tự mở 3 gợi ý; gợi ý 4–5 phải mở bằng tim / quà
+  englishLikeEvery: 2000, // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì mở chữ cái)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
 
@@ -129,10 +131,10 @@ export class WordGame extends EventEmitter {
     this.dirty = false;
   }
 
-  settings() { return { modes: [...this.cfg.modes], alternateEvery: this.cfg.alternateEvery, likeEvery: this.cfg.likeEvery }; }
+  settings() { return { modes: [...this.cfg.modes], alternateEvery: this.cfg.alternateEvery, likeEvery: this.cfg.likeEvery, englishLikeEvery: this.cfg.englishLikeEvery }; }
 
   /** Admin đổi kiểu chơi / số tim mở chữ (áp dụng từ vòng sau, riêng số tim áp dụng ngay). */
-  applySettings({ modes, modeRotation, alternateEvery, likeEvery } = {}) {
+  applySettings({ modes, modeRotation, alternateEvery, likeEvery, englishLikeEvery } = {}) {
     // cấu hình cũ: modeRotation = 'alternate' | 'meaning' | 'attr'
     if (!modes && modeRotation) modes = modeRotation === 'alternate' ? ['meaning', 'attr'] : [modeRotation];
     if (Array.isArray(modes)) {
@@ -141,6 +143,7 @@ export class WordGame extends EventEmitter {
     }
     if (alternateEvery != null) this.cfg.alternateEvery = Math.max(1, Math.min(20, Number(alternateEvery) || 2));
     if (likeEvery != null) this.cfg.likeEvery = Math.max(0, Math.min(1_000_000, Number(likeEvery) || 0));
+    if (englishLikeEvery != null) this.cfg.englishLikeEvery = Math.max(0, Math.min(1_000_000, Number(englishLikeEvery) || 0));
     this.dirty = true;
     return this.settings();
   }
@@ -304,7 +307,8 @@ export class WordGame extends EventEmitter {
 
   /** Mốc giây tự mở gợi ý: dùng hintAtSeconds, nhiều gợi ý riêng thì rải đều trong vòng. */
   hintSchedule() {
-    const n = this.maxHints;
+    // chế độ tiếng Anh: chỉ tự mở 3 gợi ý đầu, 2 gợi ý cuối để cả phòng thả tim / tặng quà mở
+    const n = this.mode === 'english' ? Math.min(this.maxHints, this.cfg.englishFreeHints) : this.maxHints;
     if (n <= this.cfg.hintAtSeconds.length) return this.cfg.hintAtSeconds.slice(0, n);
     const span = Math.max(60, this.cfg.roundSeconds - 40);
     return Array.from({ length: n }, (_, i) => Math.round(((i + 1) * span) / (n + 0.5)));
@@ -352,13 +356,15 @@ export class WordGame extends EventEmitter {
       if (tp) { fx.push(tp); this.dirty = true; }
     }
     // cả phòng thả đủ N tim → lộ 1 chữ cái
-    if (ev.type === 'like' && this.phase === 'playing' && !this.paused && this.cfg.likeEvery > 0) {
+    // (chế độ tiếng Anh: đủ N tim → mở thêm 1 từ tiếng Anh, mở hết 5 từ thì quay về lộ chữ cái)
+    if (ev.type === 'like' && this.phase === 'playing' && !this.paused && this.likeRule()) {
       this.likeCount = (this.likeCount || 0) + Math.max(1, ev.count | 0 || 1);
       this.dirty = true;
-      while (this.likeCount >= this.cfg.likeEvery) {
-        const got = this.applyUnlock({ id: 'likes', action: 'letter', icon: '❤️', label: this.likeLabel() }, null, 'tim', this.cfg.likeEvery);
-        if (!got.length) { this.likeCount = this.cfg.likeEvery - 1; break; } // chỉ còn 1 chữ: không mở nữa
-        this.likeCount -= this.cfg.likeEvery;
+      let rule;
+      while ((rule = this.likeRule()) && this.likeCount >= rule.every) {
+        const got = this.applyUnlock(rule, null, 'tim', rule.every);
+        if (!got.length) { this.likeCount = rule.every - 1; break; } // chỉ còn 1 chữ: không mở nữa
+        this.likeCount -= rule.every;
         fx.push(...got.map((e) => ({ ...e, likes: true })));
       }
     }
@@ -463,7 +469,15 @@ export class WordGame extends EventEmitter {
     }).catch((e) => console.warn('[wordgame] chấm lỗi:', e?.message || e));
   }
 
-  likeLabel() { return `${new Intl.NumberFormat('vi-VN').format(this.cfg.likeEvery)} tim = 1 chữ`; }
+  /** Luật thả tim hiện tại: chế độ tiếng Anh còn từ chưa mở → mở thêm từ; còn lại → lộ chữ cái. */
+  likeRule() {
+    const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
+    if (this.mode === 'english' && this.englishHints && this.hintLevel < this.maxHints && this.cfg.englishLikeEvery > 0) {
+      return { id: 'likes', action: 'hint', icon: '❤️', every: this.cfg.englishLikeEvery, label: `${fmt(this.cfg.englishLikeEvery)} tim = thêm 1 từ 🇬🇧` };
+    }
+    if (this.cfg.likeEvery > 0) return { id: 'likes', action: 'letter', icon: '❤️', every: this.cfg.likeEvery, label: `${fmt(this.cfg.likeEvery)} tim = 1 chữ` };
+    return null;
+  }
 
   get unlockRules() {
     const rules = this.cfg.giftUnlocks;
@@ -632,7 +646,7 @@ export class WordGame extends EventEmitter {
         return out;
       })(),
       unlocks: [
-        ...(this.cfg.likeEvery > 0 ? [{ id: 'likes', icon: '❤️', label: this.likeLabel(), every: this.cfg.likeEvery, count: Math.min(this.likeCount || 0, this.cfg.likeEvery) }] : []),
+        ...(this.likeRule() ? [(({ id, icon, label, every }) => ({ id, icon, label, every, count: Math.min(this.likeCount || 0, every) }))(this.likeRule())] : []),
         ...this.unlockRules.map((r) => ({ id: r.id, icon: r.icon, label: r.label, every: r.every || null, count: this.giftCounters[r.id] || 0 })),
       ],
       mode: this.mode,
