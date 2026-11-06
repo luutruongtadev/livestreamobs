@@ -58,7 +58,7 @@ Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**
 
 - **🎯 Gần nghĩa** (kiểu gốc): mỗi từ đoán được chấm 1–100.
 - **🧩 Thuộc tính**: hệ thống có **22 thuộc tính** (loại, ở đâu, kích thước, màu, có sự sống, ăn được, dùng điện, thời đại, giá tiền, cân nặng, nóng/lạnh, tự di chuyển, sờ được, phát ra tiếng, liên quan nước, lễ Tết, trẻ em thích, đặc trưng VN, mùa, cảm giác, số chân, từ loại). Mỗi vòng game tự chọn 6 thuộc tính hợp với từ bí mật, trong đó luôn có Loại. Mỗi từ đoán hiện một hàng 6 ô: **xanh** là giống từ bí mật, **vàng** là lệch 1 bậc (với kích thước, giá, cân nặng, nhiệt độ, số chân), xám là khác. Hàng **ĐÃ BIẾT** gom những thuộc tính đã đoán ra. Claude xếp thuộc tính mỗi từ một lần rồi lưu ở `data/attributes.json`, dùng lại mãi. Model: `WORDGAME_ATTR_MODEL` / `wordgame.attrModel`.
-- **🇬🇧 Gợi ý tiếng Anh**: từ bí mật vẫn là tiếng Việt, nhưng gợi ý là **tối đa 5 từ tiếng Anh** liên quan, mở dần từ xa đến gần. Gợi ý không bao giờ là bản dịch thẳng của từ bí mật. Từ đoán vẫn chấm gần nghĩa 1–100. Gợi ý của mỗi từ lưu ở `data/english-hints.json`.
+- **🇬🇧 Gợi ý tiếng Anh**: từ bí mật vẫn là tiếng Việt, nhưng gợi ý là **tối đa 5 từ tiếng Anh** liên quan, mở dần từ xa đến gần, chỉ dùng từ đơn giản trình độ A2. Gợi ý không bao giờ là bản dịch thẳng của từ bí mật. Từ đoán vẫn chấm gần nghĩa 1–100. Gợi ý của mỗi từ lưu ở `data/english-hints.json`.
 - **❤️ Thả tim mở chữ**: cả phòng thả đủ **1000 tim** (đổi ở admin hoặc `wordgame.likeEvery`) thì lộ 1 chữ cái. Tiến độ hiện thành chip đầu tiên dưới ô chữ, và luôn chừa lại ít nhất 1 chữ.
 
 ### 🎙️ Giọng MC trêu đùa (ElevenLabs)

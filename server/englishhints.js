@@ -4,10 +4,11 @@ import { canon } from './scorer.js';
 import { normalize } from './text.js';
 
 const SYSTEM = `Bạn soạn gợi ý cho trò chơi đoán từ tiếng Việt trên livestream, chế độ "gợi ý bằng tiếng Anh".
-Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH, mỗi gợi ý là 1 từ hoặc cụm 1-3 từ tiếng Anh thông dụng mà người Việt biết.
+Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH, mỗi gợi ý là 1 từ (tối đa 2 từ) tiếng Anh ĐƠN GIẢN, trình độ A2:
+- Chỉ dùng từ rất thông dụng học sinh cấp 2 biết (vd hot, sky, cat, water, food, school, happy, red, big, night). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "solar panel", "illuminate", "celestial").
 - Xếp từ XA đến GẦN: gợi ý 1 khó (liên tưởng xa), gợi ý 5 dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật.
 - Không dùng tiếng Việt, không lặp gợi ý, không viết câu.
-Ví dụ: "mặt trời" → ["summer", "solar panel", "sunglasses", "sunrise", "daylight"] (không dùng "sun").`;
+Ví dụ: "mặt trời" → ["summer", "hot", "yellow", "morning", "sky"] (không dùng "sun").`;
 
 const SCHEMA = {
   type: 'object',
