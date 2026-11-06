@@ -26,6 +26,9 @@ export function winTier({ seconds, left, hintLevel, flashSeconds = 10, clutchSec
   return hintLevel === 2 ? 'hint2' : 'hint3';
 }
 
+/** Cờ quốc gia (🇻🇳 🇰🇷…) trên Windows / OBS hiện thành chữ "VN", "KR" → đổi sang emoji thường. */
+export const noFlags = (s) => String(s ?? '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, (f) => (f === '🇻🇳' ? '⭐' : '🌏'));
+
 export function vocabHints(w) {
   const desc = (w.desc || []).filter(Boolean).slice(0, 2);
   const topic = w.hint ? [`Chủ đề: ${w.hint}`] : [];
@@ -362,8 +365,8 @@ export class WordGame extends EventEmitter {
   }
 
   hints() {
-    if (this.mode === 'english') return (this.englishHints || []).slice(0, this.hintLevel).map((h) => `🇬🇧 ${h}`);
-    if (this.customHints) return this.customHints.slice(0, this.hintLevel);
+    if (this.mode === 'english') return (this.englishHints || []).slice(0, this.hintLevel);
+    if (this.customHints) return this.customHints.slice(0, this.hintLevel).map(noFlags);
     const out = [];
     const syl = this.secret.split(' ');
     if (this.hintLevel >= 1 && this.category && this.mode !== 'attr') out.push(`Chủ đề: ${this.category}`);
@@ -533,7 +536,7 @@ export class WordGame extends EventEmitter {
   likeRule() {
     const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
     if (this.mode === 'english' && this.englishHints && this.hintLevel < this.maxHints && this.cfg.englishLikeEvery > 0) {
-      return { id: 'likes', action: 'hint', icon: '❤️', every: this.cfg.englishLikeEvery, label: `${fmt(this.cfg.englishLikeEvery)} tim = thêm 1 từ 🇬🇧` };
+      return { id: 'likes', action: 'hint', icon: '❤️', every: this.cfg.englishLikeEvery, label: `${fmt(this.cfg.englishLikeEvery)} tim = thêm 1 từ tiếng Anh` };
     }
     if (this.cfg.likeEvery > 0) return { id: 'likes', action: 'letter', icon: '❤️', every: this.cfg.likeEvery, label: `${fmt(this.cfg.likeEvery)} tim = 1 chữ` };
     return null;

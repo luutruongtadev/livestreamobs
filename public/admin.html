@@ -113,10 +113,10 @@
         <b>Kiểu chơi luân phiên:</b>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="meaning"> 🎯 Gần nghĩa</label>
         <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="attr"> 🧩 Thuộc tính</label>
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="english"> 🇬🇧 Gợi ý tiếng Anh</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="english"> 🔤 Gợi ý tiếng Anh</label>
         <label style="display:flex;gap:6px;align-items:center">đổi sau mỗi <input id="stEvery" type="number" min="1" max="20" value="2" style="max-width:70px"> vòng</label>
         <label style="display:flex;gap:6px;align-items:center">❤️ <input id="stLikes" type="number" min="0" step="100" value="1000" style="max-width:100px"> tim = 1 chữ</label>
-        <label style="display:flex;gap:6px;align-items:center">🇬🇧 <input id="stEnLikes" type="number" min="0" step="100" value="2000" style="max-width:100px"> tim = thêm 1 từ tiếng Anh</label>
+        <label style="display:flex;gap:6px;align-items:center">🔤 <input id="stEnLikes" type="number" min="0" step="100" value="2000" style="max-width:100px"> tim = thêm 1 từ tiếng Anh</label>
         <button id="btnSettings" class="ghost">💾 Lưu</button>
       </div>
       <p class="muted" id="stText" style="margin-top:0"></p>
@@ -314,7 +314,7 @@
   let wgPoll = null;
   let settingsFilled = false;
   const wgShow = (r) => {
-    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · ${({ attr: '🧩 thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' })[r.wg.mode] || '🎯 gần nghĩa'} · ${r.wg.title} · Đáp án: ${r.wg.secret}`;
+    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · ${({ attr: '🧩 thuộc tính', english: '🔤 gợi ý tiếng Anh' })[r.wg.mode] || '🎯 gần nghĩa'} · ${r.wg.title} · Đáp án: ${r.wg.secret}`;
     if (r?.settings) {
       const st = r.settings;
       if (!settingsFilled) {
@@ -322,10 +322,10 @@
         document.querySelectorAll('[data-mode]').forEach((c) => { c.checked = st.modes.includes(c.dataset.mode); });
         $('stEvery').value = st.alternateEvery; $('stLikes').value = st.likeEvery; $('stEnLikes').value = st.englishLikeEvery ?? 2000;
       }
-      const MODE_NAME = { meaning: '🎯 gần nghĩa', attr: '🧩 đoán thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' };
+      const MODE_NAME = { meaning: '🎯 gần nghĩa', attr: '🧩 đoán thuộc tính', english: '🔤 gợi ý tiếng Anh' };
       $('stText').textContent = (st.aiAvailable ? '' : '⚠ Chưa có ANTHROPIC_API_KEY → chế độ thuộc tính / tiếng Anh không chạy, luôn chơi gần nghĩa. ')
         + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim') + (st.englishLikeEvery ? ` · vòng tiếng Anh: tự mở 3 từ, ${fmt.format(st.englishLikeEvery)} tim mở thêm 1 từ (tối đa 5, đủ 5 từ thì tim lộ chữ)` : ' · vòng tiếng Anh: chỉ 3 từ')
-        + (st.modeWords ? ` · Từ soạn sẵn còn: 🧩 ${st.modeWords.attr?.left ?? 0}/${st.modeWords.attr?.total ?? 0} · 🇬🇧 ${st.modeWords.english?.left ?? 0}/${st.modeWords.english?.total ?? 0} (hết thì Claude tự soạn)` : '');
+        + (st.modeWords ? ` · Từ soạn sẵn còn: 🧩 ${st.modeWords.attr?.left ?? 0}/${st.modeWords.attr?.total ?? 0} · 🔤 ${st.modeWords.english?.left ?? 0}/${st.modeWords.english?.total ?? 0} (hết thì Claude tự soạn)` : '');
     }
     if (r?.sets) {
       const sel = $('wgSet');

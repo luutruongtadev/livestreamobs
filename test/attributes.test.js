@@ -162,7 +162,7 @@ test('chế độ gợi ý tiếng Anh: 5 gợi ý tiếng Anh mở dần, khôn
   assert.equal(g.mode, 'english');
   assert.equal(g.maxHints, 5);
   g.revealHint(); g.revealHint();
-  assert.deepEqual(g.snapshot().hints, ['🇬🇧 pet', '🇬🇧 whiskers']);
+  assert.deepEqual(g.snapshot().hints, ['pet', 'whiskers']);
   say(g, 'a', 'con chó'); await flush();
   assert.equal(g.snapshot().ranked[0].score, 77);
   const bad = { available: true, get: async () => null };
@@ -193,14 +193,14 @@ test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 t
   await flush();
   clock.t += 299_000; g.tick(); g.tick(); g.tick(); g.tick();
   assert.equal(g.hintLevel, 3, 'hết giờ cũng chỉ tự mở 3 từ');
-  assert.equal(g.snapshot().unlocks[0].label, '2.000 tim = thêm 1 từ 🇬🇧');
+  assert.equal(g.snapshot().unlocks[0].label, '2.000 tim = thêm 1 từ tiếng Anh');
   let fx = g.handle({ type: 'like', count: 1999 });
   assert.equal(g.hintLevel, 3);
   fx = g.handle({ type: 'like', count: 1 });
   assert.equal(g.hintLevel, 4);
-  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.likes && e.action === 'hint' && e.hint === '🇬🇧 kitten'));
+  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.likes && e.action === 'hint' && e.hint === 'kitten'));
   g.handle({ type: 'like', count: 2000 });
-  assert.deepEqual(g.snapshot().hints.at(-1), '🇬🇧 tabby');
+  assert.deepEqual(g.snapshot().hints.at(-1), 'tabby');
   assert.equal(g.hintLevel, 5);
   // đủ 5 từ: tim quay về lộ chữ cái, 1000 tim / chữ
   assert.equal(g.snapshot().unlocks[0].label, '1.000 tim = 1 chữ');
@@ -248,4 +248,14 @@ test('EnglishHintStore: gợi ý soạn tay đè bản cũ; file lưu theo phiê
   assert.equal((await s.get('con mèo'))[0], 'small pet');
   s.dirty = true; s.save();
   assert.equal((await new EnglishHintStore({ filePath: f }).get('con mèo'))[1], 'says meow', 'lưu + đọc lại đúng phiên bản');
+});
+
+test('cờ quốc gia trong gợi ý (Windows hiện thành chữ VN / KR) được đổi sang emoji thường', async () => {
+  const { noFlags } = await import('../server/wordgame.js');
+  assert.equal(noFlags('👘 🇻🇳 👗'), '👘 ⭐ 👗');
+  assert.equal(noFlags('🇰🇷 🎤 💃'), '🌏 🎤 💃');
+  const g = new WordGame({ words: [{ word: 'kpop', hint: 'Âm nhạc', desc: ['a', 'nhạc Hàn'], emoji: '🇰🇷 🎤 💃' }], modes: ['meaning'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) } });
+  g.revealHint();
+  assert.equal(g.snapshot().hints[0], '🌏 🎤 💃');
+  assert.ok(!/[\u{1F1E6}-\u{1F1FF}]/u.test(JSON.stringify(JSON.parse((await import('node:fs')).readFileSync(new URL('../modewords/attr.json', import.meta.url))))));
 });

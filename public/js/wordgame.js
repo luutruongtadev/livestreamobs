@@ -262,7 +262,7 @@ function handle(e) {
       fx.banner = e.mode === 'attr'
         ? { text: `🧩 VÒNG ${e.round}: ĐOÁN THUỘC TÍNH`, sub: 'Từ đoán có thuộc tính giống từ bí mật → ô xanh', t: 4, color: '#4ade80' }
         : e.mode === 'english'
-          ? { text: `🇬🇧 VÒNG ${e.round}: GỢI Ý TIẾNG ANH`, sub: 'Gợi ý bằng tiếng Anh — đoán bằng tiếng Việt', t: 4, color: '#f472b6' }
+          ? { text: `🔤 VÒNG ${e.round}: GỢI Ý TIẾNG ANH`, sub: 'Gợi ý bằng tiếng Anh — đoán bằng tiếng Việt', t: 4, color: '#f472b6' }
           : { text: `🎯 VÒNG ${e.round}: GẦN NGHĨA`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
   }

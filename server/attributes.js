@@ -38,7 +38,7 @@ export const ATTRS = [
   { id: 'nuoc', icon: '💧', name: 'Liên quan nước', weight: 1.5, values: YN },
   { id: 'le_tet', icon: '🧧', name: 'Có trong Tết', weight: 1, values: YN },
   { id: 'ca_dao', icon: '📜', name: 'Ca dao, tục ngữ', weight: 1, values: YN },
-  { id: 'viet_nam', icon: '🇻🇳', name: 'Đặc trưng VN', weight: 1.5, values: YN },
+  { id: 'viet_nam', icon: '⭐', name: 'Đặc trưng VN', weight: 1.5, values: YN },
   { id: 'mua', icon: '📅', name: 'Mùa hay gặp', weight: 1, values: ['Quanh năm', 'Hè', 'Đông', 'Tết'] },
   { id: 'so_chan', icon: '🦵', name: 'Số chân', weight: 2, values: ['Không có', '2 chân', '4 chân', 'Nhiều hơn 4'], ordinal: true },
   { id: 'tu_loai', icon: '🔤', name: 'Từ loại', weight: 1, values: ['Danh từ', 'Động từ', 'Tính từ', 'Tên riêng'] },
