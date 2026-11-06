@@ -67,6 +67,9 @@ export function simpleScore(secret, guess) {
   return Math.max(1, Math.min(99, Math.round(5 + syl * 60 + dice * 30)));
 }
 
+// Đổi khi sửa cách chấm → điểm cũ trong cache không dùng lại (chấm lại theo luật mới)
+const PROMPT_V = 'v2-en';
+
 const SYSTEM = `Bạn là giám khảo của trò chơi đoán từ tiếng Việt trên livestream.
 Mỗi lần bạn nhận một TỪ BÍ MẬT và danh sách TỪ ĐOÁN của người xem. Với mỗi từ đoán, chấm mức độ GẦN NGHĨA với từ bí mật trên thang 1-99 (100 chỉ dành cho đoán trúng, hệ thống tự xử lý, bạn không dùng 100).
 
@@ -77,7 +80,11 @@ Thang điểm:
 - 15-39: liên tưởng xa, chỉ hơi dính dáng.
 - 1-14: không liên quan, vô nghĩa, câu chào hỏi, hoặc nội dung thô tục.
 
-Người xem hay gõ không dấu hoặc sai chính tả: hãy hiểu theo nghĩa tiếng Việt hợp lý nhất. Chấm nhất quán: cùng một từ đoán luôn cùng điểm. Chỉ chấm theo nghĩa, không cộng điểm vì giống chữ.
+Người xem hay gõ không dấu hoặc sai chính tả: hãy hiểu theo nghĩa tiếng Việt hợp lý nhất.
+TIẾNG ANH: người xem có thể đoán bằng tiếng Anh (hoặc từ bí mật là tiếng Anh / tên riêng nước ngoài mà người xem gõ tiếng Việt). Chấm theo NGHĨA như với tiếng Việt và hơi rộng tay hơn một chút:
+- Đúng bản dịch / cùng một thứ ở ngôn ngữ kia (vd "sun" với "mặt trời", "điện thoại" với "smartphone", "con mèo" với "cat") → 92-98.
+- Từ tiếng Anh liên quan chặt (vd "sunshine", "sunlight" với "mặt trời") → cộng thêm khoảng 5 điểm so với mức bạn sẽ chấm cho từ tiếng Việt tương đương, không vượt 97.
+Chấm nhất quán: cùng một từ đoán luôn cùng điểm. Chỉ chấm theo nghĩa, không cộng điểm vì giống chữ.
 Trả về đúng mọi từ đoán, giữ nguyên chuỗi "word" như đã nhận.`;
 
 const SCHEMA = {
@@ -132,7 +139,7 @@ export class ClaudeScorer {
   /** ctx: { id, prompt } — ngữ cảnh của bộ từ (vd tướng LMHT), thêm vào yêu cầu chấm. */
   score(secret, word, ctx = null) {
     const s = (ctx?.id ? `${ctx.id}:` : '') + canon(secret);
-    const key = `${s}|${canon(word)}`;
+    const key = `${s}|${canon(word)}|${PROMPT_V}`;
     if (this.cache.has(key)) return Promise.resolve({ score: this.cache.get(key), source: 'cache' });
     if (ctx?.prompt) (this.contexts ||= new Map()).set(s, ctx.prompt);
     return new Promise((resolve) => {
@@ -164,7 +171,7 @@ export class ClaudeScorer {
           let sc = scores[w];
           if (!Number.isFinite(sc)) { sc = simpleScore(secret.replace(/^[^:|]+:/, ''), w); source = source === 'claude' ? 'mixed' : source; }
           sc = Math.max(1, Math.min(99, Math.round(sc)));
-          if (scores[w] !== undefined) { this.cache.set(`${secret}|${w}`, sc); this.cacheDirty = true; }
+          if (scores[w] !== undefined) { this.cache.set(`${secret}|${w}|${PROMPT_V}`, sc); this.cacheDirty = true; }
           for (const r of q.get(w)) r({ score: sc, source: scores[w] !== undefined ? 'claude' : 'simple' });
         }
       }

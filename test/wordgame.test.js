@@ -348,3 +348,21 @@ test('bình luận có chứa đáp án vẫn tính trúng ("… ạ", "đáp á
   const fx = g.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: 'trứng vịt lộn ạ' });
   assert.equal(fx.find((e) => e.type === 'wg_win')?.by.id, 'a', 'trúng ngay dù mới đoán 0,5 giây trước');
 });
+
+test('ClaudeScorer: prompt chấm cả từ đoán tiếng Anh theo nghĩa (dịch đúng → điểm cao); điểm cũ theo luật cũ không dùng lại', async () => {
+  const requests = [];
+  const client = { beta: { messages: { create: async (req) => {
+    requests.push(req);
+    const words = JSON.parse(req.messages[0].content.split('TỪ ĐOÁN: ')[1]);
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ scores: words.map((w) => ({ word: w, score: 95 })) }) }] };
+  } } } };
+  const file = path.join(os.tmpdir(), `score-${process.pid}-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({ 'mặt trời|sun': 20 })); // điểm cũ (chưa có luật tiếng Anh)
+  const s = new ClaudeScorer({ client, batchMs: 5, cachePath: file });
+  const r = await s.score('mặt trời', 'sun');
+  assert.equal(r.source, 'claude', 'không lấy điểm cũ 20 trong cache');
+  assert.equal(r.score, 95);
+  assert.match(requests[0].system, /TIẾNG ANH/);
+  assert.match(requests[0].system, /"sun" với "mặt trời"/);
+  fs.rmSync(file, { force: true });
+});
