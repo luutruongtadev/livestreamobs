@@ -62,7 +62,7 @@ export const WG_DEFAULTS = {
   likeEvery: 1000, // cả phòng thả đủ N tim → lộ 1 chữ cái (0 = tắt)
   englishFreeHints: 3, // chế độ tiếng Anh: hệ thống tự mở 3 gợi ý; gợi ý 4–5 phải mở bằng tim / quà
   englishLikeEvery: 2000,
-  attrUnlockAfter: 10, // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì thôi)
+  attrUnlockAfter: 10, // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì quay về lộ chữ cái)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
 
@@ -403,7 +403,7 @@ export class WordGame extends EventEmitter {
       if (tp) { fx.push(tp); this.dirty = true; }
     }
     // cả phòng thả đủ N tim → lộ 1 chữ cái
-    // (chế độ tiếng Anh: đủ N tim → mở thêm 1 từ tiếng Anh, mở hết 5 từ thì thôi, không lộ chữ)
+    // (chế độ tiếng Anh: đủ N tim → mở thêm 1 từ tiếng Anh, mở hết 5 từ thì quay về lộ chữ cái)
     if (ev.type === 'like' && this.phase === 'playing' && !this.paused && this.likeRule()) {
       this.likeCount = (this.likeCount || 0) + Math.max(1, ev.count | 0 || 1);
       this.dirty = true;
@@ -529,13 +529,12 @@ export class WordGame extends EventEmitter {
     }).catch((e) => console.warn('[wordgame] chấm lỗi:', e?.message || e));
   }
 
-  /** Luật thả tim hiện tại: vòng tiếng Anh → mở thêm từ (hết 5 từ thì thôi); kiểu khác → lộ chữ cái. */
+  /** Luật thả tim hiện tại: vòng tiếng Anh còn từ chưa mở → mở thêm từ; còn lại (mọi kiểu) → đủ likeEvery tim lộ 1 chữ cái. */
   likeRule() {
     const fmt = (n) => new Intl.NumberFormat('vi-VN').format(n);
     if (this.mode === 'english' && this.englishHints && this.hintLevel < this.maxHints && this.cfg.englishLikeEvery > 0) {
       return { id: 'likes', action: 'hint', icon: '❤️', every: this.cfg.englishLikeEvery, label: `${fmt(this.cfg.englishLikeEvery)} tim = thêm 1 từ 🇬🇧` };
     }
-    if (this.mode === 'english') return null; // vòng tiếng Anh: tim chỉ mở thêm từ, không lộ chữ cái
     if (this.cfg.likeEvery > 0) return { id: 'likes', action: 'letter', icon: '❤️', every: this.cfg.likeEvery, label: `${fmt(this.cfg.likeEvery)} tim = 1 chữ` };
     return null;
   }

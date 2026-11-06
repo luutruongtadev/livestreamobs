@@ -4,11 +4,12 @@ import { canon } from './scorer.js';
 import { normalize } from './text.js';
 
 const SYSTEM = `Bạn soạn gợi ý cho trò chơi đoán từ tiếng Việt trên livestream, chế độ "gợi ý bằng tiếng Anh".
-Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH, mỗi gợi ý là 1 từ (tối đa 2 từ) tiếng Anh ĐƠN GIẢN, trình độ A2:
-- Chỉ dùng từ rất thông dụng học sinh cấp 2 biết (vd hot, sky, cat, water, food, school, happy, red, big, night). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "solar panel", "illuminate", "celestial").
-- Xếp từ XA đến GẦN: gợi ý 1 khó (liên tưởng xa), gợi ý 5 dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật.
-- Không dùng tiếng Việt, không lặp gợi ý, không viết câu.
-Ví dụ: "mặt trời" → ["summer", "hot", "yellow", "morning", "sky"] (không dùng "sun").`;
+Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH thật ĐƠN GIẢN, trình độ A2 (học sinh cấp 2 hiểu ngay):
+- Mỗi gợi ý là 1 từ HOẶC 1 cụm mô tả ngắn 2–5 từ (vd "lives in the sea", "you can eat it", "very cold place", "red with black dots"). Nên dùng nhiều cụm mô tả, không chỉ toàn từ đơn lẻ. Tối đa 30 ký tự.
+- Chỉ dùng từ rất thông dụng (hot, big, eat, water, school, family, morning…). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "illuminate", "celestial", "extinct").
+- Xếp từ XA đến GẦN: gợi ý 1 khó (liên tưởng xa), gợi ý 5 dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật. Tên riêng nổi tiếng (Nemo, Paris, Santa) dùng được ở gợi ý cuối.
+- Không dùng tiếng Việt, không lặp gợi ý, không viết câu dài.
+Ví dụ: "mặt trời" → ["summer days", "makes you hot", "up in the sky", "yellow and bright", "comes up every morning"] (không dùng "sun").`;
 
 const SCHEMA = {
   type: 'object',
@@ -18,6 +19,8 @@ const SCHEMA = {
 };
 
 const clean = (h) => String(h || '').replace(/[^\p{L}\p{N} '-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
+// đổi khi sửa prompt: gợi ý soạn theo prompt cũ bị bỏ, soạn lại
+const PROMPT_V = 'v2-phrase';
 
 /**
  * 5 gợi ý tiếng Anh cho một từ bí mật: Claude soạn một lần, lưu data/english-hints.json dùng mãi.
@@ -32,20 +35,26 @@ export class EnglishHintStore {
     this.cache = new Map();
     this.pending = new Map();
     this.dirty = false;
-    try { if (filePath) this.cache = new Map(Object.entries(JSON.parse(fs.readFileSync(filePath, 'utf8')))); } catch { /* chưa có */ }
+    try {
+      if (filePath) {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (data.__v === PROMPT_V) this.cache = new Map(Object.entries(data.hints || {}));
+      }
+    } catch { /* chưa có */ }
   }
 
   get available() { return !!this.client; }
 
   /** Nạp sẵn gợi ý soạn tay. */
   seed(words = []) {
-    for (const w of words) if (w?.word && Array.isArray(w.en) && !this.cache.has(canon(w.word))) this.cache.set(canon(w.word), w.en.slice(0, 5));
+    // gợi ý soạn tay luôn được ưu tiên hơn bản Claude đã lưu
+    for (const w of words) if (w?.word && Array.isArray(w.en) && w.en.length) this.cache.set(canon(w.word), w.en.slice(0, 5));
   }
 
   save() {
     if (!this.filePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    fs.writeFileSync(this.filePath, JSON.stringify(Object.fromEntries(this.cache)));
+    fs.writeFileSync(this.filePath, JSON.stringify({ __v: PROMPT_V, hints: Object.fromEntries(this.cache) }));
     this.dirty = false;
   }
 

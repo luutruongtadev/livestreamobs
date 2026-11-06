@@ -180,12 +180,13 @@ test('EnglishHintStore: bỏ gợi ý trùng / chứa đáp án / ký tự lạ,
   const s = new EnglishHintStore({ client });
   const h = await s.get('Con Mèo');
   assert.deepEqual(h, ['Pet', 'whiskers', 'meow', 'kitten', 'tabby']);
+  assert.match(calls[0].system, /cụm mô tả/);
   await s.get('con mèo');
   assert.equal(calls.length, 1, 'lấy từ cache');
   assert.equal(await new EnglishHintStore({}).get('x'), null, 'không có client → null');
 });
 
-test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 tim mở thêm từ (tối đa 5), hết từ thì thôi, không lộ chữ', async () => {
+test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 tim mở thêm từ (tối đa 5), hết từ thì 1000 tim lộ 1 chữ', async () => {
   const en = { available: true, get: async () => ['pet', 'whiskers', 'meow', 'kitten', 'tabby'] };
   const clock = { t: 1 };
   const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['english'], roundSeconds: 300, cooldownSec: 0 }, { scorer: { score: async () => ({ score: 5 }) }, now: () => clock.t, englishStore: en });
@@ -201,11 +202,13 @@ test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 t
   g.handle({ type: 'like', count: 2000 });
   assert.deepEqual(g.snapshot().hints.at(-1), '🇬🇧 tabby');
   assert.equal(g.hintLevel, 5);
-  // đủ 5 từ: không lộ chữ cái, chip tim ẩn
-  assert.equal(g.snapshot().unlocks.some((u) => u.id === 'likes'), false);
-  fx = g.handle({ type: 'like', count: 5000 });
-  assert.ok(!fx.some((e) => e.type === 'wg_unlock'));
+  // đủ 5 từ: tim quay về lộ chữ cái, 1000 tim / chữ
+  assert.equal(g.snapshot().unlocks[0].label, '1.000 tim = 1 chữ');
+  fx = g.handle({ type: 'like', count: 999 });
   assert.equal(g.revealedIdx.size, 0);
+  fx = g.handle({ type: 'like', count: 1 });
+  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.action === 'letter' && e.likes));
+  assert.equal(g.revealedIdx.size, 1);
 });
 
 test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho của chế độ, có sẵn thuộc tính / gợi ý, không gọi Claude cho từ bí mật; hết kho thì về kho thường', async () => {
@@ -232,4 +235,17 @@ test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho c�
   assert.deepEqual(g.modeWordStats(), { attr: { total: 1, left: 0 }, english: { total: 1, left: 0 } });
   g.startRound();
   assert.equal(g.display, 'con mèo', 'hết kho → kho thường');
+});
+
+test('EnglishHintStore: gợi ý soạn tay đè bản cũ; file lưu theo phiên bản prompt cũ thì bỏ, soạn lại', async () => {
+  const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
+  const { EnglishHintStore } = await import('../server/englishhints.js');
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'en-')), 'en.json');
+  fs.writeFileSync(f, JSON.stringify({ 'con mèo': ['celestial', 'feline'] })); // định dạng cũ
+  const s = new EnglishHintStore({ filePath: f });
+  assert.equal(await s.get('con mèo'), null, 'bỏ gợi ý cũ');
+  s.seed([{ word: 'con mèo', en: ['small pet', 'says meow', 'likes fish', 'sleeps a lot', 'Tom and Jerry'] }]);
+  assert.equal((await s.get('con mèo'))[0], 'small pet');
+  s.dirty = true; s.save();
+  assert.equal((await new EnglishHintStore({ filePath: f }).get('con mèo'))[1], 'says meow', 'lưu + đọc lại đúng phiên bản');
 });

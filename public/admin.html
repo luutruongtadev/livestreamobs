@@ -324,7 +324,7 @@
       }
       const MODE_NAME = { meaning: '🎯 gần nghĩa', attr: '🧩 đoán thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' };
       $('stText').textContent = (st.aiAvailable ? '' : '⚠ Chưa có ANTHROPIC_API_KEY → chế độ thuộc tính / tiếng Anh không chạy, luôn chơi gần nghĩa. ')
-        + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim') + (st.englishLikeEvery ? ` · vòng tiếng Anh: tự mở 3 từ, ${fmt.format(st.englishLikeEvery)} tim mở thêm 1 từ (tối đa 5, không lộ chữ)` : ' · vòng tiếng Anh: chỉ 3 từ')
+        + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim') + (st.englishLikeEvery ? ` · vòng tiếng Anh: tự mở 3 từ, ${fmt.format(st.englishLikeEvery)} tim mở thêm 1 từ (tối đa 5, đủ 5 từ thì tim lộ chữ)` : ' · vòng tiếng Anh: chỉ 3 từ')
         + (st.modeWords ? ` · Từ soạn sẵn còn: 🧩 ${st.modeWords.attr?.left ?? 0}/${st.modeWords.attr?.total ?? 0} · 🇬🇧 ${st.modeWords.english?.left ?? 0}/${st.modeWords.english?.total ?? 0} (hết thì Claude tự soạn)` : '');
     }
     if (r?.sets) {
