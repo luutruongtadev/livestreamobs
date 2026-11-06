@@ -52,6 +52,15 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
+### 🔁 3 kiểu chơi luân phiên + mở chữ bằng tim
+
+Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**: Gần nghĩa → Thuộc tính → Gợi ý tiếng Anh → … Bật/tắt từng kiểu và chỉnh số vòng mỗi kiểu ở admin → 🔤 Đoán từ → **Kiểu chơi** (hoặc `wordgame.modes`, `wordgame.alternateEvery` trong `config.json`). Hai kiểu dưới cần `ANTHROPIC_API_KEY`; không có key hoặc Claude lỗi thì vòng đó tự quay về kiểu Gần nghĩa.
+
+- **🎯 Gần nghĩa** (kiểu gốc): mỗi từ đoán được chấm 1–100.
+- **🧩 Thuộc tính**: hệ thống có **22 thuộc tính** (loại, ở đâu, kích thước, màu, có sự sống, ăn được, dùng điện, thời đại, giá tiền, cân nặng, nóng/lạnh, tự di chuyển, sờ được, phát ra tiếng, liên quan nước, lễ Tết, trẻ em thích, đặc trưng VN, mùa, cảm giác, số chân, từ loại). Mỗi vòng game tự chọn 6 thuộc tính hợp với từ bí mật, trong đó luôn có Loại. Mỗi từ đoán hiện một hàng 6 ô: **xanh** là giống từ bí mật, **vàng** là lệch 1 bậc (với kích thước, giá, cân nặng, nhiệt độ, số chân), xám là khác. Hàng **ĐÃ BIẾT** gom những thuộc tính đã đoán ra. Claude xếp thuộc tính mỗi từ một lần rồi lưu ở `data/attributes.json`, dùng lại mãi. Model: `WORDGAME_ATTR_MODEL` / `wordgame.attrModel`.
+- **🇬🇧 Gợi ý tiếng Anh**: từ bí mật vẫn là tiếng Việt, nhưng gợi ý là **tối đa 5 từ tiếng Anh** liên quan, mở dần từ xa đến gần. Gợi ý không bao giờ là bản dịch thẳng của từ bí mật. Từ đoán vẫn chấm gần nghĩa 1–100. Gợi ý của mỗi từ lưu ở `data/english-hints.json`.
+- **❤️ Thả tim mở chữ**: cả phòng thả đủ **1000 tim** (đổi ở admin hoặc `wordgame.likeEvery`) thì lộ 1 chữ cái. Tiến độ hiện thành chip đầu tiên dưới ô chữ, và luôn chừa lại ít nhất 1 chữ.
+
 ### 🎙️ Giọng MC trêu đùa (ElevenLabs)
 
 - **Đoán trúng**: đọc câu chúc mừng trêu đùa **không có tên** theo mức (⚡ thần đồng, 🔥 không gợi ý, 💡 1 gợi ý, ⏱️ phút chót, 👍 2 gợi ý, 🎉 3 gợi ý). Mỗi mức một **thư viện 12 câu** (48 câu soạn sẵn + Claude Haiku viết thêm cho đủ): câu đọc lần đầu được lưu mp3 (`data/voice/lib`), các lần sau **phát lại miễn phí**, không lặp câu vừa nói. Bấm admin → 📚 *Tạo sẵn thư viện* để tạo trước (≈ 3.000 credit một lần).

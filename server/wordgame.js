@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { ATTRS, ATTR_BY_ID, compareAttr, chooseAttrs } from './attributes.js';
 import { canon, isExact, containsAnswer } from './scorer.js';
 import { makePausable } from './pause.js';
 import { TeamMatch } from './teams.js';
@@ -54,6 +55,11 @@ export const WG_DEFAULTS = {
   maxGuessChars: 24,
   maxGuessWords: 4,
   maxScoredPerRound: 500, // giới hạn số từ khác nhau gửi đi chấm mỗi vòng (kiểm soát chi phí)
+  // Kiểu chơi được bật, luân phiên lần lượt: 'meaning' (chấm gần nghĩa 1–100) · 'attr' (so 6 thuộc tính)
+  // · 'english' (gợi ý bằng 5 từ tiếng Anh, chấm gần nghĩa)
+  modes: ['meaning', 'attr', 'english'],
+  alternateEvery: 2, // mỗi N vòng đổi kiểu
+  likeEvery: 1000, // cả phòng thả đủ N tim → lộ 1 chữ cái (0 = tắt)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
 
@@ -74,8 +80,11 @@ export function parseGuess(text, cfg = WG_DEFAULTS) {
  * Trò chơi đoán từ theo nghĩa. Phát sự kiện 'effects' (mảng hiệu ứng) khi có kết quả chấm điểm bất đồng bộ.
  */
 export class WordGame extends EventEmitter {
-  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {}, weekly = null } = {}) {
+  constructor(config = {}, { scorer, now = () => Date.now(), statePath = null, random = Math.random, wordBank = null, wordSets = {}, weekly = null, attrStore = null, englishStore = null } = {}) {
     super();
+    this.attrStore = attrStore; // thuộc tính của từ (chế độ "Đoán thuộc tính"), có thể null
+    this.englishStore = englishStore; // 5 gợi ý tiếng Anh (chế độ "Gợi ý tiếng Anh"), có thể null
+    this.modeCounter = 0; // số vòng đã chơi để luân phiên kiểu chơi
     this.weekly = weekly; // bảng xếp hạng tuần (WeeklyBoard), có thể null
     this.teams = new TeamMatch(config.team || {}); // chế độ đấu đội (admin bật / tắt)
     // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
@@ -84,6 +93,7 @@ export class WordGame extends EventEmitter {
     this.activeSet = config.activeSet && (config.activeSet === 'tu-vung' || wordSets[config.activeSet]) ? config.activeSet : 'tu-vung';
     this.wordBank = wordBank; // kho từ do Claude sinh (tuỳ chọn)
     this.cfg = { ...WG_DEFAULTS, ...config };
+    if (config.modeRotation && !config.modes) this.applySettings({ modeRotation: config.modeRotation });
     this.scorer = scorer;
     this.now = now;
     this.random = random;
@@ -105,6 +115,8 @@ export class WordGame extends EventEmitter {
       this.recent = s.recent || [];
       this.priority = Array.isArray(s.priority) ? s.priority : [];
       this.teams.load(s.team);
+      this.modeCounter = s.modeCounter || 0;
+      if (s.settings) this.applySettings(s.settings);
       if (s.activeSet && (s.activeSet === 'tu-vung' || this.wordSets?.[s.activeSet])) this.activeSet = s.activeSet;
     } catch { /* chưa có */ }
   }
@@ -113,8 +125,32 @@ export class WordGame extends EventEmitter {
     this.scorer?.saveCache?.();
     if (!this.statePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority, team: this.teams.toJSON() }));
+    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority, team: this.teams.toJSON(), modeCounter: this.modeCounter, settings: this.settings() }));
     this.dirty = false;
+  }
+
+  settings() { return { modes: [...this.cfg.modes], alternateEvery: this.cfg.alternateEvery, likeEvery: this.cfg.likeEvery }; }
+
+  /** Admin đổi kiểu chơi / số tim mở chữ (áp dụng từ vòng sau, riêng số tim áp dụng ngay). */
+  applySettings({ modes, modeRotation, alternateEvery, likeEvery } = {}) {
+    // cấu hình cũ: modeRotation = 'alternate' | 'meaning' | 'attr'
+    if (!modes && modeRotation) modes = modeRotation === 'alternate' ? ['meaning', 'attr'] : [modeRotation];
+    if (Array.isArray(modes)) {
+      const ok = ['meaning', 'attr', 'english'].filter((m) => modes.includes(m));
+      this.cfg.modes = ok.length ? ok : ['meaning'];
+    }
+    if (alternateEvery != null) this.cfg.alternateEvery = Math.max(1, Math.min(20, Number(alternateEvery) || 2));
+    if (likeEvery != null) this.cfg.likeEvery = Math.max(0, Math.min(1_000_000, Number(likeEvery) || 0));
+    this.dirty = true;
+    return this.settings();
+  }
+
+  /** Kiểu chơi của vòng tới. */
+  nextMode() {
+    // chế độ cần Claude (thuộc tính / tiếng Anh) mà chưa có API key thì bỏ qua
+    const ok = (this.cfg.modes || ['meaning']).filter((m) => m === 'meaning' || (m === 'attr' && this.attrStore?.available) || (m === 'english' && this.englishStore?.available));
+    if (!ok.length) return 'meaning';
+    return ok[Math.floor(this.modeCounter / Math.max(1, this.cfg.alternateEvery)) % ok.length];
   }
 
   resetAll() {
@@ -202,12 +238,69 @@ export class WordGame extends EventEmitter {
     this.recent.push(this.secret);
     this.recent = this.recent.slice(-30);
     this.teams?.onRoundStart();
+    this.likeCount = 0;
+    // kiểu chơi của vòng
+    this.mode = this.nextMode();
+    this.modeCounter++;
+    this.roundAttrs = null; // 6 thuộc tính của vòng (id)
+    this.secretAttrs = null;
+    this.known = {}; // thuộc tính đã đoán trúng: id -> giá trị
+    this.englishHints = null;
+    this.baseHints = null;
+    if (this.mode === 'attr') {
+      // gợi ý "Chủ đề" trùng với thuộc tính Loại → bỏ
+      if (this.customHints) this.customHints = this.customHints.filter((h) => !/^Chủ đề:/.test(h));
+      this.loadSecretAttrs();
+    } else if (this.mode === 'english') {
+      // gợi ý chỉ bằng tiếng Anh (5 từ, mở dần); không có thì quay về gợi ý thường
+      this.baseHints = this.customHints;
+      this.customHints = null;
+      this.loadEnglishHints();
+    }
     this.dirty = true;
-    return [{ type: 'wg_start', round: this.roundNo }];
+    return [{ type: 'wg_start', round: this.roundNo, mode: this.mode }];
   }
 
+  /** Chế độ thuộc tính: lấy thuộc tính của từ bí mật (Claude, có cache) rồi chọn 6 cái cho vòng. */
+  loadSecretAttrs() {
+    const round = this.roundNo;
+    this.attrStore.get(this.secret).then((a) => {
+      if (round !== this.roundNo) return;
+      if (!a) { // không xếp được → vòng này chơi kiểu gần nghĩa
+        this.mode = 'meaning';
+        this.emit('effects', [{ type: 'wg_mode', mode: 'meaning', fallback: true }]);
+        for (const g of this.guesses.values()) if (g.pending) this.scoreGuess(g);
+        return;
+      }
+      this.secretAttrs = a;
+      this.roundAttrs = chooseAttrs(a, this.random);
+      this.dirty = true;
+      this.emit('effects', [{ type: 'wg_attrs', attrs: this.attrMeta() }]);
+      for (const g of this.guesses.values()) if (g.pending) this.scoreGuess(g); // từ đoán trước lúc sẵn sàng
+    }).catch(() => {});
+  }
+
+  /** Chế độ tiếng Anh: lấy 5 gợi ý tiếng Anh (Claude, có cache). Lỗi thì vòng này chơi gần nghĩa với gợi ý thường. */
+  loadEnglishHints() {
+    const round = this.roundNo;
+    this.englishStore.get(this.secret, this.aliases).then((h) => {
+      if (round !== this.roundNo) return;
+      if (!h?.length) {
+        this.mode = 'meaning';
+        this.customHints = this.baseHints;
+        this.emit('effects', [{ type: 'wg_mode', mode: 'meaning', fallback: true }]);
+        return;
+      }
+      this.englishHints = h.slice(0, 5);
+      this.dirty = true;
+      this.emit('effects', [{ type: 'wg_english', count: this.englishHints.length }]);
+    }).catch(() => {});
+  }
+
+  attrMeta() { return (this.roundAttrs || []).map((id) => ({ id, icon: ATTR_BY_ID[id].icon, name: ATTR_BY_ID[id].name })); }
+
   /** Gợi ý theo mức: 1 = chủ đề, 2 = chữ cái đầu mỗi tiếng, 3 = lộ một tiếng. */
-  get maxHints() { return this.customHints?.length || 3; }
+  get maxHints() { return this.mode === 'english' ? 5 : this.customHints?.length || 3; }
 
   /** Mốc giây tự mở gợi ý: dùng hintAtSeconds, nhiều gợi ý riêng thì rải đều trong vòng. */
   hintSchedule() {
@@ -218,10 +311,11 @@ export class WordGame extends EventEmitter {
   }
 
   hints() {
+    if (this.mode === 'english') return (this.englishHints || []).slice(0, this.hintLevel).map((h) => `🇬🇧 ${h}`);
     if (this.customHints) return this.customHints.slice(0, this.hintLevel);
     const out = [];
     const syl = this.secret.split(' ');
-    if (this.hintLevel >= 1 && this.category) out.push(`Chủ đề: ${this.category}`);
+    if (this.hintLevel >= 1 && this.category && this.mode !== 'attr') out.push(`Chủ đề: ${this.category}`);
     if (this.hintLevel >= 2) out.push(`Chữ đầu: ${syl.map((s) => s[0].toUpperCase() + '…').join(' ')}`);
     if (this.hintLevel >= 3) {
       const shown = syl.length > 1 ? [syl[0], ...syl.slice(1).map(() => '___')] : [syl[0].slice(0, Math.ceil(syl[0].length / 2)) + '…'];
@@ -256,6 +350,17 @@ export class WordGame extends EventEmitter {
       fx.push({ type: 'wg_thanks', by, giftName: ev.giftName || 'quà', giftImage: ev.giftImage || null, repeat, diamonds: unit * repeat, bonusAdd: bonus.add, bonusTotal: bonus.total });
       const tp = this.teams.addPoints(by, Math.round(unit * repeat * this.teams.cfg.perDiamond), 'gift');
       if (tp) { fx.push(tp); this.dirty = true; }
+    }
+    // cả phòng thả đủ N tim → lộ 1 chữ cái
+    if (ev.type === 'like' && this.phase === 'playing' && !this.paused && this.cfg.likeEvery > 0) {
+      this.likeCount = (this.likeCount || 0) + Math.max(1, ev.count | 0 || 1);
+      this.dirty = true;
+      while (this.likeCount >= this.cfg.likeEvery) {
+        const got = this.applyUnlock({ id: 'likes', action: 'letter', icon: '❤️', label: this.likeLabel() }, null, 'tim', this.cfg.likeEvery);
+        if (!got.length) { this.likeCount = this.cfg.likeEvery - 1; break; } // chỉ còn 1 chữ: không mở nữa
+        this.likeCount -= this.cfg.likeEvery;
+        fx.push(...got.map((e) => ({ ...e, likes: true })));
+      }
     }
     // chia sẻ live: tích điểm thưởng, cộng vào lần đoán đúng tiếp theo
     if (ev.type === 'share' && by && this.weekly) {
@@ -313,8 +418,40 @@ export class WordGame extends EventEmitter {
     this.guesses.set(word, entry);
     const fx = { type: 'wg_guess', word, score: null, pending: true, by };
     this.pushFeed(fx);
+    // chế độ thuộc tính: chờ tới lúc có thuộc tính của từ bí mật mới chấm
+    if (this.mode !== 'attr' || this.roundAttrs) this.scoreGuess(entry);
+    return [fx];
+  }
+
+  /** Chấm một từ đoán theo kiểu chơi của vòng (bất đồng bộ, phát 'effects' khi xong). */
+  scoreGuess(entry) {
     const round = this.roundNo;
-    const useScorer = this.scoredCount++ < this.cfg.maxScoredPerRound ? this.scorer : null;
+    const word = entry.word;
+    const limited = this.scoredCount++ >= this.cfg.maxScoredPerRound;
+    if (this.mode === 'attr') {
+      const p = limited ? Promise.resolve(null) : this.attrStore.get(word);
+      p.then((ga) => {
+        if (round !== this.roundNo || this.mode !== 'attr') return;
+        const cells = this.roundAttrs.map((id) => {
+          const v = ga ? ga[id] ?? null : null;
+          return { id, v, s: ga ? compareAttr(ATTR_BY_ID[id], this.secretAttrs[id], v) : 'na' };
+        });
+        const hits = cells.filter((c) => c.s === 'hit').length;
+        const near = cells.filter((c) => c.s === 'near').length;
+        entry.cells = cells; entry.hits = hits; entry.near = near;
+        entry.score = hits; entry.pending = false; entry.source = ga ? 'attr' : 'limit';
+        for (const f of this.feed) if (f.word === word) { f.score = hits; f.cells = cells; f.pending = false; }
+        // ô xanh mới → thêm vào dòng "ĐÃ BIẾT"
+        const learned = cells.filter((c) => c.s === 'hit' && !(c.id in this.known));
+        for (const c of learned) this.known[c.id] = this.secretAttrs[c.id];
+        this.dirty = true;
+        const out = [{ type: 'wg_scored', mode: 'attr', word, score: hits, hits, near, cells, by: entry.by, source: entry.source }];
+        if (learned.length) out.push({ type: 'wg_known', by: entry.by, word, learned: learned.map((c) => ({ id: c.id, icon: ATTR_BY_ID[c.id].icon, name: ATTR_BY_ID[c.id].name, v: this.secretAttrs[c.id] })) });
+        this.emit('effects', out);
+      }).catch((e) => console.warn('[wordgame] xếp thuộc tính lỗi:', e?.message || e));
+      return;
+    }
+    const useScorer = limited ? null : this.scorer;
     const ctx = this.set?.scoreContext ? { id: this.activeSet, prompt: this.set.scoreContext } : null;
     const p = useScorer ? useScorer.score(this.secret, word, ctx) : Promise.resolve({ score: 1, source: 'limit' });
     p.then(({ score, source }) => {
@@ -324,8 +461,9 @@ export class WordGame extends EventEmitter {
       this.dirty = true;
       this.emit('effects', [{ type: 'wg_scored', word, score, by: entry.by, source }]);
     }).catch((e) => console.warn('[wordgame] chấm lỗi:', e?.message || e));
-    return [fx];
   }
+
+  likeLabel() { return `${new Intl.NumberFormat('vi-VN').format(this.cfg.likeEvery)} tim = 1 chữ`; }
 
   get unlockRules() {
     const rules = this.cfg.giftUnlocks;
@@ -474,8 +612,10 @@ export class WordGame extends EventEmitter {
     const ranked = [...this.guesses.values()]
       .filter((g) => !g.pending)
       .sort((a, b) => b.score - a.score || a.at - b.at)
+      .sort((a, b) => (b.near || 0) - (a.near || 0)) // thuộc tính: cùng số ô xanh thì ô vàng nhiều hơn lên trước (sort ổn định)
+      .sort((a, b) => b.score - a.score)
       .slice(0, 10)
-      .map((g) => ({ word: g.word, score: g.score, by: g.by, count: g.count }));
+      .map((g) => ({ word: g.word, score: g.score, by: g.by, count: g.count, ...(g.cells ? { cells: g.cells, hits: g.hits, near: g.near } : {}) }));
     const ended = this.phase === 'ended';
     return {
       round: this.roundNo,
@@ -491,7 +631,14 @@ export class WordGame extends EventEmitter {
         for (const s of this.letterSlots()) if (this.revealedIdx.has(s.idx)) out[s.si][s.ci] = s.ch;
         return out;
       })(),
-      unlocks: this.unlockRules.map((r) => ({ id: r.id, icon: r.icon, label: r.label, every: r.every || null, count: this.giftCounters[r.id] || 0 })),
+      unlocks: [
+        ...(this.cfg.likeEvery > 0 ? [{ id: 'likes', icon: '❤️', label: this.likeLabel(), every: this.cfg.likeEvery, count: Math.min(this.likeCount || 0, this.cfg.likeEvery) }] : []),
+        ...this.unlockRules.map((r) => ({ id: r.id, icon: r.icon, label: r.label, every: r.every || null, count: this.giftCounters[r.id] || 0 })),
+      ],
+      mode: this.mode,
+      attrs: this.mode === 'attr' ? this.attrMeta() : null,
+      // dòng "ĐÃ BIẾT": giá trị các thuộc tính đã đoán trúng (null = chưa biết); hết vòng thì lộ hết
+      known: this.mode === 'attr' && this.roundAttrs ? this.roundAttrs.map((id) => (ended ? this.secretAttrs[id] : this.known[id]) ?? null) : null,
       secret: ended ? this.secret : null,
       answer: ended ? this.display : null, // tên hiển thị đầy đủ (vd "Kai'Sa")
       title: this.set?.title || 'Đoán từ',

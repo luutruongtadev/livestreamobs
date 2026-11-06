@@ -109,6 +109,16 @@
         <button id="btnWgSet" class="ghost">Chuyển bộ từ (bắt đầu vòng mới)</button>
       </div>
       <p class="muted" id="wgSecret">Từ bí mật: (đang tải…)</p>
+      <div class="row" style="align-items:center;margin:8px 0">
+        <b>Kiểu chơi luân phiên:</b>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="meaning"> 🎯 Gần nghĩa</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="attr"> 🧩 Thuộc tính</label>
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-mode="english"> 🇬🇧 Gợi ý tiếng Anh</label>
+        <label style="display:flex;gap:6px;align-items:center">đổi sau mỗi <input id="stEvery" type="number" min="1" max="20" value="2" style="max-width:70px"> vòng</label>
+        <label style="display:flex;gap:6px;align-items:center">❤️ <input id="stLikes" type="number" min="0" step="100" value="1000" style="max-width:100px"> tim = 1 chữ</label>
+        <button id="btnSettings" class="ghost">💾 Lưu</button>
+      </div>
+      <p class="muted" id="stText" style="margin-top:0"></p>
       <details id="wgAi" style="margin:10px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
         <summary style="cursor:pointer;color:var(--gold);font-weight:600">✨ Tạo bằng Claude: bộ từ mới / gợi ý mới</summary>
         <p class="muted" id="wgAiNote" style="margin:8px 0"></p>
@@ -301,8 +311,20 @@
   const simName = () => $('simName').value.trim() || undefined;
   const sim = (ev) => api('/api/simulate', { ...ev, name: ev.name || simName() }).catch((e) => log('Lỗi: ' + e.message));
   let wgPoll = null;
+  let settingsFilled = false;
   const wgShow = (r) => {
-    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · ${r.wg.title} · Đáp án: ${r.wg.secret}`;
+    if (r?.wg) $('wgSecret').textContent = `Vòng ${r.wg.round} · ${({ attr: '🧩 thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' })[r.wg.mode] || '🎯 gần nghĩa'} · ${r.wg.title} · Đáp án: ${r.wg.secret}`;
+    if (r?.settings) {
+      const st = r.settings;
+      if (!settingsFilled) {
+        settingsFilled = true;
+        document.querySelectorAll('[data-mode]').forEach((c) => { c.checked = st.modes.includes(c.dataset.mode); });
+        $('stEvery').value = st.alternateEvery; $('stLikes').value = st.likeEvery;
+      }
+      const MODE_NAME = { meaning: '🎯 gần nghĩa', attr: '🧩 đoán thuộc tính', english: '🇬🇧 gợi ý tiếng Anh' };
+      $('stText').textContent = (st.aiAvailable ? '' : '⚠ Chưa có ANTHROPIC_API_KEY → chế độ thuộc tính / tiếng Anh không chạy, luôn chơi gần nghĩa. ')
+        + `Vòng tới: ${MODE_NAME[st.nextMode] || st.nextMode}` + (st.likeEvery ? ` · cả phòng thả ${fmt.format(st.likeEvery)} tim mở 1 chữ` : ' · tắt mở chữ bằng tim');
+    }
     if (r?.sets) {
       const sel = $('wgSet');
       if (!sel.options.length || sel.dataset.v !== JSON.stringify(r.sets)) {
@@ -429,6 +451,8 @@
       const poll = setInterval(() => wgApi('peek').then((r) => { if (r.genJob?.state !== 'running') { clearInterval(poll); log(r.genJob?.message || 'Xong'); } }).catch(() => clearInterval(poll)), 3000);
     })
     .catch((e) => log('Lỗi: ' + e.message));
+  $('btnSettings').onclick = () => wgApi('settings', { modes: [...document.querySelectorAll('[data-mode]')].filter((c) => c.checked).map((c) => c.dataset.mode), alternateEvery: Number($('stEvery').value), likeEvery: Number($('stLikes').value) })
+    .then(() => log('Đoán từ: đã lưu kiểu chơi')).catch((e) => log('Lỗi: ' + e.message));
   $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then((r) => log('Đoán từ: đặt từ mới' + (r.warn ? ` · ⚠ ${r.warn}` : ''))).catch((e) => log('Lỗi: ' + e.message));
   // Tra từ đã chơi chưa (kể cả gần trùng: "tàu hoả" = "tàu hỏa", "con tắc kè" = "tắc kè")
   const lookup = () => {
@@ -488,7 +512,7 @@
       + ` · đã đọc ${v.spoken} câu` + (v.queue ? ` · ${v.queue} chờ` : '') + (v.lastError ? ` · ⚠ ${v.lastError}` : '');
   }
   $('btnVoiceLib').onclick = () => {
-    if (!confirm('Tạo sẵn toàn bộ câu chúc mừng đoán trúng (khoảng 72 câu, tốn khoảng 3.000 credit một lần, sau đó dùng lại miễn phí)?')) return;
+    if (!confirm('Tạo sẵn toàn bộ câu chúc mừng đoán trúng (khoảng 150–180 câu, tốn khoảng 8.000–10.000 credit một lần, sau đó dùng lại miễn phí)?')) return;
     api('/api/voice/library').then((r) => { renderVoice(r.voice); log('Đang tạo thư viện câu đoán trúng (vài phút)…'); }).catch((e) => log('Lỗi: ' + e.message));
   };
   // Nghe thử ngay trên trang admin (khung xem trước luôn tắt tiếng): chỉ phát trong 60 giây sau khi bấm thử
