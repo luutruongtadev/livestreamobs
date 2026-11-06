@@ -659,7 +659,7 @@ function drawSecret(t) {
   const hintGap = hints.length > 3 ? 36 : 42;
   const isEmoji = (t) => /^[\p{Extended_Pictographic}\p{Regional_Indicator}\u200d\ufe0f\s]+$/u.test(t);
   const hintYs = [];
-  for (const hnt of hints) { const big = isEmoji(hnt); hintYs.push(cy + (big ? 10 : 0)); cy += hintGap + (big ? 22 : 0); }
+  for (const hnt of hints) { const big = isEmoji(hnt); hintYs.push(cy + (big ? 28 : 0)); cy += hintGap + (big ? 58 : 0); }
   const showNext = G.nextHintIn != null && hints.length < (G.maxHints || 3) && G.phase === 'playing';
   const nextY = cy;
   if (showNext) cy += 36;
@@ -711,8 +711,16 @@ function drawSecret(t) {
   ctx.font = font(700, hintFont);
   hints.forEach((hnt, i) => {
     if (isEmoji(hnt)) { // gợi ý bằng emoji: hiện to
-      ctx.save(); ctx.font = `48px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`; ctx.fillStyle = '#000';
-      ctx.fillText(hnt.split(/\s+/).join(' '), W / 2, hintYs[i]);
+      // emoji to (84px), cách nhau rộng, luôn 1 hàng: quá rộng thì tự thu nhỏ
+      const ems = hnt.trim().split(/\s+/);
+      let size = 84;
+      const efont = (z) => `${z}px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`;
+      ctx.save(); ctx.font = efont(size); ctx.fillStyle = '#000'; ctx.textAlign = 'left';
+      let ws = ems.map((e) => ctx.measureText(e).width);
+      let gap = size * 0.4, total = ws.reduce((a, b) => a + b, 0) + gap * (ems.length - 1);
+      if (total > W - 140) { const k = (W - 140) / total; size = Math.floor(size * k); ctx.font = efont(size); ws = ems.map((e) => ctx.measureText(e).width); gap *= k; total = ws.reduce((a, b) => a + b, 0) + gap * (ems.length - 1); }
+      let ex = W / 2 - total / 2;
+      ems.forEach((e, k) => { ctx.fillText(e, ex, hintYs[i]); ex += ws[k] + gap; });
       ctx.restore(); ctx.font = font(700, hintFont);
       return;
     }
