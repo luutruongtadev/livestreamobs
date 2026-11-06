@@ -6,8 +6,8 @@ export const WEEKLY_DEFAULTS = {
   speedMax: 100, // thưởng tốc độ tối đa: đoán đúng ngay đầu vòng được đủ, sát giờ gần như 0
   perShare: 20, // mỗi lượt chia sẻ live: +20 điểm thưởng (cộng vào lần đoán đúng tiếp theo)
   maxShares: 5,
-  perDiamond: 2, // mỗi xu quà: +2 điểm thưởng
-  maxGiftBonus: 300,
+  perDiamond: 50, // mỗi xu quà: +50 điểm thưởng, giữ tới lần đoán đúng tiếp theo
+  maxGiftBonus: 0, // 0 = không giới hạn
   tzOffsetHours: 7, // tuần tính theo giờ Việt Nam, bắt đầu thứ 2 00:00
   topN: 10,
 };
@@ -75,7 +75,7 @@ export class WeeklyBoard {
     if (top.length) this.state.history = [rec, ...this.state.history].slice(0, 26);
     this.state.week = nextKey; // chốt tay giữa tuần: vẫn là tuần đó, chỉ xoá điểm để đua lại
     this.state.scores = {};
-    this.state.bonus = {};
+    // điểm thưởng đang giữ (quà / chia sẻ) không mất khi sang tuần: giữ tới lần đoán đúng tiếp theo
     this.dirty = true;
     return rec;
   }
@@ -95,28 +95,39 @@ export class WeeklyBoard {
   bonusPoints(b) {
     if (!b) return 0;
     const c = this.cfg;
-    return Math.min(c.maxShares, b.shares) * c.perShare + Math.min(c.maxGiftBonus, Math.round(b.diamonds * c.perDiamond));
+    return Math.min(c.maxShares, b.shares) * c.perShare + this.giftPoints(b);
+  }
+
+  giftPoints(b) {
+    if (!b) return 0;
+    const pts = Math.round(b.diamonds * this.cfg.perDiamond);
+    return this.cfg.maxGiftBonus > 0 ? Math.min(this.cfg.maxGiftBonus, pts) : pts;
   }
 
   pendingBonus(id) { return this.bonusPoints(this.state.bonus[id]); }
 
-  /** Đoán đúng: speedRatio 0..1 (1 = vừa mở vòng). Trả về chi tiết điểm. */
-  award(user, speedRatio) {
+  /**
+   * Đoán đúng: speedRatio 0..1 (1 = vừa mở vòng). Trả về chi tiết điểm.
+   * likeBonus: thưởng thả tim trong vòng; mult: hệ số combo (đoán trúng nhiều vòng liên tiếp) nhân điểm thưởng của vòng (tốc độ + tim).
+   */
+  award(user, speedRatio, { likeBonus = 0, mult = 1 } = {}) {
     this.ensureWeek();
     const c = this.cfg;
     const speed = Math.round(c.speedMax * Math.max(0, Math.min(1, speedRatio)));
     const b = this.state.bonus[user.id];
     const shareBonus = b ? Math.min(c.maxShares, b.shares) * c.perShare : 0;
-    const giftBonus = b ? Math.min(c.maxGiftBonus, Math.round(b.diamonds * c.perDiamond)) : 0;
+    const giftBonus = this.giftPoints(b);
     delete this.state.bonus[user.id];
-    const total = c.base + speed + shareBonus + giftBonus;
+    const roundBonus = speed + likeBonus;
+    const comboBonus = roundBonus * (Math.max(1, mult) - 1);
+    const total = c.base + roundBonus + comboBonus + shareBonus + giftBonus;
     const s = (this.state.scores[user.id] ||= { ...pub(user), points: 0, wins: 0, firstAt: this.now() });
     s.points += total; s.wins++;
     if (user.name) s.name = user.name;
     if (user.avatar) s.avatar = user.avatar;
     this.dirty = true;
     const rank = this.ranking().findIndex((x) => x.id === user.id) + 1;
-    return { base: c.base, speed, shareBonus, giftBonus, total, weekPoints: s.points, rank };
+    return { base: c.base, speed, likeBonus, mult: Math.max(1, mult), comboBonus, shareBonus, giftBonus, total, weekPoints: s.points, rank };
   }
 
   snapshot(n = 5) {

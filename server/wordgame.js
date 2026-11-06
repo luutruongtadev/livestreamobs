@@ -65,7 +65,9 @@ export const WG_DEFAULTS = {
   likeEvery: 1000, // cả phòng thả đủ N tim → lộ 1 chữ cái (0 = tắt)
   englishFreeHints: 3, // chế độ tiếng Anh: hệ thống tự mở 3 gợi ý; gợi ý 4–5 phải mở bằng tim / quà
   englishLikeEvery: 2000,
-  attrUnlockAfter: 10, // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì quay về lộ chữ cái)
+  attrUnlockAfter: 10,
+  likeBonus: { every: 1000, points: 50 }, // 1 người thả đủ 1000 tim trong vòng mà đoán trúng → +50 điểm (đếm lại mỗi vòng)
+  comboMax: 5, // đoán trúng N vòng liên tiếp → combo xN điểm thưởng của vòng (tối đa x5) // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì quay về lộ chữ cái)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
 
@@ -94,6 +96,8 @@ export class WordGame extends EventEmitter {
     this.modeWords = modeWords || {};
     this.modeUsed = new Set(); // dùng khi không có wordBank (test)
     this.modeCounter = 0; // số vòng đã chơi để luân phiên kiểu chơi
+    this.streak = null; // chuỗi đoán trúng liên tiếp: { id, name, n, round }
+    this.userLikes = new Map(); // tim của từng người trong vòng
     this.weekly = weekly; // bảng xếp hạng tuần (WeeklyBoard), có thể null
     this.teams = new TeamMatch(config.team || {}); // chế độ đấu đội (admin bật / tắt)
     // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
@@ -125,6 +129,7 @@ export class WordGame extends EventEmitter {
       this.priority = Array.isArray(s.priority) ? s.priority : [];
       this.teams.load(s.team);
       this.modeCounter = s.modeCounter || 0;
+      this.streak = s.streak || null;
       if (s.settings) this.applySettings(s.settings);
       if (s.activeSet && (s.activeSet === 'tu-vung' || this.wordSets?.[s.activeSet])) this.activeSet = s.activeSet;
     } catch { /* chưa có */ }
@@ -134,7 +139,7 @@ export class WordGame extends EventEmitter {
     this.scorer?.saveCache?.();
     if (!this.statePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority, team: this.teams.toJSON(), modeCounter: this.modeCounter, settings: this.settings() }));
+    fs.writeFileSync(this.statePath, JSON.stringify({ wins: this.wins, roundNo: this.roundNo, recent: this.recent.slice(-30), activeSet: this.activeSet, priority: this.priority, team: this.teams.toJSON(), modeCounter: this.modeCounter, settings: this.settings(), streak: this.streak }));
     this.dirty = false;
   }
 
@@ -279,6 +284,7 @@ export class WordGame extends EventEmitter {
     this.recent = this.recent.slice(-30);
     this.teams?.onRoundStart();
     this.likeCount = 0;
+    this.userLikes = new Map();
     // kiểu chơi của vòng
     this.mode = mode;
     this.modeCounter++;
@@ -303,7 +309,8 @@ export class WordGame extends EventEmitter {
       else this.loadEnglishHints();
     }
     this.dirty = true;
-    return [{ type: 'wg_start', round: this.roundNo, mode: this.mode }];
+    const st = this.activeStreak();
+    return [{ type: 'wg_start', round: this.roundNo, mode: this.mode, ...(st ? { streak: st } : {}) }];
   }
 
   /** Chế độ thuộc tính: lấy thuộc tính của từ bí mật (Claude, có cache) rồi chọn 6 cái cho vòng. */
@@ -407,6 +414,14 @@ export class WordGame extends EventEmitter {
     }
     // cả phòng thả đủ N tim → lộ 1 chữ cái
     // (chế độ tiếng Anh: đủ N tim → mở thêm 1 từ tiếng Anh, mở hết 5 từ thì quay về lộ chữ cái)
+    // thưởng tim từng người: thả đủ 1000 tim trong vòng → đoán trúng +50 (chỉ vòng này)
+    const lb = this.cfg.likeBonus || {};
+    if (ev.type === 'like' && by && this.phase === 'playing' && !this.paused && lb.every > 0) {
+      const before = this.userLikes.get(by.id) || 0;
+      const after = before + Math.max(1, ev.count | 0 || 1);
+      this.userLikes.set(by.id, after);
+      if (before < lb.every && after >= lb.every) fx.push({ type: 'wg_like_bonus', by, likes: lb.every, points: lb.points });
+    }
     if (ev.type === 'like' && this.phase === 'playing' && !this.paused && this.likeRule()) {
       this.likeCount = (this.likeCount || 0) + Math.max(1, ev.count | 0 || 1);
       this.dirty = true;
@@ -634,9 +649,17 @@ export class WordGame extends EventEmitter {
     if (by.name) w.name = by.name;
     if (by.avatar) w.avatar = by.avatar;
     this.guesses.set(this.secret, { word: this.secret, score: 100, pending: false, by, at: this.clock(), count: 1, source: 'exact' });
-    // điểm tuần: đoán đúng càng sớm càng nhiều (+ điểm thưởng chia sẻ / quà đã tích)
+    // chuỗi đoán trúng liên tiếp (vòng ngay trước cũng là người này) → combo
+    const prev = this.streak;
+    const n = prev && prev.id === by.id && prev.round === this.roundNo - 1 ? prev.n + 1 : 1;
+    this.streak = { id: by.id, name: by.name, n, round: this.roundNo };
+    const mult = n >= 2 ? Math.min(this.cfg.comboMax, n) : 1;
+    // thả đủ tim trong vòng → thưởng thêm
+    const lb = this.cfg.likeBonus || {};
+    const likeBonus = lb.every > 0 && (this.userLikes.get(by.id) || 0) >= lb.every ? lb.points || 0 : 0;
+    // điểm tuần: đoán đúng càng sớm càng nhiều (+ thưởng tim, combo, điểm thưởng chia sẻ / quà đã tích)
     const total = Math.max(1, this.endsAt - this.startedAt);
-    const points = this.weekly?.award(by, 1 - (this.clock() - this.startedAt) / total) || null;
+    const points = this.weekly?.award(by, 1 - (this.clock() - this.startedAt) / total, { likeBonus, mult }) || null;
     this.winner.points = points;
     // mức hiệu ứng: càng sớm / càng ít gợi ý càng hoành tráng
     const seconds = Math.round((this.clock() - this.startedAt) / 1000);
@@ -645,13 +668,21 @@ export class WordGame extends EventEmitter {
     Object.assign(this.winner, { tier, seconds, left, hintLevel: this.hintLevel });
     this.nextAt = this.clock() + this.cfg.breakSeconds * 1000;
     this.dirty = true;
-    const fx = [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds, left, hintLevel: this.hintLevel, tier }];
+    const fx = [{ type: 'wg_win', round: this.roundNo, secret: this.secret, answer: this.display, by, points, seconds, left, hintLevel: this.hintLevel, tier, ...(mult > 1 ? { combo: { n, mult } } : {}) }];
     // đấu đội: đội của người đoán trúng được điểm gốc + tốc độ (không tính thưởng cá nhân)
     const speed = points ? points.speed : Math.round(100 * Math.max(0, 1 - (this.clock() - this.startedAt) / total));
     const tp = this.teams.addPoints(by, (points ? points.base : 100) + speed, 'win');
     if (tp) { fx.push(tp); this.winner.team = tp.team; this.winner.teamPoints = tp.points; }
     fx.push(...this.teams.onRoundEnd());
     return fx;
+  }
+
+  /** Chuỗi đang sống: người thắng vòng ngay trước (hoặc vòng này) — vòng nào không thắng là đứt. */
+  activeStreak() {
+    const s = this.streak;
+    if (!s || !(s.round === this.roundNo || s.round === this.roundNo - 1)) return null;
+    const next = s.round === this.roundNo ? s.n : s.n + 1; // trúng tiếp vòng này thì được combo bao nhiêu
+    return { id: s.id, name: s.name, n: s.n, nextMult: Math.min(this.cfg.comboMax, next) };
   }
 
   /** Admin: đang chơi thì kết thúc vòng (lộ từ), đang nghỉ thì sang vòng mới. */
@@ -715,6 +746,7 @@ export class WordGame extends EventEmitter {
       mode: this.mode,
       attrs: this.mode === 'attr' ? this.attrMeta() : null,
       // dòng "ĐÃ BIẾT": giá trị các thuộc tính đã đoán trúng (null = chưa biết); hết vòng thì lộ hết
+      streak: this.activeStreak(),
       known: this.mode === 'attr' && this.roundAttrs ? this.roundAttrs.map((id) => (ended ? this.secretAttrs[id] : this.attrLocked(id) ? null : this.known[id]) ?? null) : null,
       secret: ended ? this.secret : null,
       answer: ended ? this.display : null, // tên hiển thị đầy đủ (vd "Kai'Sa")

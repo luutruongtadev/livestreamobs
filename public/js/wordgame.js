@@ -181,6 +181,10 @@ function handle(e) {
       sound.play('levelup');
       break;
     }
+    case 'wg_like_bonus':
+      fx.banner = { text: `❤️ ${clip(e.by?.name, 16)} thả đủ ${fmtN(e.likes)} tim!`, sub: `Đoán trúng vòng này được thêm +${e.points} điểm`, t: 3.5, color: '#f472b6' };
+      sound.play('chime', { pitch: 1.8 }); confetti(60);
+      break;
     case 'wg_bonus':
       if (e.add > 0) {
         fx.banner = { text: `🔁 ${clip(e.by?.name, 16)} chia sẻ live: +${e.add} điểm thưởng`, sub: `Đang giữ ${e.total} điểm thưởng — cộng vào lần đoán đúng tiếp theo`, t: 3.5, color: '#4ade80' };
@@ -252,7 +256,10 @@ function handle(e) {
       sound.play('bell');
       fx.banner = { text: e.by ? `💡 ${clip(e.by.name, 18)} tặng quà mở gợi ý!` : '💡 Gợi ý mới!', sub: e.hint, t: 4, color: '#facc15' };
       break;
-    case 'wg_win': startWinFx(e); break;
+    case 'wg_win':
+      startWinFx(e);
+      if (e.combo) startCombo(e.combo, e.by);
+      break;
     case 'wg_timeout':
       sound.play('bell');
       break;
@@ -264,6 +271,7 @@ function handle(e) {
         : e.mode === 'english'
           ? { text: `🔤 VÒNG ${e.round}: GỢI Ý TIẾNG ANH`, sub: 'Gợi ý bằng tiếng Anh — đoán bằng tiếng Việt', t: 4, color: '#f472b6' }
           : { text: `🎯 VÒNG ${e.round}: GẦN NGHĨA`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
+      if (e.streak) fx.banner = { ...fx.banner, sub: `🔥 ${clip(e.streak.name, 16)} đang chuỗi ${e.streak.n} — trúng tiếp là COMBO x${e.streak.nextMult}!`, t: 4.5 };
       break;
   }
 }
@@ -278,7 +286,7 @@ const WIN_TIERS = {
   hint2: { title: '👍 ĐOÁN HAY!', sub: (e) => `Sau 2 gợi ý · ${e.seconds} giây`, color: '#86efac', dur: 2.4, card: ['#166534', '#052e16'] },
   hint3: { title: '🎉 ĐOÁN TRÚNG!', sub: (e) => `Sau ${e.hintLevel} gợi ý · ${e.seconds} giây`, color: '#bbf7d0', dur: 2.2, card: ['#166534', '#052e16'] },
 };
-const wfx = { win: null, sparks: [], rings: [], bolts: [], rockets: [], shake: 0, punch: 0 };
+const wfx = { combo: null, win: null, sparks: [], rings: [], bolts: [], rockets: [], shake: 0, punch: 0 };
 const pickC = (a) => a[Math.floor(Math.random() * a.length)];
 function spark(x, y, n, colors, spd = 500, size = 10, g = 400, life = 1.2) {
   for (let i = 0; i < n; i++) {
@@ -352,6 +360,37 @@ function startWinFx(e) {
     spark(WIN_CX, WIN_CY, 60, ['#86efac', '#fff', '#fde68a'], 500, 10, 300, 1.1);
   }
   celebrate(WIN_GROUP[tier], tier === 'clutch' ? 150 : 0);
+}
+
+/** Đoán trúng nhiều vòng liên tiếp: nổ combo xN. */
+function startCombo(c, by) {
+  wfx.combo = { ...c, name: by?.name || '', t: -0.9 };
+  setTimeout(() => {
+    sound.play('boom', { big: true }); setTimeout(() => sound.play('levelup'), 200);
+    wfx.shake = Math.max(wfx.shake, 1 + c.mult * 0.15); fx.flash = 0.8;
+    confetti(120 + c.mult * 60);
+    spark(W / 2, 300, 80 + c.mult * 30, ['#ff4d00', '#facc15', '#fff', '#f472b6'], 900, 13, 250, 1.5);
+    wring(W / 2, 300, '#f97316', 700, 0.8, 22);
+  }, 900);
+}
+
+function drawCombo(dt) {
+  const c = wfx.combo;
+  if (!c) return;
+  c.t += dt;
+  if (c.t < 0) return;
+  if (c.t > 3.6) { wfx.combo = null; return; }
+  const pop = Math.min(1, c.t / 0.3);
+  const s = pop < 1 ? 2.6 - 1.6 * ease(pop) : 1 + 0.06 * Math.sin(c.t * 14);
+  const a = Math.min(1, (3.6 - c.t) / 0.4);
+  ctx.save();
+  ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.translate(W / 2, 300); ctx.rotate(-0.06); ctx.scale(s, s);
+  ctx.font = font(900, 120);
+  outlined(`🔥 COMBO x${c.mult}!`, 0, 0, c.mult >= 4 ? '#fde047' : '#fb923c', 'rgba(127,29,29,.95)', 14);
+  ctx.font = font(800, 34); ctx.fillStyle = '#fff';
+  ctx.fillText(fitText(`${c.name} · ${c.n} từ liên tiếp · điểm thưởng x${c.mult}`, W - 120), 0, 92);
+  ctx.restore();
 }
 
 function drawWinFx(t, dt) {
@@ -1015,7 +1054,7 @@ function drawEnd(t) {
       ctx.font = font(900, 34); ctx.fillStyle = '#fde68a';
       ctx.fillText(`+${fmtN(p.total)} điểm tuần${p.rank ? ` · hạng #${p.rank}` : ''}`, W / 2, y + 412);
       const tmw = win.team && G.team?.teams?.find((x) => x.id === win.team);
-      const parts = [tmw && `${tmw.icon} ${tmw.name} +${fmtN(win.teamPoints)}`, `gốc ${p.base}`, `⚡ nhanh +${p.speed}`, p.shareBonus && `🔁 share +${p.shareBonus}`, p.giftBonus && `🎁 quà +${p.giftBonus}`].filter(Boolean);
+      const parts = [tmw && `${tmw.icon} ${tmw.name} +${fmtN(win.teamPoints)}`, `gốc ${p.base}`, `⚡ nhanh +${p.speed}`, p.likeBonus && `❤️ tim +${p.likeBonus}`, p.comboBonus && `🔥 combo x${p.mult} +${fmtN(p.comboBonus)}`, p.shareBonus && `🔁 share +${p.shareBonus}`, p.giftBonus && `🎁 quà +${fmtN(p.giftBonus)}`].filter(Boolean);
       ctx.font = font(700, 21); ctx.fillStyle = 'rgba(255,255,255,.85)';
       ctx.fillText(fitText(parts.join(' · '), W - 220), W / 2, y + 446);
     }
@@ -1223,6 +1262,7 @@ function frame(now) {
   drawMatchOver(t);
   drawThanks(dt);
   drawWinFx(t, dt);
+  drawCombo(dt);
   drawConfetti(dt);
   ctx.restore();
   drawPaused(t);

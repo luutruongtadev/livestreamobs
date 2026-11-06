@@ -40,8 +40,8 @@
       "speedMax": 100,
       "perShare": 20,
       "maxShares": 5,
-      "perDiamond": 2,
-      "maxGiftBonus": 300
+      "perDiamond": 50,
+      "maxGiftBonus": 0
     },
     "team": {
       "rounds": 10,
