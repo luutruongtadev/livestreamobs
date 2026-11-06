@@ -171,6 +171,9 @@ export class WordBank {
   allWords() { return this.data.batches.flatMap((b) => b.words); }
 
   usedKeys() { return new Set(this.data.used.map(wordKey)); }
+  isUsed(word) { return this.usedKeys().has(wordKey(word)); }
+  /** Đánh dấu đã chơi một từ lấy ngoài kho (vd từ soạn sẵn cho chế độ thuộc tính / tiếng Anh). */
+  markUsed(word) { this.data.used.push(canon(word)); this.save(); }
 
   unused() {
     const used = this.usedKeys();

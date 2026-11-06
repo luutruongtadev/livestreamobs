@@ -52,6 +52,21 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
+### 🔁 3 kiểu chơi luân phiên + mở chữ bằng tim
+
+Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**: Gần nghĩa → Thuộc tính → Gợi ý tiếng Anh → … Bật/tắt từng kiểu và chỉnh số vòng mỗi kiểu ở admin → 🔤 Đoán từ → **Kiểu chơi** (hoặc `wordgame.modes`, `wordgame.alternateEvery` trong `config.json`). Hai kiểu dưới cần `ANTHROPIC_API_KEY`; không có key hoặc Claude lỗi thì vòng đó tự quay về kiểu Gần nghĩa.
+
+- **🎯 Gần nghĩa** (kiểu gốc): mỗi từ đoán được chấm 1–100.
+- **🧩 Thuộc tính**: hệ thống có **26 thuộc tính**, chỉ dùng thuộc tính khách quan (đã bỏ "trẻ em thích", "cảm giác").
+  - Thuộc tính nghĩa (24, Claude xếp hoặc soạn sẵn): loại, ở đâu, kích thước, màu (1–2 màu), chất liệu, có sự sống, ăn được, dùng điện, thời đại, giá tiền, cân nặng, nóng/lạnh, tự di chuyển, cầm/sờ được, phát ra tiếng, có mùi, liên quan nước, có trong Tết, ca dao tục ngữ, đặc trưng VN, mùa, số chân, từ loại, nguồn gốc từ (thuần Việt / Hán Việt / mượn).
+  - Thuộc tính mặt chữ (2, tự tính, không tốn Claude): **thanh điệu** các tiếng, **chữ cái đầu**.
+  - Mỗi vòng có 6 cột: Loại, 4 thuộc tính bốc thăm theo trọng số (thuộc tính chia đôi kho từ tốt hay được chọn hơn, thuộc tính "bất ngờ" như ca dao, Tết thỉnh thoảng mới có; tối đa 2 cột Có/Không), và cột **🔒 Chữ cái đầu** bị khoá, mở khi đủ 10 từ được đoán (`wordgame.attrUnlockAfter`).
+  - Cách hiện ô: **xanh** là trúng; **vàng** là gần (lệch 1 bậc) hoặc trùng một phần (màu, thanh điệu); xám là khác. Thuộc tính có thứ bậc (kích thước, giá, cân nặng, nóng/lạnh, số chân, chữ cái đầu) có thêm mũi tên **↑ / ↓**: đáp án cao / thấp hơn, hoặc đứng sau / trước trong bảng chữ cái.
+  - Hàng **ĐÃ BIẾT** gom những thuộc tính đã đoán trúng. Claude xếp thuộc tính mỗi từ một lần rồi lưu ở `data/attributes.json` (bản ghi cũ thiếu thuộc tính mới thì tự xếp lại). Model: `WORDGAME_ATTR_MODEL` / `wordgame.attrModel`.
+- **🇬🇧 Gợi ý tiếng Anh**: từ bí mật vẫn là tiếng Việt, gợi ý là các từ tiếng Anh đơn giản (trình độ A2) liên quan, xếp từ xa đến gần, không bao giờ là bản dịch thẳng. Hệ thống **tự mở 3 từ** theo thời gian. Từ thứ 4 và 5 chỉ mở khi cả phòng **thả đủ 2000 tim** (mỗi lần mở 1 từ) hoặc tặng quà mở gợi ý; tối đa 5 từ. Vòng tiếng Anh không lộ chữ cái bằng tim. Từ đoán vẫn chấm gần nghĩa 1–100. Gợi ý của mỗi từ lưu ở `data/english-hints.json`. Số tim chỉnh ở admin hoặc `wordgame.englishLikeEvery`.
+- **Kho từ soạn sẵn** (`modewords/`): 234 từ cho chế độ Thuộc tính (đủ 24 thuộc tính nghĩa + emoji + gợi ý) và 200 từ cho chế độ Tiếng Anh (5 gợi ý A2). Vòng của chế độ nào thì lấy từ chưa chơi trong kho của chế độ đó trước, nên không tốn Claude cho từ bí mật. Admin hiện số từ còn lại; hết kho thì lấy từ kho chung và Claude soạn thuộc tính / gợi ý. Thêm từ bằng tay: sửa file JSON cùng định dạng.
+- **❤️ Thả tim mở chữ**: cả phòng thả đủ **1000 tim** (đổi ở admin hoặc `wordgame.likeEvery`) thì lộ 1 chữ cái. Tiến độ hiện thành chip đầu tiên dưới ô chữ, và luôn chừa lại ít nhất 1 chữ.
+
 ### 🎙️ Giọng MC trêu đùa (ElevenLabs)
 
 - **Đoán trúng**: đọc câu chúc mừng trêu đùa **không có tên** theo mức (⚡ thần đồng, 🔥 không gợi ý, 💡 1 gợi ý, ⏱️ phút chót, 👍 2 gợi ý, 🎉 3 gợi ý). Mỗi mức một **thư viện 12 câu** (48 câu soạn sẵn + Claude Haiku viết thêm cho đủ): câu đọc lần đầu được lưu mp3 (`data/voice/lib`), các lần sau **phát lại miễn phí**, không lặp câu vừa nói. Bấm admin → 📚 *Tạo sẵn thư viện* để tạo trước (≈ 3.000 credit một lần).

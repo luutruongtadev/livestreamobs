@@ -196,8 +196,26 @@ function handle(e) {
       break;
     case 'wg_scored':
       fx.highlight.set(e.word, performance.now());
+      if (e.mode === 'attr') {
+        if (e.hits >= 4) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.hits}/6 ô xanh`, x: W / 2, y: L.rankTop + 24, life: 1, color: '#4ade80' }); }
+        else if (e.hits >= 2) sound.play('chime', { pitch: 1.1 });
+        break;
+      }
       if (e.score >= 85) { sound.play('chime', { pitch: 1.5 }); fx.floaters.push({ text: `🔥 ${e.word}: ${e.score}`, x: W / 2, y: L.rankTop + 24, life: 1, color: '#4ade80' }); }
       else if (e.score >= 60) sound.play('chime', { pitch: 1.1 });
+      break;
+    case 'wg_known': {
+      const k = e.learned.map((x) => `${x.icon} ${x.name}: ${Array.isArray(x.v) ? x.v.join(' + ') : x.v}`).join(' · ');
+      fx.banner = { text: `✅ ĐÃ BIẾT THÊM: ${k}`, sub: `nhờ ${clip(e.by?.name, 16)} đoán “${e.word}”`, t: 3, color: '#4ade80' };
+      sound.play('chime', { pitch: 1.3 });
+      break;
+    }
+    case 'wg_attr_unlock':
+      fx.banner = { text: `🔓 MỞ KHOÁ CỘT ${e.icon} ${String(e.name).toUpperCase()}!`, sub: `Đã có ${e.after} từ được đoán · ↑ đáp án đứng sau, ↓ đứng trước trong bảng chữ cái`, t: 4, color: '#facc15' };
+      sound.play('levelup'); confetti(80);
+      break;
+    case 'wg_mode':
+      if (e.fallback) fx.banner = { text: '🎯 Vòng này chơi kiểu gần nghĩa', sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
     case 'wg_progress':
       fx.unlockFlash.set(e.rule, performance.now());
@@ -208,6 +226,15 @@ function handle(e) {
       const now = performance.now();
       fx.unlockFlash.set(G?.unlocks?.find((u) => u.label === e.label)?.id, now);
       for (const i of e.indexes || []) fx.letterAt.set(i, now);
+      if (e.likes) {
+        for (const i of e.indexes || []) fx.letterAt.set(i, now);
+        fx.unlockFlash.set('likes', now);
+        fx.banner = e.action === 'hint'
+          ? { text: '❤️ CẢ PHÒNG THẢ ĐỦ TIM: THÊM 1 TỪ TIẾNG ANH!', sub: e.hint || 'Thả tim tiếp để mở thêm từ', t: 4, color: '#f472b6' }
+          : { text: '❤️ CẢ PHÒNG THẢ ĐỦ TIM: LỘ 1 CHỮ CÁI!', sub: 'Thả tim tiếp để mở thêm chữ', t: 3.5, color: '#f472b6' };
+        fx.hintFlash = 1; sound.play('bell'); confetti(120);
+        break;
+      }
       const who = e.by ? clip(e.by.name, 16) : 'Ai đó';
       const what = e.action === 'letter' ? 'lộ 1 chữ cái!' : e.action === 'syllable' ? 'lộ cả 1 tiếng!' : e.action === 'time' ? `+${e.seconds} giây!` : 'mở gợi ý!';
       fx.banner = { text: `${e.icon || '🎁'} ${who} tặng ${e.repeat > 1 ? e.repeat + ' ' : ''}${e.giftName || 'quà'}: ${what}`, sub: e.hint || e.label || '', t: 4, color: '#facc15' };
@@ -220,7 +247,7 @@ function handle(e) {
       fx.banner = { text: '✨ Gợi ý vừa được làm mới!', sub: '', t: 2.5, color: '#a5b4fc' };
       break;
     case 'wg_hint':
-      if (e.by) break; // gợi ý do quà mở đã có thông báo wg_unlock
+      if (e.by || e.likes) break; // gợi ý do quà / tim mở đã có thông báo wg_unlock
       fx.hintFlash = 1;
       sound.play('bell');
       fx.banner = { text: e.by ? `💡 ${clip(e.by.name, 18)} tặng quà mở gợi ý!` : '💡 Gợi ý mới!', sub: e.hint, t: 4, color: '#facc15' };
@@ -232,7 +259,11 @@ function handle(e) {
     case 'wg_start':
       fx.rowY.clear(); fx.highlight.clear(); fx.letterAt.clear();
       sound.play('chime');
-      fx.banner = { text: `VÒNG ${e.round} BẮT ĐẦU!`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
+      fx.banner = e.mode === 'attr'
+        ? { text: `🧩 VÒNG ${e.round}: ĐOÁN THUỘC TÍNH`, sub: 'Từ đoán có thuộc tính giống từ bí mật → ô xanh', t: 4, color: '#4ade80' }
+        : e.mode === 'english'
+          ? { text: `🇬🇧 VÒNG ${e.round}: GỢI Ý TIẾNG ANH`, sub: 'Gợi ý bằng tiếng Anh — đoán bằng tiếng Việt', t: 4, color: '#f472b6' }
+          : { text: `🎯 VÒNG ${e.round}: GẦN NGHĨA`, sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
   }
 }
@@ -682,7 +713,96 @@ function drawUnlockMenu({ items, ws, rows, gap }, y0) {
   ctx.restore();
 }
 
+const CELL = { hit: '#16a34a', near: '#ca8a04', part: '#ca8a04', miss: 'rgba(255,255,255,.08)', na: 'rgba(255,255,255,.04)' };
+const attrVal = (v) => (Array.isArray(v) ? v.join(' + ') : v || '—');
+const ARROW = { up: '↑', down: '↓' };
+/** Chế độ thuộc tính: hàng tiêu đề 6 thuộc tính · dòng ĐÃ BIẾT · các từ đoán (6 ô xanh / vàng / xám). */
+function drawAttrBoard(t) {
+  const top = L.secretBottom + 26, rowH = 58, x = 40, w = W - 80;
+  const attrs = G.attrs || [];
+  const list = (G.ranked || []).slice(0, L.secretBottom > 800 ? 4 : L.secretBottom > 740 ? 5 : 6);
+  const headH = 150; // tiêu đề + tên thuộc tính + dòng ĐÃ BIẾT
+  const h = headH + Math.max(1, list.length) * rowH + 14;
+  L.rankTop = top; L.rankBottom = top + h;
+  ctx.save();
+  rr(x, top, w, h, 24); ctx.fillStyle = 'rgba(15,18,60,.86)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(74,222,128,.6)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left'; ctx.font = font(800, 24); ctx.fillStyle = '#bbf7d0';
+  ctx.fillText('🧩 GIỐNG TỪ BÍ MẬT NHẤT', x + 26, top + 30);
+  ctx.textAlign = 'right'; ctx.font = font(600, 17); ctx.fillStyle = 'rgba(199,210,254,.85)';
+  ctx.fillText(`🟩 trúng · 🟨 gần / một phần · ↑↓ đáp án cao/thấp hơn · ${G.totalGuesses || 0} từ`, x + w - 26, top + 30);
+  const cw = (w - 300 - 20) / Math.max(6, attrs.length), cx0 = x + w - 20 - cw * attrs.length;
+  if (!attrs.length) {
+    ctx.textAlign = 'center'; ctx.font = font(600, 24); ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.fillText('Đang chuẩn bị thuộc tính… bình luận một từ bất kỳ!', W / 2, top + 100);
+    ctx.restore(); return;
+  }
+  // tên 6 thuộc tính
+  attrs.forEach((a, i) => {
+    const cx = cx0 + i * cw + cw / 2;
+    ctx.textAlign = 'center'; ctx.font = font(700, 30); ctx.fillStyle = '#000';
+    ctx.fillText(a.locked ? '🔒' : a.icon, cx, top + 66);
+    ctx.font = font(700, 15); ctx.fillStyle = a.locked ? '#fde68a' : 'rgba(255,255,255,.8)';
+    ctx.fillText(fitText(a.locked ? `${a.name}: mở sau ${a.unlockIn} từ` : a.name, cw - 6), cx, top + 92);
+  });
+  // dòng ĐÃ BIẾT
+  const ky = top + 106;
+  ctx.textAlign = 'left'; ctx.font = font(900, 20); ctx.fillStyle = '#fde68a';
+  ctx.fillText('ĐÃ BIẾT', x + 26, ky + 20);
+  (G.known || []).forEach((v, i) => {
+    const bx = cx0 + i * cw + 3;
+    rr(bx, ky, cw - 6, 40, 10);
+    ctx.fillStyle = v ? 'rgba(22,163,74,.85)' : 'rgba(255,255,255,.06)'; ctx.fill();
+    ctx.strokeStyle = v ? '#86efac' : 'rgba(255,255,255,.2)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.font = font(800, v ? 15 : 22); ctx.fillStyle = '#fff';
+    ctx.fillText(v ? fitText(attrVal(v), cw - 12) : attrs[i]?.locked ? '🔒' : '?', bx + (cw - 6) / 2, ky + 21);
+  });
+  if (!list.length) {
+    ctx.textAlign = 'center'; ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.75)';
+    ctx.fillText('Bình luận một từ — ô xanh là giống từ bí mật!', W / 2, top + headH + rowH / 2);
+  }
+  const now = performance.now();
+  list.forEach((r, i) => {
+    const target = top + headH + i * rowH;
+    const cur = fx.rowY.has(r.word) ? lerp(fx.rowY.get(r.word), target, 0.18) : target + 30;
+    fx.rowY.set(r.word, cur);
+    const hl = fx.highlight.get(r.word);
+    const hk = hl ? Math.max(0, 1 - (now - hl) / 1500) : 0;
+    const y = cur;
+    rr(x + 16, y + 4, w - 32, rowH - 8, 14);
+    ctx.fillStyle = hk > 0 ? `rgba(250,204,21,${0.15 + hk * 0.25})` : 'rgba(255,255,255,.04)'; ctx.fill();
+    ctx.textAlign = 'center'; ctx.font = font(800, 18); ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.fillText(String(i + 1), x + 40, y + rowH / 2);
+    ctx.textAlign = 'left'; ctx.font = font(800, 25); ctx.fillStyle = '#fff';
+    ctx.fillText(fitText(r.word, 190), x + 62, y + rowH / 2 - 8);
+    ctx.font = font(600, 14); ctx.fillStyle = 'rgba(255,255,255,.65)';
+    const open = (r.cells || []).filter((c, k) => !attrs[k]?.locked);
+    ctx.fillText(fitText(`${r.by?.name || ''}${r.count > 1 ? ` +${r.count - 1}` : ''} · ${open.filter((c) => c.s === 'hit').length}/${open.length || attrs.length}`, 210), x + 62, y + rowH / 2 + 14);
+    (r.cells || []).forEach((c, k) => {
+      const bx = cx0 + k * cw + 3;
+      rr(bx, y + 8, cw - 6, rowH - 16, 8);
+      if (attrs[k]?.locked) { // cột khoá: chưa cho xem
+        ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fill();
+        ctx.textAlign = 'center'; ctx.font = font(700, 18); ctx.fillStyle = 'rgba(255,255,255,.5)';
+        ctx.fillText('🔒', bx + (cw - 6) / 2, y + rowH / 2);
+        return;
+      }
+      ctx.fillStyle = CELL[c.s] || CELL.miss; ctx.fill();
+      ctx.textAlign = 'center'; ctx.font = font(700, 14); ctx.fillStyle = c.s === 'miss' || c.s === 'na' ? 'rgba(255,255,255,.6)' : '#fff';
+      const arrow = c.dir && c.s !== 'hit' ? ARROW[c.dir] : '';
+      if (arrow) {
+        ctx.fillText(fitText(attrVal(c.v), cw - 34), bx + (cw - 6) / 2 - 9, y + rowH / 2);
+        ctx.font = font(900, 22); ctx.fillStyle = c.dir === 'up' ? '#fca5a5' : '#93c5fd';
+        ctx.fillText(arrow, bx + cw - 20, y + rowH / 2);
+      } else ctx.fillText(fitText(attrVal(c.v), cw - 12), bx + (cw - 6) / 2, y + rowH / 2);
+    });
+  });
+  ctx.restore();
+}
+
 function drawRanking(t) {
+  if (G.mode === 'attr') return drawAttrBoard(t);
   const top = L.secretBottom + 26, rowH = 60, x = 40, w = W - 80;
   const list = (G.ranked || []).slice(0, L.secretBottom > 800 ? 6 : L.secretBottom > 740 ? 7 : 8);
   L.rankTop = top;
@@ -739,17 +859,19 @@ function drawFeed() {
     ctx.globalAlpha = 1 - i * 0.18;
     ctx.font = font(700, 24);
     const label = `${clip(f.by?.name, 14)}: ${clip(f.word, 18)}`;
-    const sc = f.pending ? '…' : String(f.score);
+    const attrMode = !!f.cells;
+    const sc = f.pending ? '…' : attrMode ? `${f.score}/6` : String(f.score);
     const tw = ctx.measureText(label).width;
     const w = tw + 150;
     rr(40, y - 24, w, 48, 24);
     ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
-    ctx.strokeStyle = f.pending ? 'rgba(255,255,255,.3)' : scoreColor(f.score); ctx.lineWidth = 2; ctx.stroke();
+    const col = attrMode ? scoreColor(Math.round((f.score / 6) * 100)) : scoreColor(f.score);
+    ctx.strokeStyle = f.pending ? 'rgba(255,255,255,.3)' : col; ctx.lineWidth = 2; ctx.stroke();
     avatar(f.by, 66, y, 16, teamColor(teamOfUser(f.by?.id)) || 'rgba(255,255,255,.7)');
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
     ctx.fillText(label, 92, y + 1);
     ctx.textAlign = 'right'; ctx.font = font(900, 26);
-    ctx.fillStyle = f.pending ? 'rgba(255,255,255,.6)' : scoreColor(f.score);
+    ctx.fillStyle = f.pending ? 'rgba(255,255,255,.6)' : col;
     ctx.fillText(sc, 40 + w - 18, y + 1);
   });
   ctx.restore();
