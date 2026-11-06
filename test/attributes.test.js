@@ -176,11 +176,12 @@ test('chế độ gợi ý tiếng Anh: 5 gợi ý tiếng Anh mở dần, khôn
 test('EnglishHintStore: bỏ gợi ý trùng / chứa đáp án / ký tự lạ, tối đa 5, lưu cache', async () => {
   const { EnglishHintStore } = await import('../server/englishhints.js');
   const calls = [];
-  const client = { beta: { messages: { create: async (req) => { calls.push(req); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ hints: ['Pet!', 'pet', 'con mèo cute', 'whiskers', 'meow', 'kitten', 'tabby', 'yarn'] }) }] }; } } } };
+  const client = { beta: { messages: { create: async (req) => { calls.push(req); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ literal: 'child cat!', hints: ['Pet!', 'pet', 'con mèo cute', 'whiskers', 'meow', 'kitten', 'tabby', 'yarn'] }) }] }; } } } };
   const s = new EnglishHintStore({ client });
   const h = await s.get('Con Mèo');
-  assert.deepEqual(h, ['Pet', 'whiskers', 'meow', 'kitten', 'tabby']);
+  assert.deepEqual(h, ['WBW:child cat', 'Pet', 'whiskers', 'meow', 'kitten'], 'gợi ý đầu = dịch từng chữ, 4 gợi ý mô tả');
   assert.match(calls[0].system, /cụm mô tả/);
+  assert.match(calls[0].system, /candy high coin/);
   await s.get('con mèo');
   assert.equal(calls.length, 1, 'lấy từ cache');
   assert.equal(await new EnglishHintStore({}).get('x'), null, 'không có client → null');
@@ -284,4 +285,17 @@ test('kho chủ đề soạn sẵn (Gần nghĩa): trộn với kho chung, khôn
   m.revealHint(); m.revealHint(); m.revealHint();
   assert.deepEqual(m.snapshot().hints, ['⚽ 🐐 🏆', 'Chủ đề: Cầu thủ bóng đá', 'Argentina · áo số 10 · vô địch World Cup 2022']);
   assert.ok(m.aliases.includes('cr7') === false && m.aliases.includes('leo messi'));
+});
+
+test('chế độ tiếng Anh: gợi ý đầu tiên là dịch từng chữ (kẹo cao su → candy high coin); kho soạn sẵn có đủ', async () => {
+  const fs = await import('node:fs');
+  const words = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
+  assert.ok(words.length >= 260);
+  for (const w of words) { assert.equal(w.en.length, 5, w.word); assert.match(w.en[0], /^WBW:\S/, w.word); }
+  const keo = words.find((w) => w.word === 'kẹo cao su');
+  const g = new WordGame({ words: [], modes: ['english'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, englishStore: { available: true, get: async () => null }, modeWords: { english: [keo] } });
+  g.revealHint(); g.revealHint();
+  assert.deepEqual(g.snapshot().hints, ['Dịch từng chữ: candy high coin', keo.en[1]]);
+  const attr = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
+  assert.ok(attr.length >= 280 && attr.some((w) => w.word === 'trống đồng'));
 });

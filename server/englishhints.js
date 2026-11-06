@@ -4,24 +4,26 @@ import { canon } from './scorer.js';
 import { normalize } from './text.js';
 
 const SYSTEM = `Bạn soạn gợi ý cho trò chơi đoán từ tiếng Việt trên livestream, chế độ "gợi ý bằng tiếng Anh".
-Cho một TỪ BÍ MẬT tiếng Việt, đưa đúng 5 gợi ý TIẾNG ANH thật ĐƠN GIẢN, trình độ A2 (học sinh cấp 2 hiểu ngay):
+Cho một TỪ BÍ MẬT tiếng Việt, đưa:
+1) "literal": bản DỊCH TỪNG CHỮ vui nhộn sang tiếng Anh — dịch nghĩa từng tiếng một, ghép lại thành cụm ngô nghê (được chơi chữ đồng âm). Vd "kẹo cao su" → "candy high coin", "xấu hổ" → "ugly tiger", "thông minh" → "pine bright", "nước mỹ" → "water beautiful". Tên nước ngoài thì ghép từ tiếng Anh đọc gần giống ("suzuki" → "sue zoo key"). Tối đa 30 ký tự.
+2) "hints": đúng 4 gợi ý TIẾNG ANH thật ĐƠN GIẢN, trình độ A2 (học sinh cấp 2 hiểu ngay):
 - Mỗi gợi ý là 1 từ HOẶC 1 cụm mô tả ngắn 2–5 từ (vd "lives in the sea", "you can eat it", "very cold place", "red with black dots"). Nên dùng nhiều cụm mô tả, không chỉ toàn từ đơn lẻ. Tối đa 30 ký tự.
 - Chỉ dùng từ rất thông dụng (hot, big, eat, water, school, family, morning…). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "illuminate", "celestial", "extinct").
-- Xếp từ XA đến GẦN: gợi ý 1 khó (liên tưởng xa), gợi ý 5 dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật. Tên riêng nổi tiếng (Nemo, Paris, Santa) dùng được ở gợi ý cuối.
+- Xếp từ XA đến GẦN: gợi ý đầu khó (liên tưởng xa), gợi ý cuối dễ nhất nhưng vẫn KHÔNG được là bản dịch trực tiếp của từ bí mật. Tên riêng nổi tiếng (Nemo, Paris, Santa) dùng được ở gợi ý cuối.
 - Mỗi gợi ý phải là đặc điểm người Việt nhìn là liên tưởng ngay tới từ bí mật (hình dáng, màu, công dụng, ở đâu, khi nào dùng). KHÔNG dùng kiến thức lắt léo / ít người biết (nguồn gốc quốc gia, năm phát minh…), trừ khi đó là đặc điểm nổi tiếng nhất (sushi → Japan) và đặt ở cuối.
 - Không dùng tiếng Việt, không lặp gợi ý, không viết câu dài.
-Ví dụ: "mặt trời" → ["summer days", "makes you hot", "up in the sky", "yellow and bright", "comes up every morning"] (không dùng "sun").`;
+Ví dụ: "mặt trời" → literal "face sky", hints ["summer days", "makes you hot", "up in the sky", "comes up every morning"] (không dùng "sun").`;
 
 const SCHEMA = {
   type: 'object',
-  properties: { hints: { type: 'array', items: { type: 'string' } } },
-  required: ['hints'],
+  properties: { literal: { type: 'string' }, hints: { type: 'array', items: { type: 'string' } } },
+  required: ['literal', 'hints'],
   additionalProperties: false,
 };
 
 const clean = (h) => String(h || '').replace(/[^\p{L}\p{N} '-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
 // đổi khi sửa prompt: gợi ý soạn theo prompt cũ bị bỏ, soạn lại
-const PROMPT_V = 'v3-phrase';
+const PROMPT_V = 'v4-wbw';
 
 /**
  * 5 gợi ý tiếng Anh cho một từ bí mật: Claude soạn một lần, lưu data/english-hints.json dùng mãi.
@@ -85,15 +87,19 @@ export class EnglishHintStore {
     const secretN = normalize(word);
     const seen = new Set();
     const hints = [];
-    for (const h of JSON.parse(text).hints || []) {
+    const data = JSON.parse(text);
+    for (const h of data.hints || []) {
       const c = clean(h);
       const n = normalize(c);
       if (!c || seen.has(n) || (secretN && n.includes(secretN))) continue;
       seen.add(n);
       hints.push(c);
-      if (hints.length === 5) break;
+      if (hints.length === 4) break;
     }
     if (!hints.length) throw new Error('không có gợi ý hợp lệ');
+    // gợi ý đầu tiên: dịch từng chữ (đánh dấu WBW:, màn hình hiện "Dịch từng chữ: …")
+    const literal = clean(data.literal);
+    if (literal) hints.unshift(`WBW:${literal}`);
     this.cache.set(word, hints);
     this.dirty = true;
     return hints;

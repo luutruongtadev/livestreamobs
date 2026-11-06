@@ -381,7 +381,7 @@ export class WordGame extends EventEmitter {
   }
 
   hints() {
-    if (this.mode === 'english') return (this.englishHints || []).slice(0, this.hintLevel);
+    if (this.mode === 'english') return (this.englishHints || []).slice(0, this.hintLevel).map((h) => (String(h).startsWith('WBW:') ? `Dịch từng chữ: ${h.slice(4)}` : h));
     if (this.customHints) return this.customHints.slice(0, this.hintLevel).map(noFlags);
     const out = [];
     const syl = this.secret.split(' ');
