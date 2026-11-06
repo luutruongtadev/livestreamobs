@@ -156,7 +156,7 @@ test('EnglishHintStore: bỏ gợi ý trùng / chứa đáp án / ký tự lạ,
   assert.equal(await new EnglishHintStore({}).get('x'), null, 'không có client → null');
 });
 
-test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 tim mở thêm từ (tối đa 5), hết từ thì tim quay về lộ chữ', async () => {
+test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 tim mở thêm từ (tối đa 5), hết từ thì thôi, không lộ chữ', async () => {
   const en = { available: true, get: async () => ['pet', 'whiskers', 'meow', 'kitten', 'tabby'] };
   const clock = { t: 1 };
   const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['english'], roundSeconds: 300, cooldownSec: 0 }, { scorer: { score: async () => ({ score: 5 }) }, now: () => clock.t, englishStore: en });
@@ -172,8 +172,9 @@ test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 t
   g.handle({ type: 'like', count: 2000 });
   assert.deepEqual(g.snapshot().hints.at(-1), '🇬🇧 tabby');
   assert.equal(g.hintLevel, 5);
-  // đủ 5 từ: tim lộ chữ cái theo mức thường (1000)
-  assert.equal(g.snapshot().unlocks[0].label, '1.000 tim = 1 chữ');
-  fx = g.handle({ type: 'like', count: 1000 });
-  assert.ok(fx.some((e) => e.type === 'wg_unlock' && e.action === 'letter'));
+  // đủ 5 từ: không lộ chữ cái, chip tim ẩn
+  assert.equal(g.snapshot().unlocks.some((u) => u.id === 'likes'), false);
+  fx = g.handle({ type: 'like', count: 5000 });
+  assert.ok(!fx.some((e) => e.type === 'wg_unlock'));
+  assert.equal(g.revealedIdx.size, 0);
 });
