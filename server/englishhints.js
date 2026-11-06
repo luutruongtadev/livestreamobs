@@ -5,7 +5,7 @@ import { normalize } from './text.js';
 
 const SYSTEM = `Bạn soạn gợi ý cho trò chơi đoán từ tiếng Việt trên livestream, chế độ "gợi ý bằng tiếng Anh".
 Cho một TỪ BÍ MẬT tiếng Việt, đưa:
-1) "literal": bản DỊCH TỪNG CHỮ vui nhộn sang tiếng Anh — dịch nghĩa từng tiếng một, ghép lại thành cụm ngô nghê (được chơi chữ đồng âm). Vd "kẹo cao su" → "candy high coin", "xấu hổ" → "ugly tiger", "thông minh" → "pine bright", "nước mỹ" → "water beautiful". Tên nước ngoài thì ghép từ tiếng Anh đọc gần giống ("suzuki" → "sue zoo key"). Tối đa 30 ký tự.
+1) "literal": bản DỊCH TỪNG CHỮ vui nhộn sang tiếng Anh — dịch nghĩa từng tiếng một, ghép lại thành cụm ngô nghê (được chơi chữ đồng âm). Vd "kẹo cao su" → "candy high coin", "xấu hổ" → "ugly tiger", "thông minh" → "pine bright", "nước mỹ" → "water beautiful". Bản dịch phải CÓ NGHĨA từng chữ. Với TÊN RIÊNG (người, hãng, địa danh, nước, thành phố, tên chương trình riêng…) hoặc TỪ MƯỢN đọc theo âm (sushi, cà vạt, va li…) thì để "literal" là chuỗi rỗng "". Tối đa 30 ký tự.
 2) "hints": đúng 4 gợi ý TIẾNG ANH thật ĐƠN GIẢN, trình độ A2 (học sinh cấp 2 hiểu ngay):
 - Mỗi gợi ý là 1 từ HOẶC 1 cụm mô tả ngắn 2–5 từ (vd "lives in the sea", "you can eat it", "very cold place", "red with black dots"). Nên dùng nhiều cụm mô tả, không chỉ toàn từ đơn lẻ. Tối đa 30 ký tự.
 - Chỉ dùng từ rất thông dụng (hot, big, eat, water, school, family, morning…). KHÔNG dùng từ học thuật, chuyên ngành, hiếm gặp (vd không dùng "illuminate", "celestial", "extinct").
@@ -23,7 +23,7 @@ const SCHEMA = {
 
 const clean = (h) => String(h || '').replace(/[^\p{L}\p{N} '-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
 // đổi khi sửa prompt: gợi ý soạn theo prompt cũ bị bỏ, soạn lại
-const PROMPT_V = 'v4-wbw';
+const PROMPT_V = 'v5-wbw';
 
 /**
  * 5 gợi ý tiếng Anh cho một từ bí mật: Claude soạn một lần, lưu data/english-hints.json dùng mãi.
