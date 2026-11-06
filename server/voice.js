@@ -10,7 +10,7 @@ export const VOICE_DEFAULTS = {
   languageCode: 'vi',
   claudeModel: 'claude-haiku-5-5', // viết câu chọc cười (ngắn, rẻ, nhanh)
   // Đoán trúng: thư viện câu KHÔNG có tên, mỗi mức N câu; đủ rồi thì phát lại (miễn phí), không lặp câu vừa nói
-  libraryPerTier: 12,
+  libraryPerTier: 60, // đủ chỗ cho toàn bộ câu soạn sẵn mỗi cấp
   // Tặng quà: gọi ElevenLabs có tên người tặng
   minGiftDiamonds: 1, // quà nhỏ hơn mức này → trình duyệt tự đọc (miễn phí)
   giftWindowSec: 4, // gom quà liên tiếp của cùng một người trong N giây thành 1 câu
@@ -26,20 +26,58 @@ export const VOICE_DEFAULTS = {
   style: 0.55,
 };
 
-export const WIN_TIERS = ['lightning', 'nohint', 'hint1', 'clutch', 'hint2', 'hint3'];
+// Giọng đọc khi đoán trúng chia 3 cấp (hiệu ứng trên màn hình vẫn theo 6 mức chi tiết)
+export const WIN_TIERS = ['early', 'hint', 'late'];
+/** Mức hiệu ứng (6 mức) → cấp giọng đọc (3 cấp). */
+export const TIER_GROUP = { lightning: 'early', nohint: 'early', hint1: 'hint', hint2: 'hint', hint3: 'late', clutch: 'late' };
 
 const TIER_DESC = {
-  lightning: 'đoán trúng chỉ trong vài giây đầu, chưa có gợi ý nào (thần đồng)',
-  nohint: 'đoán trúng mà chưa cần mở gợi ý nào',
-  hint1: 'đoán trúng ngay sau gợi ý đầu tiên (gợi ý emoji)',
-  clutch: 'đoán trúng ở mấy giây cuối, suýt hết giờ (phút chót nghẹt thở)',
-  hint2: 'đoán trúng sau hai gợi ý',
-  hint3: 'đoán trúng sau khi đã mở hết gợi ý',
+  early: 'đoán trúng rất sớm, chưa cần mở gợi ý nào (thần đồng, nhanh như chớp)',
+  hint: 'đoán trúng nhờ một hai gợi ý, tốc độ vừa phải',
+  late: 'đoán trúng muộn: đã mở hết gợi ý hoặc chỉ còn mấy giây là hết giờ (phút chót, suýt toang)',
 };
 
-// Câu đoán trúng soạn sẵn (không tên, đọc được cho mọi người) — đọc lần đầu thì lưu mp3, lần sau phát lại
+// Câu đoán trúng soạn sẵn (không tên, dùng lại cho mọi người) — đọc lần đầu thì lưu mp3, lần sau phát lại
 export const WIN_LINES = {
-  lightning: [
+  early: [
+    'Ét o ét! Mới vài giây đã trúng, cả phòng live chưa kịp thả tim luôn!',
+    'U là trời, nhanh như chốt đơn giờ vàng flash sale!',
+    'Đỉnh nóc kịch trần bay phấp phới! Trúng trong nháy mắt luôn!',
+    'Ủa alo, mình còn chưa kịp hít thở mà đã có người trúng rồi?',
+    'Tốc độ này đi săn sale chắc không bao giờ hết hàng!',
+    'Não bộ này chắc vừa nâng cấp lên bản Pro Max rồi!',
+    'Trúng nhanh hơn cả crush seen tin nhắn của mình nữa!',
+    'Ối dồi ôi, ra đề chưa ráo mực đã bị giải xong!',
+    'Đây là người thật hay ChatGPT đội lốt vậy trời?',
+    'Slay quá trời slay! Vài giây là xong một vòng!',
+    'Mấy gợi ý mình chuẩn bị giờ thất nghiệp hết rồi, ai đền đây!',
+    'Trúng nhanh như video viral trên TikTok, mình xin chịu thua!',
+    'Phản xạ này mà đi đánh pickleball thì vô địch chắc rồi!',
+    'Khét lẹt! Thần đồng đoán chữ chính thức lộ diện!',
+    'Mình còn đang overthinking cái đề thì người ta trúng luôn rồi!',
+    'Nhanh tới mức mình nghi có thao túng tâm lý ở đây nha!',
+    'Out trình cả phòng live! Trúng ngay từ những giây đầu tiên!',
+    'Ra đề xong quay đi uống ngụm cà phê muối, quay lại đã có người trúng!',
+    'Green flag to đùng! Não nhanh như vậy ai mà không mê!',
+    'Đề này mình nghĩ cả buổi, người ta giải trong mấy giây. Tổn thương nhẹ!',
+    'Không một gợi ý nào mà vẫn trúng, flex nhẹ trình độ cho cả nhà xem!',
+    'Gợi ý còn chưa kịp lên sóng đã bị giải xong, quá đỉnh!',
+    'Tự lực cánh sinh, không cần mớm, trúng ngon lành cành đào!',
+    'Ao trình thật sự! Không gợi ý vẫn trúng phóc!',
+    'Cả phòng còn đang hóng gợi ý thì có người âm thầm về đích!',
+    'Không cần gợi ý, chỉ cần vibe là đủ trúng rồi!',
+    'Đây là thực lực chứ không phải phông bạt nha mọi người!',
+    'Gợi ý xin phép nghỉ ca hôm nay vì có người giỏi quá!',
+    'Xu cà na gì đâu, đoán là trúng, không cần ai giúp!',
+    'Mình định tung gợi ý mà thôi cất lại, cảm ơn người chơi hệ thông minh!',
+    'Không gợi ý, không trợ giúp, không gọi điện cho người thân. Vẫn trúng!',
+    'Bộ não này phải được đưa lên xu hướng ngay!',
+    'Đúng kiểu học ít hiểu nhiều, không cần gợi ý vẫn ăn trọn!',
+    'Gen Z bây giờ đoán chữ còn nhanh hơn lướt TikTok!',
+    'Chưa cần tới emoji mà đã giải xong, quá trình!',
+    'Mình xin phép đóng gói bộ gợi ý mang về, không ai cần tới!',
+    'Hóng biến chưa thấy đâu, đã thấy có người trúng!',
+    'Tự tin như TikToker lên xu hướng! Trúng không cần gợi ý!',
     'Trời đất ơi, chưa kịp uống ngụm nước đã có người trúng rồi! Thần đồng xuất hiện!',
     'Mới mấy giây thôi mà trúng phóc, ăn gian hay là thiên tài vậy trời?',
     'Ê khoan, mình còn chưa đọc xong luật mà đã có người đoán trúng! Quá đỉnh!',
@@ -48,8 +86,6 @@ export const WIN_LINES = {
     'Thần đồng đoán chữ đây rồi! Mọi người vỗ tay cho một bộ não siêu việt!',
     'Mình chuẩn bị ba gợi ý mà giờ thất nghiệp hết rồi! Chúc mừng thần đồng!',
     'Đề khó vậy mà trúng trong nháy mắt, kiếp trước chắc làm từ điển hả trời?',
-  ],
-  nohint: [
     'Không cần một gợi ý nào mà vẫn trúng! Bộ não này phải đem đi triển lãm!',
     'Gợi ý còn nằm trong túi chưa kịp lấy ra, vậy mà trúng rồi! Giỏi quá!',
     'Đoán trúng không cần gợi ý, đúng là cao thủ ẩn danh trong phòng live!',
@@ -59,7 +95,38 @@ export const WIN_LINES = {
     'Không cần gợi ý vẫn trúng, chắc sáng nay ăn nhiều óc chó lắm đây!',
     'Mình định mở gợi ý mà giờ khỏi luôn! Chúc mừng người chơi hệ thông minh!',
   ],
-  hint1: [
+  hint: [
+    'Nhìn gợi ý một cái là hiểu ý ngay, đúng là dân bắt sóng chuyên nghiệp!',
+    'Gợi ý vừa ra là bắt sóng liền, nhanh hơn wifi nhà mình!',
+    'Mình chỉ cần thả nhẹ gợi ý là cá cắn câu liền!',
+    'Gợi ý ra, đáp án tới, gọn như chốt đơn!',
+    'Đọc vị gợi ý siêu đỉnh, mời đi làm thám tử!',
+    'Mình mới thả thính một chút mà đã có người đổ rồi!',
+    'Hiểu ý gợi ý còn hơn hiểu ý người yêu!',
+    'Gợi ý vừa lên sóng là có người giải mã liền, quá nhạy!',
+    'Đọc gợi ý là hiểu, chắc là fan cứng của kênh rồi!',
+    'Gợi ý đúng là liều thuốc chữa lành bộ não, trúng rồi!',
+    'Bắt trend đã nhanh, bắt gợi ý còn nhanh hơn, chúc mừng nha!',
+    'Gợi ý vừa đủ, não vừa đủ, trúng vừa khít!',
+    'Gợi ý vừa ra, đáp án cũng vừa tới, mượt như lướt TikTok!',
+    'Gợi ý nói nhỏ một câu là hiểu hết, đúng kiểu tâm linh tương thông!',
+    'Có gợi ý là trúng ngay, chill thật sự!',
+    'Nhanh trí như vậy đi thi gameshow là có tiền tỷ!',
+    'Phải nhờ gợi ý mới ra, nhưng thôi trúng là được, không chấp!',
+    'Chậm mà chắc, rùa vẫn về đích trước thỏ!',
+    'Gợi ý đúng là phao cứu sinh của cả phòng!',
+    'Từ từ rồi cũng tới, trúng là vui rồi!',
+    'Gợi ý một chút, chiến thắng một phát, hợp lý quá chừng!',
+    'Cần thêm chút gợi ý để khởi động, nhưng về đích rất đẹp!',
+    'Gợi ý vừa ra là có người chốt liền, nhanh tay ghê!',
+    'Đoán kiểu này là chắc cú, không phông bạt, không ẩu!',
+    'Gợi ý ngấm rồi là trúng ngay, không trượt phát nào!',
+    'Mình mớm thêm một chút là bùng nổ liền!',
+    'Tốc độ vừa phải, kết quả tuyệt vời, chúc mừng nha!',
+    'Không nhanh nhất nhưng trúng là được, chân ái đây rồi!',
+    'Gợi ý đã chữa lành cả phòng live!',
+    'Phải có gợi ý mới chịu, khó chiều mà vẫn dễ thương!',
+    'Cuối cùng ánh sáng cũng tới, vỗ tay nào cả nhà!',
     'Mới một gợi ý đã đoán ra, nhạy bén quá trời! Chúc mừng nha!',
     'Một gợi ý là đủ rồi, bắt sóng nhanh như wifi năm gờ!',
     'Nhìn emoji là hiểu liền, chắc cả ngày chat toàn bằng icon đây! Trúng rồi!',
@@ -68,18 +135,6 @@ export const WIN_LINES = {
     'Một gợi ý, một phát ăn ngay! Phản xạ này đi thi gameshow được rồi đó!',
     'Gợi ý vừa hiện lên là có người trúng liền, nhanh tay nhanh mắt ghê!',
     'Một gợi ý là đủ để thiên tài tỏa sáng! Chúc mừng nha!',
-  ],
-  clutch: [
-    'Suýt toang rồi! Còn có mấy giây mà trúng kịp, tim mình muốn rớt ra ngoài!',
-    'Phút chót nghẹt thở! Trúng đúng lúc đồng hồ sắp điểm, quá căng!',
-    'Chỉ còn vài giây! Người chơi này thích làm mình đứng tim hay sao vậy, chúc mừng!',
-    'Bàn thắng phút bù giờ! Trúng sát nút, cả phòng live thở phào!',
-    'Mình tưởng hết giờ rồi chứ! Ai cho phép trúng phút chót kịch tính vậy hả!',
-    'Đúng kiểu nước đến chân mới nhảy, nhưng mà nhảy rất đẹp! Chúc mừng!',
-    'Còn chút xíu nữa là toang, may mà có người cứu cả vòng chơi!',
-    'Kịch tính như phim hành động! Trúng ở giây cuối, quá đỉnh!',
-  ],
-  hint2: [
     'Sau hai gợi ý cuối cùng cũng có người trúng! Từ từ mà chắc, chúc mừng!',
     'Hai gợi ý mới ra, nhưng thôi trúng là được, mình không chấp đâu!',
     'Phải nhờ tới hai gợi ý cơ, nhưng công nhận đoán hay, chúc mừng nha!',
@@ -89,7 +144,46 @@ export const WIN_LINES = {
     'Hai gợi ý, một chiến thắng! Chúc mừng nha!',
     'Cuối cùng thì ánh sáng cũng đã đến! Đoán trúng rồi, vỗ tay!',
   ],
-  hint3: [
+  late: [
+    'Ét o ét! Còn có mấy giây mà trúng kịp, tim mình rớt ra ngoài rồi!',
+    'Deadline tới nơi mới làm, đúng chuẩn dân văn phòng luôn!',
+    'Bàn thắng phút bù giờ! Cả phòng live thở phào!',
+    'Nước đến chân mới nhảy, mà nhảy đẹp như idol!',
+    'Suýt nữa là toang, may mà có người cứu cả vòng chơi!',
+    'Kịch tính hơn phim Hàn, trúng ở những giây cuối cùng!',
+    'Đồng hồ sắp điểm thì bùm, đáp án xuất hiện! Quá căng!',
+    'Trúng sát nút thế này chắc thích làm mình đau tim lắm!',
+    'Ai bảo không kịp? Phút cuối vẫn lội ngược dòng được nhé!',
+    'Pha cứu thua đẳng cấp thủ môn, trúng ngay trước tiếng còi!',
+    'Overthinking cả vòng, tới phút chót mới chốt, nhưng chốt chuẩn!',
+    'Giờ vàng flash sale cũng không căng bằng phút chót này!',
+    'Mình chuẩn bị nói hết giờ rồi đó, may mà kịp!',
+    'Phút chót mới chịu ra tay, đúng là cao thủ thích làm màu!',
+    'Trúng lúc đồng hồ sắp về không, cả phòng live gào thét!',
+    'Thêm chút nữa thôi là mình công bố đáp án rồi, hú hồn!',
+    'Mở hết gợi ý mới trúng, nhưng chiến thắng nào cũng đáng trân trọng!',
+    'Gợi ý gần như lộ đáp án luôn rồi đó, nhưng trúng vẫn được khen!',
+    'Mình gợi ý muốn khô cả họng, cuối cùng cũng có người trúng!',
+    'Hết sạch gợi ý mình mệt mà vui, chúc mừng nha!',
+    'Được mớm tận miệng mới chịu nuốt, nhưng thôi, chúc mừng!',
+    'Hết gợi ý mới giải được, đúng kiểu chờ tới tập cuối!',
+    'Gợi ý cứu cả thế giới, và cứu luôn vòng chơi này!',
+    'Muộn một chút nhưng không sao, người về đích vẫn là người chiến thắng!',
+    'Mình gợi ý tới mức này mà không ai trúng chắc mình khóc thật!',
+    'Mãi mận mới trúng, nhưng trúng là được, hì hì!',
+    'Lần sau mong được trúng sớm hơn, nhưng lần này vẫn chúc mừng!',
+    'Cả phòng live đã đồng hành tới tận gợi ý cuối, xứng đáng có người trúng!',
+    'Gợi ý cuối đúng là cứu cánh, cảm ơn trời đất đã có người trúng!',
+    'Về đích muộn nhưng phong độ vẫn ổn định, chúc mừng nha!',
+    'Phải hết sạch gợi ý mới chịu, đúng là người thích hồi hộp!',
+    'Suýt toang rồi! Còn có mấy giây mà trúng kịp, tim mình muốn rớt ra ngoài!',
+    'Phút chót nghẹt thở! Trúng đúng lúc đồng hồ sắp điểm, quá căng!',
+    'Chỉ còn vài giây! Người chơi này thích làm mình đứng tim hay sao vậy, chúc mừng!',
+    'Bàn thắng phút bù giờ! Trúng sát nút, cả phòng live thở phào!',
+    'Mình tưởng hết giờ rồi chứ! Ai cho phép trúng phút chót kịch tính vậy hả!',
+    'Đúng kiểu nước đến chân mới nhảy, nhưng mà nhảy rất đẹp! Chúc mừng!',
+    'Còn chút xíu nữa là toang, may mà có người cứu cả vòng chơi!',
+    'Kịch tính như phim hành động! Trúng ở giây cuối, quá đỉnh!',
     'Mở hết gợi ý rồi mới trúng, nhưng thôi, chiến thắng nào cũng đáng trân trọng!',
     'Gợi ý gần như lộ đáp án luôn rồi đó, nhưng mà trúng thì vẫn được khen!',
     'Ba gợi ý mới ra, mình mệt luôn rồi đó, nhưng chúc mừng nha!',
@@ -173,7 +267,14 @@ export class Voice extends EventEmitter {
     this.building = false;
     this.libPath = dir ? path.join(dir, 'library.json') : null;
     this.usagePath = dir ? path.join(dir, 'usage.json') : null;
-    this.lib = this.readJson(this.libPath, {}); // tier -> [{ text, url }]
+    this.lib = this.readJson(this.libPath, {}); // cấp -> [{ text, url }]
+    // thư viện cũ lưu theo 6 mức → gộp sang 3 cấp (giữ nguyên file mp3)
+    for (const [old, g] of Object.entries(TIER_GROUP)) {
+      if (!this.lib[old]) continue;
+      const dst = (this.lib[g] ||= []);
+      for (const x of this.lib[old]) if (!dst.some((y) => y.text === x.text)) dst.push(x);
+      delete this.lib[old];
+    }
     this.usage = this.readJson(this.usagePath, { day: null, today: 0, total: 0 });
     this.lastCanSpend = this.canSpend();
   }
@@ -243,7 +344,7 @@ export class Voice extends EventEmitter {
   /** Có người đoán trúng. e = hiệu ứng wg_win. */
   win(e) {
     if (!this.enabled || !e?.by) return;
-    const tier = WIN_TIERS.includes(e.tier) ? e.tier : 'hint3';
+    const tier = TIER_GROUP[e.tier] || (WIN_TIERS.includes(e.tier) ? e.tier : 'late');
     this.enqueue({ kind: 'win', priority: 3, by: e.by, tier });
   }
 

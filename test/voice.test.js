@@ -33,28 +33,28 @@ test('đoán trúng: thư viện câu KHÔNG tên theo mức — lần đầu t�
   for (let i = 0; i < 3; i++) { const got = next(v); win(v, 'p' + i); const o = await got; urls.push(o.url); assert.equal(o.reused, false); assert.ok(!/P\d/.test(o.text), 'không đọc tên'); }
   assert.equal(tts.length, 3);
   assert.equal(cl.length, 0, 'câu soạn sẵn, chưa cần Claude');
-  assert.match(urls[0], /^\/voice\/lib\/lightning\/.+\.mp3$/);
-  assert.ok(fs.existsSync(path.join(d, 'lib', 'lightning', path.basename(urls[0]))));
-  assert.equal(tts[0].body.text, WIN_LINES.lightning[0]);
+  assert.match(urls[0], /^\/voice\/lib\/early\/.+\.mp3$/, 'mức lightning → cấp early');
+  assert.ok(fs.existsSync(path.join(d, 'lib', 'early', path.basename(urls[0]))));
+  assert.equal(tts[0].body.text, WIN_LINES.early[0]);
   let last = urls[2];
   for (let i = 0; i < 6; i++) { const got = next(v); win(v, 'q' + i); const o = await got; assert.equal(o.reused, true); assert.notEqual(o.url, last, 'không phát lại câu vừa nói'); last = o.url; }
   assert.equal(tts.length, 3, 'phát lại không tốn credit');
   // mức khác có thư viện riêng; lưu qua khởi động lại
   const got = next(v); win(v, 'z', 'clutch'); await got;
   const v2 = new Voice({ libraryPerTier: 3 }, { apiKey: 'k', dir: d, fetchImpl: fakeFetch(tts), log: {} });
-  assert.deepEqual([v2.libCounts().lightning, v2.libCounts().clutch], [3, 1]);
+  assert.deepEqual([v2.libCounts().early, v2.libCounts().late], [3, 1], 'clutch → late');
 });
 
 test('hết câu soạn sẵn thì Claude (Haiku) viết câu mới không tên, khác các câu đã có', async () => {
   const tts = [], cl = [];
-  const v = new Voice({ libraryPerTier: WIN_LINES.hint2.length + 1 }, { apiKey: 'k', claude: fakeClaude(cl, 'Hai gợi ý mà vẫn run tay, nhưng trúng rồi thì vỗ tay thôi!'), dir: dir(), fetchImpl: fakeFetch(tts), log: {} });
+  const v = new Voice({ libraryPerTier: WIN_LINES.hint.length + 1 }, { apiKey: 'k', claude: fakeClaude(cl, 'Hai gợi ý mà vẫn run tay, nhưng trúng rồi thì vỗ tay thôi!'), dir: dir(), fetchImpl: fakeFetch(tts), log: {} });
   await v.buildLibrary();
-  assert.equal(v.libCounts().hint2, WIN_LINES.hint2.length + 1);
-  const req = cl.find((r) => JSON.parse(r.messages[0].content).tinh_huong?.includes('hai gợi ý'));
+  assert.equal(v.libCounts().hint, WIN_LINES.hint.length + 1);
+  const req = cl.find((r) => JSON.parse(r.messages[0].content).tinh_huong?.includes('một hai gợi ý'));
   assert.ok(req);
   assert.equal(req.model, 'claude-haiku-5-5');
   assert.equal(req.betas, undefined, 'Haiku không gửi tham số fallback');
-  assert.equal(JSON.parse(req.messages[0].content).cac_cau_da_co.length, WIN_LINES.hint2.length);
+  assert.equal(JSON.parse(req.messages[0].content).cac_cau_da_co.length, WIN_LINES.hint.length);
 });
 
 test('tặng quà: Claude viết câu có tên, ElevenLabs đọc đúng giọng; quà dưới mức tối thiểu thì để trình duyệt đọc', async () => {
@@ -112,4 +112,12 @@ test('không có key thì tắt; ElevenLabs lỗi thì ghi lỗi, không văng; 
   const long = 'Cảm ơn bạn rất nhiều '.repeat(12);
   assert.ok(clip(long, 130).length <= 131);
   assert.equal(speakableName('🔥💎 Bé Na ✨✨'), 'Bé Na');
+});
+
+test('thư viện cũ theo 6 mức được gộp sang 3 cấp, giữ nguyên file mp3', () => {
+  const d = dir();
+  fs.writeFileSync(path.join(d, 'library.json'), JSON.stringify({ lightning: [{ text: 'a', url: '/voice/lib/lightning/1.mp3' }], nohint: [{ text: 'b', url: '/voice/lib/nohint/2.mp3' }], clutch: [{ text: 'c', url: '/voice/lib/clutch/3.mp3' }], hint1: [{ text: 'a2', url: '/voice/lib/hint1/4.mp3' }] }));
+  const v = new Voice({}, { apiKey: 'k', dir: d, fetchImpl: fakeFetch([]), log: {} });
+  assert.deepEqual(v.libCounts(), { early: 2, hint: 1, late: 1 });
+  assert.equal(v.lib.early[0].url, '/voice/lib/lightning/1.mp3');
 });

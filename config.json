@@ -13,7 +13,7 @@
     "voiceId": "eGSd0uV8dNQnZuEEX9lu",
     "modelId": "eleven_flash_v2_5",
     "claudeModel": "claude-haiku-5-5",
-    "libraryPerTier": 12,
+    "libraryPerTier": 60,
     "minGiftDiamonds": 1,
     "dailyCredits": 5000,
     "reserveCredits": 1000,

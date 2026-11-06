@@ -87,11 +87,32 @@ function avatar(user, x, y, r, ring = '#fff') {
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
+const CONFETTI_COLORS = ['#ffd54a', '#4ade80', '#60a5fa', '#f472b6', '#fff', '#fb923c', '#a78bfa', '#f43f5e'];
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function piece(x, y, vx, vy, g, life) {
+  const r = Math.random();
+  return {
+    x, y, vx, vy, g, life, max: life, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10, flip: Math.random() * 6, vf: 6 + Math.random() * 10,
+    shape: r < 0.2 ? 'ribbon' : r < 0.32 ? 'dot' : 'rect', s: 8 + Math.random() * 10, color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+  };
+}
+function trimConfetti() { if (fx.confetti.length > 1500) fx.confetti.splice(0, fx.confetti.length - 1500); }
+/** Mưa pháo giấy từ trên xuống. */
 function confetti(n = 220) {
-  const colors = ['#ffd54a', '#4ade80', '#60a5fa', '#f472b6', '#fff'];
+  if (reducedMotion) n = Math.ceil(n / 3);
+  for (let i = 0; i < n; i++) fx.confetti.push(piece(Math.random() * W, -20 - Math.random() * 700, (Math.random() - 0.5) * 120, 150 + Math.random() * 200, 40, 5));
+  trimConfetti();
+}
+/** Pháo giấy bắn từ góc dưới màn hình chéo lên giữa. */
+function cannon(side, n = 90, power = 1) {
+  if (reducedMotion) n = Math.ceil(n / 3);
+  const left = side === 'left';
   for (let i = 0; i < n; i++) {
-    fx.confetti.push({ x: Math.random() * W, y: -20 - Math.random() * 600, vx: (Math.random() - 0.5) * 80, vy: 160 + Math.random() * 160, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 8, life: 1, color: colors[i % colors.length], s: 6 + Math.random() * 8 });
+    const a = (left ? -1 : -Math.PI + 1) + (Math.random() - 0.5) * 0.55 - (left ? 0.15 : -0.15);
+    const v = (1500 + Math.random() * 1100) * power;
+    fx.confetti.push(piece(left ? -10 : W + 10, H * 0.86 + Math.random() * 60, Math.cos(a) * v, Math.sin(a) * v, 1100, 4.5));
   }
+  trimConfetti();
 }
 
 // ---------------- sự kiện ----------------
@@ -226,7 +247,7 @@ const WIN_TIERS = {
   hint2: { title: '👍 ĐOÁN HAY!', sub: (e) => `Sau 2 gợi ý · ${e.seconds} giây`, color: '#86efac', dur: 2.4, card: ['#166534', '#052e16'] },
   hint3: { title: '🎉 ĐOÁN TRÚNG!', sub: (e) => `Sau ${e.hintLevel} gợi ý · ${e.seconds} giây`, color: '#bbf7d0', dur: 2.2, card: ['#166534', '#052e16'] },
 };
-const wfx = { win: null, sparks: [], rings: [], bolts: [], shake: 0 };
+const wfx = { win: null, sparks: [], rings: [], bolts: [], rockets: [], shake: 0, punch: 0 };
 const pickC = (a) => a[Math.floor(Math.random() * a.length)];
 function spark(x, y, n, colors, spd = 500, size = 10, g = 400, life = 1.2) {
   for (let i = 0; i < n; i++) {
@@ -243,6 +264,34 @@ function wbolt(x0, y0, x1, y1, color = '#fef9c3') {
   wfx.bolts.push({ pts, color, t: 0, dur: 0.35 });
 }
 const WIN_CX = W / 2, WIN_CY = 760;
+/** Pháo hoa: bắn từ dưới lên, nổ tung trên trời. */
+function rocket(x, colors) {
+  wfx.rockets.push({ x, y: H + 20, ty: 260 + Math.random() * 520, vx: (Math.random() - 0.5) * 120, colors, trail: 0 });
+  sound.play('whoosh');
+}
+// 6 mức hiệu ứng → 3 cấp ăn mừng (giống giọng đọc)
+const WIN_GROUP = { lightning: 'early', nohint: 'early', hint1: 'hint', hint2: 'hint', hint3: 'late', clutch: 'late' };
+const CELEBRATE = {
+  early: { waves: 3, n: 110, power: 1.15, rockets: 9, punch: 1, shake: 2.4, rain: 320 },
+  hint: { waves: 2, n: 80, power: 1, rockets: 4, punch: 0.6, shake: 1.4, rain: 200 },
+  late: { waves: 2, n: 90, power: 1.05, rockets: 5, punch: 0.8, shake: 1.7, rain: 220 },
+};
+const ROCKET_COLORS = [['#facc15', '#fde68a', '#fff'], ['#f472b6', '#fbcfe8', '#fff'], ['#60a5fa', '#bfdbfe', '#fff'], ['#4ade80', '#bbf7d0', '#fff'], ['#fb923c', '#fed7aa', '#fff'], ['#a78bfa', '#ddd6fe', '#fff']];
+function celebrate(group, delay = 0) {
+  const P = CELEBRATE[group] || CELEBRATE.hint;
+  setTimeout(() => {
+    wfx.punch = P.punch;
+    wfx.shake = Math.max(wfx.shake, P.shake);
+    for (let i = 0; i < P.waves; i++) setTimeout(() => {
+      cannon('left', P.n, P.power); cannon('right', P.n, P.power);
+      sound.play('boom');
+      wfx.shake = Math.max(wfx.shake, P.shake * 0.55);
+      wfx.punch = Math.max(wfx.punch, P.punch * 0.4);
+    }, i * 550);
+    for (let i = 0; i < P.rockets; i++) setTimeout(() => rocket(120 + Math.random() * (W - 240), ROCKET_COLORS[i % ROCKET_COLORS.length]), 250 + i * (2800 / P.rockets) + Math.random() * 200);
+    confetti(P.rain);
+  }, delay);
+}
 function startWinFx(e) {
   const tier = WIN_TIERS[e.tier] ? e.tier : 'hint3';
   wfx.win = { ...e, tier, t: 0, cfg: WIN_TIERS[tier], beats: 0 };
@@ -252,30 +301,26 @@ function startWinFx(e) {
     for (let i = 0; i < 6; i++) setTimeout(() => { wbolt(Math.random() * W, 0, WIN_CX + (Math.random() - 0.5) * 160, WIN_CY); fx.flash = Math.max(fx.flash, 0.5); }, i * 110);
     spark(WIN_CX, WIN_CY, 220, ['#facc15', '#fde68a', '#fff', '#f59e0b'], 1000, 14, 350, 1.6);
     for (let i = 0; i < 3; i++) wring(WIN_CX, WIN_CY, i % 2 ? '#fff' : '#facc15', 900, 0.9, 26, i * 0.15);
-    confetti(360);
   } else if (tier === 'nohint') {
     sound.play('boom', { big: true }); setTimeout(() => sound.play('levelup'), 300);
     fx.flash = 0.8; wfx.shake = 1.1;
     spark(WIN_CX, WIN_CY, 160, ['#ff4d00', '#fb923c', '#facc15', '#fff1a8'], 850, 13, 200, 1.4);
     wring(WIN_CX, WIN_CY, '#fb923c', 750, 0.8, 24); wring(WIN_CX, WIN_CY, '#facc15', 520, 0.6, 14, 0.12);
-    confetti(280);
   } else if (tier === 'hint1') {
     [1, 1.25, 1.5, 2].forEach((p, i) => setTimeout(() => sound.play('chime', { pitch: p }), i * 110)); setTimeout(() => sound.play('levelup'), 450);
     fx.flash = 0.6; wfx.shake = 0.5;
     spark(WIN_CX, WIN_CY, 120, ['#7dd3fc', '#a5b4fc', '#fff', '#c4b5fd'], 650, 11, 120, 1.4);
     wring(WIN_CX, WIN_CY, '#7dd3fc', 600, 0.7, 18);
-    confetti(220);
   } else if (tier === 'clutch') {
     sound.play('boom'); setTimeout(() => sound.play('levelup'), 350);
     fx.flash = 0.7; wfx.shake = 1;
     spark(WIN_CX, WIN_CY, 110, ['#f87171', '#fecaca', '#fff', '#facc15'], 700, 12, 300, 1.2);
     wring(WIN_CX, WIN_CY, '#f87171', 650, 0.7, 20);
-    confetti(240);
   } else {
     fx.flash = 0.8; sound.play('levelup');
     spark(WIN_CX, WIN_CY, 60, ['#86efac', '#fff', '#fde68a'], 500, 10, 300, 1.1);
-    confetti(tier === 'hint2' ? 220 : 180);
   }
+  celebrate(WIN_GROUP[tier], tier === 'clutch' ? 150 : 0);
 }
 
 function drawWinFx(t, dt) {
@@ -379,6 +424,19 @@ function drawWinFx(t, dt) {
       ctx.restore();
     }
   }
+  for (const r of wfx.rockets) {
+    r.y += (r.ty - r.y) * Math.min(1, dt * 3.2) - 260 * dt; r.x += r.vx * dt;
+    if (Math.random() < 0.9) wfx.sparks.push({ x: r.x + (Math.random() - 0.5) * 6, y: r.y + 10, vx: (Math.random() - 0.5) * 40, vy: 60 + Math.random() * 60, g: 200, life: 0.5, max: 0.5, size: 5, color: '#fde68a' });
+    ctx.save(); ctx.fillStyle = '#fff'; ctx.shadowColor = r.colors[0]; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(r.x, r.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    if (r.y <= r.ty + 8) {
+      r.done = true;
+      spark(r.x, r.y, reducedMotion ? 30 : 90, r.colors, 620, 9, 240, 1.4);
+      wring(r.x, r.y, r.colors[0], 220, 0.5, 8);
+      fx.flash = Math.max(fx.flash, 0.12);
+      sound.play('boom');
+    }
+  }
+  wfx.rockets = wfx.rockets.filter((r) => !r.done);
   for (const p of wfx.sparks) {
     p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.985;
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life / p.max * 1.5)); ctx.fillStyle = p.color;
@@ -988,13 +1046,20 @@ function drawFloaters(dt) {
 
 function drawConfetti(dt) {
   for (const c of fx.confetti) {
-    c.life -= dt * 0.2; c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.vr * dt;
+    c.life -= dt; c.vy += c.g * dt;
+    // sức cản không khí: bay chậm dần, rơi lả tả
+    const drag = Math.pow(0.12, dt); c.vx *= drag; c.vy = c.vy > 260 ? c.vy * drag + 260 * (1 - drag) : c.vy;
+    c.x += c.vx * dt + Math.sin(c.flip) * 20 * dt; c.y += c.vy * dt; c.rot += c.vr * dt; c.flip += c.vf * dt;
     ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.rot);
-    ctx.fillStyle = c.color; ctx.globalAlpha = Math.min(1, c.life * 3);
-    ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2);
+    ctx.globalAlpha = Math.min(1, c.life * 1.5);
+    ctx.fillStyle = c.color;
+    const sy = Math.cos(c.flip); // lật 3D
+    if (c.shape === 'dot') { ctx.beginPath(); ctx.arc(0, 0, c.s * 0.35, 0, Math.PI * 2); ctx.fill(); }
+    else if (c.shape === 'ribbon') { ctx.scale(1, sy); ctx.fillRect(-c.s * 0.15, -c.s * 1.4, c.s * 0.3, c.s * 2.8); }
+    else { ctx.scale(1, sy); ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); if (sy < 0) { ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(-c.s / 2, -c.s / 4, c.s, c.s / 2); } }
     ctx.restore();
   }
-  fx.confetti = fx.confetti.filter((c) => c.life > 0 && c.y < H + 40);
+  fx.confetti = fx.confetti.filter((c) => c.life > 0 && c.y < H + 60);
 }
 
 let last = performance.now();
@@ -1014,9 +1079,14 @@ function frame(now) {
   fx.flash = Math.max(0, fx.flash - dt);
   fx.hintFlash = Math.max(0, fx.hintFlash - dt * 0.5);
 
-  wfx.shake = Math.max(0, wfx.shake - dt * 2);
+  wfx.shake = Math.max(0, wfx.shake - dt * 1.4);
+  wfx.punch = Math.max(0, wfx.punch - dt * 2.2);
   ctx.save();
-  if (wfx.shake > 0) ctx.translate((Math.random() - 0.5) * 22 * wfx.shake, (Math.random() - 0.5) * 16 * wfx.shake);
+  if (!reducedMotion) {
+    // giật zoom lúc trúng + rung lắc (có nghiêng nhẹ)
+    if (wfx.punch > 0) { const z = 1 + 0.07 * Math.sin(Math.min(1, wfx.punch) * Math.PI / 2); ctx.translate(W / 2, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2); }
+    if (wfx.shake > 0) { const k = Math.min(2.4, wfx.shake); ctx.translate((Math.random() - 0.5) * 30 * k, (Math.random() - 0.5) * 24 * k); ctx.translate(W / 2, H / 2); ctx.rotate((Math.random() - 0.5) * 0.012 * k); ctx.translate(-W / 2, -H / 2); }
+  }
   drawBackground(t);
   drawKing(t);
   drawHeader();
