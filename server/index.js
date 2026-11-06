@@ -90,7 +90,14 @@ const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 
 const attrStore = new AttrStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_ATTR_MODEL || wgCfg.attrModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'attributes.json') });
 // Chế độ "Gợi ý tiếng Anh": Claude soạn 5 gợi ý tiếng Anh cho mỗi từ (một lần, lưu data/english-hints.json)
 const englishStore = new EnglishHintStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'english-hints.json') });
-const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, attrStore, englishStore, statePath: path.join(ROOT, 'data', 'wordgame.json') });
+// kho từ soạn sẵn cho chế độ thuộc tính / tiếng Anh (modewords/*.json): thuộc tính & gợi ý có sẵn, không tốn Claude
+const modeWords = {};
+for (const [mode, file] of [['attr', 'attr.json'], ['english', 'english.json']]) {
+  try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được modewords/${file}:`, e.message); }
+}
+attrStore.seed(modeWords.attr || []);
+englishStore.seed(modeWords.english || []);
+const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, attrStore, englishStore, modeWords, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 // Giọng MC (ElevenLabs, giọng Adam) đọc câu chúc mừng / cảm ơn trêu đùa do Claude viết — cần ELEVENLABS_API_KEY
 const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API_KEY || null, claude: claudeClientFromEnv(), dir: path.join(ROOT, 'data', 'voice') });
@@ -395,7 +402,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
       .catch((e) => { genJob = { state: 'error', message: `Bổ sung gợi ý lỗi: ${e.message}` }; });
   }
   else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | addword | clearqueue | settings | team | backfill | set | setwords | regen-hints | genset | delset' });
-  res.json({ ok: true, warn, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word), settings: { ...wg.settings(), aiAvailable: attrStore.available, nextMode: wg.nextMode() } });
+  res.json({ ok: true, warn, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word), settings: { ...wg.settings(), aiAvailable: attrStore.available, nextMode: wg.nextMode(), modeWords: wg.modeWordStats() } });
 });
 
 // ---------------- Start ----------------

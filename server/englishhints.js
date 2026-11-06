@@ -37,6 +37,11 @@ export class EnglishHintStore {
 
   get available() { return !!this.client; }
 
+  /** Nạp sẵn gợi ý soạn tay. */
+  seed(words = []) {
+    for (const w of words) if (w?.word && Array.isArray(w.en) && !this.cache.has(canon(w.word))) this.cache.set(canon(w.word), w.en.slice(0, 5));
+  }
+
   save() {
     if (!this.filePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });

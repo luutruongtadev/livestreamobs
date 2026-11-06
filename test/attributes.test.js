@@ -178,3 +178,29 @@ test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 t
   assert.ok(!fx.some((e) => e.type === 'wg_unlock'));
   assert.equal(g.revealedIdx.size, 0);
 });
+
+test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho của chế độ, có sẵn thuộc tính / gợi ý, không gọi Claude cho từ bí mật; hết kho thì về kho thường', async () => {
+  const fs = await import('node:fs');
+  const attrWords = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
+  const enWords = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
+  assert.ok(attrWords.length >= 200 && enWords.length >= 200);
+  for (const w of attrWords) for (const a of ATTRS) assert.ok(w.attrs[a.id] === null || a.values.includes(w.attrs[a.id]), `${w.word}.${a.id}`);
+  for (const w of enWords) assert.equal(w.en.length, 5, w.word);
+  let calls = 0;
+  const store = { available: true, get: async () => { calls++; return null; } };
+  const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['attr', 'english'], alternateEvery: 1, cooldownSec: 0 },
+    { scorer: { score: async () => ({ score: 1 }) }, attrStore: store, englishStore: store, modeWords: { attr: attrWords.slice(0, 1), english: enWords.slice(0, 1) } });
+  assert.equal(g.mode, 'attr');
+  assert.equal(g.display, attrWords[0].word);
+  assert.equal(g.roundAttrs.length, 6);
+  assert.equal(g.snapshot().hints.length, 0);
+  g.startRound();
+  assert.equal(g.mode, 'english');
+  assert.equal(g.display, enWords[0].word);
+  assert.deepEqual(g.englishHints, enWords[0].en);
+  await flush();
+  assert.equal(calls, 0, 'không gọi Claude cho từ bí mật');
+  assert.deepEqual(g.modeWordStats(), { attr: { total: 1, left: 0 }, english: { total: 1, left: 0 } });
+  g.startRound();
+  assert.equal(g.display, 'con mèo', 'hết kho → kho thường');
+});

@@ -110,6 +110,11 @@ export class AttrStore {
 
   get available() { return !!this.client; }
 
+  /** Nạp sẵn thuộc tính của các từ soạn tay (từ đoán trùng cũng không phải gọi Claude). */
+  seed(words = []) {
+    for (const w of words) if (w?.word && w.attrs && !this.cache.has(canon(w.word))) this.cache.set(canon(w.word), w.attrs);
+  }
+
   save() {
     if (!this.filePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
