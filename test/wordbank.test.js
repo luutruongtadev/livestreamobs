@@ -198,3 +198,28 @@ test('kho Claude + từ có sẵn còn ≤ 10 → tự tạo thêm 200 từ (2 l
   assert.equal(new Set(bank.allWords().map((w) => w.word)).size, 200);
   assert.equal(bank.next().source, 'bank');
 });
+
+test('từ gần trùng (khác dấu / chữ đứng đầu / đồng nghĩa) không chơi lại; tra từ đã chơi', async () => {
+  const { wordKey } = await import('../server/wordbank.js');
+  const same = [['tàu hoả', 'tàu hỏa'], ['con tắc kè', 'tắc kè'], ['sự tò mò', 'tò mò'], ['lòng biết ơn', 'biết ơn'], ['cây xương rồng', 'xương rồng'], ['bao lì xì', 'lì xì'], ['pháo bông', 'pháo hoa'], ['ống heo', 'heo đất'], ['nồi cơm', 'nồi cơm điện']];
+  for (const [a, b] of same) assert.equal(wordKey(a), wordKey(b), `${a} = ${b}`);
+  assert.notEqual(wordKey('con'), '', 'chữ đứng đầu đứng một mình thì giữ nguyên');
+  assert.notEqual(wordKey('người mẫu'), wordKey('mẫu'));
+  const fallbackWords = ['tàu hoả', 'tắc kè', 'biết ơn', 'mặt trời'].map((word) => ({ word, hint: 'X' }));
+  const bank = new WordBank({ filePath: tmpFile(), fallbackWords, autoGenerate: false, log: {} });
+  bank.data.used.push('tàu hỏa', 'con tắc kè', 'lòng biết ơn');
+  assert.deepEqual(bank.fallbackUnused().map((w) => w.word), ['mặt trời'], 'bỏ 3 từ gần trùng với từ đã chơi');
+  const r = bank.lookup('Tàu Hoả');
+  assert.deepEqual(r.played, [{ word: 'tàu hỏa', no: 1 }]);
+  assert.deepEqual(r.config, ['tàu hoả']);
+  assert.equal(bank.lookup('mặt trời').played.length, 0);
+  assert.deepEqual(bank.played(), ['lòng biết ơn', 'con tắc kè', 'tàu hỏa'], 'mới nhất trước');
+});
+
+test('khoá gần trùng giữ dấu: "chợ" ≠ "chó", "nồi" ≠ "nỗi", nhưng "hoả" = "hỏa"', async () => {
+  const { wordKey } = await import('../server/wordbank.js');
+  assert.notEqual(wordKey('cái chợ'), wordKey('con chó'));
+  assert.notEqual(wordKey('ca sĩ'), wordKey('cá sấu'));
+  assert.equal(wordKey('lính cứu hoả'), wordKey('lính cứu hỏa'));
+  assert.equal(wordKey('Thủy Triều'), wordKey('thuỷ triều'));
+});

@@ -186,6 +186,14 @@
           <button id="btnAwClear" class="ghost">Xoá hàng ưu tiên</button>
         </div>
         <p class="muted" id="awResult" style="margin:6px 0 0"></p>
+      <h3 style="margin:16px 0 8px">🔎 Từ đã chơi</h3>
+      <div class="row">
+        <input id="lkWord" type="text" placeholder="Gõ một từ để tra: đã chơi chưa? (vd: trứng vịt lộn)" style="flex:1">
+        <button id="btnLk" class="ghost">Tra</button>
+        <button id="btnPlayed" class="ghost">📜 Xem danh sách từ đã chơi</button>
+      </div>
+      <p class="muted" id="lkResult" style="margin:6px 0 0"></p>
+      <div id="playedList" class="muted" style="display:none;max-height:260px;overflow:auto;margin-top:6px;line-height:1.7"></div>
         <p class="muted" id="awQueue" style="margin:4px 0 0"></p>
       </details>
       <p class="muted" id="wgBank">Kho từ: (đang tải…)</p>
@@ -533,7 +541,7 @@
     const body = { mode, word: $('awWord').value, aliases: $('awAliases').value, hint1: $('awHint1').value, hint2: $('awHint2').value, emoji: $('awEmoji').value, topic: $('awTopic').value };
     wgApi('addword', body)
       .then((r) => {
-        $('awResult').textContent = mode === 'now' ? `✓ Đang chơi "${r.wg.secret}"` : `✓ Đã thêm "${body.word.trim()}" vào hàng ưu tiên`;
+        $('awResult').textContent = (mode === 'now' ? `✓ Đang chơi "${r.wg.secret}"` : `✓ Đã thêm "${body.word.trim()}" vào hàng ưu tiên`) + (r.warn ? ` · ⚠ ${r.warn}` : '');
         for (const id of ['awWord', 'awAliases', 'awHint1', 'awHint2', 'awEmoji']) $(id).value = '';
         log('Đoán từ: thêm từ ' + body.word.trim() + (mode === 'now' ? ' (chơi ngay)' : ' (hàng ưu tiên)'));
       })
@@ -548,7 +556,35 @@
       const poll = setInterval(() => wgApi('peek').then((r) => { if (r.genJob?.state !== 'running') { clearInterval(poll); log(r.genJob?.message || 'Xong'); } }).catch(() => clearInterval(poll)), 3000);
     })
     .catch((e) => log('Lỗi: ' + e.message));
-  $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then(() => log('Đoán từ: đặt từ mới')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnWgWord').onclick = () => wgApi('word', { word: $('wgWord').value, hint: $('wgHint').value }).then((r) => log('Đoán từ: đặt từ mới' + (r.warn ? ` · ⚠ ${r.warn}` : ''))).catch((e) => log('Lỗi: ' + e.message));
+  // Tra từ đã chơi chưa (kể cả gần trùng: "tàu hoả" = "tàu hỏa", "con tắc kè" = "tắc kè")
+  const lookup = () => {
+    const q = $('lkWord').value.trim();
+    if (!q) return;
+    wgApi('lookup', { q }).then(({ result: r }) => {
+      if (!r) { $('lkResult').textContent = 'Từ không hợp lệ'; return; }
+      const where = [r.bank.length && `kho Claude (${r.bank.join(', ')})`, r.config.length && `từ có sẵn (${r.config.join(', ')})`].filter(Boolean).join(' · ');
+      $('lkResult').textContent = r.played.length
+        ? `❌ ĐÃ CHƠI: ${r.played.map((p) => `“${p.word}” (thứ ${p.no}/${r.total})`).join(', ')}`
+        : `✅ CHƯA CHƠI · ${where ? 'có trong ' + where + ' (sẽ ra ở vòng nào đó)' : 'không có trong kho — thêm bằng form “Thêm từ mới” ở trên'}`;
+    }).catch((e) => { $('lkResult').textContent = 'Lỗi: ' + e.message; });
+  };
+  $('btnLk').onclick = lookup;
+  $('lkWord').onkeydown = (e) => { if (e.key === 'Enter') lookup(); };
+  $('btnPlayed').onclick = () => {
+    const box = $('playedList');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    wgApi('played').then((r) => {
+      const n = r.played.length;
+      box.textContent = '';
+      const head = document.createElement('div');
+      head.textContent = `${n} từ đã chơi (mới nhất trước) · còn ${r.stats.totalRemaining} từ chưa chơi`;
+      head.style.fontWeight = '700';
+      box.append(head);
+      r.played.forEach((w, i) => { const d = document.createElement('div'); d.textContent = `${n - i}. ${w}`; box.append(d); });
+      box.style.display = 'block';
+    }).catch((e) => log('Lỗi: ' + e.message));
+  };
   $('btnWgGuess').onclick = async () => {
     const t = $('wgGuess').value.trim();
     const out = $('wgGuessResult');

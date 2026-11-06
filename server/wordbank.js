@@ -72,6 +72,34 @@ const HINTS_SCHEMA = {
 const CLASSIFIERS = new Set(['con', 'cái', 'quả', 'trái', 'chiếc', 'cây']);
 const plain = (t) => canon(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 
+// Chữ đứng đầu không đổi nghĩa: "con tắc kè" = "tắc kè", "sự tò mò" = "tò mò", "bao lì xì" = "lì xì"
+const LEADS = new Set(['con', 'cái', 'quả', 'trái', 'chiếc', 'cây', 'sự', 'lòng', 'nỗi', 'niềm', 'bao']); // so có dấu: "nồi" ≠ "nỗi"
+// Cặp cùng nghĩa hay gặp
+const SAME_PAIRS = [['pháo bông', 'pháo hoa'], ['ống heo', 'heo đất'], ['nồi cơm', 'nồi cơm điện'], ['xe lửa', 'tàu hoả'], ['tivi', 'ti vi'], ['máy vi tính', 'máy tính']];
+let SAME = null;
+/**
+ * Khoá so trùng gần nghĩa: bỏ dấu ("tàu hoả" = "tàu hỏa"), bỏ chữ đứng đầu (con / cái / sự / lòng…), gộp cặp đồng nghĩa.
+ * Dùng để không chơi lại một từ chỉ khác cách viết với từ đã chơi.
+ */
+// Một tiếng: giữ dấu chữ (ơ, â, ư, đ) và dấu thanh, chỉ bỏ qua VỊ TRÍ đặt dấu thanh: "hoả" = "hỏa", nhưng "chợ" ≠ "chó"
+const TONES = /[\u0300\u0301\u0303\u0309\u0323]/g;
+function syllableKey(s) {
+  const d = s.normalize('NFD');
+  const tone = (d.match(TONES) || [])[0] || '';
+  const base = d.replace(TONES, '').normalize('NFC').replace(/[^\p{L}\p{N}]/gu, '');
+  return base ? base + (tone ? '~' + tone.charCodeAt(0).toString(16) : '') : '';
+}
+function rawKey(w) {
+  const parts = canon(w).split(' ').filter(Boolean);
+  while (parts.length > 1 && LEADS.has(parts[0])) parts.shift();
+  return parts.map(syllableKey).filter(Boolean).join(' ');
+}
+export function wordKey(w) {
+  SAME ||= new Map(SAME_PAIRS.map(([a, b]) => [rawKey(a), rawKey(b)]));
+  const k = rawKey(w);
+  return SAME.get(k) || k;
+}
+
 /** 2 gợi ý (mỗi gợi ý vài từ liên quan, cách nhau " · "): bỏ gợi ý lộ bất kỳ tiếng nào của đáp án, cắt dài. */
 export function cleanDesc(word, desc = []) {
   const syl = canon(word).split(' ').filter((x) => !CLASSIFIERS.has(x)).map(plain);
@@ -142,16 +170,32 @@ export class WordBank {
 
   allWords() { return this.data.batches.flatMap((b) => b.words); }
 
+  usedKeys() { return new Set(this.data.used.map(wordKey)); }
+
   unused() {
-    const used = new Set(this.data.used);
-    return this.allWords().filter((w) => !used.has(canon(w.word)));
+    const used = this.usedKeys();
+    return this.allWords().filter((w) => !used.has(wordKey(w.word)));
   }
 
-  /** Từ có sẵn trong config.json chưa chơi. */
+  /** Từ có sẵn trong config.json chưa chơi (bỏ cả từ gần trùng với từ đã chơi / từ trong kho Claude). */
   fallbackUnused() {
-    const used = new Set(this.data.used);
-    const bank = new Set(this.allWords().map((w) => canon(w.word)));
-    return this.fallback.filter((w) => !used.has(canon(w.word)) && !bank.has(canon(w.word)));
+    const used = this.usedKeys();
+    const bank = new Set(this.allWords().map((w) => wordKey(w.word)));
+    return this.fallback.filter((w) => !used.has(wordKey(w.word)) && !bank.has(wordKey(w.word)));
+  }
+
+  /** Danh sách từ đã chơi, mới nhất trước. */
+  played() { return [...this.data.used].reverse(); }
+
+  /** Tra một từ: đã chơi chưa (kể cả gần trùng), có trong kho không. */
+  lookup(q) {
+    const k = wordKey(q);
+    if (!k) return null;
+    const played = [];
+    this.data.used.forEach((w, i) => { if (wordKey(w) === k) played.push({ word: w, no: i + 1 }); });
+    const bank = this.allWords().filter((w) => wordKey(w.word) === k).map((w) => w.word);
+    const config = this.fallback.filter((w) => wordKey(w.word) === k).map((w) => w.word);
+    return { q: canon(q), played, bank, config, total: this.data.used.length };
   }
 
   stats() {
@@ -290,8 +334,9 @@ export class WordBank {
   }
 
   async #generate(theme, count) {
-    const existing = new Set([...this.allWords().map((w) => canon(w.word)), ...this.fallback.map((w) => canon(w.word)), ...this.data.used]);
-    const avoidList = [...existing].slice(-1500);
+    const existing = new Set([...this.allWords().map((w) => wordKey(w.word)), ...this.fallback.map((w) => wordKey(w.word)), ...this.data.used.map(wordKey)]);
+    const avoidWords = [...new Set([...this.allWords().map((w) => canon(w.word)), ...this.fallback.map((w) => canon(w.word)), ...this.data.used])];
+    const avoidList = avoidWords.slice(-1500);
     try {
       const response = await this.client.beta.messages.create({
         model: this.model,
@@ -317,8 +362,8 @@ export class WordBank {
       for (const it of data.words || []) {
         const w = canon(it.word);
         const hint = String(it.hint || '').trim().slice(0, 40);
-        if (!validWord(w) || existing.has(w) || !hint || canon(hint).includes(w)) continue;
-        existing.add(w);
+        if (!validWord(w) || existing.has(wordKey(w)) || !hint || canon(hint).includes(w)) continue;
+        existing.add(wordKey(w));
         const desc = cleanDesc(w, it.desc);
         words.push({ word: w, hint, ...(desc.length ? { desc } : {}), emoji: cleanEmoji(it.emoji) });
       }

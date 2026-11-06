@@ -414,14 +414,20 @@ app.post('/api/weekly/:action', requireAdmin, (req, res) => {
 
 app.post('/api/wg/:action', requireAdmin, async (req, res) => {
   const a = req.params.action;
+  // đặt / thêm từ đã chơi rồi (kể cả gần trùng) → vẫn làm nhưng nhắc admin
+  const playedWarn = (w) => { const r = wordBank.lookup(w); return r?.played.length ? `“${w}” đã chơi rồi (${r.played.map((p) => p.word).join(', ')})` : null; };
+  let warn = null;
+  if (a === 'played') return res.json({ ok: true, played: wordBank.played(), stats: wordBank.stats() });
+  if (a === 'lookup') return res.json({ ok: true, result: wordBank.lookup(String(req.body?.q || '').slice(0, 40)) });
   if (a === 'next') wgBroadcast(wg.skip());
   else if (a === 'hint') wgBroadcast(wg.revealHint(null));
   else if (a === 'word') {
     const w = String(req.body?.word || '').trim();
     if (!w) return res.status(400).json({ error: 'Thiếu từ' });
+    warn = playedWarn(w);
     // đang chơi bộ riêng (LMHT, trend…) mà từ có trong bộ: dùng đủ gợi ý + biệt danh của bộ
     const inSet = wg.set?.words?.find((x) => compact(x.word) === compact(w));
-    if (inSet) { wgBroadcast(wg.startRound(inSet)); return res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob }); }
+    if (inSet) { wgBroadcast(wg.startRound(inSet)); return res.json({ ok: true, warn, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob }); }
     const known = wordBank.hintsFor({ word: w });
     const desc = Array.isArray(req.body?.desc) ? req.body.desc.map(String).filter(Boolean).slice(0, 2) : known.desc;
     wgBroadcast(wg.startRound({ word: w, hint: String(req.body?.hint || known.hint || ''), desc, emoji: req.body?.emoji ?? known.emoji, ...(known.aliases ? { aliases: known.aliases } : {}) }));
@@ -484,6 +490,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
     const word = String(b.word || '').trim().replace(/\s+/g, ' ');
     const inSet = wg.activeSet !== 'tu-vung';
     if (!word) return res.status(400).json({ error: 'Thiếu từ' });
+    warn = playedWarn(word);
     if (inSet ? !validSecretName(word) : !validWord(word)) return res.status(400).json({ error: inSet ? 'Từ tối đa 4 tiếng / 24 ký tự, phải có chữ cái' : 'Từ chỉ gồm chữ cái, 1-4 tiếng, tối đa 24 ký tự' });
     const raw = [b.hint1, b.hint2].map((x) => String(x || '').split(/\s*[,;·]\s*/).filter(Boolean).join(' · ')).filter(Boolean);
     if (raw.length < 1) return res.status(400).json({ error: 'Cần ít nhất gợi ý 1' });
@@ -528,7 +535,7 @@ app.post('/api/wg/:action', requireAdmin, async (req, res) => {
       .catch((e) => { genJob = { state: 'error', message: `Bổ sung gợi ý lỗi: ${e.message}` }; });
   }
   else return res.status(400).json({ error: 'action: next | hint | word | reset | peek | generate | addword | clearqueue | team | backfill | set | setwords | regen-hints | genset | delset' });
-  res.json({ ok: true, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word) });
+  res.json({ ok: true, warn, wg: { ...wg.snapshot(), secret: wg.display }, bank: wordBank.stats(), sets: wg.listSets(), activeSet: wg.activeSet, genJob, queue: wg.priority.map((w) => w.word) });
 });
 
 app.post('/api/reset', requireAdmin, (_req, res) => {
