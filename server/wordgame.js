@@ -67,6 +67,7 @@ export const WG_DEFAULTS = {
   englishLikeEvery: 2000,
   attrUnlockAfter: 10,
   likeBonus: { every: 1000, points: 50 }, // 1 người thả đủ 1000 tim trong vòng mà đoán trúng → +50 điểm (đếm lại mỗi vòng)
+  curatedRatio: 0.5, // kiểu Gần nghĩa: tỉ lệ vòng lấy từ kho chủ đề soạn sẵn (modewords/meaning.json); kho chung hết thì lấy hết kho này
   comboMax: 5, // đoán trúng N vòng liên tiếp → combo xN điểm thưởng của vòng (tối đa x5) // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì quay về lộ chữ cái)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
@@ -248,7 +249,15 @@ export class WordGame extends EventEmitter {
       const pool = fresh.length ? fresh : words;
       return pool[Math.floor(this.random() * pool.length)];
     }
-    if (this.wordBank) return this.wordBank.next(this.recent);
+    // kiểu Gần nghĩa: trộn kho chủ đề soạn sẵn với kho chung; kho chung hết thì dùng hết kho soạn sẵn trước khi chơi lại
+    if (mode === 'meaning' && this.modeWords.meaning?.length) {
+      const bankLeft = this.wordBank ? this.wordBank.remaining() : 1;
+      if (bankLeft === 0 || this.random() < (this.cfg.curatedRatio ?? 0.5)) {
+        const w = this.pickModeWord('meaning');
+        if (w) return w;
+      }
+    }
+    if (this.wordBank) return this.wordBank.next(this.recent, { reserve: this.modeWordStats().meaning?.left || 0 });
     const words = this.cfg.words.filter((w) => w?.word);
     const fresh = words.filter((w) => !this.recent.includes(canon(w.word)));
     const pool = fresh.length ? fresh : words;

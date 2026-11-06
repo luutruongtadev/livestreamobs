@@ -259,3 +259,29 @@ test('cờ quốc gia trong gợi ý (Windows hiện thành chữ VN / KR) đư�
   assert.equal(g.snapshot().hints[0], '🌏 🎤 💃');
   assert.ok(!/[\u{1F1E6}-\u{1F1FF}]/u.test(JSON.stringify(JSON.parse((await import('node:fs')).readFileSync(new URL('../modewords/attr.json', import.meta.url))))));
 });
+
+test('kho chủ đề soạn sẵn (Gần nghĩa): trộn với kho chung, không lặp từ, dùng hết kho soạn sẵn rồi mới nhờ Claude sinh thêm', async () => {
+  const fs = await import('node:fs');
+  const { WordBank } = await import('../server/wordbank.js');
+  const meaning = JSON.parse(fs.readFileSync(new URL('../modewords/meaning.json', import.meta.url))).words;
+  assert.ok(meaning.length >= 170);
+  assert.ok(meaning.some((w) => w.word === 'messi' && w.hint === 'Cầu thủ bóng đá'));
+  const bank = new WordBank({ fallbackWords: [{ word: 'con mèo', hint: 'Động vật' }, { word: 'cái bàn', hint: 'Đồ vật' }], client: {}, minRemaining: 0, random: () => 0 });
+  let gens = 0;
+  bank.generate = () => { gens++; return new Promise(() => {}); };
+  const curated = meaning.slice(0, 3);
+  const g = new WordGame({ words: [], modes: ['meaning'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, wordBank: bank, modeWords: { meaning: curated }, random: () => 0.9 });
+  const played = [g.display];
+  for (let i = 0; i < 4; i++) { g.startRound(); played.push(g.display); }
+  assert.equal(new Set(played).size, 5, 'không lặp: ' + played.join(', '));
+  assert.deepEqual(played.slice(2).sort(), curated.map((w) => w.word).sort(), 'kho chung hết thì lấy hết kho soạn sẵn');
+  assert.equal(gens, 0, 'còn từ soạn sẵn thì chưa nhờ Claude sinh thêm');
+  g.startRound();
+  assert.equal(gens, 1, 'hết sạch mới nhờ Claude sinh thêm');
+  // từ soạn sẵn có gợi ý: emoji → chủ đề → mô tả
+  const m = new WordGame({ words: [], modes: ['meaning'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, modeWords: { meaning: [meaning.find((w) => w.word === 'messi')] }, random: () => 0 });
+  assert.equal(m.display, 'messi');
+  m.revealHint(); m.revealHint(); m.revealHint();
+  assert.deepEqual(m.snapshot().hints, ['⚽ 🐐 🏆', 'Chủ đề: Cầu thủ bóng đá', 'Argentina · áo số 10 · vô địch World Cup 2022']);
+  assert.ok(m.aliases.includes('cr7') === false && m.aliases.includes('leo messi'));
+});

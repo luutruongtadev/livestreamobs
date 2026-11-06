@@ -290,12 +290,16 @@ export class WordBank {
   }
 
   /** Lấy một từ cho vòng mới. avoid: các từ vừa chơi (khi dùng danh sách dự phòng). */
-  next(avoid = []) {
+  /** Số từ chưa chơi còn lại (kho Claude + từ có sẵn). */
+  remaining() { return this.unused().length + this.fallbackUnused().length; }
+
+  /** reserve: số từ soạn sẵn ngoài kho còn chưa chơi — còn thì chưa nhờ Claude sinh thêm (dùng hết kho có sẵn trước). */
+  next(avoid = [], { reserve = 0 } = {}) {
     const pool = this.unused();
     const fb = this.fallbackUnused();
     if (this.client && !this.generating) {
-      if (pool.length <= this.minRemaining && this.autoGenerate) this.generate().catch(() => {}); // tạo nền, không chặn vòng chơi
-      else if (pool.length + fb.length <= this.minRemaining && this.refillWhenEmpty) this.generate({ count: this.refillCount }).catch(() => {});
+      if (pool.length + reserve <= this.minRemaining && this.autoGenerate) this.generate().catch(() => {}); // tạo nền, không chặn vòng chơi
+      else if (pool.length + fb.length + reserve <= this.minRemaining && this.refillWhenEmpty) this.generate({ count: this.refillCount }).catch(() => {});
     }
     const mark = (w) => { this.data.used.push(canon(w.word)); this.save(); };
     if (pool.length) {

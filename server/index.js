@@ -92,7 +92,7 @@ const attrStore = new AttrStore({ client: claudeClientFromEnv(), model: process.
 const englishStore = new EnglishHintStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'english-hints.json') });
 // kho từ soạn sẵn cho chế độ thuộc tính / tiếng Anh (modewords/*.json): thuộc tính & gợi ý có sẵn, không tốn Claude
 const modeWords = {};
-for (const [mode, file] of [['attr', 'attr.json'], ['english', 'english.json']]) {
+for (const [mode, file] of [['meaning', 'meaning.json'], ['attr', 'attr.json'], ['english', 'english.json']]) {
   try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được modewords/${file}:`, e.message); }
 }
 attrStore.seed(modeWords.attr || []);
