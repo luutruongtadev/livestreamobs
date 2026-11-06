@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WordGame } from '../server/wordgame.js';
-import { ATTRS, compareAttr, chooseAttrs, AttrStore, ATTR_BY_ID } from '../server/attributes.js';
+import { ATTRS, compareAttr, chooseAttrs, AttrStore, ATTR_BY_ID, textAttrs, fullAttrs } from '../server/attributes.js';
 
 const flush = () => new Promise((r) => setTimeout(r, 5));
-const base = (over = {}) => Object.fromEntries(ATTRS.map((a) => [a.id, over[a.id] !== undefined ? over[a.id] : a.values[0]]));
+const base = (over = {}) => Object.fromEntries(ATTRS.filter((a) => !a.text).map((a) => [a.id, over[a.id] !== undefined ? over[a.id] : a.multi ? [a.values[0]] : a.values[0]]));
 // thuộc tính giả: con mèo vs con chó vs cái bàn
 const DB = {
-  'con mèo': base({ loai: 'Con vật', kich_thuoc: 'Cỡ cái bàn', song: 'Có', so_chan: '4 chân', mau: 'Nhiều màu' }),
-  'con chó': base({ loai: 'Con vật', kich_thuoc: 'Cỡ người', song: 'Có', so_chan: '4 chân', mau: 'Nâu' }),
-  'cái bàn': base({ loai: 'Đồ vật', kich_thuoc: 'Cỡ người', song: 'Không', so_chan: '4 chân', mau: 'Nâu' }),
+  'con mèo': base({ loai: 'Con vật', kich_thuoc: 'Cỡ cái bàn', song: 'Có', so_chan: '4 chân', mau: ['Trắng', 'Đen/xám'] }),
+  'con chó': base({ loai: 'Con vật', kich_thuoc: 'Cỡ người', song: 'Có', so_chan: '4 chân', mau: ['Nâu'] }),
+  'cái bàn': base({ loai: 'Đồ vật', kich_thuoc: 'Cỡ người', song: 'Không', so_chan: '4 chân', mau: ['Nâu'] }),
   'nỗi nhớ': base({ loai: 'Cảm xúc/khái niệm', kich_thuoc: null, mau: null, can_nang: null, so_chan: null }),
 };
 const fakeStore = () => ({ available: true, get: async (w) => DB[w] || null });
@@ -20,23 +20,52 @@ const mk = (cfg = {}, attrStore = fakeStore()) => {
 };
 const say = (g, id, text) => g.handle({ type: 'comment', user: { id, name: id }, text });
 
-test('so thuộc tính: giống = xanh, lệch 1 bậc (thuộc tính có thứ bậc) = vàng, khác = xám, không áp dụng = na', () => {
-  assert.equal(compareAttr(ATTR_BY_ID.loai, 'Con vật', 'Con vật'), 'hit');
-  assert.equal(compareAttr(ATTR_BY_ID.kich_thuoc, 'Cỡ cái bàn', 'Cỡ người'), 'near');
-  assert.equal(compareAttr(ATTR_BY_ID.kich_thuoc, 'Nhỏ hơn bàn tay', 'Cỡ người'), 'miss');
-  assert.equal(compareAttr(ATTR_BY_ID.mau, 'Đỏ', 'Nâu'), 'miss', 'màu không có thứ bậc');
-  assert.equal(compareAttr(ATTR_BY_ID.mau, 'Đỏ', null), 'na');
-  assert.equal(ATTRS.length, 22);
+test('so thuộc tính: trúng / một phần (màu, thanh điệu) / gần + mũi tên ↑↓ (thứ bậc) / khác / không áp dụng', () => {
+  assert.deepEqual(compareAttr(ATTR_BY_ID.loai, 'Con vật', 'Con vật'), { s: 'hit' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.kich_thuoc, 'Cỡ cái bàn', 'Cỡ người'), { s: 'near', dir: 'down' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.kich_thuoc, 'To hơn nhà', 'Nhỏ hơn bàn tay'), { s: 'miss', dir: 'up' }, 'đáp án to hơn');
+  assert.deepEqual(compareAttr(ATTR_BY_ID.mau, ['Đỏ', 'Xanh lá'], ['Đỏ', 'Vàng/cam']), { s: 'part' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.mau, ['Đỏ'], ['Nâu']), { s: 'miss' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.mau, ['Đỏ', 'Trắng'], ['Trắng', 'Đỏ']), { s: 'hit' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.mau, ['Đỏ'], null), { s: 'na' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.chu_dau, 'M', 'C'), { s: 'miss', dir: 'up' }, 'M đứng sau C');
+  assert.equal(ATTRS.length, 26);
+  assert.ok(!ATTRS.some((a) => ['tre_em', 'cam_giac'].includes(a.id)), 'bỏ thuộc tính cảm tính');
 });
 
-test('chọn 6 thuộc tính: luôn có Loại, chỉ lấy thuộc tính có nghĩa với từ bí mật, đa dạng', () => {
-  for (let i = 0; i < 20; i++) {
-    const ids = chooseAttrs(DB['nỗi nhớ']);
+test('thuộc tính mặt chữ: thanh điệu các tiếng + chữ cái đầu theo bảng chữ cái tiếng Việt', () => {
+  assert.deepEqual(textAttrs('con mèo'), { thanh_dieu: ['Ngang', 'Huyền'], chu_dau: 'C' });
+  assert.deepEqual(textAttrs('Đồng hồ'), { thanh_dieu: ['Huyền'], chu_dau: 'Đ' });
+  assert.deepEqual(textAttrs('ổ khóa'), { thanh_dieu: ['Sắc', 'Hỏi'], chu_dau: 'Ô' });
+  assert.deepEqual(textAttrs('ăn uống'), { thanh_dieu: ['Ngang', 'Sắc'], chu_dau: 'Ă' });
+  assert.deepEqual(compareAttr(ATTR_BY_ID.thanh_dieu, ['Ngang', 'Huyền'], ['Huyền']), { s: 'part' });
+  assert.equal(fullAttrs('con chó', { loai: 'Con vật' }).chu_dau, 'C');
+});
+
+test('chọn 6 thuộc tính: Loại + 4 thuộc tính có nghĩa với từ (tối đa 2 cái Có/Không) + cột khoá Chữ cái đầu', () => {
+  for (let i = 0; i < 30; i++) {
+    const ids = chooseAttrs(fullAttrs('nỗi nhớ', DB['nỗi nhớ']));
     assert.equal(ids.length, 6);
     assert.equal(ids[0], 'loai');
+    assert.equal(ids[5], 'chu_dau');
     assert.equal(new Set(ids).size, 6);
     for (const id of ['kich_thuoc', 'mau', 'can_nang', 'so_chan']) assert.ok(!ids.includes(id), id);
+    assert.ok(ids.filter((id) => ATTR_BY_ID[id].values[0] === 'Có').length <= 2);
   }
+});
+
+test('cột Chữ cái đầu bị khoá: không hiện, không tính điểm; đủ N từ đoán thì mở + báo', async () => {
+  const { g } = mk({ modeRotation: 'attr', attrUnlockAfter: 3 });
+  await flush();
+  assert.equal(g.snapshot().attrs[5].locked, true);
+  assert.equal(g.snapshot().attrs[5].unlockIn, 3);
+  say(g, 'a', 'cái bàn'); say(g, 'b', 'con chó'); await flush();
+  assert.equal(g.snapshot().ranked.find((r) => r.word === 'con chó').cells[5].s, 'hit', 'C = C (vẫn tính, chỉ ẩn)');
+  assert.equal(g.snapshot().known[5], null, 'đang khoá thì chưa vào ĐÃ BIẾT');
+  const fx = say(g, 'c', 'nỗi nhớ');
+  assert.ok(fx.some((e) => e.type === 'wg_attr_unlock'));
+  assert.equal(g.snapshot().attrs[5].locked, undefined);
+  assert.equal(g.snapshot().known[5], 'C', 'mở khoá: từ đã đoán trúng chữ đầu được ghi nhận');
 });
 
 test('vòng thuộc tính: từ đoán hiện 6 ô, xếp theo số ô xanh, dòng ĐÃ BIẾT cộng dồn, đoán đúng vẫn thắng', async () => {
@@ -184,7 +213,7 @@ test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho c�
   const attrWords = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
   const enWords = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
   assert.ok(attrWords.length >= 200 && enWords.length >= 200);
-  for (const w of attrWords) for (const a of ATTRS) assert.ok(w.attrs[a.id] === null || a.values.includes(w.attrs[a.id]), `${w.word}.${a.id}`);
+  for (const w of attrWords) for (const a of ATTRS.filter((x) => !x.text)) { const v = w.attrs[a.id]; assert.ok(v === null || (a.multi ? v.every((x) => a.values.includes(x)) : a.values.includes(v)), `${w.word}.${a.id}`); }
   for (const w of enWords) assert.equal(w.en.length, 5, w.word);
   let calls = 0;
   const store = { available: true, get: async () => { calls++; return null; } };

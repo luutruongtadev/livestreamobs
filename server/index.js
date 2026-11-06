@@ -86,7 +86,7 @@ const wordSets = setStore.sets;
 const setGen = new SetGenerator({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5' });
 let genJob = null; // { state: 'running' | 'done' | 'error', message, setId }
 const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 'data', 'weekly.json') });
-// Chế độ "Đoán thuộc tính": Claude xếp 22 thuộc tính cho mỗi từ (một lần, lưu data/attributes.json)
+// Chế độ "Đoán thuộc tính": Claude xếp 24 thuộc tính nghĩa cho mỗi từ (thanh điệu / chữ cái đầu tự tính) (một lần, lưu data/attributes.json)
 const attrStore = new AttrStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_ATTR_MODEL || wgCfg.attrModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'attributes.json') });
 // Chế độ "Gợi ý tiếng Anh": Claude soạn 5 gợi ý tiếng Anh cho mỗi từ (một lần, lưu data/english-hints.json)
 const englishStore = new EnglishHintStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'english-hints.json') });

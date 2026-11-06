@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { ATTRS, ATTR_BY_ID, compareAttr, chooseAttrs } from './attributes.js';
+import { ATTRS, ATTR_BY_ID, compareAttr, chooseAttrs, fullAttrs, LOCKED_ATTR } from './attributes.js';
 import { canon, isExact, containsAnswer } from './scorer.js';
 import { makePausable } from './pause.js';
 import { TeamMatch } from './teams.js';
@@ -61,7 +61,8 @@ export const WG_DEFAULTS = {
   alternateEvery: 2, // mỗi N vòng đổi kiểu
   likeEvery: 1000, // cả phòng thả đủ N tim → lộ 1 chữ cái (0 = tắt)
   englishFreeHints: 3, // chế độ tiếng Anh: hệ thống tự mở 3 gợi ý; gợi ý 4–5 phải mở bằng tim / quà
-  englishLikeEvery: 2000, // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì thôi)
+  englishLikeEvery: 2000,
+  attrUnlockAfter: 10, // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì thôi)
   words: [{ word: 'mặt trời', hint: 'Thiên nhiên' }],
 };
 
@@ -281,14 +282,15 @@ export class WordGame extends EventEmitter {
     this.roundAttrs = null; // 6 thuộc tính của vòng (id)
     this.secretAttrs = null;
     this.known = {}; // thuộc tính đã đoán trúng: id -> giá trị
+    this.attrUnlocked = false; // cột khoá (chữ cái đầu) đã mở chưa
     this.englishHints = null;
     this.baseHints = null;
     if (this.mode === 'attr') {
       // gợi ý "Chủ đề" trùng với thuộc tính Loại → bỏ
       if (this.customHints) this.customHints = this.customHints.filter((h) => !/^Chủ đề:/.test(h));
       if (w.attrs && typeof w.attrs === 'object') { // từ soạn sẵn: có thuộc tính luôn, không cần gọi Claude
-        this.secretAttrs = w.attrs;
-        this.roundAttrs = chooseAttrs(w.attrs, this.random);
+        this.secretAttrs = fullAttrs(this.secret, w.attrs);
+        this.roundAttrs = chooseAttrs(this.secretAttrs, this.random);
       } else this.loadSecretAttrs();
     } else if (this.mode === 'english') {
       // gợi ý chỉ bằng tiếng Anh (5 từ, mở dần); không có thì quay về gợi ý thường
@@ -312,8 +314,8 @@ export class WordGame extends EventEmitter {
         for (const g of this.guesses.values()) if (g.pending) this.scoreGuess(g);
         return;
       }
-      this.secretAttrs = a;
-      this.roundAttrs = chooseAttrs(a, this.random);
+      this.secretAttrs = fullAttrs(this.secret, a);
+      this.roundAttrs = chooseAttrs(this.secretAttrs, this.random);
       this.dirty = true;
       this.emit('effects', [{ type: 'wg_attrs', attrs: this.attrMeta() }]);
       for (const g of this.guesses.values()) if (g.pending) this.scoreGuess(g); // từ đoán trước lúc sẵn sàng
@@ -337,7 +339,15 @@ export class WordGame extends EventEmitter {
     }).catch(() => {});
   }
 
-  attrMeta() { return (this.roundAttrs || []).map((id) => ({ id, icon: ATTR_BY_ID[id].icon, name: ATTR_BY_ID[id].name })); }
+  /** Cột khoá còn đang khoá? (mở sau N từ đoán, hết vòng thì mở) */
+  attrLocked(id) { return id === LOCKED_ATTR && !this.attrUnlocked && this.phase === 'playing'; }
+
+  attrMeta() {
+    return (this.roundAttrs || []).map((id) => ({
+      id, icon: ATTR_BY_ID[id].icon, name: ATTR_BY_ID[id].name,
+      ...(this.attrLocked(id) ? { locked: true, unlockIn: Math.max(0, this.cfg.attrUnlockAfter - this.guesses.size) } : {}),
+    }));
+  }
 
   /** Gợi ý theo mức: 1 = chủ đề, 2 = chữ cái đầu mỗi tiếng, 3 = lộ một tiếng. */
   get maxHints() { return this.mode === 'english' ? 5 : this.customHints?.length || 3; }
@@ -463,6 +473,13 @@ export class WordGame extends EventEmitter {
     this.pushFeed(fx);
     // chế độ thuộc tính: chờ tới lúc có thuộc tính của từ bí mật mới chấm
     if (this.mode !== 'attr' || this.roundAttrs) this.scoreGuess(entry);
+    // đủ N từ đoán → mở cột khoá
+    if (this.mode === 'attr' && this.roundAttrs?.includes(LOCKED_ATTR) && !this.attrUnlocked && this.guesses.size >= this.cfg.attrUnlockAfter) {
+      this.attrUnlocked = true;
+      const a = ATTR_BY_ID[LOCKED_ATTR];
+      if ([...this.guesses.values()].some((g) => g.cells?.some((c) => c.id === LOCKED_ATTR && c.s === 'hit'))) this.known[LOCKED_ATTR] = this.secretAttrs[LOCKED_ATTR];
+      return [fx, { type: 'wg_attr_unlock', id: a.id, icon: a.icon, name: a.name, after: this.cfg.attrUnlockAfter }];
+    }
     return [fx];
   }
 
@@ -475,17 +492,23 @@ export class WordGame extends EventEmitter {
       const p = limited ? Promise.resolve(null) : this.attrStore.get(word);
       p.then((ga) => {
         if (round !== this.roundNo || this.mode !== 'attr') return;
+        const all = fullAttrs(word, ga); // thuộc tính mặt chữ luôn tính được, kể cả khi Claude lỗi
         const cells = this.roundAttrs.map((id) => {
-          const v = ga ? ga[id] ?? null : null;
-          return { id, v, s: ga ? compareAttr(ATTR_BY_ID[id], this.secretAttrs[id], v) : 'na' };
+          const attr = ATTR_BY_ID[id];
+          if (!ga && !attr.text) return { id, v: null, s: 'na' };
+          const v = all[id] ?? null;
+          const { s, dir } = compareAttr(attr, this.secretAttrs[id], v);
+          return { id, v, s, ...(dir ? { dir } : {}) };
         });
-        const hits = cells.filter((c) => c.s === 'hit').length;
-        const near = cells.filter((c) => c.s === 'near').length;
+        // cột đang khoá không tính vào điểm hiển thị (tránh lộ)
+        const open = cells.filter((c) => !this.attrLocked(c.id));
+        const hits = open.filter((c) => c.s === 'hit').length;
+        const near = open.filter((c) => c.s === 'near' || c.s === 'part').length;
         entry.cells = cells; entry.hits = hits; entry.near = near;
         entry.score = hits; entry.pending = false; entry.source = ga ? 'attr' : 'limit';
         for (const f of this.feed) if (f.word === word) { f.score = hits; f.cells = cells; f.pending = false; }
         // ô xanh mới → thêm vào dòng "ĐÃ BIẾT"
-        const learned = cells.filter((c) => c.s === 'hit' && !(c.id in this.known));
+        const learned = cells.filter((c) => c.s === 'hit' && !(c.id in this.known) && !this.attrLocked(c.id));
         for (const c of learned) this.known[c.id] = this.secretAttrs[c.id];
         this.dirty = true;
         const out = [{ type: 'wg_scored', mode: 'attr', word, score: hits, hits, near, cells, by: entry.by, source: entry.source }];
@@ -690,7 +713,7 @@ export class WordGame extends EventEmitter {
       mode: this.mode,
       attrs: this.mode === 'attr' ? this.attrMeta() : null,
       // dòng "ĐÃ BIẾT": giá trị các thuộc tính đã đoán trúng (null = chưa biết); hết vòng thì lộ hết
-      known: this.mode === 'attr' && this.roundAttrs ? this.roundAttrs.map((id) => (ended ? this.secretAttrs[id] : this.known[id]) ?? null) : null,
+      known: this.mode === 'attr' && this.roundAttrs ? this.roundAttrs.map((id) => (ended ? this.secretAttrs[id] : this.attrLocked(id) ? null : this.known[id]) ?? null) : null,
       secret: ended ? this.secret : null,
       answer: ended ? this.display : null, // tên hiển thị đầy đủ (vd "Kai'Sa")
       title: this.set?.title || 'Đoán từ',
