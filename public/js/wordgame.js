@@ -779,7 +779,7 @@ function drawAttrBoard(t) {
   ctx.fillText('🧩 GIỐNG TỪ BÍ MẬT NHẤT', x + 26, top + 30);
   ctx.textAlign = 'right'; ctx.font = font(600, 17); ctx.fillStyle = 'rgba(199,210,254,.85)';
   ctx.fillText(`🟩 trúng · 🟨 gần / một phần · ↑↓ đáp án cao/thấp hơn · ${G.totalGuesses || 0} từ`, x + w - 26, top + 30);
-  const cw = (w - 300 - 20) / Math.max(6, attrs.length), cx0 = x + w - 20 - cw * attrs.length;
+  const cw = (w - 250 - 20) / Math.max(6, attrs.length), cx0 = x + w - 20 - cw * attrs.length;
   if (!attrs.length) {
     ctx.textAlign = 'center'; ctx.font = font(600, 24); ctx.fillStyle = 'rgba(255,255,255,.75)';
     ctx.fillText('Đang chuẩn bị thuộc tính… bình luận một từ bất kỳ!', W / 2, top + 100);
@@ -790,13 +790,11 @@ function drawAttrBoard(t) {
     const cx = cx0 + i * cw + cw / 2;
     ctx.textAlign = 'center'; ctx.font = font(700, 30); ctx.fillStyle = '#000';
     ctx.fillText(a.locked ? '🔒' : a.icon, cx, top + 66);
-    ctx.font = font(700, 15); ctx.fillStyle = a.locked ? '#fde68a' : 'rgba(255,255,255,.8)';
+    ctx.font = font(800, 17); ctx.fillStyle = a.locked ? '#fde68a' : '#fff';
     ctx.fillText(fitText(a.locked ? `${a.name}: mở sau ${a.unlockIn} từ` : a.name, cw - 6), cx, top + 92);
   });
   // dòng ĐÃ BIẾT
   const ky = top + 106;
-  ctx.textAlign = 'left'; ctx.font = font(900, 20); ctx.fillStyle = '#fde68a';
-  ctx.fillText('ĐÃ BIẾT', x + 26, ky + 20);
   (G.known || []).forEach((v, i) => {
     const bx = cx0 + i * cw + 3;
     rr(bx, ky, cw - 6, 40, 10);
@@ -822,10 +820,10 @@ function drawAttrBoard(t) {
     ctx.textAlign = 'center'; ctx.font = font(800, 18); ctx.fillStyle = 'rgba(255,255,255,.7)';
     ctx.fillText(String(i + 1), x + 40, y + rowH / 2);
     ctx.textAlign = 'left'; ctx.font = font(800, 25); ctx.fillStyle = '#fff';
-    ctx.fillText(fitText(r.word, 190), x + 62, y + rowH / 2 - 8);
+    ctx.fillText(fitText(r.word, 165), x + 62, y + rowH / 2 - 8);
     ctx.font = font(600, 14); ctx.fillStyle = 'rgba(255,255,255,.65)';
     const open = (r.cells || []).filter((c, k) => !attrs[k]?.locked);
-    ctx.fillText(fitText(`${r.by?.name || ''}${r.count > 1 ? ` +${r.count - 1}` : ''} · ${open.filter((c) => c.s === 'hit').length}/${open.length || attrs.length}`, 210), x + 62, y + rowH / 2 + 14);
+    ctx.fillText(fitText(`${r.by?.name || ''}${r.count > 1 ? ` +${r.count - 1}` : ''} · ${open.filter((c) => c.s === 'hit').length}/${open.length || attrs.length}`, 170), x + 62, y + rowH / 2 + 14);
     (r.cells || []).forEach((c, k) => {
       const bx = cx0 + k * cw + 3;
       rr(bx, y + 8, cw - 6, rowH - 16, 8);
