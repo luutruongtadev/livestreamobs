@@ -21,13 +21,20 @@ jobs:
           script: |
             cd /opt/chua-online || exit 0
             DOCKER=docker; docker info >/dev/null 2>&1 || DOCKER="sudo -n docker"
-            echo "===== ĐỒNG HỒ: VPS so với máy chủ TikTok / Google ====="
-            date -u +"VPS:    %Y-%m-%d %H:%M:%S UTC"
-            for u in https://www.tiktok.com/ https://www.google.com/; do echo "$u $(curl -sI -m 10 $u | grep -i '^date:')"; done
-            timedatectl 2>/dev/null | grep -iE "synchronized|NTP|Time zone" || true
-            echo "===== ĐỘ TRỄ THEO THỜI GIAN (đọc 5 lần, mỗi 20s) ====="
-            for i in 1 2 3 4 5; do echo "$(date -u +%T) $(curl -s -m 5 localhost:8686/api/status | grep -o '"delay":{[^}]*}[^}]*}}' )"; sleep 20; done
-            echo "===== SỐ SỰ KIỆN TIKTOK TRONG LOG 10 PHÚT ====="
-            $DOCKER logs --since 10m chua-online-app-1 2>&1 | grep -c "connected" || true
-            echo "===== TOP tiến trình trong container ====="
-            $DOCKER top chua-online-app-1 -o pid,pcpu,pmem,args 2>/dev/null | head -5
+            echo "===== TRẠNG THÁI APP ====="; curl -s -m 5 localhost:8686/api/status | grep -o '"state":"[^"]*"\|"drops":[0-9]*\|"delay":{[^}]*}[^}]*}}'
+            echo "===== KẾT NỐI ĐO RIÊNG 90s: độ trễ TỪNG bình luận ====="
+            $DOCKER exec chua-online-app-1 node --input-type=module -e '
+              import { TikTokLiveConnection, WebcastEvent, ControlEvent } from "tiktok-live-connector";
+              const t0 = Date.now(); const ds = []; const counts = {};
+              const c = new TikTokLiveConnection("quehayhoi", { signApiKey: process.env.SIGN_API_KEY || undefined, processInitialData: false });
+              for (const ev of ["chat","like","gift","member","roomUser","social"]) c.on(ev, (d) => { counts[ev] = (counts[ev]||0)+1;
+                if (ev === "chat") { const ct = Number(d.common?.createTime); const ms = Date.now() - (ct < 1e12 ? ct*1000 : ct);
+                  ds.push(ms); console.log(`chat +${((Date.now()-t0)/1000).toFixed(0)}s trễ=${(ms/1000).toFixed(1)}s "${String(d.content||"").slice(0,20)}"`); } });
+              c.on(ControlEvent.DISCONNECTED, (i) => console.log("disconnected", JSON.stringify(i)));
+              c.on(ControlEvent.ERROR, (e) => console.log("error", e?.info || e?.message));
+              const st = await c.connect().catch((e) => { console.log("connect lỗi", e?.message); process.exit(0); });
+              console.log("kết nối sau", ((Date.now()-t0)/1000).toFixed(1), "s, roomId", st?.roomId, "có SIGN_API_KEY:", !!process.env.SIGN_API_KEY);
+              setTimeout(() => { ds.sort((a,b)=>a-b); const q=(p)=>ds.length?(ds[Math.min(ds.length-1,Math.floor(p*ds.length))]/1000).toFixed(1)+"s":"-";
+                console.log("TỔNG:", JSON.stringify(counts), "| trung vị", q(0.5), "| p90", q(0.9), "| min", q(0), "| max", q(0.999));
+                c.disconnect().finally(() => process.exit(0)); }, 90000);
+            ' 2>&1 | tail -80
