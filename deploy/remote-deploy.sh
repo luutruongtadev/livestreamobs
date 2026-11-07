@@ -85,6 +85,20 @@ for f in image-*.tar.gz; do
   rm -f "$f"
 done
 
+echo "==> Thư mục dữ liệu ./data (xem / sao lưu được ngay trên VPS)"
+mkdir -p data
+# lần đầu: chép dữ liệu cũ từ volume Docker chua-data sang ./data (volume cũ giữ lại làm dự phòng)
+OLD_VOL="$($DOCKER volume ls -q | grep -E '(^|_)chua-data$' | head -1 || true)"
+if [[ -n "$OLD_VOL" && -z "$(ls -A data 2>/dev/null)" ]]; then
+  echo "    Chuyển dữ liệu từ volume $OLD_VOL sang $DIR/data"
+  $DOCKER compose "${PROFILES[@]}" stop app >/dev/null 2>&1 || true
+  $DOCKER run --rm --user root --entrypoint sh -v "$OLD_VOL":/from:ro -v "$DIR/data":/to chua-online:app -c 'cp -a /from/. /to/'
+  echo "    Đã chép: $(ls data | wc -l) mục"
+fi
+# app chạy bằng user node (uid 1000) → cho quyền ghi
+# (chown chạy trong container root để không cần sudo trên VPS)
+$DOCKER run --rm --user root --entrypoint chown -v "$DIR/data":/d chua-online:app -R 1000:1000 /d
+
 echo "==> Chạy"
 mkdir -p public/assets
 $DOCKER compose "${PROFILES[@]}" up -d --no-build --remove-orphans

@@ -23,7 +23,7 @@ services:
     ports:
       - "127.0.0.1:8686:8686"   # chỉ mở trong VPS; ra internet qua Caddy (HTTPS)
     volumes:
-      - chua-data:/app/data                       # kho từ, điểm tuần, giọng MC (giữ khi cập nhật)
+      - ./data:/app/data                          # kho từ, điểm tuần, cache thuộc tính, giọng MC — thư mục data/ ngay trên VPS (giữ khi cập nhật)
       - ./config.json:/app/config.json:ro         # sửa config.json rồi: docker compose restart app
       - ./public/assets:/app/public/assets:ro     # ảnh nền, âm thanh riêng
 
@@ -58,6 +58,6 @@ services:
     shm_size: 1gb
 
 volumes:
-  chua-data:
+  chua-data:   # chỗ lưu cũ — remote-deploy.sh tự chép sang ./data, giữ lại làm bản dự phòng
   caddy-data:
   caddy-config:

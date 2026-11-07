@@ -96,6 +96,11 @@ for (const [mode, file] of [['meaning', 'meaning.json'], ['attr', 'attr.json'], 
   try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được modewords/${file}:`, e.message); }
 }
 attrStore.seed(modeWords.attr || []);
+// thuộc tính soạn sẵn cho ~670 từ có trong hệ thống (người xem hay đoán) → không tốn token khi gặp lại
+try {
+  const pre = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', 'attr-cache.json'), 'utf8')).words || {};
+  attrStore.seed(Object.entries(pre).map(([word, attrs]) => ({ word, attrs })));
+} catch (e) { console.warn('[wordgame] không đọc được modewords/attr-cache.json:', e.message); }
 englishStore.seed(modeWords.english || []);
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, attrStore, englishStore, modeWords, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });

@@ -332,3 +332,22 @@ test('vòng thuộc tính: chỉ tối đa N từ MỚI mỗi vòng được g�
   assert.deepEqual(got.filter((w) => !['con mèo', 'con chó', 'cái bàn'].includes(w)), ['xe máy', 'quả táo'], 'chỉ 2 từ mới');
   assert.equal(g.snapshot().ranked.find((r) => r.word === 'cây bút').cells[0].s, 'na', 'vượt giới hạn: ô nghĩa để trống');
 });
+
+test('cache thuộc tính soạn sẵn trong repo: đủ 24 thuộc tính, giá trị hợp lệ, nạp vào AttrStore thì không gọi Claude', async () => {
+  const fs = await import('node:fs');
+  const pre = JSON.parse(fs.readFileSync(new URL('../modewords/attr-cache.json', import.meta.url))).words;
+  const entries = Object.entries(pre);
+  assert.ok(entries.length >= 600);
+  for (const [w, a] of entries) for (const at of ATTRS.filter((x) => !x.text)) {
+    const v = a[at.id];
+    assert.ok(at.id in a, `${w} thiếu ${at.id}`);
+    assert.ok(v === null || (at.multi ? v.every((x) => at.values.includes(x)) : at.values.includes(v)), `${w}.${at.id}=${v}`);
+  }
+  let calls = 0;
+  const s = new AttrStore({ client: { beta: { messages: { create: async () => { calls++; throw new Error('không được gọi'); } } } }, batchMs: 1 });
+  s.seed(entries.map(([word, attrs]) => ({ word, attrs })));
+  assert.equal((await s.get('con mèo')).loai, 'Con vật');
+  assert.equal((await s.get('Bánh Chưng')).le_tet, 'Có');
+  assert.ok(s.has('xe máy'));
+  assert.equal(calls, 0);
+});
