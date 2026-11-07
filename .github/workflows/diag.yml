@@ -1,0 +1,37 @@
+name: Chẩn đoán VPS
+# Chỉ đọc thông tin, KHÔNG deploy / KHÔNG khởi động lại app. Chạy khi push nhánh "diag".
+on:
+  push:
+    branches: [diag]
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Đọc tình trạng VPS + log app
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          command_timeout: 8m
+          script: |
+            cd /opt/chua-online || exit 0
+            DOCKER=docker; docker info >/dev/null 2>&1 || DOCKER="sudo -n docker"
+            echo "===== MÁY ====="; uptime; nproc; free -m; df -h / | tail -1
+            echo "===== CPU / RAM theo tiến trình ====="; top -bn1 | head -15
+            echo "===== CONTAINER ====="; $DOCKER compose ps; $DOCKER stats --no-stream
+            echo "RestartCount: $($DOCKER inspect -f '{{.RestartCount}} started={{.State.StartedAt}} health={{.State.Health.Status}}' chua-online-app-1)"
+            echo "===== TRẠNG THÁI APP (/api/status) ====="; curl -s -m 5 localhost:8686/api/status; echo
+            echo "===== MẠNG: thời gian tới TikTok / Euler / Anthropic ====="
+            for u in https://www.tiktok.com/ https://webcast.tiktok.com/ https://tiktok.eulerstream.com/ https://api.anthropic.com/; do
+              curl -o /dev/null -s -m 15 -w "$u  dns=%{time_namelookup}s connect=%{time_connect}s tls=%{time_appconnect}s total=%{time_total}s code=%{http_code}\n" "$u" || echo "$u  LỖI"
+            done
+            ping -c 4 -W 2 www.tiktok.com 2>&1 | tail -2
+            echo "===== LOG TIKTOK / LỖI (3 giờ gần nhất) ====="
+            $DOCKER logs --since 3h chua-online-app-1 2>&1 | grep -iE "tiktok|rớt|mất kết nối|error|lỗi|warn|retry|thử lại|disconnect|429|rate" | tail -120
+            echo "===== 60 DÒNG LOG CUỐI ====="
+            $DOCKER logs --tail 60 chua-online-app-1 2>&1
