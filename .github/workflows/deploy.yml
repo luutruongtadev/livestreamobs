@@ -90,6 +90,35 @@ jobs:
           target: ${{ env.VPS_DIR }}
           overwrite: true
 
+      # Dữ liệu (kho từ, điểm tuần, cache thuộc tính, giọng MC…) chuyển từ volume Docker "chua-data"
+      # sang thư mục ./data ngay trên VPS để xem / sao lưu được. Chỉ chép MỘT lần (khi ./data còn trống);
+      # volume cũ giữ nguyên làm bản dự phòng.
+      - name: Chuyển dữ liệu từ volume Docker sang ./data trên VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          command_timeout: 10m
+          script: |
+            set -eu
+            DIR="${{ env.VPS_DIR }}"
+            mkdir -p "$DIR/data" && cd "$DIR"
+            DOCKER="docker"; docker info >/dev/null 2>&1 || DOCKER="sudo -n docker"
+            if ! $DOCKER info >/dev/null 2>&1; then echo "Chưa có Docker (cài lần đầu) → bỏ qua"; exit 0; fi
+            OLD_VOL="$($DOCKER volume ls -q | grep -E '(^|_)chua-data$' | head -1 || true)"
+            if [ -z "$OLD_VOL" ]; then echo "Không có volume chua-data cũ → bỏ qua"; exit 0; fi
+            if [ -n "$(ls -A data 2>/dev/null)" ]; then echo "./data đã có $(ls data | wc -l) mục → không chép lại"; exit 0; fi
+            # dùng image app đang chạy để chép (không cần tải thêm); chưa có thì dùng alpine
+            IMG="chua-online:app"; $DOCKER image inspect "$IMG" >/dev/null 2>&1 || IMG="alpine:3.20"
+            echo "==> Dừng app, chép dữ liệu từ volume $OLD_VOL sang $DIR/data"
+            $DOCKER compose stop app 2>/dev/null || $DOCKER stop "$($DOCKER ps -q --filter name=app)" 2>/dev/null || true
+            $DOCKER run --rm --user root --entrypoint sh -v "$OLD_VOL":/from:ro -v "$DIR/data":/to "$IMG" \
+              -c 'cp -a /from/. /to/ && chown -R 1000:1000 /to'
+            echo "==> Đã chép $(ls data | wc -l) mục:"
+            ls -la data
+
       - name: Chạy trên VPS
         uses: appleboy/ssh-action@v1.2.5
         with:
