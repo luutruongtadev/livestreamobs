@@ -157,7 +157,7 @@ const complete = (a) => a && SEMANTIC.every((x) => x.id in a);
  * get(word) → Promise<{ attrId: value | null }> hoặc null nếu lỗi.
  */
 export class AttrStore {
-  constructor({ client = null, model = 'claude-haiku-5-5', filePath = null, batchMs = 700, maxBatch = 15, log = console } = {}) {
+  constructor({ client = null, model = 'claude-haiku-5-5', filePath = null, batchMs = 400, maxBatch = 15, log = console } = {}) {
     this.client = client;
     this.model = model;
     this.filePath = filePath;

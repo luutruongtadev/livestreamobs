@@ -26,9 +26,16 @@ export function normalizeUser(u) {
   };
 }
 
+/** Thời điểm TikTok tạo tin (ms), từ common.createTime; không có thì null. */
+export function sentAtOf(data) {
+  const raw = Number(first(data?.common?.createTime, data?.createTime));
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  return raw < 1e12 ? raw * 1000 : raw; // có bản trả giây
+}
+
 /** Nội dung bình luận: bản v2 để trong `content`, bản cũ trong `comment`. */
 export function normalizeComment(data) {
-  return { type: 'comment', user: normalizeUser(data.user), text: String(first(data.content, data.comment) ?? '') };
+  return { type: 'comment', user: normalizeUser(data.user), text: String(first(data.content, data.comment) ?? ''), sentAt: sentAtOf(data) };
 }
 
 /** Trả về null nếu là quà combo đang chạy (chỉ tính khi kết thúc chuỗi). */
@@ -67,8 +74,16 @@ export class TikTokBridge extends EventEmitter {
     this.stallMs = stallMs; // không nhận được dữ liệu gì trong khoảng này → coi như kết nối "chết lâm sàng", nối lại
     this.watchdog = null;
     this.lastDataAt = 0;
+    this.delays = []; // độ trễ TikTok → server của các bình luận gần đây (ms)
     this.roomId = null; // nhớ room id của buổi live để nối lại nhanh, đỡ tốn lượt gọi máy chủ ký (Euler)
     this.status = { state: 'idle', message: 'Chưa kết nối', username: '', viewers: 0, drops: 0, lastDrop: null };
+  }
+
+  /** Độ trễ trung bình / lớn nhất của các bình luận gần đây (ms). */
+  delayStats() {
+    const d = this.delays;
+    if (!d.length) return null;
+    return { avg: Math.round(d.reduce((a, b) => a + b, 0) / d.length), max: Math.max(...d), n: d.length };
   }
 
   setStatus(patch) {
@@ -174,7 +189,12 @@ export class TikTokBridge extends EventEmitter {
       ws?.on?.('ping', (data) => { try { ws.pong(data); } catch { /* bỏ qua */ } });
     });
 
-    conn.on(WebcastEvent.CHAT, (d) => emit(normalizeComment(d)));
+    conn.on(WebcastEvent.CHAT, (d) => {
+      const ev = normalizeComment(d);
+      // đo độ trễ: lúc TikTok tạo bình luận → lúc server nhận được
+      if (ev.sentAt) { const ms = Date.now() - ev.sentAt; if (ms > -5000 && ms < 600_000) { this.delays.push(Math.max(0, ms)); if (this.delays.length > 30) this.delays.shift(); } }
+      emit(ev);
+    });
     conn.on(WebcastEvent.LIKE, (d) => emit({ type: 'like', user: normalizeUser(d.user), count: Number(d.likeCount) || 1 }));
     conn.on(WebcastEvent.SHARE, (d) => emit({ type: 'share', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.FOLLOW, (d) => emit({ type: 'follow', user: normalizeUser(d.user) }));

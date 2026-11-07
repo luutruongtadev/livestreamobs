@@ -113,7 +113,7 @@ const SCHEMA = {
  * score(secret, word) trả về Promise<{ score, source }>.
  */
 export class ClaudeScorer {
-  constructor({ model = 'claude-opus-5-5', batchMs = 800, maxBatch = 25, cachePath = null, client = null, log = console } = {}) {
+  constructor({ model = 'claude-opus-5-5', batchMs = 400, maxBatch = 25, cachePath = null, client = null, log = console } = {}) {
     this.model = model;
     this.batchMs = batchMs;
     this.maxBatch = maxBatch;

@@ -110,6 +110,7 @@ export class WordGame extends EventEmitter {
     this.modeCounter = 0; // số vòng đã chơi để luân phiên kiểu chơi
     this.streak = null; // chuỗi đoán trúng liên tiếp: { id, name, n, round }
     this.userLikes = new Map(); // tim của từng người trong vòng
+    this.scoreDelays = []; // thời gian từ lúc nhận từ đoán tới lúc có điểm (ms), các từ gần đây
     this.weekly = weekly; // bảng xếp hạng tuần (WeeklyBoard), có thể null
     this.teams = new TeamMatch(config.team || {}); // chế độ đấu đội (admin bật / tắt)
     // Bộ từ: { id: { title, secretLabel, scoreContext, words: [{ word, hint?, hints?, aliases? }] } }
@@ -534,6 +535,7 @@ export class WordGame extends EventEmitter {
       const p = limited ? Promise.resolve(null) : this.attrStore.get(word);
       p.then((ga) => {
         if (round !== this.roundNo || this.mode !== 'attr') return;
+        if (!cachedAttr) this.noteScoreDelay(entry, 'claude');
         const all = fullAttrs(word, ga); // thuộc tính mặt chữ luôn tính được, kể cả khi Claude lỗi
         const cells = this.roundAttrs.map((id) => {
           const attr = ATTR_BY_ID[id];
@@ -564,6 +566,7 @@ export class WordGame extends EventEmitter {
     const p = useScorer ? useScorer.score(this.secret, word, ctx) : Promise.resolve({ score: 1, source: 'limit' });
     p.then(({ score, source }) => {
       if (round !== this.roundNo) return; // vòng đã qua
+      this.noteScoreDelay(entry, source);
       entry.score = score; entry.pending = false; entry.source = source;
       for (const f of this.feed) if (f.word === word) { f.score = score; f.pending = false; }
       this.dirty = true;
@@ -699,6 +702,19 @@ export class WordGame extends EventEmitter {
     if (tp) { fx.push(tp); this.winner.team = tp.team; this.winner.teamPoints = tp.points; }
     fx.push(...this.teams.onRoundEnd());
     return fx;
+  }
+
+  /** Ghi thời gian chấm điểm (chỉ từ phải chấm mới — lấy từ cache thì gần như tức thì). */
+  noteScoreDelay(entry, source) {
+    if (source === 'cache') return;
+    this.scoreDelays.push(Math.max(0, this.clock() - entry.at));
+    if (this.scoreDelays.length > 30) this.scoreDelays.shift();
+  }
+
+  scoreDelayStats() {
+    const d = this.scoreDelays;
+    if (!d.length) return null;
+    return { avg: Math.round(d.reduce((a, b) => a + b, 0) / d.length), max: Math.max(...d), n: d.length };
   }
 
   /** Chuỗi đang sống: người thắng vòng ngay trước (hoặc vòng này) — vòng nào không thắng là đứt. */

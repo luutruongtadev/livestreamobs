@@ -58,3 +58,23 @@ test('TikTokBridge: kết nối "chết lâm sàng" (không có dữ liệu) th�
   assert.notEqual(C.last, first, 'đã tạo kết nối mới');
   await b.disconnect();
 });
+
+test('đo độ trễ: lấy thời điểm TikTok tạo bình luận (common.createTime), tính trung bình / lâu nhất', async () => {
+  const { sentAtOf, normalizeComment } = await import('../server/tiktok.js');
+  assert.equal(sentAtOf({ common: { createTime: '1762500000000' } }), 1762500000000);
+  assert.equal(sentAtOf({ common: { createTime: '1762500000' } }), 1762500000000, 'đơn vị giây → ms');
+  assert.equal(sentAtOf({}), null);
+  assert.equal(normalizeComment({ content: 'hi', common: { createTime: '1762500000000' }, user: { uniqueId: 'a' } }).sentAt, 1762500000000);
+  const log = [];
+  const C = fakeClass(log);
+  const b = new TikTokBridge({ ConnectionClass: C, log: {} });
+  const got = [];
+  b.on('event', (e) => got.push(e));
+  await b.connect('kenh');
+  C.last.emit('chat', { content: 'mèo', user: { uniqueId: 'x' }, common: { createTime: String(Date.now() - 2000) } });
+  C.last.emit('chat', { content: 'chó', user: { uniqueId: 'y' }, common: { createTime: String(Date.now() - 4000) } });
+  assert.equal(got.length, 2);
+  const st = b.delayStats();
+  assert.ok(st.avg >= 2900 && st.avg < 3500 && st.max >= 3900, JSON.stringify(st));
+  await b.disconnect();
+});
