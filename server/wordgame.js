@@ -29,6 +29,16 @@ export function winTier({ seconds, left, hintLevel, flashSeconds = 10, clutchSec
 /** Cờ quốc gia (🇻🇳 🇰🇷…) trên Windows / OBS hiện thành chữ "VN", "KR" → đổi sang emoji thường. */
 export const noFlags = (s) => String(s ?? '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, (f) => (f === '🇻🇳' ? '⭐' : '🌏'));
 
+/** Gợi ý tiếng Anh: mô tả đầu tiên lên trước, "dịch từng chữ" (WBW:) làm gợi ý số 2. */
+export function orderEnglish(h) {
+  const list = (h || []).slice(0, 5);
+  const i = list.findIndex((x) => String(x).startsWith('WBW:'));
+  if (i < 0 || list.length < 2) return list;
+  const [wbw] = list.splice(i, 1);
+  list.splice(1, 0, wbw);
+  return list;
+}
+
 export function vocabHints(w) {
   const desc = (w.desc || []).filter(Boolean).slice(0, 2);
   const topic = w.hint ? [`Chủ đề: ${w.hint}`] : [];
@@ -315,7 +325,7 @@ export class WordGame extends EventEmitter {
       // gợi ý chỉ bằng tiếng Anh (5 từ, mở dần); không có thì quay về gợi ý thường
       this.baseHints = this.customHints;
       this.customHints = null;
-      if (Array.isArray(w.en) && w.en.length) this.englishHints = w.en.slice(0, 5); // từ soạn sẵn
+      if (Array.isArray(w.en) && w.en.length) this.englishHints = orderEnglish(w.en); // từ soạn sẵn
       else this.loadEnglishHints();
     }
     this.dirty = true;
@@ -353,7 +363,7 @@ export class WordGame extends EventEmitter {
         this.emit('effects', [{ type: 'wg_mode', mode: 'meaning', fallback: true }]);
         return;
       }
-      this.englishHints = h.slice(0, 5);
+      this.englishHints = orderEnglish(h);
       this.dirty = true;
       this.emit('effects', [{ type: 'wg_english', count: this.englishHints.length }]);
     }).catch(() => {});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WordGame } from '../server/wordgame.js';
+import { WordGame, orderEnglish } from '../server/wordgame.js';
 import { ATTRS, compareAttr, chooseAttrs, AttrStore, ATTR_BY_ID, textAttrs, fullAttrs, CODE } from '../server/attributes.js';
 
 const flush = () => new Promise((r) => setTimeout(r, 5));
@@ -240,7 +240,7 @@ test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho c�
   g.startRound();
   assert.equal(g.mode, 'english');
   assert.equal(g.display, enWords[0].word);
-  assert.deepEqual(g.englishHints, enWords[0].en);
+  assert.deepEqual(g.englishHints, orderEnglish(enWords[0].en));
   await flush();
   assert.equal(calls, 0, 'không gọi Claude cho từ bí mật');
   assert.deepEqual(g.modeWordStats(), { attr: { total: 1, left: 0 }, english: { total: 1, left: 0 } });
@@ -297,7 +297,7 @@ test('kho chủ đề soạn sẵn (Gần nghĩa): trộn với kho chung, khôn
   assert.ok(m.aliases.includes('cr7') === false && m.aliases.includes('leo messi'));
 });
 
-test('chế độ tiếng Anh: gợi ý đầu tiên là dịch từng chữ (kẹo cao su → candy high coin); kho soạn sẵn có đủ', async () => {
+test('chế độ tiếng Anh: gợi ý 1 là mô tả, gợi ý 2 là dịch từng chữ (kẹo cao su → candy high coin); kho soạn sẵn có đủ', async () => {
   const fs = await import('node:fs');
   const words = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
   assert.ok(words.length >= 260);
@@ -308,7 +308,7 @@ test('chế độ tiếng Anh: gợi ý đầu tiên là dịch từng chữ (k�
   const keo = words.find((w) => w.word === 'kẹo cao su');
   const g = new WordGame({ words: [], modes: ['english'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, englishStore: { available: true, get: async () => null }, modeWords: { english: [keo] } });
   g.revealHint(); g.revealHint();
-  assert.deepEqual(g.snapshot().hints, ['Dịch từng chữ: candy high coin', keo.en[1]]);
+  assert.deepEqual(g.snapshot().hints, [keo.en[1], 'Dịch từng chữ: candy high coin'], 'mô tả trước, dịch từng chữ là gợi ý số 2');
   const attr = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
   assert.ok(attr.length >= 280 && attr.some((w) => w.word === 'trống đồng'));
 });
@@ -350,4 +350,9 @@ test('cache thuộc tính soạn sẵn trong repo: đủ 24 thuộc tính, giá 
   assert.equal((await s.get('Bánh Chưng')).le_tet, 'Có');
   assert.ok(s.has('xe máy'));
   assert.equal(calls, 0);
+});
+
+test('orderEnglish: dịch từng chữ chuyển xuống gợi ý số 2; tên riêng (không có dịch) giữ nguyên', () => {
+  assert.deepEqual(orderEnglish(['WBW:candy high coin', 'a', 'b', 'c', 'd']), ['a', 'WBW:candy high coin', 'b', 'c', 'd']);
+  assert.deepEqual(orderEnglish(['a', 'b', 'c', 'd']), ['a', 'b', 'c', 'd']);
 });
