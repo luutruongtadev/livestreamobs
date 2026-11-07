@@ -56,6 +56,13 @@ else
   [[ -f .env ]] || cp .env.example .env
 fi
 chmod 600 .env
+# SIGN_API_KEY từ secret riêng trên GitHub (sign.deploy) → ghi vào .env
+if [[ -s sign.deploy ]]; then
+  KEY="$(cat sign.deploy)"
+  { grep -v '^SIGN_API_KEY=' .env || true; printf 'SIGN_API_KEY=%s\n' "$KEY"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
+  echo "    Đã cập nhật SIGN_API_KEY từ GitHub secret"
+fi
+rm -f sign.deploy
 set_env() { if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi; }
 get_env() { grep -E "^$1=" .env | head -1 | cut -d= -f2- || true; }
 TOKEN="$(get_env ADMIN_TOKEN)"

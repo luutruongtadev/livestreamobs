@@ -71,12 +71,16 @@ jobs:
           docker build --target streamer -t chua-online:streamer .
           docker save chua-online:streamer | gzip > image-streamer.tar.gz
 
-      - name: Chuẩn bị file .env (từ secret VPS_ENV_FILE nếu có)
+      - name: Chuẩn bị file .env (từ secret VPS_ENV_FILE nếu có) + SIGN_API_KEY (secret riêng)
         env:
           VPS_ENV_FILE: ${{ secrets.VPS_ENV_FILE }}
+          SIGN_API_KEY: ${{ secrets.SIGN_API_KEY }}
         run: |
           printf '%s' "$VPS_ENV_FILE" > env.deploy
-          chmod 600 env.deploy
+          # SIGN_API_KEY lấy từ secret riêng trên GitHub, VPS tự ghi vào .env (đè giá trị cũ nếu có)
+          printf '%s' "$SIGN_API_KEY" > sign.deploy
+          chmod 600 env.deploy sign.deploy
+          if [ -n "$SIGN_API_KEY" ]; then echo "✓ SIGN_API_KEY có giá trị"; else echo "SIGN_API_KEY trống → giữ giá trị trong .env trên VPS (nếu có)"; fi
           ls -lh image-*.tar.gz
 
       - name: Chép lên VPS
@@ -86,7 +90,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "image-*.tar.gz,env.deploy,docker-compose.yml,.env.example,config.json,deploy/Caddyfile,deploy/remote-deploy.sh,public/assets"
+          source: "image-*.tar.gz,env.deploy,sign.deploy,docker-compose.yml,.env.example,config.json,deploy/Caddyfile,deploy/remote-deploy.sh,public/assets"
           target: ${{ env.VPS_DIR }}
           overwrite: true
 
