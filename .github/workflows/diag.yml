@@ -21,17 +21,13 @@ jobs:
           script: |
             cd /opt/chua-online || exit 0
             DOCKER=docker; docker info >/dev/null 2>&1 || DOCKER="sudo -n docker"
-            echo "===== MÁY ====="; uptime; nproc; free -m; df -h / | tail -1
-            echo "===== CPU / RAM theo tiến trình ====="; top -bn1 | head -15
-            echo "===== CONTAINER ====="; $DOCKER compose ps; $DOCKER stats --no-stream
-            echo "RestartCount: $($DOCKER inspect -f '{{.RestartCount}} started={{.State.StartedAt}} health={{.State.Health.Status}}' chua-online-app-1)"
-            echo "===== TRẠNG THÁI APP (/api/status) ====="; curl -s -m 5 localhost:8686/api/status; echo
-            echo "===== MẠNG: thời gian tới TikTok / Euler / Anthropic ====="
-            for u in https://www.tiktok.com/ https://webcast.tiktok.com/ https://tiktok.eulerstream.com/ https://api.anthropic.com/; do
-              curl -o /dev/null -s -m 15 -w "$u  dns=%{time_namelookup}s connect=%{time_connect}s tls=%{time_appconnect}s total=%{time_total}s code=%{http_code}\n" "$u" || echo "$u  LỖI"
-            done
-            ping -c 4 -W 2 www.tiktok.com 2>&1 | tail -2
-            echo "===== LOG TIKTOK / LỖI (3 giờ gần nhất) ====="
-            $DOCKER logs --since 3h chua-online-app-1 2>&1 | grep -iE "tiktok|rớt|mất kết nối|error|lỗi|warn|retry|thử lại|disconnect|429|rate" | tail -120
-            echo "===== 60 DÒNG LOG CUỐI ====="
-            $DOCKER logs --tail 60 chua-online-app-1 2>&1
+            echo "===== ĐỒNG HỒ: VPS so với máy chủ TikTok / Google ====="
+            date -u +"VPS:    %Y-%m-%d %H:%M:%S UTC"
+            for u in https://www.tiktok.com/ https://www.google.com/; do echo "$u $(curl -sI -m 10 $u | grep -i '^date:')"; done
+            timedatectl 2>/dev/null | grep -iE "synchronized|NTP|Time zone" || true
+            echo "===== ĐỘ TRỄ THEO THỜI GIAN (đọc 5 lần, mỗi 20s) ====="
+            for i in 1 2 3 4 5; do echo "$(date -u +%T) $(curl -s -m 5 localhost:8686/api/status | grep -o '"delay":{[^}]*}[^}]*}}' )"; sleep 20; done
+            echo "===== SỐ SỰ KIỆN TIKTOK TRONG LOG 10 PHÚT ====="
+            $DOCKER logs --since 10m chua-online-app-1 2>&1 | grep -c "connected" || true
+            echo "===== TOP tiến trình trong container ====="
+            $DOCKER top chua-online-app-1 -o pid,pcpu,pmem,args 2>/dev/null | head -5
