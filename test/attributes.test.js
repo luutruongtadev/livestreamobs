@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WordGame } from '../server/wordgame.js';
-import { ATTRS, compareAttr, chooseAttrs, AttrStore, ATTR_BY_ID, textAttrs, fullAttrs } from '../server/attributes.js';
+import { ATTRS, compareAttr, chooseAttrs, AttrStore, ATTR_BY_ID, textAttrs, fullAttrs, CODE } from '../server/attributes.js';
 
 const flush = () => new Promise((r) => setTimeout(r, 5));
 const base = (over = {}) => Object.fromEntries(ATTRS.filter((a) => !a.text).map((a) => [a.id, over[a.id] !== undefined ? over[a.id] : a.multi ? [a.values[0]] : a.values[0]]));
@@ -140,7 +140,8 @@ test('AttrStore: gom lô gọi Claude một lần, lưu cache, giá trị lạ t
   const client = { beta: { messages: { create: async (req) => {
     calls.push(req);
     const words = JSON.parse(req.messages[0].content.split(': ')[1]);
-    const items = words.map((w) => ({ word: w, ...Object.fromEntries(ATTRS.map((a) => [a.id, a.id === 'mau' ? 'Không áp dụng' : a.values[1]])) }));
+    // Claude trả mã ngắn + số thứ tự; số lạ (99) thành null, -1 = không áp dụng
+    const items = words.map((w) => ({ w, ...Object.fromEntries(ATTRS.filter((a) => !a.text).map((a) => [CODE[a.id], a.id === 'mau' ? [] : a.id === 'gia' ? 99 : a.id === 'nhiet' ? -1 : 1])) }));
     return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ items }) }] };
   } } } };
   const s = new AttrStore({ client, batchMs: 5 });
@@ -149,9 +150,18 @@ test('AttrStore: gom lô gọi Claude một lần, lưu cache, giá trị lạ t
   assert.equal(a.loai, 'Con vật');
   assert.equal(a.mau, null);
   assert.equal(b.song, 'Không');
+  assert.equal(a.gia, null, 'số lạ → null');
+  assert.equal(a.nhiet, null, '-1 → không áp dụng');
+  // gọi rẻ: Haiku, không gửi tham số fallback, có cache_control cho phần hướng dẫn, schema dùng mã ngắn + số
+  assert.equal(calls[0].model, 'claude-haiku-5-5');
+  assert.equal(calls[0].betas, undefined);
+  assert.equal(calls[0].system[0].cache_control.type, 'ephemeral');
+  assert.match(calls[0].system[0].text, /kt: Kích thước: 0=Nhỏ hơn bàn tay, 1=Cỡ cái bàn/);
+  assert.equal(calls[0].output_config.format.schema.properties.items.items.properties.kt.type, 'integer');
+  assert.ok(s.has('con mèo') && !s.has('con voi'));
   await s.get('con mèo');
   assert.equal(calls.length, 1, 'lấy từ cache');
-  assert.match(calls[0].system, /so_chan/);
+  assert.match(calls[0].system[0].text, /sc: Số chân/);
 });
 
 test('chế độ gợi ý tiếng Anh: 5 gợi ý tiếng Anh mở dần, không có gợi ý chủ đề tiếng Việt, chấm gần nghĩa; lỗi thì quay về gợi ý thường', async () => {
@@ -309,4 +319,16 @@ test('tên riêng chỉ có 4 gợi ý mô tả: số gợi ý tối đa theo đ
   for (let i = 0; i < 6; i++) g.revealHint();
   assert.equal(g.snapshot().hints.length, 4);
   assert.equal(g.likeRule().action, 'letter', 'mở hết gợi ý thì tim quay về lộ chữ');
+});
+
+test('vòng thuộc tính: chỉ tối đa N từ MỚI mỗi vòng được gửi Claude xếp; từ đã có trong cache không bị tính', async () => {
+  const got = [];
+  const store = { available: true, has: (w) => w === 'con chó' || w === 'cái bàn', get: async (w) => { got.push(w); return DB[w] || base({ loai: 'Đồ vật' }); } };
+  const { g } = mk({ modeRotation: 'attr', attrMaxNewPerRound: 2 }, store);
+  await flush();
+  for (const w of ['con chó', 'cái bàn', 'xe máy', 'quả táo', 'cây bút']) say(g, w, w);
+  await flush(); await flush();
+  assert.ok(got.includes('con chó') && got.includes('cái bàn'), 'từ có sẵn trong cache luôn được xếp');
+  assert.deepEqual(got.filter((w) => !['con mèo', 'con chó', 'cái bàn'].includes(w)), ['xe máy', 'quả táo'], 'chỉ 2 từ mới');
+  assert.equal(g.snapshot().ranked.find((r) => r.word === 'cây bút').cells[0].s, 'na', 'vượt giới hạn: ô nghĩa để trống');
 });

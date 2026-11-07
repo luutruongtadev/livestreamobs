@@ -58,6 +58,7 @@ export const WG_DEFAULTS = {
   maxGuessChars: 24,
   maxGuessWords: 4,
   maxScoredPerRound: 500, // giới hạn số từ khác nhau gửi đi chấm mỗi vòng (kiểm soát chi phí)
+  attrMaxNewPerRound: 150, // chế độ thuộc tính: tối đa N từ MỚI (chưa có trong cache) nhờ Claude xếp mỗi vòng
   // Kiểu chơi được bật, luân phiên lần lượt: 'meaning' (chấm gần nghĩa 1–100) · 'attr' (so 6 thuộc tính)
   // · 'english' (gợi ý bằng 5 từ tiếng Anh, chấm gần nghĩa)
   modes: ['meaning', 'attr', 'english'],
@@ -514,7 +515,11 @@ export class WordGame extends EventEmitter {
   scoreGuess(entry) {
     const round = this.roundNo;
     const word = entry.word;
-    const limited = this.scoredCount++ >= this.cfg.maxScoredPerRound;
+    // chế độ thuộc tính: từ đã có trong cache thì miễn phí; chỉ đếm từ mới phải nhờ Claude xếp
+    const cachedAttr = this.mode === 'attr' && this.attrStore?.has?.(word);
+    const limited = this.mode === 'attr'
+      ? !cachedAttr && this.scoredCount++ >= (this.cfg.attrMaxNewPerRound ?? 150)
+      : this.scoredCount++ >= this.cfg.maxScoredPerRound;
     if (this.mode === 'attr') {
       const p = limited ? Promise.resolve(null) : this.attrStore.get(word);
       p.then((ga) => {
