@@ -267,7 +267,8 @@
   function renderStatus(s) {
     if (!s) return;
     $('dot').className = 'dot ' + s.state;
-    $('statusText').textContent = s.message;
+    const d = s.lastDrop;
+    $('statusText').textContent = s.message + (s.drops ? ` · đã rớt ${s.drops} lần, gần nhất ${new Date(d.at).toLocaleTimeString('vi-VN')}: ${d.reason}${d.code ? ` (mã ${d.code}${d.why ? ', ' + d.why : ''})` : ''}` : '');
     $('viewers').textContent = fmt.format(s.viewers || 0);
     if (s.username && !$('username').value) $('username').value = s.username;
   }

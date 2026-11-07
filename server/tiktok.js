@@ -54,15 +54,21 @@ export function normalizeGift(data) {
  * Phát ra: 'event' (sự kiện chuẩn hoá), 'status' ({ state, message, roomId, viewers }).
  */
 export class TikTokBridge extends EventEmitter {
-  constructor({ signApiKey } = {}) {
+  constructor({ signApiKey, stallMs = 90_000, ConnectionClass = TikTokLiveConnection, log = console } = {}) {
     super();
     this.signApiKey = signApiKey || undefined;
+    this.ConnectionClass = ConnectionClass;
+    this.log = log;
     this.conn = null;
     this.username = '';
     this.wanted = false;
     this.retryTimer = null;
     this.retryDelay = 5000;
-    this.status = { state: 'idle', message: 'Chưa kết nối', username: '', viewers: 0 };
+    this.stallMs = stallMs; // không nhận được dữ liệu gì trong khoảng này → coi như kết nối "chết lâm sàng", nối lại
+    this.watchdog = null;
+    this.lastDataAt = 0;
+    this.roomId = null; // nhớ room id của buổi live để nối lại nhanh, đỡ tốn lượt gọi máy chủ ký (Euler)
+    this.status = { state: 'idle', message: 'Chưa kết nối', username: '', viewers: 0, drops: 0, lastDrop: null };
   }
 
   setStatus(patch) {
@@ -77,13 +83,15 @@ export class TikTokBridge extends EventEmitter {
     this.username = username;
     this.wanted = true;
     this.retryDelay = 5000;
-    this.setStatus({ username, viewers: 0 });
+    this.roomId = null;
+    this.setStatus({ username, viewers: 0, drops: 0, lastDrop: null });
     return this.#open();
   }
 
   async disconnect() {
     this.wanted = false;
     clearTimeout(this.retryTimer);
+    clearInterval(this.watchdog);
     const c = this.conn;
     this.conn = null;
     if (c) {
@@ -102,10 +110,23 @@ export class TikTokBridge extends EventEmitter {
     this.retryTimer = setTimeout(() => this.#open().catch(() => {}), delay);
   }
 
+  /** Bỏ kết nối hiện tại (không ngắt hẳn) rồi hẹn nối lại. */
+  #drop(conn, reason, detail = null) {
+    if (this.conn !== conn) return;
+    clearInterval(this.watchdog);
+    conn.removeAllListeners();
+    this.conn = null;
+    try { Promise.resolve(conn.disconnect()).catch(() => {}); } catch { /* bỏ qua */ }
+    const drop = { at: new Date().toISOString(), reason, ...(detail || {}) };
+    this.log.warn?.(`[tiktok] rớt kết nối @${this.username}: ${reason}${detail ? ' ' + JSON.stringify(detail) : ''}`);
+    this.setStatus({ drops: (this.status.drops || 0) + 1, lastDrop: drop });
+    this.#scheduleRetry(reason);
+  }
+
   async #open() {
     if (!this.wanted) return;
     this.setStatus({ state: 'connecting', message: `Đang kết nối @${this.username}...` });
-    const conn = new TikTokLiveConnection(this.username, {
+    const conn = new this.ConnectionClass(this.username, {
       signApiKey: this.signApiKey,
       // false: tải danh sách quà (gift/list) phải ký qua Euler gói Business trả phí.
       // Sự kiện quà vẫn có sẵn tên + số kim cương trong giftDetails / gift.
@@ -115,14 +136,28 @@ export class TikTokBridge extends EventEmitter {
     this.conn = conn;
     this.#wire(conn);
     try {
-      const state = await conn.connect();
+      // nối lại trong cùng buổi live: dùng luôn room id cũ (bỏ bước dò room id, nhanh hơn, ít bị chặn)
+      let state;
+      try { state = await conn.connect(this.roomId || undefined); } catch (e) {
+        if (!this.roomId || this.conn !== conn) throw e;
+        this.roomId = null; // room id cũ hết hạn (buổi live mới) → dò lại
+        state = await conn.connect();
+      }
       if (this.conn !== conn) return;
       this.retryDelay = 5000;
+      this.roomId = state?.roomId || this.roomId;
+      this.lastDataAt = Date.now();
+      clearInterval(this.watchdog);
+      this.watchdog = setInterval(() => {
+        if (this.conn === conn && Date.now() - this.lastDataAt > this.stallMs) this.#drop(conn, `Không nhận dữ liệu ${Math.round(this.stallMs / 1000)}s`);
+      }, Math.min(10_000, Math.max(20, this.stallMs / 3)));
+      this.watchdog.unref?.();
       this.setStatus({ state: 'connected', message: `Đã kết nối @${this.username}`, roomId: state?.roomId || null });
     } catch (err) {
       if (this.conn !== conn) return;
       conn.removeAllListeners();
       this.conn = null;
+      if (err?.name === 'UserOfflineError' || /offline|not live|isn't online/i.test(err?.message || '')) this.roomId = null;
       const msg = err?.name === 'UserOfflineError' || /offline|not live|isn't online/i.test(err?.message || '')
         ? `@${this.username} chưa phát live`
         : `Lỗi kết nối: ${err?.message || err}`;
@@ -132,6 +167,12 @@ export class TikTokBridge extends EventEmitter {
 
   #wire(conn) {
     const emit = (ev) => { if (ev && this.conn === conn) this.emit('event', ev); };
+    // còn sống: có dữ liệu từ WebSocket (kể cả tin hệ thống) thì cập nhật mốc cho watchdog
+    conn.on('websocketData', () => { if (this.conn === conn) this.lastDataAt = Date.now(); });
+    // thư viện tắt autoPong và không trả lời ping của máy chủ → tự trả pong, tránh bị TikTok đóng kết nối vì "im lặng"
+    conn.on('websocketConnected', (ws) => {
+      ws?.on?.('ping', (data) => { try { ws.pong(data); } catch { /* bỏ qua */ } });
+    });
 
     conn.on(WebcastEvent.CHAT, (d) => emit(normalizeComment(d)));
     conn.on(WebcastEvent.LIKE, (d) => emit({ type: 'like', user: normalizeUser(d.user), count: Number(d.likeCount) || 1 }));
@@ -144,15 +185,12 @@ export class TikTokBridge extends EventEmitter {
     });
     conn.on(WebcastEvent.STREAM_END, () => {
       if (this.conn !== conn) return;
-      conn.removeAllListeners();
-      this.conn = null;
-      this.#scheduleRetry('Live đã kết thúc');
+      this.roomId = null; // buổi live đã hết, lần sau dò room id mới
+      this.#drop(conn, 'Live đã kết thúc');
     });
-    conn.on(ControlEvent.DISCONNECTED, () => {
-      if (this.conn !== conn) return;
-      conn.removeAllListeners();
-      this.conn = null;
-      this.#scheduleRetry('Mất kết nối');
+    conn.on(ControlEvent.DISCONNECTED, (info) => {
+      // ghi lại mã đóng + lý do TikTok gửi để biết vì sao rớt
+      this.#drop(conn, 'Mất kết nối', info ? { code: info.code, why: info.reason || '' } : null);
     });
     conn.on(ControlEvent.ERROR, (e) => {
       console.warn('[tiktok] error:', e?.info || e?.message || e);
