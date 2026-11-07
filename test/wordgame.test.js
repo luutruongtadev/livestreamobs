@@ -364,5 +364,7 @@ test('ClaudeScorer: prompt chấm cả từ đoán tiếng Anh theo nghĩa (dị
   assert.equal(r.score, 95);
   assert.match(requests[0].system, /TIẾNG ANH/);
   assert.match(requests[0].system, /"sun" với "mặt trời"/);
+  assert.match(requests[0].system, /LIÊN QUAN/);
+  assert.match(requests[0].system, /kem chống nắ\S* 65/);
   fs.rmSync(file, { force: true });
 });

@@ -68,17 +68,21 @@ export function simpleScore(secret, guess) {
 }
 
 // Đổi khi sửa cách chấm → điểm cũ trong cache không dùng lại (chấm lại theo luật mới)
-const PROMPT_V = 'v2-en';
+const PROMPT_V = 'v3-rel'; // đổi tiêu chí chấm → điểm cũ trong cache không dùng lại
 
 const SYSTEM = `Bạn là giám khảo của trò chơi đoán từ tiếng Việt trên livestream.
-Mỗi lần bạn nhận một TỪ BÍ MẬT và danh sách TỪ ĐOÁN của người xem. Với mỗi từ đoán, chấm mức độ GẦN NGHĨA với từ bí mật trên thang 1-99 (100 chỉ dành cho đoán trúng, hệ thống tự xử lý, bạn không dùng 100).
+Mỗi lần bạn nhận một TỪ BÍ MẬT và danh sách TỪ ĐOÁN của người xem. Với mỗi từ đoán, chấm mức độ GẦN NGHĨA hoặc LIÊN QUAN với từ bí mật trên thang 1-99 (100 chỉ dành cho đoán trúng, hệ thống tự xử lý, bạn không dùng 100).
+
+Điểm = mức GẦN NGHĨA hoặc mức LIÊN QUAN, lấy cái nào cao hơn. LIÊN QUAN là hai thứ hay xuất hiện cùng nhau / gợi nhớ tới nhau trong đời sống dù khác loại: đi kèm, dùng cùng nhau (bàn chải ↔ kem đánh răng), nơi chốn (bác sĩ ↔ bệnh viện), công dụng (cái ô ↔ mưa), nguyên nhân - kết quả (mưa ↔ lũ lụt), đặc điểm nổi bật (mặt trời ↔ nóng, chanh ↔ chua), dịp / văn hóa (bánh chưng ↔ Tết), người - nghề - dụng cụ (đầu bếp ↔ con dao).
 
 Thang điểm:
 - 90-99: đồng nghĩa hoặc gần như cùng một thứ (khác cách gọi, từ địa phương, viết tắt phổ biến).
-- 70-89: liên quan rất chặt: cùng loại hẹp, bộ phận - tổng thể, thường đi liền với nhau.
-- 40-69: cùng chủ đề hoặc liên tưởng rõ ràng.
-- 15-39: liên tưởng xa, chỉ hơi dính dáng.
-- 1-14: không liên quan, vô nghĩa, câu chào hỏi, hoặc nội dung thô tục.
+- 75-89: cùng loại hẹp (con mèo ↔ con hổ), bộ phận - tổng thể, HOẶC liên quan cực chặt — nhắc cái này là nghĩ ngay tới cái kia (mặt trời ↔ nắng, bánh chưng ↔ Tết).
+- 55-74: liên quan rõ ràng, thường đi cùng nhau (mặt trời ↔ kem chống nắng, bác sĩ ↔ ống nghe), hoặc cùng nhóm rộng.
+- 30-54: cùng chủ đề, có dính dáng nhưng không đi liền (mặt trời ↔ bãi biển).
+- 10-29: liên tưởng xa, phải nghĩ vòng mới thấy.
+- 1-9: không liên quan, vô nghĩa, câu chào hỏi, hoặc nội dung thô tục.
+Ví dụ với TỪ BÍ MẬT "mặt trời": "ông mặt trời" 97 · "nắng" 85 · "mặt trăng" 80 · "nóng" 76 · "kem chống nắng" 65 · "bãi biển" 45 · "bóng đèn" 35 · "con mèo" 3.
 
 Người xem hay gõ không dấu hoặc sai chính tả: hãy hiểu theo nghĩa tiếng Việt hợp lý nhất.
 TIẾNG ANH: người xem có thể đoán bằng tiếng Anh (hoặc từ bí mật là tiếng Anh / tên riêng nước ngoài mà người xem gõ tiếng Việt). Chấm theo NGHĨA như với tiếng Việt và hơi rộng tay hơn một chút:
