@@ -40,9 +40,23 @@ const WORD_EMOJI = {
 
 const EMOJI_RE = /\p{Extended_Pictographic}(?:\u{FE0F}|\u{200D}\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/u;
 
-/** Lấy cặp "A + B" từ bình luận; không đúng dạng thì null. */
+const graphemes = new Intl.Segmenter('vi', { granularity: 'grapheme' });
+/**
+ * Bình luận chỉ gồm đúng 2 emoji (không cần dấu +), vd "🐱🚀" hoặc "🐱 🚀" → ['🐱', '🚀'].
+ * 2 emoji giống nhau ("😂😂") không tính — người xem hay thả kiểu này để cười, không phải để ghép (muốn ghép thì gõ "😂 + 😂").
+ */
+export function twoEmoji(t) {
+  const segs = [...graphemes.segment(String(t).replace(/\s+/g, ''))].map((x) => x.segment);
+  if (segs.length !== 2 || !segs.every((g) => /^\p{Extended_Pictographic}/u.test(g) || /^\p{Regional_Indicator}/u.test(g))) return null;
+  if (segs[0].replace(/\uFE0F/g, '') === segs[1].replace(/\uFE0F/g, '')) return null;
+  return segs;
+}
+
+/** Lấy cặp "A + B" (hoặc đúng 2 emoji liền nhau) từ bình luận; không đúng dạng thì null. */
 export function parseCombo(text) {
   const t = String(text ?? '').normalize('NFC').trim();
+  const two = twoEmoji(t);
+  if (two) return two;
   const parts = t.split(/\s*[+＋]\s*/);
   if (parts.length !== 2) return null;
   const clean = (p) => p.replace(/[.,!?;:"'“”‘’()[\]{}<>~`@#$%^&*_=|\\/]+/g, ' ').replace(/\s+/g, ' ').trim();

@@ -32,6 +32,13 @@ test('parseCombo: nhận "A + B", chữ hoặc emoji; bỏ câu thường / link
   assert.deepEqual(parseCombo(' 🐶+🍕 '), ['🐶', '🍕']);
   assert.deepEqual(parseCombo('Khủng long ＋ trà sữa!!'), ['Khủng long', 'trà sữa']);
   assert.equal(parseCombo('mèo tên lửa'), null);
+  assert.deepEqual(parseCombo('🐱🚀'), ['🐱', '🚀']); // 2 emoji không cần dấu +
+  assert.deepEqual(parseCombo(' 🐱  🚀 '), ['🐱', '🚀']);
+  assert.deepEqual(parseCombo('❤️👨‍🍳'), ['❤️', '👨‍🍳']); // emoji ghép nhiều ký tự vẫn tính 1
+  assert.equal(parseCombo('😂😂'), null); // thả 2 emoji giống nhau = cười, không ghép
+  assert.deepEqual(parseCombo('😂 + 😂'), ['😂', '😂']);
+  assert.equal(parseCombo('🐱🚀🔥'), null);
+  assert.equal(parseCombo('🐱 mèo'), null);
   assert.equal(parseCombo('a + b + c'), null);
   assert.equal(parseCombo('mèo + '), null);
   assert.equal(parseCombo('1 + 1'), null);

@@ -198,7 +198,7 @@ const feed = []; // bình luận combo gần đây
 const toasts = [];
 const sparks = [];
 const bubbles = [];
-const EXAMPLES = ['mèo + tên lửa', '🐶 + 🍕', 'khủng long + trà sữa', 'cá mập + 🌈', 'ma + bánh mì', 'gấu trúc + sét'];
+const EXAMPLES = ['mèo + tên lửa', '🐶🍕', 'khủng long + trà sữa', 'cá mập + 🌈', 'ma + bánh mì', 'gấu trúc + sét'];
 
 function toast(text, color = '#f472b6', ms = 3500) {
   toasts.push({ text, color, t0: nowS(), dur: ms / 1000 });
@@ -403,7 +403,7 @@ function drawIdle(t) {
 
 function drawHeader() {
   txt('🧪 PHÒNG THÍ NGHIỆM', CX, 100, 60, '#c4b5fd', 900);
-  const sub = `Bình luận "A + B" để ghép · quà ≥ ${snap.minGiftDiamonds || 10} xu: trình diễn đặc biệt`;
+  const sub = `Bình luận "A + B" hoặc 2 emoji để ghép · quà ≥ ${snap.minGiftDiamonds || 10} xu: trình diễn đặc biệt`;
   txt(sub, CX, 168, fitFont(sub, 1020, 30, 700), '#a5b4fc', 700);
   if (!snap.active) { pill(CX - 250, 1180, 500, 50, 'rgba(239,68,68,.25)', '#ef4444'); txt('Game đang tắt — bật ở trang admin', CX, 1206, 26, '#fecaca', 800); }
 }
