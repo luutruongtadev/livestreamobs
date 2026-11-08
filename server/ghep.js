@@ -1,27 +1,27 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import { canon } from './scorer.js';
+import { EmojiKitchen } from './emojikitchen.js';
 
 /**
- * Game "Phòng thí nghiệm" (/ghep): người xem bình luận "A + B" (chữ hoặc emoji) → ghép thành sinh vật / đồ vật mới.
- * - Bình luận: Claude (Haiku) soạn tên, mô tả troll, chỉ số và "công thức" ghép 2 emoji; màn hình tự vẽ bằng font emoji (giấy phép mở).
- * - Tặng quà ≥ minGiftDiamonds: Claude dựng mô hình 3D từ các khối cơ bản, gửi TỪNG KHỐI về màn hình ngay khi viết xong (lắp trực tiếp).
- * Combo / mô hình đã tạo được lưu lại (data/ghep.json) → gặp lại không tốn token.
+ * Game "Phòng thí nghiệm" (/ghep): người xem bình luận "A + B" (chữ hoặc emoji) → ghép thành emoji mới.
+ * - Claude (Haiku) chọn 2 emoji đại diện (trong bộ ~620 emoji ghép được), đặt tên, mô tả troll, chỉ số.
+ * - Hình: ảnh Emoji Kitchen của cặp emoji đó (trình duyệt tải thẳng, không tốn token); cặp không có ảnh thì màn hình tự ghép 2 emoji.
+ * - Tặng quà ≥ minGiftDiamonds: combo của người đó được trình diễn "đặc biệt" (chen lên đầu, khung vàng, nổ pháo).
+ * Combo đã tạo được lưu lại (data/ghep.json) → gặp lại không tốn token.
  */
 export const GHEP_DEFAULTS = {
-  minGiftDiamonds: 10, // quà từ mức này trở lên → vẽ 3D
-  comboWindowMs: 120_000, // quà áp cho combo người đó bình luận trong 2 phút gần nhất
+  minGiftDiamonds: 10, // quà từ mức này trở lên → trình diễn đặc biệt
+  comboWindowMs: 120_000, // quà áp cho combo người đó bình luận trong 2 phút gần nhất (hoặc combo kế tiếp)
   cooldownMs: 3000, // mỗi người 1 combo / 3 giây
-  maxNewPerMinute: 30, // tối đa combo MỚI nhờ Claude soạn mỗi phút (quá thì ghép kiểu đơn giản, không tốn token)
-  maxQueue: 15, // hàng chờ trình diễn trên màn hình
-  model: 'claude-haiku-5-5', // soạn combo (ngắn, rẻ, nhanh)
-  model3d: 'claude-sonnet-5-5', // dựng mô hình 3D (cần sáng tạo hơn)
+  maxNewPerMinute: 30, // tối đa combo MỚI nhờ Claude đặt tên mỗi phút (quá thì đặt tên đơn giản, không tốn token)
+  model: 'claude-haiku-5-5',
   gallerySize: 12,
 };
 
 export const MODES = ['inside', 'tint', 'hat', 'eyes', 'hold', 'ride', 'half'];
-const SHAPES = ['sphere', 'box', 'cylinder', 'cone', 'torus'];
 
 // vài từ hay gặp → emoji, để màn hình hiện ngay lúc đang trộn (Claude trả emoji chính xác sau)
 const WORD_EMOJI = {
@@ -66,19 +66,18 @@ export function guessEmoji(part) {
 /** Khoá combo không phụ thuộc thứ tự: "mèo + tên lửa" = "tên lửa + mèo". */
 export const comboKey = (a, b) => [canon(a), canon(b)].sort().join(' + ');
 
-const COMBO_SYSTEM = `Bạn là "nhà khoa học điên" của một phòng thí nghiệm trên TikTok Live tiếng Việt. Người xem gửi 2 thứ (chữ tiếng Việt / tiếng Anh hoặc emoji), bạn GHÉP chúng thành 1 sinh vật / đồ vật mới thật vui nhộn.
+const comboSystem = (list) => `Bạn là "nhà khoa học điên" của một phòng thí nghiệm trên TikTok Live tiếng Việt. Người xem gửi 2 thứ (chữ tiếng Việt / tiếng Anh hoặc emoji), bạn GHÉP chúng thành 1 sinh vật / đồ vật mới thật vui nhộn.
 Trả về:
-- "ea", "eb": đúng 1 emoji (Unicode chuẩn, phổ biến) đại diện cho vế A và vế B.
+- "ea", "eb": 1 emoji đại diện cho vế A và vế B. ƯU TIÊN chọn trong DANH SÁCH EMOJI GHÉP ĐƯỢC bên dưới (chép đúng ký tự), chọn cái gần nghĩa nhất; người xem gửi emoji có trong danh sách thì giữ nguyên.
 - "name": tên tiếng Việt 2–4 từ, hài hước, dễ nhớ (vd "mèo + tên lửa" → "Mèo Phản Lực").
 - "desc": 1 câu troll tiếng Việt ≤ 70 ký tự, vui vẻ, không xúc phạm ai.
 - "stats": đúng 3 chỉ số, mỗi cái {"label": "emoji + 1–2 từ", "value": 1–100}.
 - "rarity": "thường" | "hiếm" | "huyền thoại" (combo càng bất ngờ, sáng tạo càng hiếm; đa số là thường).
-- "mode": cách vẽ ghép 2 emoji:
-  inside = hoa văn của emoji phụ phủ kín hình emoji chính · tint = nhuộm emoji chính theo màu emoji phụ · hat = emoji phụ đội trên đầu ·
-  eyes = emoji phụ làm 2 con mắt · hold = emoji chính cầm emoji phụ · ride = emoji chính cưỡi lên emoji phụ · half = mỗi bên một nửa.
-- "base": "a" hoặc "b" — emoji nào làm thân chính (thường là con vật / nhân vật).
-- "tint": màu hex chủ đạo của emoji phụ (vd "#ef4444").
-- "safe": false nếu yêu cầu tục tĩu, bạo lực máu me, chính trị, tôn giáo nhạy cảm, xúc phạm người thật — khi đó các trường khác điền tạm.`;
+- "mode" (dự phòng khi không có ảnh ghép): inside | tint | hat | eyes | hold | ride | half. "base": "a" hoặc "b" — emoji làm thân chính. "tint": màu hex chủ đạo của emoji phụ.
+- "safe": false nếu yêu cầu tục tĩu, bạo lực máu me, chính trị, tôn giáo nhạy cảm, xúc phạm người thật — khi đó các trường khác điền tạm.
+
+DANH SÁCH EMOJI GHÉP ĐƯỢC:
+${list}`;
 
 const COMBO_SCHEMA = {
   type: 'object',
@@ -95,78 +94,11 @@ const COMBO_SCHEMA = {
   additionalProperties: false,
 };
 
-const MODEL_SYSTEM = `Bạn dựng mô hình 3D kiểu đồ chơi hoạt hình (low-poly, dễ thương) cho một phòng thí nghiệm trên livestream, CHỈ từ các khối cơ bản.
-Mỗi khối: {"label": tên tiếng Việt ngắn (vd "đầu mèo", "tai trái"), "shape": sphere|box|cylinder|cone|torus, "size": kích thước, "pos": [x,y,z], "rot": [độ quanh x,y,z], "color": "#rrggbb", "glow": true nếu là lửa / ánh sáng / phát sáng}.
-size: sphere [bán kính] · box [rộng, cao, sâu] · cylinder [bán kính trên, bán kính dưới, cao] · cone [bán kính, cao] · torus [bán kính, độ dày ống].
-Quy ước: trục y hướng lên, mặt trước quay về +z (mắt, mặt, chi tiết chính ở phía +z). Toàn bộ mô hình nằm trong khoảng y từ -3 tới 3.5, x và z từ -3 tới 3.
-Dùng 16–28 khối. Xếp thứ tự lắp: thân lớn trước → đầu → tay chân / cánh → chi tiết nhỏ (mắt, mũi, hoa văn) → hiệu ứng (lửa, ánh sáng) sau cùng.
-Màu tươi, rõ ràng. Mô hình phải nhìn ra được CẢ HAI thứ được ghép.`;
-
-const MODEL_SCHEMA = {
-  type: 'object',
-  properties: {
-    parts: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          label: { type: 'string' }, shape: { type: 'string', enum: SHAPES },
-          size: { type: 'array', items: { type: 'number' } }, pos: { type: 'array', items: { type: 'number' } },
-          rot: { type: 'array', items: { type: 'number' } }, color: { type: 'string' }, glow: { type: 'boolean' },
-        },
-        required: ['label', 'shape', 'size', 'pos', 'rot', 'color', 'glow'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['parts'],
-  additionalProperties: false,
-};
-
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const hex = (c, d = '#a78bfa') => (/^#[0-9a-f]{6}$/i.test(String(c)) ? String(c) : d);
 
-/** Làm sạch 1 khối 3D từ Claude (giới hạn kích thước / vị trí để không vỡ khung hình). */
-export function cleanPart(p) {
-  if (!p || !SHAPES.includes(p.shape)) return null;
-  const size = (Array.isArray(p.size) ? p.size : []).slice(0, 3).map((v) => clamp(num(v, 0.5), 0.01, 3));
-  if (!size.length) return null;
-  const v3 = (a, lo, hi) => [0, 1, 2].map((i) => clamp(num(a?.[i]), lo, hi));
-  return { label: String(p.label || '').slice(0, 30), shape: p.shape, size, pos: v3(p.pos, -4, 4), rot: v3(p.rot, -360, 360), color: hex(p.color), glow: !!p.glow };
-}
-
-/**
- * Tách các phần tử object hoàn chỉnh của mảng "parts" trong chuỗi JSON đang stream dở.
- * Trả về { items, next }: next = vị trí đã đọc tới (lần sau đọc tiếp).
- */
-export function scanStreamObjects(buf, state = { start: -1, pos: 0 }) {
-  const items = [];
-  if (state.start < 0) {
-    const m = buf.indexOf('"parts"');
-    if (m < 0) return { items, state };
-    const br = buf.indexOf('[', m);
-    if (br < 0) return { items, state };
-    state.start = br + 1; state.pos = br + 1;
-  }
-  let depth = 0, inStr = false, esc = false, objStart = -1;
-  for (let i = state.pos; i < buf.length; i++) {
-    const ch = buf[i];
-    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === '{') { if (depth === 0) objStart = i; depth++; }
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0 && objStart >= 0) {
-        try { items.push(JSON.parse(buf.slice(objStart, i + 1))); } catch { /* bỏ qua */ }
-        state.pos = i + 1; objStart = -1;
-      }
-    } else if (ch === ']' && depth === 0) { state.done = true; state.pos = i + 1; break; }
-  }
-  return { items, state };
-}
-
-/** Combo ghép đơn giản (không có Claude / quá tải): vẫn vui, không tốn token. */
+/** Combo đơn giản (không có Claude / quá tải): vẫn vui, không tốn token. */
 function simpleCombo(a, b, ea, eb) {
   const seed = [...comboKey(a, b)].reduce((s, c) => s + c.codePointAt(0), 0);
   const pick = (arr, k) => arr[(seed + k) % arr.length];
@@ -179,16 +111,19 @@ function simpleCombo(a, b, ea, eb) {
   };
 }
 
+const DEFAULT_KITCHEN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'emoji-kitchen.json');
+
 export class GhepGame extends EventEmitter {
-  constructor(config = {}, { client = null, filePath = null, now = () => Date.now(), log = console } = {}) {
+  constructor(config = {}, { client = null, filePath = null, kitchen = null, now = () => Date.now(), log = console } = {}) {
     super();
     this.cfg = { ...GHEP_DEFAULTS, ...config };
     this.client = client;
     this.filePath = filePath;
+    this.kitchen = kitchen || EmojiKitchen.load(DEFAULT_KITCHEN);
+    this.system = comboSystem(this.kitchen.list());
     this.now = now;
     this.log = log;
     this.combos = new Map(); // key -> combo
-    this.models = new Map(); // key -> [parts] mô hình 3D đã dựng
     this.active = false; // đang là game chính trên live?
     this.jobSeq = 0;
     this.pending = new Map(); // key -> Promise combo (đang soạn)
@@ -196,8 +131,6 @@ export class GhepGame extends EventEmitter {
     this.pendingGift = new Map(); // userId -> { at, giftName, diamonds } (tặng quà khi chưa có combo)
     this.lastAt = new Map(); // userId -> lúc gửi combo gần nhất
     this.newTimes = []; // thời điểm tạo combo mới (giới hạn / phút)
-    this.queue3d = [];
-    this.busy3d = false;
     this.gallery = []; // combo vừa ghép gần đây (hiện ở dải dưới màn hình)
     this.dirty = false;
     this.load();
@@ -208,25 +141,26 @@ export class GhepGame extends EventEmitter {
     try {
       const d = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
       this.combos = new Map(Object.entries(d.combos || {}));
-      this.models = new Map(Object.entries(d.models || {}));
       this.active = !!d.active;
       this.gallery = Array.isArray(d.gallery) ? d.gallery.slice(0, this.cfg.gallerySize) : [];
     } catch { /* chưa có */ }
+    // combo lưu từ bản cũ chưa có ảnh ghép → bổ sung
+    for (const c of this.combos.values()) if (c.img === undefined) c.img = this.kitchen.url(c.ea, c.eb);
+    for (const g of this.gallery) if (g.img === undefined) g.img = this.kitchen.url(g.ea, g.eb);
   }
 
   save() {
     if (!this.filePath || !this.dirty) return;
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
     const combos = [...this.combos.entries()].slice(-5000);
-    const models = [...this.models.entries()].slice(-500);
-    fs.writeFileSync(this.filePath, JSON.stringify({ active: this.active, combos: Object.fromEntries(combos), models: Object.fromEntries(models), gallery: this.gallery }));
+    fs.writeFileSync(this.filePath, JSON.stringify({ active: this.active, combos: Object.fromEntries(combos), gallery: this.gallery }));
     this.dirty = false;
   }
 
   setActive(on) { this.active = !!on; this.dirty = true; return this.active; }
 
   snapshot() {
-    return { active: this.active, gallery: this.gallery, total: this.combos.size, minGiftDiamonds: this.cfg.minGiftDiamonds, queue3d: this.queue3d.length + (this.busy3d ? 1 : 0) };
+    return { active: this.active, gallery: this.gallery, total: this.combos.size, minGiftDiamonds: this.cfg.minGiftDiamonds };
   }
 
   fx(effects) { if (effects.length) this.emit('effects', effects); }
@@ -250,23 +184,24 @@ export class GhepGame extends EventEmitter {
     const id = ++this.jobSeq;
     const known = this.combos.get(key);
     this.lastCombo.set(by.id, { key, at: t });
-    const start = { type: 'ghep_job', id, a, b, ea: known?.ea || guessEmoji(a), eb: known?.eb || guessEmoji(b), by, known: !!known };
+    const ea = known?.ea || guessEmoji(a), eb = known?.eb || guessEmoji(b);
+    const start = { type: 'ghep_job', id, a, b, ea, eb, by, known: !!known, img: known?.img || this.kitchen.url(ea, eb) };
     if (known) {
       known.count = (known.count || 1) + 1;
       this.dirty = true;
       this.pushGallery(known, by);
-      return [start, { type: 'ghep_done', id, combo: known, isNew: false }, ...this.afterCombo(by, key)];
+      return [start, { type: 'ghep_done', id, combo: known, isNew: false, gift: this.takeGift(by) }];
     }
     this.create(key, a, b, id, by).catch((e) => this.log.warn?.('[ghep] lỗi:', e?.message || e));
     return [start];
   }
 
-  /** Tặng quà sau khi có combo → vẽ 3D combo đó (nếu người đó vừa tặng quà trước khi bình luận). */
-  afterCombo(by, key) {
+  /** Quà tặng trước khi bình luận (trong 2 phút) → áp cho combo này. */
+  takeGift(by) {
     const g = this.pendingGift.get(by.id);
-    if (!g || this.now() - g.at > this.cfg.comboWindowMs) return [];
+    if (!g) return null;
     this.pendingGift.delete(by.id);
-    return this.enqueue3d(key, by, g);
+    return this.now() - g.at <= this.cfg.comboWindowMs ? { giftName: g.giftName, diamonds: g.diamonds } : null;
   }
 
   async create(key, a, b, id, by) {
@@ -279,7 +214,8 @@ export class GhepGame extends EventEmitter {
         .catch((e) => { this.log.warn?.('[ghep] Claude lỗi:', e?.message || e); return null; })
         .then((c) => {
           if (c && c.safe === false) return { refused: true };
-          const combo = { ...(c || simpleCombo(a, b, guessEmoji(a), guessEmoji(b))), key, a, b, inventor: by, at: this.now(), count: 1 };
+          const base = c || simpleCombo(a, b, guessEmoji(a), guessEmoji(b));
+          const combo = { ...base, img: this.kitchen.url(base.ea, base.eb), key, a, b, inventor: by, at: this.now(), count: 1 };
           delete combo.safe;
           this.combos.set(key, combo);
           this.dirty = true;
@@ -293,26 +229,32 @@ export class GhepGame extends EventEmitter {
     const isNew = combo.inventor?.id === by.id && combo.count === 1;
     if (!isNew) { combo.count++; this.dirty = true; }
     this.pushGallery(combo, by);
-    this.fx([{ type: 'ghep_done', id, combo, isNew }, ...this.afterCombo(by, key)]);
+    this.fx([{ type: 'ghep_done', id, combo, isNew, gift: this.takeGift(by) }]);
   }
 
   pushGallery(combo, by) {
-    this.gallery = [{ key: combo.key, ea: combo.ea, eb: combo.eb, name: combo.name, mode: combo.mode, base: combo.base, tint: combo.tint, rarity: combo.rarity, by: { name: by.name } },
+    this.gallery = [{ key: combo.key, ea: combo.ea, eb: combo.eb, img: combo.img, name: combo.name, mode: combo.mode, base: combo.base, tint: combo.tint, rarity: combo.rarity, by: { name: by.name } },
       ...this.gallery.filter((g) => g.key !== combo.key)].slice(0, this.cfg.gallerySize);
+  }
+
+  /** Emoji Claude chọn → đúng ký tự trong bộ ghép được (nếu có), không thì emoji đầu tiên tìm thấy. */
+  pickEmoji(e, part) {
+    const m = (String(e || '').match(EMOJI_RE) || [])[0];
+    return this.kitchen.canonical(m) || this.kitchen.canonical(guessEmoji(part)) || m || guessEmoji(part) || '✨';
   }
 
   /** Gọi Claude soạn combo (stream để hiện tên đang được "gõ"). */
   async claudeCombo(a, b, onName) {
     const text = await this.streamJson({
-      model: this.cfg.model, max_tokens: 1500, system: COMBO_SYSTEM, schema: COMBO_SCHEMA,
+      model: this.cfg.model, max_tokens: 1200, schema: COMBO_SCHEMA,
+      system: [{ type: 'text', text: this.system, cache_control: { type: 'ephemeral' } }],
       content: JSON.stringify({ A: a, B: b }),
       onText: (buf) => { const m = buf.match(/"name"\s*:\s*"((?:[^"\\]|\\.)*)/); if (m) onName(m[1]); },
     });
     const d = JSON.parse(text);
     const stats = (d.stats || []).slice(0, 3).map((s) => ({ label: String(s.label || '').slice(0, 20), value: clamp(Math.round(num(s.value, 50)), 1, 100) }));
-    const one = (e, part) => (String(e || '').match(EMOJI_RE) || [])[0] || guessEmoji(part) || '✨';
     return {
-      ea: one(d.ea, a), eb: one(d.eb, b), name: String(d.name || '').slice(0, 32), desc: String(d.desc || '').slice(0, 90), stats,
+      ea: this.pickEmoji(d.ea, a), eb: this.pickEmoji(d.eb, b), name: String(d.name || '').slice(0, 32), desc: String(d.desc || '').slice(0, 90), stats,
       rarity: ['thường', 'hiếm', 'huyền thoại'].includes(d.rarity) ? d.rarity : 'thường', mode: MODES.includes(d.mode) ? d.mode : 'inside',
       base: d.base === 'b' ? 'b' : 'a', tint: hex(d.tint, '#f97316'), safe: d.safe !== false, source: 'claude',
     };
@@ -340,69 +282,10 @@ export class GhepGame extends EventEmitter {
     const out = [{ type: 'ghep_thanks', by, giftName: ev.giftName || 'quà', diamonds: total }];
     if (total < this.cfg.minGiftDiamonds) return out;
     const last = this.lastCombo.get(by.id);
-    if (last && this.now() - last.at <= this.cfg.comboWindowMs && this.combos.has(last.key)) {
-      return [...out, ...this.enqueue3d(last.key, by, { giftName: ev.giftName, diamonds: total })];
-    }
+    const combo = last && this.now() - last.at <= this.cfg.comboWindowMs ? this.combos.get(last.key) : null;
+    if (combo) return [...out, { type: 'ghep_spotlight', id: ++this.jobSeq, combo, by, gift: { giftName: ev.giftName || 'quà', diamonds: total } }];
     // chưa có combo: giữ quà 2 phút, nhắc bình luận "A + B"
     this.pendingGift.set(by.id, { at: this.now(), giftName: ev.giftName, diamonds: total });
     return [...out, { type: 'ghep_hint', by, giftName: ev.giftName }];
   }
-
-  enqueue3d(key, by, gift) {
-    const combo = this.combos.get(key);
-    if (!combo) return [];
-    const job = { id: ++this.jobSeq, key, combo, by, giftName: gift.giftName || 'quà', diamonds: gift.diamonds || 0 };
-    // quà to (≥ 99 xu) được chen lên đầu hàng
-    if (job.diamonds >= 99) this.queue3d.unshift(job); else this.queue3d.push(job);
-    const pos = this.queue3d.indexOf(job) + (this.busy3d ? 1 : 0);
-    setImmediate(() => this.next3d());
-    return [{ type: 'ghep3d_queued', id: job.id, by, name: combo.name, position: pos }];
-  }
-
-  async next3d() {
-    if (this.busy3d || !this.queue3d.length) return;
-    this.busy3d = true;
-    const job = this.queue3d.shift();
-    const { id, key, combo, by } = job;
-    this.fx([{ type: 'ghep3d_start', id, combo, by, giftName: job.giftName, diamonds: job.diamonds }]);
-    let count = 0;
-    const sendPart = (p) => { const c = cleanPart(p); if (c) { count++; this.fx([{ type: 'ghep3d_part', id, part: c, n: count }]); } return c; };
-    try {
-      if (this.models.has(key)) {
-        // mô hình đã có: lắp lại từng khối với nhịp như đang dựng (không tốn token)
-        for (const p of this.models.get(key)) { sendPart(p); await new Promise((r) => setTimeout(r, 380)); }
-      } else if (this.client) {
-        const parts = [];
-        const state = { start: -1, pos: 0 };
-        await this.streamJson({
-          model: this.cfg.model3d, max_tokens: 6000, system: MODEL_SYSTEM, schema: MODEL_SCHEMA,
-          content: `Ghép "${combo.a}" + "${combo.b}" → "${combo.name}" (${combo.desc}). Hãy dựng mô hình.`,
-          onText: (buf) => { for (const p of scanStreamObjects(buf, state).items) { const c = sendPart(p); if (c) parts.push(c); } },
-        });
-        if (parts.length >= 4) { this.models.set(key, parts); this.dirty = true; }
-      } else {
-        for (const p of fallbackModel(combo)) { sendPart(p); await new Promise((r) => setTimeout(r, 380)); }
-      }
-    } catch (e) {
-      this.log.warn?.('[ghep] dựng 3D lỗi:', e?.message || e);
-      if (!count) for (const p of fallbackModel(combo)) { sendPart(p); await new Promise((r) => setTimeout(r, 300)); }
-    }
-    this.fx([{ type: 'ghep3d_done', id, parts: count }]);
-    // chờ màn hình khoe mô hình xong rồi mới sang mô hình tiếp theo
-    setTimeout(() => { this.busy3d = false; this.next3d(); }, this.cfg.show3dMs ?? 9000).unref?.();
-  }
-}
-
-/** Mô hình dự phòng khi không có Claude: 2 khối cầu màu + mắt. */
-function fallbackModel(combo) {
-  const c = combo.tint || '#f97316';
-  return [
-    { label: 'thân', shape: 'sphere', size: [1.6], pos: [0, -0.6, 0], rot: [0, 0, 0], color: '#a78bfa', glow: false },
-    { label: 'đầu', shape: 'sphere', size: [1.1], pos: [0, 1.6, 0], rot: [0, 0, 0], color: c, glow: false },
-    { label: 'mắt trái', shape: 'sphere', size: [0.22], pos: [-0.38, 1.75, 0.95], rot: [0, 0, 0], color: '#ffffff', glow: false },
-    { label: 'mắt phải', shape: 'sphere', size: [0.22], pos: [0.38, 1.75, 0.95], rot: [0, 0, 0], color: '#ffffff', glow: false },
-    { label: 'con ngươi', shape: 'sphere', size: [0.11], pos: [-0.38, 1.75, 1.15], rot: [0, 0, 0], color: '#111827', glow: false },
-    { label: 'con ngươi', shape: 'sphere', size: [0.11], pos: [0.38, 1.75, 1.15], rot: [0, 0, 0], color: '#111827', glow: false },
-    { label: 'vòng sáng', shape: 'torus', size: [1.9, 0.08], pos: [0, -0.6, 0], rot: [90, 0, 0], color: '#facc15', glow: true },
-  ];
 }

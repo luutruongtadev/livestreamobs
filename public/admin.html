@@ -72,7 +72,7 @@
 
     <section>
       <h2>🧪 Game Ghép (/ghep)</h2>
-      <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) → AI ghép thành sinh vật mới. Tặng quà ≥ 10 xu → AI vẽ 3D combo vừa ghép, lắp trực tiếp trên màn hình. Màn hình OBS: <code id="ghepUrl"></code></p>
+      <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) → AI chọn emoji, đặt tên và màn hình hiện emoji ghép (kiểu Emoji Kitchen). Tặng quà ≥ 10 xu → combo của người đó được trình diễn đặc biệt (chen lên đầu, khung vàng, pháo hoa). Màn hình OBS: <code id="ghepUrl"></code></p>
       <div id="ghepInfo" class="muted" style="margin-bottom:8px">Đang tải…</div>
       <div class="row" style="margin-bottom:10px">
         <button id="btnGhepOn">▶ Bật game Ghép</button>
@@ -81,7 +81,7 @@
       <div class="row">
         <input id="ghepText" type="text" placeholder="Thử combo, vd: mèo + tên lửa" value="mèo + tên lửa">
         <button id="btnGhepTry">Ghép thử</button>
-        <button id="btnGhepGift" class="ghost">🎁 Thử quà 10 xu (vẽ 3D)</button>
+        <button id="btnGhepGift" class="ghost">🎁 Thử quà 10 xu</button>
       </div>
     </section>
 
@@ -265,7 +265,7 @@
   $('ghepUrl').textContent = location.origin + '/ghep';
   function renderGhep(g) {
     if (!g) return;
-    $('ghepInfo').textContent = (g.active ? '🟢 Đang chơi game Ghép' : '⚪ Game Ghép đang tắt') + ` · ${g.total} combo đã lưu` + (g.queue3d ? ` · ${g.queue3d} mô hình 3D đang vẽ / chờ` : '');
+    $('ghepInfo').textContent = (g.active ? '🟢 Đang chơi game Ghép' : '⚪ Game Ghép đang tắt') + ` · ${g.total} combo đã lưu`;
     $('ghepInfo').style.color = g.active ? '#4ade80' : '';
     const want = g.active ? '/ghep' : '/doantu?mute=1';
     if (!$('preview').src.endsWith(want)) $('preview').src = want;

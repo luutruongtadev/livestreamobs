@@ -110,7 +110,7 @@ const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API
 if (voice.enabled) console.log('[voice] Giọng MC ElevenLabs: bật'); else if (!process.env.ELEVENLABS_API_KEY) console.log('[voice] Chưa có ELEVENLABS_API_KEY → đọc tên bằng giọng của trình duyệt');
 const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
-// Game "Ghép" (/ghep): bình luận "A + B" → ghép emoji; quà ≥ 10 xu → Claude dựng mô hình 3D lắp trực tiếp
+// Game "Ghép" (/ghep): bình luận "A + B" → ghép emoji kiểu Emoji Kitchen; quà ≥ 10 xu → trình diễn đặc biệt
 const ghep = new GhepGame(config.ghep || {}, { client: claudeClientFromEnv(), filePath: path.join(ROOT, 'data', 'ghep.json') });
 if (ghep.active) console.log('[ghep] đang bật game Ghép (Đoán từ tạm dừng)');
 const pauser = new PauseController([wg], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false, hold: () => (ghep.active ? 'ghep' : null) });
@@ -241,11 +241,6 @@ app.use(express.static(path.join(ROOT, 'public'), {
 app.use('/voice', express.static(path.join(ROOT, 'data', 'voice'), { maxAge: '1h' }));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
-// Three.js (vẽ 3D cho game Ghép) phục vụ thẳng từ node_modules, không cần CDN
-app.get('/vendor/three.module.js', (_req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=604800');
-  res.sendFile(path.join(ROOT, 'node_modules', 'three', 'build', 'three.module.js'));
-});
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;

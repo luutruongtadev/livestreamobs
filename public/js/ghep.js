@@ -1,7 +1,7 @@
 // Màn hình game "Phòng thí nghiệm Ghép" (/ghep) — 1080×1920 cho OBS / điện thoại.
 // Bình luận "A + B" → 2 emoji bay vào vạc, trộn, nổ ra sinh vật mới (ghép bằng font emoji).
-// Quà ≥ 10 xu → Claude dựng mô hình 3D, từng khối bay vào lắp ngay khi AI viết xong.
-import * as THREE from '/vendor/three.module.js';
+// Hình ghép: ảnh Emoji Kitchen của cặp emoji (tải thẳng từ gstatic); cặp không có ảnh thì tự ghép 2 emoji bằng font.
+// Quà ≥ 10 xu → combo của người tặng được trình diễn đặc biệt (chen lên đầu, khung vàng, pháo hoa).
 
 const W = 1080, H = 1920;
 const stage = document.getElementById('stage');
@@ -130,6 +130,31 @@ function fusionCanvas(cb, S) {
   fusionCache.set(key, c);
   return c;
 }
+// ảnh Emoji Kitchen: tải trước, lỗi / chưa tải xong thì vẽ kiểu tự ghép
+const imgs = new Map();
+function loadImg(url) {
+  if (!url || imgs.has(url)) return;
+  const im = new Image();
+  const rec = { im, ok: false };
+  im.onload = () => { rec.ok = true; };
+  im.onerror = () => { rec.ok = false; rec.failed = true; };
+  im.src = url;
+  imgs.set(url, rec);
+  if (imgs.size > 200) imgs.delete(imgs.keys().next().value);
+}
+const imgReady = (url) => !!(url && imgs.get(url)?.ok);
+/** Vẽ combo: ảnh ghép nếu có, không thì tự ghép 2 emoji. */
+function drawCombo(g, cb, x, y, S, rot = 0, alpha = 1) {
+  if (!(S >= 2)) return;
+  if (imgReady(cb.img)) {
+    const im = imgs.get(cb.img).im;
+    g.save(); g.globalAlpha *= alpha; g.translate(x, y); if (rot) g.rotate(rot);
+    g.drawImage(im, -S / 2, -S / 2, S, S);
+    g.restore();
+    return;
+  }
+  drawFusion(g, cb, x, y, S, rot, alpha);
+}
 function drawFusion(g, cb, x, y, S, rot = 0, alpha = 1) {
   if (!(S >= 2)) return;
   const bs = bucket(S, [128, 420]);
@@ -168,7 +193,7 @@ const jobs = new Map(); // id → job
 const showQueue = []; // id chờ trình diễn
 let cur = null; // { job, t0, boomAt }
 let gallery = [];
-let snap = { active: false, total: 0, minGiftDiamonds: 10, queue3d: 0 };
+let snap = { active: false, total: 0, minGiftDiamonds: 10 };
 const feed = []; // bình luận combo gần đây
 const toasts = [];
 const sparks = [];
@@ -190,7 +215,7 @@ function burst(x, y, n = 140, colors = ['#facc15', '#f472b6', '#4ade80', '#fffff
 
 function onEffect(e) {
   if (e.type === 'ghep_job') {
-    ensureEmoji(e.ea); ensureEmoji(e.eb);
+    ensureEmoji(e.ea); ensureEmoji(e.eb); loadImg(e.img);
     jobs.set(e.id, { ...e, typing: '', combo: null, fail: false, at: nowS() });
     feed.unshift({ name: e.by?.name || '?', text: `${e.a} + ${e.b}`, at: nowS() });
     feed.length = Math.min(feed.length, 5);
@@ -205,19 +230,21 @@ function onEffect(e) {
     const j = jobs.get(e.id); if (j) j.typing = e.name;
   } else if (e.type === 'ghep_done') {
     const j = jobs.get(e.id);
-    ensureEmoji(e.combo.ea); ensureEmoji(e.combo.eb);
-    if (j) { j.combo = e.combo; j.isNew = e.isNew; }
+    ensureEmoji(e.combo.ea); ensureEmoji(e.combo.eb); loadImg(e.combo.img);
+    if (j) { j.combo = e.combo; j.isNew = e.isNew; j.gift = e.gift || null; }
   } else if (e.type === 'ghep_fail') {
     const j = jobs.get(e.id); if (j) j.fail = true;
   } else if (e.type === 'ghep_thanks') {
     if (e.diamonds < snap.minGiftDiamonds) toast(`🎁 Cảm ơn ${e.by?.name} tặng ${e.giftName}!`, '#f472b6');
   } else if (e.type === 'ghep_hint') {
-    toast(`✍️ ${e.by?.name} ơi, bình luận "A + B" để AI vẽ 3D!`, '#22d3ee', 6000);
-  } else if (e.type === 'ghep3d_queued') {
-    if (e.position > 0) toast(`⏳ Xếp hàng vẽ 3D: ${e.name} (thứ ${e.position + 1})`, '#a78bfa');
-  } else if (e.type === 'ghep3d_start') start3d(e);
-  else if (e.type === 'ghep3d_part') addPart(e);
-  else if (e.type === 'ghep3d_done') done3d(e);
+    toast(`✍️ ${e.by?.name} ơi, bình luận "A + B" để được trình diễn đặc biệt!`, '#22d3ee', 6000);
+  } else if (e.type === 'ghep_spotlight') {
+    // quà: trình diễn lại combo của người tặng, chen lên đầu hàng
+    const c = e.combo;
+    ensureEmoji(c.ea); ensureEmoji(c.eb); loadImg(c.img);
+    jobs.set(e.id, { id: e.id, a: c.a, b: c.b, ea: c.ea, eb: c.eb, img: c.img, by: e.by, known: true, combo: c, isNew: false, gift: e.gift, at: nowS() });
+    showQueue.unshift(e.id);
+  }
 }
 
 // ---------------- WebSocket ----------------
@@ -226,7 +253,7 @@ function connect() {
   ws.onmessage = (m) => {
     let d; try { d = JSON.parse(m.data); } catch { return; }
     if (d.type === 'hello' || d.type === 'ghep') {
-      if (d.ghep) { snap = d.ghep; gallery = d.ghep.gallery || []; for (const g of gallery) { ensureEmoji(g.ea); ensureEmoji(g.eb); } }
+      if (d.ghep) { snap = d.ghep; gallery = d.ghep.gallery || []; for (const g of gallery) { ensureEmoji(g.ea); ensureEmoji(g.eb); loadImg(g.img); } }
     } else if (d.type === 'ghepfx') for (const e of d.effects || []) onEffect(e);
   };
   ws.onclose = () => setTimeout(connect, 2000);
@@ -261,10 +288,10 @@ function drawShow(t) {
   if (!cur) { drawIdle(t); return; }
   const { job } = cur;
   const el = t - cur.t0;
-  const mixMin = job.known ? 1.3 : 2.4;
+  const mixMin = job.gift && job.combo && job.known ? 0.9 : job.known ? 1.3 : 2.4;
   if (cur.boomAt === null && el > mixMin && (job.combo || job.fail || el > 18)) {
     cur.boomAt = t;
-    if (job.combo) burst(CX, CY - 120, job.isNew ? 180 : 110, job.combo.rarity === 'huyền thoại' ? ['#facc15', '#fde68a', '#ffffff', '#f59e0b'] : undefined);
+    if (job.combo) burst(CX, CY - 120, job.isNew || job.gift ? 200 : 110, job.gift || job.combo.rarity === 'huyền thoại' ? GOLD : undefined);
     else burst(CX, CY, 90, ['#9ca3af', '#4b5563', '#f97316']);
   }
   drawCauldron(t, cur.boomAt === null ? 1 : 0.4);
@@ -292,7 +319,7 @@ function drawShow(t) {
     return;
   }
   const rt = t - cur.boomAt;
-  const dur = job.combo ? revealDur() : 1.6;
+  const dur = job.combo ? (job.gift ? 8 : revealDur()) : 1.6;
   if (job.combo) drawReveal(job, rt, t);
   else {
     ctx.textAlign = 'center'; ctx.font = `900 80px ${FONT}`; ctx.fillStyle = '#fca5a5';
@@ -313,9 +340,11 @@ function txt(text, x, y, size, color = '#fff', weight = 800) {
   ctx.font = `${weight} ${size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color; ctx.fillText(text, x, y);
 }
 
+const GOLD = ['#facc15', '#fde68a', '#ffffff', '#f59e0b', '#f472b6'];
 function drawReveal(job, rt, t) {
   const cb = job.combo;
-  const rar = RARITY[cb.rarity] || RARITY['thường'];
+  const rar = job.gift ? { c: '#facc15', label: '🎁 TRÌNH DIỄN ĐẶC BIỆT' } : RARITY[cb.rarity] || RARITY['thường'];
+  if (job.gift && Math.random() < 0.12) burst(150 + Math.random() * (W - 300), 400 + Math.random() * 500, 40, GOLD);
   const k = back(rt / 0.55);
   // vòng sáng + tia sáng xoay sau combo
   ctx.save(); ctx.translate(CX, CY - 160);
@@ -325,13 +354,19 @@ function drawReveal(job, rt, t) {
   const gl = ctx.createRadialGradient(0, 0, 40, 0, 0, 340); gl.addColorStop(0, rar.c + '88'); gl.addColorStop(1, rar.c + '00');
   ctx.fillStyle = gl; ctx.fillRect(-340, -340, 680, 680);
   ctx.restore();
-  drawFusion(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, 400 * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
+  if (job.gift) { // khung vàng xoay quanh
+    ctx.save(); ctx.translate(CX, CY - 160); ctx.rotate(-t * 0.8);
+    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 10; ctx.setLineDash([40, 22]);
+    ctx.beginPath(); ctx.arc(0, 0, 300 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+  drawCombo(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, (job.gift ? 500 : 440) * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
   // độ hiếm
   ctx.font = `900 34px ${FONT}`;
   const rw = ctx.measureText(rar.label).width + 60;
   pill(CX - rw / 2, 280, rw, 62, 'rgba(15,10,45,.85)', rar.c);
   txt(rar.label, CX, 312, 34, rar.c, 900);
-  if (job.isNew) txt('✨ PHÁT MINH MỚI ✨', CX, 390, 38, '#4ade80', 900);
+  if (job.gift) txt(`${job.by?.name} tặng ${job.gift.giftName} 💛`, CX, 390, 38, '#fde68a', 900);
+  else if (job.isNew) txt('✨ PHÁT MINH MỚI ✨', CX, 390, 38, '#4ade80', 900);
   // tên (gõ dần) + mô tả + chỉ số
   const name = cb.name.toUpperCase();
   const typed = name.slice(0, Math.floor(rt * 22) + 1);
@@ -368,9 +403,9 @@ function drawIdle(t) {
 
 function drawHeader() {
   txt('🧪 PHÒNG THÍ NGHIỆM', CX, 100, 60, '#c4b5fd', 900);
-  txt(`Bình luận "A + B" để ghép · tặng quà ≥ ${snap.minGiftDiamonds || 10} xu để AI vẽ 3D`, CX, 168, 30, '#a5b4fc', 700);
+  const sub = `Bình luận "A + B" để ghép · quà ≥ ${snap.minGiftDiamonds || 10} xu: trình diễn đặc biệt`;
+  txt(sub, CX, 168, fitFont(sub, 1020, 30, 700), '#a5b4fc', 700);
   if (!snap.active) { pill(CX - 250, 1180, 500, 50, 'rgba(239,68,68,.25)', '#ef4444'); txt('Game đang tắt — bật ở trang admin', CX, 1206, 26, '#fecaca', 800); }
-  if (snap.queue3d > 1) { pill(W - 250, 20, 230, 44, 'rgba(15,10,45,.8)', '#a78bfa'); txt(`🎨 chờ vẽ 3D: ${snap.queue3d - 1}`, W - 135, 43, 24, '#e9d5ff', 800); }
 }
 
 function drawFeed(t) {
@@ -401,7 +436,7 @@ function drawGallery(t) {
     const x = x0 + i * cell;
     ctx.beginPath(); ctx.arc(x, y, 66, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
     ctx.strokeStyle = (RARITY[g.rarity] || RARITY['thường']).c; ctx.lineWidth = 3; ctx.stroke();
-    drawFusion(ctx, g, x, y - 6 + Math.sin(t * 2 + i) * 4, 92);
+    drawCombo(ctx, g, x, y - 6 + Math.sin(t * 2 + i) * 4, 112);
     ctx.font = `700 20px ${FONT}`;
     let nm = g.name; while (ctx.measureText(nm).width > cell - 10 && nm.length > 3) nm = nm.slice(0, -2);
     txt(nm === g.name ? nm : nm + '…', x, y + 84, 20, '#e0e7ff', 700);
@@ -435,148 +470,15 @@ function drawSparks() {
   ctx.globalAlpha = 1;
 }
 
-// ---------------- 3D: lắp mô hình trực tiếp ----------------
-const c3d = document.getElementById('c3d');
-const renderer = new THREE.WebGLRenderer({ canvas: c3d, antialias: true, alpha: true });
-renderer.setPixelRatio(1); renderer.setSize(W, H, false);
-const sc = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
-cam.position.set(0, 0.8, 17); cam.lookAt(0, -0.6, 0);
-sc.add(new THREE.AmbientLight('#c4b5fd', 0.9));
-const keyL = new THREE.DirectionalLight('#ffffff', 2.2); keyL.position.set(4, 6, 6); sc.add(keyL);
-const rimL = new THREE.DirectionalLight('#f472b6', 1.4); rimL.position.set(-5, 2, -4); sc.add(rimL);
-const pad = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.9, 0.35, 48), new THREE.MeshToonMaterial({ color: '#312e81' }));
-pad.position.y = -2.45; pad.scale.setScalar(0.8); sc.add(pad);
-const ring = new THREE.Mesh(new THREE.TorusGeometry(2.75, 0.06, 8, 64), new THREE.MeshBasicMaterial({ color: '#22d3ee' }));
-ring.rotation.x = Math.PI / 2; ring.position.y = -2.28; ring.scale.setScalar(0.8); sc.add(ring);
-const grid = new THREE.GridHelper(30, 30, '#4c1d95', '#2e1065'); grid.position.y = -2.6; sc.add(grid);
-const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 2.7, 0.04, 48, 1, true), new THREE.MeshBasicMaterial({ color: '#22d3ee', transparent: true, opacity: 0.35, side: THREE.DoubleSide }));
-sc.add(beam);
-const model = new THREE.Group(); model.scale.setScalar(0.8); sc.add(model);
-const sparks3 = [];
-let b3 = null; // { id, combo, by, giftName, t0, parts: [mesh], lastBorn, done, doneAt, finAt }
-
-function disposeModel() {
-  for (const m of [...model.children]) { model.remove(m); m.traverse((o) => { o.geometry?.dispose?.(); o.material?.dispose?.(); }); }
-}
-function makeMesh(p) {
-  const s = p.size;
-  const geo = {
-    sphere: () => new THREE.SphereGeometry(s[0], 32, 20),
-    box: () => new THREE.BoxGeometry(s[0], s[1] ?? s[0], s[2] ?? s[0]),
-    cylinder: () => new THREE.CylinderGeometry(s[0], s[1] ?? s[0], s[2] ?? 1, 32),
-    cone: () => new THREE.ConeGeometry(s[0], s[1] ?? 1, 32),
-    torus: () => new THREE.TorusGeometry(s[0], Math.min(s[1] ?? 0.1, s[0]), 16, 48),
-  }[p.shape]();
-  const mat = p.glow ? new THREE.MeshBasicMaterial({ color: p.color, transparent: true, opacity: 0.9 }) : new THREE.MeshToonMaterial({ color: p.color });
-  const m = new THREE.Mesh(geo, mat);
-  const r = p.rot.map((d) => (d * Math.PI) / 180);
-  m.rotation.set(r[0], r[1], r[2]);
-  m.userData = { target: new THREE.Vector3(...p.pos), p, flame: p.glow && p.shape === 'cone' };
-  if (!p.glow) {
-    const edge = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#0b0820', side: THREE.BackSide }));
-    edge.scale.setScalar(1.06); m.add(edge);
-  }
-  return m;
-}
-function spark3(pos, color) {
-  for (let i = 0; i < 14; i++) {
-    const sp = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), new THREE.MeshBasicMaterial({ color }));
-    sp.position.copy(pos); sp.userData.v = new THREE.Vector3((Math.random() - 0.5) * 0.25, Math.random() * 0.25, (Math.random() - 0.5) * 0.25); sp.userData.life = 1;
-    sc.add(sp); sparks3.push(sp);
-  }
-}
-function start3d(e) {
-  disposeModel();
-  ensureEmoji(e.combo.ea); ensureEmoji(e.combo.eb);
-  b3 = { id: e.id, combo: e.combo, by: e.by, giftName: e.giftName, t0: nowS(), parts: [], lastBorn: nowS() + 0.6, done: false, doneAt: null };
-}
-function addPart(e) {
-  if (!b3 || e.id !== b3.id) return;
-  const m = makeMesh(e.part);
-  const born = Math.max(nowS(), b3.lastBorn + 0.28);
-  b3.lastBorn = born;
-  m.userData.born = born;
-  m.userData.from = m.userData.target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 14, 6 + Math.random() * 4, (Math.random() - 0.5) * 8));
-  m.visible = false;
-  model.add(m);
-  b3.parts.push(m);
-}
-function done3d(e) {
-  if (!b3 || e.id !== b3.id) return;
-  b3.done = true;
-  b3.finAt = Math.max(nowS(), b3.lastBorn + 0.6);
-}
-
-function draw3d(t) {
-  const b = b3;
-  if (!b) { c3d.style.opacity = 0; return false; }
-  c3d.style.opacity = 1;
-  let shown = 0;
-  for (const m of b.parts) {
-    const born = m.userData.born;
-    if (t < born) continue;
-    shown++;
-    m.visible = true;
-    const k = ease((t - born) / 0.5);
-    m.position.lerpVectors(m.userData.from, m.userData.target, k);
-    m.scale.setScalar(Math.max(0.01, back((t - born) / 0.5)));
-    if (k >= 1 && !m.userData.landed) { m.userData.landed = true; spark3(m.getWorldPosition(new THREE.Vector3()), m.userData.p.color); }
-    if (m.userData.flame && k >= 1) { const f = 1 + Math.sin(t * 40 + shown) * 0.12; m.scale.set(f, 1 + Math.sin(t * 33) * 0.2, f); }
-  }
-  const fin = b.done && t > b.finAt ? t - b.finAt : -1;
-  beam.visible = fin < 0; beam.position.y = -2.2 + ((t * 1.8) % 5.4);
-  model.rotation.y = Math.sin(t * 0.9) * 0.55 + (fin > 0 ? ease(fin / 1.6) * Math.PI * 2 : 0);
-  model.position.y = 0.6 + (fin > 0 ? 0.22 * Math.sin(fin * 2.2) + Math.min(0.3, fin * 0.25) : 0);
-  for (let i = sparks3.length - 1; i >= 0; i--) {
-    const sp = sparks3[i];
-    sp.position.add(sp.userData.v); sp.userData.v.y -= 0.01; sp.userData.life -= 0.03; sp.scale.setScalar(Math.max(0.01, sp.userData.life));
-    if (sp.userData.life <= 0) { sc.remove(sp); sp.geometry.dispose(); sp.material.dispose(); sparks3.splice(i, 1); }
-  }
-  if (fin > 0 && Math.random() < 0.15) spark3(new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.2) * 6, 0), ['#facc15', '#f472b6', '#22d3ee'][Math.floor(Math.random() * 3)]);
-  renderer.render(sc, cam);
-
-  // chữ trên 2D: quà + bảng tiến độ lắp / kết quả
-  const cb = b.combo;
-  ctx.font = `900 34px ${FONT}`;
-  const gt = `🎁 ${b.by?.name} · ${b.giftName} · vẽ 3D!`;
-  const gw = Math.min(1000, ctx.measureText(gt).width + 70);
-  const grd = ctx.createLinearGradient(CX - gw / 2, 0, CX + gw / 2, 0); grd.addColorStop(0, '#f472b6'); grd.addColorStop(1, '#facc15');
-  pill(CX - gw / 2, 290, gw, 66, grd);
-  txt(gt, CX, 324, 34, '#3b0a2a', 900);
-  drawFusion(ctx, cb, W - 120, 470, 150, Math.sin(t * 2) * 0.1);
-  if (fin < 0) {
-    const n = shown, total = b.done ? b.parts.length : Math.max(b.parts.length, 18);
-    const last = b.parts[n - 1]?.userData.p;
-    ctx.beginPath(); ctx.roundRect(70, 1360, W - 140, 190, 26); ctx.fillStyle = 'rgba(15,10,45,.85)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(167,139,250,.6)'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.textAlign = 'left';
-    ctx.font = `800 34px ${FONT}`; ctx.fillStyle = '#fff';
-    ctx.fillText(n ? `🔧 Đang lắp: ${last.label} (${n})` : `🤖 AI đang thiết kế ${cb.a} + ${cb.b}…`, 100, 1410);
-    ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.roundRect(100, 1450, W - 200, 18, 9); ctx.fill();
-    const pw = (W - 200) * Math.min(1, n / total);
-    if (pw > 0) { const bg = ctx.createLinearGradient(100, 0, W - 100, 0); bg.addColorStop(0, '#22d3ee'); bg.addColorStop(0.5, '#a78bfa'); bg.addColorStop(1, '#f472b6'); ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(100, 1450, pw, 18, 9); ctx.fill(); }
-    if (last) { ctx.font = `600 26px ui-monospace, monospace`; ctx.fillStyle = '#a5b4fc'; ctx.fillText(`+ ${last.shape} "${last.label}" ${last.color}`, 100, 1510); }
-  } else {
-    const name = cb.name.toUpperCase();
-    gradText(name.slice(0, Math.floor(fin * 14) + 1), CX, 1430, fitFont(name, 980, 104));
-    const lines = wrapText(cb.desc.slice(0, Math.floor(Math.max(0, fin - 0.8) * 32)), 940, `600 38px ${FONT}`);
-    lines.slice(0, 2).forEach((l, i) => txt(l, CX, 1530 + i * 50, 38, '#e0e7ff', 600));
-    txt(`🎁 vẽ 3D cho ${b.by?.name} · ${cb.a} + ${cb.b}`, CX, 1650, 30, '#f9a8d4', 800);
-    if (fin > 8.5) { b3 = null; disposeModel(); }
-  }
-  return true;
-}
-
 // ---------------- vòng vẽ ----------------
 function frame() {
   const t = nowS();
   ctx.clearRect(0, 0, W, H);
   drawHeader();
-  const in3d = draw3d(t);
-  if (!in3d) drawShow(t);
+  drawShow(t);
   drawSparks();
-  if (!in3d) { drawFeed(t); drawGallery(t); }
+  drawFeed(t);
+  drawGallery(t);
   drawToasts(t);
   requestAnimationFrame(frame);
 }
