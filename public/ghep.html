@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Phòng thí nghiệm Ghép</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;800;900&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #07051a; overflow: hidden; }
+  #stage { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 38%, #2a1d6b 0%, #120c33 55%, #07051a 100%); }
+  #stage canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+  /* nền xanh (chroma key) cho OBS: /ghep?bg=green · trong suốt: /ghep?bg=none */
+  #stage.green { background: #00b140; }
+  #stage.none { background: transparent; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c3d" width="1080" height="1920"></canvas>
+  <canvas id="c2d" width="1080" height="1920"></canvas>
+</div>
+<script type="module" src="/js/ghep.js"></script>
+</body>
+</html>

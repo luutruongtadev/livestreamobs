@@ -16,6 +16,7 @@ import { Goodbye } from './goodbye.js';
 import { Voice } from './voice.js';
 import { AttrStore } from './attributes.js';
 import { EnglishHintStore } from './englishhints.js';
+import { GhepGame } from './ghep.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -109,7 +110,10 @@ const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API
 if (voice.enabled) console.log('[voice] Giọng MC ElevenLabs: bật'); else if (!process.env.ELEVENLABS_API_KEY) console.log('[voice] Chưa có ELEVENLABS_API_KEY → đọc tên bằng giọng của trình duyệt');
 const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
-const pauser = new PauseController([wg], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false });
+// Game "Ghép" (/ghep): bình luận "A + B" → ghép emoji; quà ≥ 10 xu → Claude dựng mô hình 3D lắp trực tiếp
+const ghep = new GhepGame(config.ghep || {}, { client: claudeClientFromEnv(), filePath: path.join(ROOT, 'data', 'ghep.json') });
+if (ghep.active) console.log('[ghep] đang bật game Ghép (Đoán từ tạm dừng)');
+const pauser = new PauseController([wg], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false, hold: () => (ghep.active ? 'ghep' : null) });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -129,10 +133,16 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState() });
+  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState(), ghep: ghep.snapshot() });
 });
 
 function ingest(ev) {
+  if (ghep.active) {
+    // đang chơi Ghép: mọi bình luận / quà vào game Ghép, Đoán từ đứng yên
+    const fx = ghep.handle(ev);
+    ghepBroadcast(fx);
+    return fx;
+  }
   const wgFx = wg.handle(ev);
   wgBroadcast(wgFx);
   lastWg = { effects: wgFx, reject: wg.lastReject };
@@ -152,6 +162,13 @@ function wgBroadcast(effects) {
   }, 150);
 }
 wg.on('effects', wgBroadcast);
+let ghepTimer = null;
+function ghepBroadcast(effects) {
+  if (effects?.length) broadcast({ type: 'ghepfx', effects });
+  if (ghepTimer) return;
+  ghepTimer = setTimeout(() => { ghepTimer = null; broadcast({ type: 'ghep', ghep: ghep.snapshot() }); }, 300);
+}
+ghep.on('effects', ghepBroadcast);
 voice.on('voice', (v) => broadcast({ type: 'voice', game: 'wg', voice: v }));
 voice.on('state', (st) => broadcast({ type: 'voice_state', voice: st }));
 // số credit còn lại trên tài khoản ElevenLabs: lúc khởi động + mỗi 10 phút
@@ -208,7 +225,7 @@ app.post('/api/goodbye', express.json({ limit: '16kb' }), requireAdmin, (req, re
 });
 
 setInterval(() => {
-  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
+  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -224,6 +241,11 @@ app.use(express.static(path.join(ROOT, 'public'), {
 app.use('/voice', express.static(path.join(ROOT, 'data', 'voice'), { maxAge: '1h' }));
 app.get('/', (_req, res) => res.redirect('/admin'));
 app.get('/doan-tu', (_req, res) => res.redirect('/doantu'));
+// Three.js (vẽ 3D cho game Ghép) phục vụ thẳng từ node_modules, không cần CDN
+app.get('/vendor/three.module.js', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.sendFile(path.join(ROOT, 'node_modules', 'three', 'build', 'three.module.js'));
+});
 
 function requireAdmin(req, res, next) {
   const token = config.server.adminToken;
@@ -283,6 +305,29 @@ app.post('/api/weekly/:action', requireAdmin, (req, res) => {
   if (a === 'close') { const rec = weekly.closeWeek(); weekly.save(); wgBroadcast([]); return res.json({ ok: true, closed: rec, weekly: weekly.admin() }); }
   if (a === 'peek') return res.json({ ok: true, weekly: weekly.admin() });
   res.status(400).json({ error: 'action: peek | close' });
+});
+
+// Game Ghép: bật / tắt (Đoán từ tự dừng khi Ghép bật), thử combo / quà
+app.get('/api/ghep', (_req, res) => res.json(ghep.snapshot()));
+app.post('/api/ghep/:action', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const a = req.params.action;
+  if (a === 'on' || a === 'off') {
+    ghep.setActive(a === 'on');
+    ghep.save();
+    pauser.apply();
+    pauseBroadcast();
+    ghepBroadcast([]);
+    return res.json({ ok: true, ghep: ghep.snapshot(), pause: pauser.status() });
+  }
+  const name = String(b.name || 'Người thử').slice(0, 40);
+  const user = { id: 'sim:' + name, name, avatar: null };
+  let fx;
+  if (a === 'combo') fx = ghep.handleComment(user, String(b.text || ''));
+  else if (a === 'gift') fx = ghep.handleGift(user, { giftName: b.giftName || 'Hoa hồng', diamonds: Number(b.diamonds) || 10, repeatCount: 1 });
+  else return res.status(404).json({ error: 'không rõ thao tác' });
+  ghepBroadcast(fx);
+  res.json({ ok: true, effects: fx });
 });
 
 app.post('/api/wg/:action', requireAdmin, async (req, res) => {
@@ -422,6 +467,7 @@ server.listen(port, host, () => {
   console.log('==============================================');
   console.log('  Đoán từ đang chạy');
   console.log(`  Màn hình game (OBS / điện thoại): ${base}/doantu`);
+  console.log(`  Game Ghép (bật ở admin):          ${base}/ghep`);
   console.log(`  Bảng điều khiển:                  ${base}/admin`);
   console.log('==============================================');
   if (config.autoConnect && config.tiktokUsername) {
@@ -431,7 +477,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu dữ liệu và tắt...');
-  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); } catch { /* bỏ qua */ }
+  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.dirty = true; ghep.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

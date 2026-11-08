@@ -40,8 +40,9 @@ export function makePausable(cls) {
  *   - admin bấm Tiếp tục khi đang offline → chạy luôn (để thử bằng giả lập) cho tới lần mất live kế tiếp
  */
 export class PauseController {
-  constructor(games, { autoPauseOffline = true, online = false } = {}) {
+  constructor(games, { autoPauseOffline = true, online = false, hold = null } = {}) {
     this.games = games;
+    this.hold = hold; // () => lý do giữ dừng (vd 'ghep' khi đang chơi game Ghép) hoặc null
     this.autoPauseOffline = autoPauseOffline;
     this.online = online;
     this.manual = false;
@@ -51,6 +52,8 @@ export class PauseController {
   }
 
   reason() {
+    const h = this.hold?.();
+    if (h) return h;
     if (this.manual) return this.sleeping ? 'goodnight' : 'manual';
     if (this.autoPauseOffline && !this.online && !this.force) return 'offline';
     return null;

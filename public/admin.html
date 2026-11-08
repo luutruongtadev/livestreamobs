@@ -71,6 +71,21 @@
     </section>
 
     <section>
+      <h2>🧪 Game Ghép (/ghep)</h2>
+      <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) → AI ghép thành sinh vật mới. Tặng quà ≥ 10 xu → AI vẽ 3D combo vừa ghép, lắp trực tiếp trên màn hình. Màn hình OBS: <code id="ghepUrl"></code></p>
+      <div id="ghepInfo" class="muted" style="margin-bottom:8px">Đang tải…</div>
+      <div class="row" style="margin-bottom:10px">
+        <button id="btnGhepOn">▶ Bật game Ghép</button>
+        <button id="btnGhepOff" class="ghost">🔤 Quay lại Đoán từ</button>
+      </div>
+      <div class="row">
+        <input id="ghepText" type="text" placeholder="Thử combo, vd: mèo + tên lửa" value="mèo + tên lửa">
+        <button id="btnGhepTry">Ghép thử</button>
+        <button id="btnGhepGift" class="ghost">🎁 Thử quà 10 xu (vẽ 3D)</button>
+      </div>
+    </section>
+
+    <section>
       <h2>Giả lập sự kiện (test không cần live)</h2>
       <div class="row" style="margin-bottom:10px">
         <input id="simName" type="text" placeholder="Tên người xem (để trống = ngẫu nhiên)">
@@ -247,6 +262,20 @@
   const $ = (id) => document.getElementById(id);
   const fmt = new Intl.NumberFormat('vi-VN');
   $('obsUrl').textContent = location.origin + '/doantu?phone=0';
+  $('ghepUrl').textContent = location.origin + '/ghep';
+  function renderGhep(g) {
+    if (!g) return;
+    $('ghepInfo').textContent = (g.active ? '🟢 Đang chơi game Ghép' : '⚪ Game Ghép đang tắt') + ` · ${g.total} combo đã lưu` + (g.queue3d ? ` · ${g.queue3d} mô hình 3D đang vẽ / chờ` : '');
+    $('ghepInfo').style.color = g.active ? '#4ade80' : '';
+    const want = g.active ? '/ghep' : '/doantu?mute=1';
+    if (!$('preview').src.endsWith(want)) $('preview').src = want;
+  }
+  fetch('/api/ghep').then((r) => r.json()).then(renderGhep).catch(() => {});
+  $('btnGhepOn').onclick = () => api('/api/ghep/on').then((r) => { renderGhep(r.ghep); log('Đã bật game Ghép'); }).catch((e) => log('Lỗi: ' + e.message));
+  $('btnGhepOff').onclick = () => api('/api/ghep/off').then((r) => { renderGhep(r.ghep); log('Đã quay lại Đoán từ'); }).catch((e) => log('Lỗi: ' + e.message));
+  const ghepName = () => $('simName').value.trim() || 'Người thử';
+  $('btnGhepTry').onclick = () => api('/api/ghep/combo', { name: ghepName(), text: $('ghepText').value }).then((r) => log(r.effects.length ? `Ghép: ${$('ghepText').value}` : 'Không ghép (sai dạng "A + B" hoặc gửi quá nhanh, chờ 3 giây)')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnGhepGift').onclick = () => api('/api/ghep/gift', { name: ghepName(), diamonds: 10, giftName: 'Quà thử' }).then(() => log('Đã gửi quà thử 10 xu')).catch((e) => log('Lỗi: ' + e.message));
 
   function log(msg) {
     const el = $('log');
@@ -277,7 +306,7 @@
 
   function renderPause(p) {
     if (!p) return;
-    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : p.reason === 'goodnight' ? '🌙 Đã kết thúc live — lần live sau game tự chạy' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
+    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : p.reason === 'goodnight' ? '🌙 Đã kết thúc live — lần live sau game tự chạy' : p.reason === 'ghep' ? '🧪 Đoán từ đứng yên — đang chơi game Ghép' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
     $('pauseText').style.color = p.paused ? '#facc15' : '#4ade80';
   }
 
@@ -299,6 +328,8 @@
       const msg = JSON.parse(m.data);
       if (msg.type === 'hello') { renderStatus(msg.status); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
       if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
+      if (msg.type === 'ghep') renderGhep(msg.ghep);
+      if (msg.type === 'hello') renderGhep(msg.ghep);
       if (msg.type === 'voice') playVoiceHere(msg.voice);
       if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }
