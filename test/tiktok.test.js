@@ -71,10 +71,36 @@ test('đo độ trễ: lấy thời điểm TikTok tạo bình luận (common.cr
   const got = [];
   b.on('event', (e) => got.push(e));
   await b.connect('kenh');
-  C.last.emit('chat', { content: 'mèo', user: { uniqueId: 'x' }, common: { createTime: String(Date.now() - 2000) } });
-  C.last.emit('chat', { content: 'chó', user: { uniqueId: 'y' }, common: { createTime: String(Date.now() - 4000) } });
+  C.last.emit('chat', { content: 'mèo', user: { uniqueId: 'x' }, common: { createTime: String(Date.now() - 1000) } });
+  C.last.emit('chat', { content: 'chó', user: { uniqueId: 'y' }, common: { createTime: String(Date.now() - 2500) } });
   assert.equal(got.length, 2);
   const st = b.delayStats();
-  assert.ok(st.avg >= 2900 && st.avg < 3500 && st.max >= 3900, JSON.stringify(st));
+  assert.ok(st.avg >= 1600 && st.avg < 2200 && st.max >= 2400, JSON.stringify(st));
+  await b.disconnect();
+});
+
+test('lọc tin TikTok gửi bù: lần đầu bỏ tin tạo trước khi kết nối; nối lại nhận tin trong lúc rớt; trùng mã thì bỏ; quà combo không bị bỏ nhầm', async () => {
+  const log = [];
+  const C = fakeClass(log);
+  const b = new TikTokBridge({ ConnectionClass: C, log: {} });
+  const got = [];
+  b.on('event', (e) => got.push(e.type === 'comment' ? e.text : `${e.type}:${e.repeatCount ?? ''}`));
+  const chat = (text, ago, id) => C.last.emit('chat', { content: text, user: { uniqueId: 'u' }, common: { createTime: String(Date.now() - ago), msgId: id } });
+  await b.connect('kenh');
+  chat('cũ 60s', 60_000, '1'); chat('cũ 10s', 10_000, '2'); chat('mới', 500, '3'); chat('mới', 500, '3');
+  assert.deepEqual(got, ['mới'], 'bỏ tin cũ + tin trùng');
+  assert.equal(b.replayed, 3);
+  // rớt → trong lúc rớt có người bình luận → nối lại: TikTok gửi bù cả tin cũ lẫn tin trong lúc rớt
+  b.retryDelay = 5;
+  C.last.emit('disconnected', { code: 1006, reason: '' });
+  await wait(30);
+  chat('trước khi rớt (đã xử lý)', 2000, '3');
+  chat('cũ từ lâu', 90_000, '9');
+  chat('trong lúc rớt', 20, '10');
+  assert.deepEqual(got.slice(1), ['trong lúc rớt']);
+  // quà combo: nhiều tin cập nhật khác số lượng; tin kết thúc chuỗi vẫn được nhận
+  const gift = (n, end) => C.last.emit('gift', { user: { uniqueId: 'g' }, giftId: 5655, repeatCount: n, repeatEnd: end, giftDetails: { giftName: 'Rose', giftType: 1, diamondCount: 1 }, common: { createTime: String(Date.now()), msgId: '77' } });
+  gift(1, false); gift(2, false); gift(2, true); gift(2, true);
+  assert.deepEqual(got.slice(2), ['gift:2'], 'chỉ tính 1 lần khi kết thúc chuỗi');
   await b.disconnect();
 });

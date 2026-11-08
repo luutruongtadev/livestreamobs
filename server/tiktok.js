@@ -74,6 +74,10 @@ export class TikTokBridge extends EventEmitter {
     this.stallMs = stallMs; // không nhận được dữ liệu gì trong khoảng này → coi như kết nối "chết lâm sàng", nối lại
     this.watchdog = null;
     this.lastDataAt = 0;
+    this.seen = new Set(); // mã tin nhắn đã xử lý (chống trùng khi TikTok gửi bù)
+    this.cutoff = 0; // tin tạo trước mốc này là tin cũ TikTok gửi bù khi (nối lại) kết nối → bỏ qua
+    this.lastDropAt = null; // lúc bắt đầu rớt (để vẫn nhận tin tạo ra TRONG lúc rớt)
+    this.replayed = 0; // số tin cũ đã bỏ qua
     this.delays = []; // độ trễ TikTok → server của các bình luận gần đây (ms)
     this.roomId = null; // nhớ room id của buổi live để nối lại nhanh, đỡ tốn lượt gọi máy chủ ký (Euler)
     this.status = { state: 'idle', message: 'Chưa kết nối', username: '', viewers: 0, drops: 0, lastDrop: null };
@@ -99,7 +103,9 @@ export class TikTokBridge extends EventEmitter {
     this.wanted = true;
     this.retryDelay = 5000;
     this.roomId = null;
-    this.setStatus({ username, viewers: 0, drops: 0, lastDrop: null });
+    this.lastDropAt = null;
+    this.replayed = 0;
+    this.setStatus({ username, viewers: 0, drops: 0, lastDrop: null, replayed: 0 });
     return this.#open();
   }
 
@@ -132,6 +138,7 @@ export class TikTokBridge extends EventEmitter {
     conn.removeAllListeners();
     this.conn = null;
     try { Promise.resolve(conn.disconnect()).catch(() => {}); } catch { /* bỏ qua */ }
+    if (this.lastDropAt == null) this.lastDropAt = Date.now();
     const drop = { at: new Date().toISOString(), reason, ...(detail || {}) };
     this.log.warn?.(`[tiktok] rớt kết nối @${this.username}: ${reason}${detail ? ' ' + JSON.stringify(detail) : ''}`);
     this.setStatus({ drops: (this.status.drops || 0) + 1, lastDrop: drop });
@@ -141,6 +148,8 @@ export class TikTokBridge extends EventEmitter {
   async #open() {
     if (!this.wanted) return;
     this.setStatus({ state: 'connecting', message: `Đang kết nối @${this.username}...` });
+    // kết nối lần đầu: bỏ tin tạo trước lúc kết nối; nối lại sau khi rớt: nhận cả tin tạo ra trong lúc rớt
+    this.cutoff = (this.lastDropAt ?? Date.now()) - 3000;
     const conn = new this.ConnectionClass(this.username, {
       signApiKey: this.signApiKey,
       // false: tải danh sách quà (gift/list) phải ký qua Euler gói Business trả phí.
@@ -167,6 +176,7 @@ export class TikTokBridge extends EventEmitter {
         if (this.conn === conn && Date.now() - this.lastDataAt > this.stallMs) this.#drop(conn, `Không nhận dữ liệu ${Math.round(this.stallMs / 1000)}s`);
       }, Math.min(10_000, Math.max(20, this.stallMs / 3)));
       this.watchdog.unref?.();
+      this.lastDropAt = null;
       this.setStatus({ state: 'connected', message: `Đã kết nối @${this.username}`, roomId: state?.roomId || null });
     } catch (err) {
       if (this.conn !== conn) return;
@@ -180,6 +190,20 @@ export class TikTokBridge extends EventEmitter {
     }
   }
 
+  /** Tin mới thật? Bỏ tin cũ TikTok gửi bù khi (nối lại) kết nối và tin trùng mã. */
+  fresh(d, extraKey = '') {
+    const id = d?.common?.msgId;
+    if (id && id !== '0') {
+      const key = `${id}${extraKey}`;
+      if (this.seen.has(key)) { this.replayed++; return false; }
+      this.seen.add(key);
+      if (this.seen.size > 5000) this.seen.delete(this.seen.values().next().value);
+    }
+    const at = sentAtOf(d);
+    if (at && at < this.cutoff) { this.replayed++; return false; }
+    return true;
+  }
+
   #wire(conn) {
     const emit = (ev) => { if (ev && this.conn === conn) this.emit('event', ev); };
     // còn sống: có dữ liệu từ WebSocket (kể cả tin hệ thống) thì cập nhật mốc cho watchdog
@@ -190,15 +214,17 @@ export class TikTokBridge extends EventEmitter {
     });
 
     conn.on(WebcastEvent.CHAT, (d) => {
+      if (!this.fresh(d)) return;
       const ev = normalizeComment(d);
       // đo độ trễ: lúc TikTok tạo bình luận → lúc server nhận được
       if (ev.sentAt) { const ms = Date.now() - ev.sentAt; if (ms > -5000 && ms < 600_000) { this.delays.push(Math.max(0, ms)); if (this.delays.length > 30) this.delays.shift(); } }
       emit(ev);
     });
-    conn.on(WebcastEvent.LIKE, (d) => emit({ type: 'like', user: normalizeUser(d.user), count: Number(d.likeCount) || 1 }));
-    conn.on(WebcastEvent.SHARE, (d) => emit({ type: 'share', user: normalizeUser(d.user) }));
-    conn.on(WebcastEvent.FOLLOW, (d) => emit({ type: 'follow', user: normalizeUser(d.user) }));
-    conn.on(WebcastEvent.GIFT, (d) => emit(normalizeGift(d)));
+    conn.on(WebcastEvent.LIKE, (d) => { if (this.fresh(d)) emit({ type: 'like', user: normalizeUser(d.user), count: Number(d.likeCount) || 1 }); });
+    conn.on(WebcastEvent.SHARE, (d) => { if (this.fresh(d)) emit({ type: 'share', user: normalizeUser(d.user) }); });
+    conn.on(WebcastEvent.FOLLOW, (d) => { if (this.fresh(d)) emit({ type: 'follow', user: normalizeUser(d.user) }); });
+    // quà combo gửi nhiều tin cập nhật → khoá chống trùng gồm cả số lượng / cờ kết thúc chuỗi
+    conn.on(WebcastEvent.GIFT, (d) => { if (this.fresh(d, `:${d.repeatCount ?? ''}:${d.repeatEnd ? 1 : 0}`)) emit(normalizeGift(d)); });
     conn.on(WebcastEvent.MEMBER, (d) => emit({ type: 'member', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.ROOM_USER, (d) => {
       if (this.conn === conn) this.setStatus({ viewers: Number(d.viewerCount) || 0 });

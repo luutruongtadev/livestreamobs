@@ -184,7 +184,7 @@ tiktok.on('event', ingest);
 // đo độ trễ mỗi 15s: TikTok → server (bình luận về chậm) và từ đoán → có điểm (Claude chấm chậm) → hiện ở admin
 setInterval(() => {
   const delay = { tiktok: tiktok.delayStats(), score: wg.scoreDelayStats() };
-  if (delay.tiktok || delay.score) tiktok.setStatus({ delay });
+  if (delay.tiktok || delay.score || tiktok.replayed) tiktok.setStatus({ delay, replayed: tiktok.replayed });
 }, 15_000).unref();
 tiktok.on('status', (status) => {
   console.log(`[tiktok] ${status.state}: ${status.message}`);
