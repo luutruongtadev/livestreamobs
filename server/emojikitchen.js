@@ -30,6 +30,13 @@ export class EmojiKitchen {
   has(e) { return this.byChar.has(strip(e)); }
   /** Ký tự chuẩn (đúng dạng trong bộ dữ liệu) của 1 emoji được hỗ trợ, không có thì null. */
   canonical(e) { const i = this.byChar.get(strip(e)); return i === undefined ? null : this.emoji[i][1]; }
+  /** Tên tiếng Việt của emoji: { text, adj } (adj = tính từ, vd mặt cười), không có thì null. */
+  viName(e) {
+    const i = this.byChar.get(strip(e));
+    const v = i === undefined ? null : this.emoji[i][3];
+    if (!v) return null;
+    return v.startsWith('~') ? { text: v.slice(1), adj: true } : { text: v, adj: false };
+  }
   /** Toàn bộ emoji ghép được, nối liền (đưa vào prompt cho Claude chọn). */
   list() { return this.emoji.map((x) => x[1]).join(' '); }
 

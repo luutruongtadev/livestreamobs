@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { GhepGame, parseCombo, comboKey, guessEmoji } from '../server/ghep.js';
+import { GhepGame, parseCombo, comboKey, guessEmoji, emojiCombo } from '../server/ghep.js';
 import { EmojiKitchen } from '../server/emojikitchen.js';
 import { PauseController } from '../server/pause.js';
 
@@ -191,4 +191,28 @@ test('tặng quà trước khi bình luận → nhắc "A + B", combo kế tiế
   assert.deepEqual(fx.find((e) => e.type === 'ghep_done').gift, { giftName: 'Kẹo', diamonds: 10 });
   const again = g.handle({ type: 'comment', user: u('an'), text: 'mèo + tên lửa' });
   assert.equal(again[1].gift, null); // quà chỉ dùng 1 lần
+});
+
+test('2 emoji → đặt tên bằng bảng tiếng Việt, KHÔNG gọi Claude; danh từ trước, mặt cảm xúc sau', async () => {
+  const client = fakeClient(() => COMBO);
+  const g = new GhepGame({ cooldownMs: 0 }, { client });
+  const fx = [];
+  g.on('effects', (e) => fx.push(...e));
+  g.handle({ type: 'comment', user: u('an'), text: '😎🐱' });
+  g.handle({ type: 'comment', user: u('binh'), text: '🐶 + 🍕' });
+  await wait(20);
+  assert.equal(client.calls.length, 0);
+  const names = fx.filter((e) => e.type === 'ghep_done').map((e) => e.combo.name);
+  assert.deepEqual(names, ['Mèo Ngầu', 'Chó Pizza']);
+  const c = fx.find((e) => e.type === 'ghep_done').combo;
+  assert.equal(c.source, 'table');
+  assert.equal(c.stats.length, 3);
+  assert.ok(c.img);
+  // cùng cặp luôn ra cùng kết quả
+  assert.deepEqual(emojiCombo(g.kitchen, '😎', '🐱'), emojiCombo(g.kitchen, '😎', '🐱'));
+  assert.equal(emojiCombo(g.kitchen, '😎', '😭').name, 'Mặt Ngầu Khóc Nhè');
+  // chữ thì vẫn nhờ Claude đặt tên
+  g.handle({ type: 'comment', user: u('chi'), text: 'mèo + tên lửa' });
+  await wait(20);
+  assert.equal(client.calls.length, 1);
 });

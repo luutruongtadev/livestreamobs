@@ -125,6 +125,53 @@ function simpleCombo(a, b, ea, eb) {
   };
 }
 
+const capWords = (s) => s.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+const STAT_POOL = ['⚡ Sức mạnh', '🥰 Dễ thương', '🤪 Độ lầy', '😈 Độ hỗn', '🧠 Độ khôn', '💨 Tốc độ', '😴 Độ lười', '🔥 Độ cháy', '🍀 May mắn', '😂 Độ hài', '💸 Độ giàu', '🛡️ Độ lì'];
+const DESCS = [
+  '{a} lai {b}, phòng lab cũng không ngờ tới',
+  'Nửa {a} nửa {b}, mười phần đáng yêu',
+  'Kết quả của một đêm thí nghiệm không ngủ',
+  'Sinh ra từ {a} và {b}, lớn lên thành huyền thoại',
+  'Nhà khoa học vừa ghép xong đã xin nghỉ việc',
+  '{a} hôm nay hơi khác, chắc do {b}',
+  'Hiếm có khó tìm, ai thấy thì chụp màn hình',
+  'Ghép xong tự đi kiếm đồ ăn luôn',
+  'Bản nâng cấp mà không ai yêu cầu',
+  'Cẩn thận: dễ gây nghiện khi nhìn lâu',
+];
+
+/** Combo từ 2 emoji: đặt tên / mô tả / chỉ số bằng bảng tên tiếng Việt có sẵn — không gọi Claude, không tốn token. */
+export function emojiCombo(kitchen, ea, eb) {
+  const A = kitchen.viName(ea), B = kitchen.viName(eb);
+  if (!A || !B) return null;
+  let seed = 7;
+  for (const ch of strip2(ea) + '|' + strip2(eb)) seed = (seed * 31 + ch.codePointAt(0)) >>> 0;
+  const rnd = (k) => { // mulberry32: cùng cặp emoji luôn ra cùng kết quả
+    let x = (seed + Math.imul(k + 1, 0x9e3779b9)) >>> 0;
+    x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  // danh từ đứng trước, tính từ (mặt cười / cảm xúc) đứng sau: 🐱 + 😎 → "Mèo Ngầu"; 2 mặt → "Mặt Ngầu Khóc Nhè"
+  let name;
+  if (A.adj && B.adj) name = A.text === B.text ? `mặt ${A.text} gấp đôi` : `mặt ${A.text} ${B.text}`;
+  else if (A.adj) name = `${B.text} ${A.text}`;
+  else if (B.adj) name = `${A.text} ${B.text}`;
+  else name = A.text === B.text ? `${A.text} song sinh` : `${A.text} ${B.text}`;
+  const noun = (x) => (x.adj ? `mặt ${x.text}` : x.text);
+  const desc = A.text === B.text ? 'Một cái chưa đủ, phải nhân đôi' : DESCS[Math.floor(rnd(1) * DESCS.length)].replace('{a}', noun(A)).replace('{b}', noun(B));
+  const pool = [...STAT_POOL];
+  const stats = [0, 1, 2].map((i) => ({ label: pool.splice(Math.floor(rnd(10 + i) * pool.length), 1)[0], value: 5 + Math.floor(rnd(20 + i) * 96) }));
+  const r = rnd(3);
+  return {
+    ea, eb, name: capWords(name).slice(0, 32), desc: desc.charAt(0).toUpperCase() + desc.slice(1), stats,
+    rarity: r < 0.05 ? 'huyền thoại' : r < 0.25 ? 'hiếm' : 'thường',
+    mode: MODES[Math.floor(rnd(4) * MODES.length)], base: A.adj && !B.adj ? 'b' : 'a', tint: ['#f97316', '#22c55e', '#3b82f6', '#ec4899', '#eab308'][Math.floor(rnd(5) * 5)], source: 'table',
+  };
+}
+const strip2 = (e) => String(e).replace(/\uFE0F/g, '');
+/** Vế này chỉ là đúng 1 emoji? */
+const onlyEmoji = (p) => { const m = String(p).match(EMOJI_RE); return m && m[0].length === String(p).trim().length ? m[0] : null; };
+
 const DEFAULT_KITCHEN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'emoji-kitchen.json');
 
 export class GhepGame extends EventEmitter {
@@ -222,9 +269,12 @@ export class GhepGame extends EventEmitter {
     if (!this.pending.has(key)) {
       const t = this.now();
       this.newTimes = this.newTimes.filter((x) => t - x < 60_000);
-      const useClaude = this.client && this.newTimes.length < this.cfg.maxNewPerMinute;
+      // 2 vế đều là emoji có trong bảng → đặt tên bằng bảng tiếng Việt, không gọi Claude
+      const ea = onlyEmoji(a), eb = onlyEmoji(b);
+      const table = ea && eb ? emojiCombo(this.kitchen, this.kitchen.canonical(ea) || ea, this.kitchen.canonical(eb) || eb) : null;
+      const useClaude = !table && this.client && this.newTimes.length < this.cfg.maxNewPerMinute;
       if (useClaude) this.newTimes.push(t);
-      const p = (useClaude ? this.claudeCombo(a, b, (name) => this.fx([{ type: 'ghep_typing', id, name }])) : Promise.resolve(null))
+      const p = (table ? Promise.resolve(table) : useClaude ? this.claudeCombo(a, b, (name) => this.fx([{ type: 'ghep_typing', id, name }])) : Promise.resolve(null))
         .catch((e) => { this.log.warn?.('[ghep] Claude lỗi:', e?.message || e); return null; })
         .then((c) => {
           if (c && c.safe === false) return { refused: true };
