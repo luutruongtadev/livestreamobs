@@ -217,12 +217,13 @@ function onEffect(e) {
   if (e.type === 'ghep_job') {
     ensureEmoji(e.ea); ensureEmoji(e.eb); loadImg(e.img);
     jobs.set(e.id, { ...e, typing: '', combo: null, fail: false, at: nowS() });
-    feed.unshift({ name: e.by?.name || '?', text: `${e.a} + ${e.b}`, at: nowS() });
+    feed.unshift({ name: e.by?.name || '?', text: `${e.a} + ${e.b}`, at: nowS(), vip: !!e.vip });
     feed.length = Math.min(feed.length, 5);
-    showQueue.push(e.id);
-    // hàng chờ quá dài: bỏ bớt combo đã có (vẫn hiện ở dải bộ sưu tập), giữ combo mới
+    if (e.vip) { loadImg(e.by?.avatar); queueVip(e.id); } else showQueue.push(e.id);
+    // hàng chờ quá dài: bỏ bớt combo đã có của người xem thường (vẫn hiện ở dải bộ sưu tập), giữ combo mới / VIP
     while (showQueue.length > 10) {
-      const i = showQueue.findIndex((id) => jobs.get(id)?.known);
+      let i = showQueue.findIndex((id) => jobs.get(id)?.known && !jobs.get(id)?.vip);
+      if (i < 0) i = showQueue.findIndex((id) => !jobs.get(id)?.vip);
       const drop = showQueue.splice(i >= 0 ? i : 0, 1)[0];
       jobs.delete(drop);
     }
@@ -243,8 +244,20 @@ function onEffect(e) {
     const c = e.combo;
     ensureEmoji(c.ea); ensureEmoji(c.eb); loadImg(c.img);
     jobs.set(e.id, { id: e.id, a: c.a, b: c.b, ea: c.ea, eb: c.eb, img: c.img, by: e.by, known: true, combo: c, isNew: false, gift: e.gift, at: nowS() });
-    showQueue.unshift(e.id);
+    loadImg(e.by?.avatar);
+    queueVip(e.id, true);
+  } else if (e.type === 'ghep_vip') {
+    loadImg(e.by?.avatar);
+    toast(e.renewed ? `👑 ${e.by?.name} gia hạn VIP · tổng ${e.diamonds} xu!` : `👑 ${e.by?.name} lên VIP ${snap.vipMinutes || 5} phút! Combo ưu tiên + AI đặt tên riêng`, '#facc15', 5000);
+    burst(CX, 260, 120, GOLD);
   }
+}
+
+/** VIP chen lên trước người xem thường (sau các VIP đang chờ); combo người thường đang chiếu thì rút ngắn. */
+function queueVip(id, first = false) {
+  const i = first ? 0 : showQueue.findIndex((x) => !jobs.get(x)?.vip && !jobs.get(x)?.gift);
+  showQueue.splice(i < 0 ? showQueue.length : i, 0, id);
+  if (cur && !cur.job.vip && !cur.job.gift) cur.cut = true;
 }
 
 // ---------------- WebSocket ----------------
@@ -253,7 +266,7 @@ function connect() {
   ws.onmessage = (m) => {
     let d; try { d = JSON.parse(m.data); } catch { return; }
     if (d.type === 'hello' || d.type === 'ghep') {
-      if (d.ghep) { snap = d.ghep; gallery = d.ghep.gallery || []; for (const g of gallery) { ensureEmoji(g.ea); ensureEmoji(g.eb); loadImg(g.img); } }
+      if (d.ghep) { snap = d.ghep; vipRecvAt = nowS(); for (const v of snap.vips || []) loadImg(v.avatar); gallery = d.ghep.gallery || []; for (const g of gallery) { ensureEmoji(g.ea); ensureEmoji(g.eb); loadImg(g.img); } }
     } else if (d.type === 'ghepfx') for (const e of d.effects || []) onEffect(e);
   };
   ws.onclose = () => setTimeout(connect, 2000);
@@ -278,7 +291,12 @@ function drawCauldron(t, intensity = 1) {
   while (bubbles.length && bubbles[0].y < CY - 260) bubbles.shift();
 }
 
-function revealDur() { return showQueue.length > 5 ? 2.6 : showQueue.length > 1 ? 3.8 : 6; }
+// người xem thường: chiếu ngắn (càng đông càng ngắn); VIP: 6 giây; lúc vừa tặng quà: 8 giây
+function revealDur(job) {
+  if (job.gift) return 8;
+  if (job.vip) return showQueue.length > 3 ? 4.5 : 6;
+  return showQueue.length > 5 ? 2.2 : showQueue.length > 1 ? 3 : 4.5;
+}
 
 function drawShow(t) {
   if (!cur && showQueue.length) {
@@ -288,10 +306,10 @@ function drawShow(t) {
   if (!cur) { drawIdle(t); return; }
   const { job } = cur;
   const el = t - cur.t0;
-  const mixMin = job.gift && job.combo && job.known ? 0.9 : job.known ? 1.3 : 2.4;
+  const mixMin = cur.cut ? 0.5 : job.gift && job.combo && job.known ? 0.9 : job.known ? 1.3 : 2.4;
   if (cur.boomAt === null && el > mixMin && (job.combo || job.fail || el > 18)) {
     cur.boomAt = t;
-    if (job.combo) burst(CX, CY - 120, job.isNew || job.gift ? 200 : 110, job.gift || job.combo.rarity === 'huyền thoại' ? GOLD : undefined);
+    if (job.combo) burst(CX, CY - 120, job.gift || job.vip ? 220 : job.isNew ? 140 : 80, job.gift || job.vip || job.combo.rarity === 'huyền thoại' ? GOLD : undefined);
     else burst(CX, CY, 90, ['#9ca3af', '#4b5563', '#f97316']);
   }
   drawCauldron(t, cur.boomAt === null ? 1 : 0.4);
@@ -319,7 +337,7 @@ function drawShow(t) {
     return;
   }
   const rt = t - cur.boomAt;
-  const dur = job.combo ? (job.gift ? 8 : revealDur()) : 1.6;
+  const dur = job.combo ? (cur.cut ? Math.min(revealDur(job), 1.4) : revealDur(job)) : 1.6;
   if (job.combo) drawReveal(job, rt, t);
   else {
     ctx.textAlign = 'center'; ctx.font = `900 80px ${FONT}`; ctx.fillStyle = '#fca5a5';
@@ -329,10 +347,12 @@ function drawShow(t) {
   if (rt > dur) cur = null;
 }
 
-function gradText(text, x, y, size) {
+// chữ vàng dành cho VIP / người tặng quà; người xem thường: chữ trắng tím
+function gradText(text, x, y, size, gold = true) {
   ctx.font = `900 ${size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const gr = ctx.createLinearGradient(0, y - size / 2, 0, y + size / 2);
-  gr.addColorStop(0, '#fff7ad'); gr.addColorStop(0.55, '#facc15'); gr.addColorStop(1, '#f97316');
+  if (gold) { gr.addColorStop(0, '#fff7ad'); gr.addColorStop(0.55, '#facc15'); gr.addColorStop(1, '#f97316'); }
+  else { gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.6, '#e9d5ff'); gr.addColorStop(1, '#a78bfa'); }
   ctx.lineWidth = 14; ctx.strokeStyle = '#2e1065'; ctx.lineJoin = 'round'; ctx.strokeText(text, x, y);
   ctx.fillStyle = gr; ctx.fillText(text, x, y);
 }
@@ -343,8 +363,9 @@ function txt(text, x, y, size, color = '#fff', weight = 800) {
 const GOLD = ['#facc15', '#fde68a', '#ffffff', '#f59e0b', '#f472b6'];
 function drawReveal(job, rt, t) {
   const cb = job.combo;
-  const rar = job.gift ? { c: '#facc15', label: '🎁 TRÌNH DIỄN ĐẶC BIỆT' } : RARITY[cb.rarity] || RARITY['thường'];
-  if (job.gift && Math.random() < 0.12) burst(150 + Math.random() * (W - 300), 400 + Math.random() * 500, 40, GOLD);
+  const vip = !!(job.gift || job.vip);
+  const rar = job.gift ? { c: '#facc15', label: '🎁 TRÌNH DIỄN ĐẶC BIỆT' } : job.vip ? { c: '#facc15', label: `👑 VIP · ${(RARITY[cb.rarity] || RARITY['thường']).label}` } : RARITY[cb.rarity] || RARITY['thường'];
+  if (vip && Math.random() < (job.gift ? 0.12 : 0.05)) burst(150 + Math.random() * (W - 300), 400 + Math.random() * 500, 40, GOLD);
   const k = back(rt / 0.55);
   // vòng sáng + tia sáng xoay sau combo
   ctx.save(); ctx.translate(CX, CY - 160);
@@ -354,23 +375,23 @@ function drawReveal(job, rt, t) {
   const gl = ctx.createRadialGradient(0, 0, 40, 0, 0, 340); gl.addColorStop(0, rar.c + '88'); gl.addColorStop(1, rar.c + '00');
   ctx.fillStyle = gl; ctx.fillRect(-340, -340, 680, 680);
   ctx.restore();
-  if (job.gift) { // khung vàng xoay quanh
+  if (vip) { // khung vàng xoay quanh
     ctx.save(); ctx.translate(CX, CY - 160); ctx.rotate(-t * 0.8);
     ctx.strokeStyle = '#facc15'; ctx.lineWidth = 10; ctx.setLineDash([40, 22]);
     ctx.beginPath(); ctx.arc(0, 0, 300 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  drawCombo(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, (job.gift ? 500 : 440) * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
+  drawCombo(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, (job.gift ? 500 : vip ? 470 : 380) * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
   // độ hiếm
   ctx.font = `900 34px ${FONT}`;
   const rw = ctx.measureText(rar.label).width + 60;
   pill(CX - rw / 2, 280, rw, 62, 'rgba(15,10,45,.85)', rar.c);
   txt(rar.label, CX, 312, 34, rar.c, 900);
-  if (job.gift) txt(`${job.by?.name} tặng ${job.gift.giftName} 💛`, CX, 390, 38, '#fde68a', 900);
+  if (vip) vipTag(job, 390, t);
   else if (job.isNew) txt('✨ PHÁT MINH MỚI ✨', CX, 390, 38, '#4ade80', 900);
   // tên (gõ dần) + mô tả + chỉ số
   const name = cb.name.toUpperCase();
   const typed = name.slice(0, Math.floor(rt * 22) + 1);
-  gradText(typed, CX, 1240, fitFont(name, 980, 104));
+  gradText(typed, CX, 1240, fitFont(name, 980, vip ? 104 : 92), vip);
   const desc = cb.desc.slice(0, Math.floor(Math.max(0, rt - 0.4) * 45));
   const lines = wrapText(desc, 940, `600 38px ${FONT}`);
   lines.slice(0, 2).forEach((l, i) => txt(l, CX, 1340 + i * 50, 38, '#e0e7ff', 600));
@@ -379,16 +400,58 @@ function drawReveal(job, rt, t) {
     const cw = 300, gap = 20, x0 = CX - (st.length * cw + (st.length - 1) * gap) / 2;
     st.forEach((s, i) => {
       const x = x0 + i * (cw + gap), y = 1460;
-      pill(x, y, cw, 70, 'rgba(255,255,255,.08)', 'rgba(255,255,255,.25)');
+      pill(x, y, cw, 70, 'rgba(255,255,255,.08)', vip ? '#facc15' : 'rgba(255,255,255,.25)');
       const v = Math.round(s.value * ease((rt - 0.7 - i * 0.15) / 0.6));
       ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, cw, 70, 35); ctx.clip();
-      ctx.fillStyle = 'rgba(167,139,250,.35)'; ctx.fillRect(x, y, cw * v / 100, 70); ctx.restore();
+      ctx.fillStyle = vip ? 'rgba(250,204,21,.35)' : 'rgba(167,139,250,.35)'; ctx.fillRect(x, y, cw * v / 100, 70); ctx.restore();
       txt(`${s.label} ${v}`, x + cw / 2, y + 36, 28, '#fff', 800);
     });
   }
   const by = job.isNew ? `phát minh bởi ${cb.inventor?.name || job.by?.name}` : `${job.by?.name} ghép lại · ${cb.count || 1} lần · gốc: ${cb.inventor?.name || '?'}`;
   txt(`${job.a} + ${job.b}`, CX, 1560, 34, '#c4b5fd', 700);
   txt(by.slice(0, 56), CX, 1610, 32, '#f9a8d4', 800);
+}
+
+/** Thẻ VIP: ảnh đại diện + vương miện + tên người tặng. */
+function vipTag(job, y, t) {
+  const label = String(job.by?.name || 'VIP');
+  ctx.font = `900 36px ${FONT}`;
+  const tw = Math.min(270, ctx.measureText(label).width); // hẹp: không đè danh sách bình luận (trái) và bảng VIP (phải)
+  const w = tw + 130, x = CX - w / 2;
+  const gr = ctx.createLinearGradient(x, 0, x + w, 0); gr.addColorStop(0, '#f59e0b'); gr.addColorStop(0.5, '#fde68a'); gr.addColorStop(1, '#f59e0b');
+  pill(x, y - 36, w, 72, gr);
+  const av = job.by?.avatar && imgReady(job.by.avatar) ? imgs.get(job.by.avatar).im : null;
+  ctx.save(); ctx.beginPath(); ctx.arc(x + 38, y, 28, 0, Math.PI * 2); ctx.clip();
+  if (av) ctx.drawImage(av, x + 10, y - 28, 56, 56); else { ctx.fillStyle = '#7c2d12'; ctx.fillRect(x + 10, y - 28, 56, 56); }
+  ctx.restore();
+  drawEmoji(ctx, '👑', x + 38, y - 40 + Math.sin(t * 4) * 3, 40, -0.2);
+  ctx.font = `900 36px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#451a03';
+  let s = label; while (ctx.measureText(s).width > tw && s.length > 3) s = s.slice(0, -1);
+  ctx.fillText(s, x + 80, y + 2);
+}
+
+/** Bảng VIP đang hoạt động (góc trên phải). */
+let vipRecvAt = nowS();
+function drawVipBoard(t) {
+  const list = (snap.vips || []).map((v) => ({ ...v, left: v.leftMs / 1000 - (t - vipRecvAt) })).filter((v) => v.left > 0);
+  if (!list.length) return;
+  const x = W - 330, y0 = 290;
+  ctx.beginPath(); ctx.roundRect(x, y0, 306, 56 + list.length * 58, 22); ctx.fillStyle = 'rgba(66,32,6,.75)'; ctx.fill();
+  ctx.strokeStyle = '#facc15'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = `900 26px ${FONT}`; ctx.fillStyle = '#fde68a'; ctx.fillText('👑 VIP đang ghép', x + 20, y0 + 30);
+  list.forEach((v, i) => {
+    const y = y0 + 84 + i * 58;
+    const av = v.avatar && imgReady(v.avatar) ? imgs.get(v.avatar).im : null;
+    ctx.save(); ctx.beginPath(); ctx.arc(x + 42, y, 22, 0, Math.PI * 2); ctx.clip();
+    if (av) ctx.drawImage(av, x + 20, y - 22, 44, 44); else { ctx.fillStyle = '#92400e'; ctx.fillRect(x + 20, y - 22, 44, 44); }
+    ctx.restore();
+    ctx.font = `800 24px ${FONT}`; ctx.fillStyle = '#fff';
+    let nm = v.name; while (ctx.measureText(nm).width > 150 && nm.length > 3) nm = nm.slice(0, -1);
+    ctx.fillText(nm, x + 74, y - 8);
+    const m = Math.floor(v.left / 60), sec = Math.floor(v.left % 60);
+    ctx.font = `700 20px ${FONT}`; ctx.fillStyle = '#fcd34d'; ctx.fillText(`${v.diamonds} xu · còn ${m}:${String(sec).padStart(2, '0')}`, x + 74, y + 16);
+  });
 }
 
 function drawIdle(t) {
@@ -399,11 +462,13 @@ function drawIdle(t) {
   txt('Bình luận để ghép:', CX, 1250, 44, '#bbf7d0', 800);
   gradText(ex.toUpperCase(), CX, 1350, fitFont(ex.toUpperCase(), 960, 88));
   txt(`Đã có ${snap.total || 0} phát minh trong phòng lab`, CX, 1450, 32, '#a5b4fc', 700);
+  txt(`🎁 Tặng quà ≥ ${snap.minGiftDiamonds || 10} xu = 👑 VIP ${snap.vipMinutes || 5} phút`, CX, 1530, 34, '#fde68a', 900);
+  txt('chen hàng · khung vàng · AI đặt tên riêng · ghép liên tục', CX, 1578, 28, '#fcd34d', 700);
 }
 
 function drawHeader() {
   txt('🧪 PHÒNG THÍ NGHIỆM', CX, 100, 60, '#c4b5fd', 900);
-  const sub = `Bình luận "A + B" hoặc 2 emoji để ghép · quà ≥ ${snap.minGiftDiamonds || 10} xu: trình diễn đặc biệt`;
+  const sub = `Bình luận "A + B" hoặc 2 emoji để ghép · quà ≥ ${snap.minGiftDiamonds || 10} xu: 👑 VIP ${snap.vipMinutes || 5} phút`;
   txt(sub, CX, 168, fitFont(sub, 1020, 30, 700), '#a5b4fc', 700);
   if (!snap.active) { pill(CX - 250, 1180, 500, 50, 'rgba(239,68,68,.25)', '#ef4444'); txt('Game đang tắt — bật ở trang admin', CX, 1206, 26, '#fecaca', 800); }
 }
@@ -415,12 +480,13 @@ function drawFeed(t) {
     if (a <= 0) return;
     ctx.globalAlpha = a;
     ctx.font = `700 24px ${FONT}`;
-    let s = `💬 ${f.name}: ${f.text}`;
+    const full = `${f.vip ? '👑' : '💬'} ${f.name}: ${f.text}`;
+    let s = full;
     while (ctx.measureText(s).width > 290 && s.length > 4) s = s.slice(0, -2);
-    if (s !== `💬 ${f.name}: ${f.text}`) s += '…';
+    if (s !== full) s += '…';
     const w = ctx.measureText(s).width + 32;
-    pill(24, 300 + i * 52, w, 44, 'rgba(15,10,45,.7)');
-    ctx.fillStyle = '#e0e7ff'; ctx.fillText(s, 40, 323 + i * 52);
+    pill(24, 300 + i * 52, w, 44, f.vip ? 'rgba(120,53,15,.85)' : 'rgba(15,10,45,.7)', f.vip ? '#facc15' : null);
+    ctx.fillStyle = f.vip ? '#fde68a' : '#e0e7ff'; ctx.fillText(s, 40, 323 + i * 52);
     ctx.globalAlpha = 1;
   });
 }
@@ -435,8 +501,9 @@ function drawGallery(t) {
     const g = gallery[i];
     const x = x0 + i * cell;
     ctx.beginPath(); ctx.arc(x, y, 66, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fill();
-    ctx.strokeStyle = (RARITY[g.rarity] || RARITY['thường']).c; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = g.vip ? '#facc15' : (RARITY[g.rarity] || RARITY['thường']).c; ctx.lineWidth = g.vip ? 6 : 3; ctx.stroke();
     drawCombo(ctx, g, x, y - 6 + Math.sin(t * 2 + i) * 4, 112);
+    if (g.vip) drawEmoji(ctx, '👑', x + 46, y - 56, 36, 0.3);
     ctx.font = `700 20px ${FONT}`;
     let nm = g.name; while (ctx.measureText(nm).width > cell - 10 && nm.length > 3) nm = nm.slice(0, -2);
     txt(nm === g.name ? nm : nm + '…', x, y + 84, 20, '#e0e7ff', 700);
@@ -478,6 +545,7 @@ function frame() {
   drawShow(t);
   drawSparks();
   drawFeed(t);
+  drawVipBoard(t);
   drawGallery(t);
   drawToasts(t);
   requestAnimationFrame(frame);

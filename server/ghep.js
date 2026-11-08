@@ -9,13 +9,16 @@ import { EmojiKitchen } from './emojikitchen.js';
  * Game "Phòng thí nghiệm" (/ghep): người xem bình luận "A + B" (chữ hoặc emoji) → ghép thành emoji mới.
  * - Claude (Haiku) chọn 2 emoji đại diện (trong bộ ~620 emoji ghép được), đặt tên, mô tả troll, chỉ số.
  * - Hình: ảnh Emoji Kitchen của cặp emoji đó (trình duyệt tải thẳng, không tốn token); cặp không có ảnh thì màn hình tự ghép 2 emoji.
- * - Tặng quà ≥ minGiftDiamonds: combo của người đó được trình diễn "đặc biệt" (chen lên đầu, khung vàng, nổ pháo).
+ * - Tặng quà ≥ minGiftDiamonds: combo của người đó được trình diễn "đặc biệt" (chen lên đầu, khung vàng, nổ pháo)
+ *   và người đó thành VIP vài phút: combo được ưu tiên, khung vàng, luôn được AI đặt tên riêng (kể cả combo 2 emoji / combo cũ đặt tên bằng bảng).
  * Combo đã tạo được lưu lại (data/ghep.json) → gặp lại không tốn token.
  */
 export const GHEP_DEFAULTS = {
   minGiftDiamonds: 10, // quà từ mức này trở lên → trình diễn đặc biệt
   comboWindowMs: 120_000, // quà áp cho combo người đó bình luận trong 2 phút gần nhất (hoặc combo kế tiếp)
-  cooldownMs: 3000, // mỗi người 1 combo / 3 giây
+  cooldownMs: 3000, // người xem thường: 1 combo / 3 giây
+  vipMs: 5 * 60_000, // tặng quà ≥ minGiftDiamonds → VIP 5 phút (cộng dồn khi tặng tiếp)
+  vipCooldownMs: 1000, // VIP: 1 combo / giây
   maxNewPerMinute: 30, // tối đa combo MỚI nhờ Claude đặt tên mỗi phút (quá thì đặt tên đơn giản, không tốn token)
   model: 'claude-haiku-5-5',
   gallerySize: 12,
@@ -191,6 +194,7 @@ export class GhepGame extends EventEmitter {
     this.lastCombo = new Map(); // userId -> { key, at }
     this.pendingGift = new Map(); // userId -> { at, giftName, diamonds } (tặng quà khi chưa có combo)
     this.lastAt = new Map(); // userId -> lúc gửi combo gần nhất
+    this.vips = new Map(); // userId -> { by, until, diamonds }
     this.newTimes = []; // thời điểm tạo combo mới (giới hạn / phút)
     this.gallery = []; // combo vừa ghép gần đây (hiện ở dải dưới màn hình)
     this.dirty = false;
@@ -221,7 +225,17 @@ export class GhepGame extends EventEmitter {
   setActive(on) { this.active = !!on; this.dirty = true; return this.active; }
 
   snapshot() {
-    return { active: this.active, gallery: this.gallery, total: this.combos.size, minGiftDiamonds: this.cfg.minGiftDiamonds };
+    return { active: this.active, gallery: this.gallery, total: this.combos.size, minGiftDiamonds: this.cfg.minGiftDiamonds, vipMinutes: Math.round(this.cfg.vipMs / 60_000), vips: this.vipList() };
+  }
+
+  isVip(id) { const v = this.vips.get(id); return !!v && v.until > this.now(); }
+
+  /** VIP đang còn hạn, nhiều xu nhất trước (tối đa 3) — hiện trên màn hình. */
+  vipList() {
+    const t = this.now();
+    for (const [id, v] of this.vips) if (v.until <= t) this.vips.delete(id);
+    return [...this.vips.values()].sort((a, b) => b.diamonds - a.diamonds).slice(0, 3)
+      .map((v) => ({ name: v.by.name, avatar: v.by.avatar, diamonds: v.diamonds, leftMs: v.until - t }));
   }
 
   fx(effects) { if (effects.length) this.emit('effects', effects); }
@@ -238,7 +252,8 @@ export class GhepGame extends EventEmitter {
     const pair = parseCombo(text);
     if (!pair) return [];
     const t = this.now();
-    if (this.lastAt.has(by.id) && t - this.lastAt.get(by.id) < this.cfg.cooldownMs) return [];
+    const vip = this.isVip(by.id);
+    if (this.lastAt.has(by.id) && t - this.lastAt.get(by.id) < (vip ? this.cfg.vipCooldownMs : this.cfg.cooldownMs)) return [];
     this.lastAt.set(by.id, t);
     const [a, b] = pair;
     const key = comboKey(a, b);
@@ -246,14 +261,16 @@ export class GhepGame extends EventEmitter {
     const known = this.combos.get(key);
     this.lastCombo.set(by.id, { key, at: t });
     const ea = known?.ea || guessEmoji(a), eb = known?.eb || guessEmoji(b);
-    const start = { type: 'ghep_job', id, a, b, ea, eb, by, known: !!known, img: known?.img || this.kitchen.url(ea, eb) };
-    if (known) {
+    // VIP gặp combo cũ chưa được AI đặt tên (đặt bằng bảng / đơn giản) → AI đặt tên lại cho xịn
+    const upgrade = known && vip && this.client && known.source !== 'claude';
+    const start = { type: 'ghep_job', id, a, b, ea, eb, by, vip, known: !!known && !upgrade, img: known?.img || this.kitchen.url(ea, eb) };
+    if (known && !upgrade) {
       known.count = (known.count || 1) + 1;
       this.dirty = true;
-      this.pushGallery(known, by);
-      return [start, { type: 'ghep_done', id, combo: known, isNew: false, gift: this.takeGift(by) }];
+      this.pushGallery(known, by, vip);
+      return [start, { type: 'ghep_done', id, combo: known, isNew: false, vip, gift: this.takeGift(by) }];
     }
-    this.create(key, a, b, id, by).catch((e) => this.log.warn?.('[ghep] lỗi:', e?.message || e));
+    this.create(key, a, b, id, by, vip).catch((e) => this.log.warn?.('[ghep] lỗi:', e?.message || e));
     return [start];
   }
 
@@ -265,21 +282,25 @@ export class GhepGame extends EventEmitter {
     return this.now() - g.at <= this.cfg.comboWindowMs ? { giftName: g.giftName, diamonds: g.diamonds } : null;
   }
 
-  async create(key, a, b, id, by) {
-    if (!this.pending.has(key)) {
+  async create(key, a, b, id, by, vip = false) {
+    const mine = !this.pending.has(key); // lượt này là người tạo ra combo (hoặc VIP nâng cấp)
+    if (mine) {
       const t = this.now();
       this.newTimes = this.newTimes.filter((x) => t - x < 60_000);
       // 2 vế đều là emoji có trong bảng → đặt tên bằng bảng tiếng Việt, không gọi Claude
       const ea = onlyEmoji(a), eb = onlyEmoji(b);
-      const table = ea && eb ? emojiCombo(this.kitchen, this.kitchen.canonical(ea) || ea, this.kitchen.canonical(eb) || eb) : null;
-      const useClaude = !table && this.client && this.newTimes.length < this.cfg.maxNewPerMinute;
+      const table = ea && eb && !(vip && this.client) ? emojiCombo(this.kitchen, this.kitchen.canonical(ea) || ea, this.kitchen.canonical(eb) || eb) : null;
+      // VIP luôn được AI đặt tên (không tính vào giới hạn / phút); người xem thường: bảng tên hoặc AI trong giới hạn
+      const useClaude = !table && this.client && (vip || this.newTimes.length < this.cfg.maxNewPerMinute);
       if (useClaude) this.newTimes.push(t);
       const p = (table ? Promise.resolve(table) : useClaude ? this.claudeCombo(a, b, (name) => this.fx([{ type: 'ghep_typing', id, name }])) : Promise.resolve(null))
         .catch((e) => { this.log.warn?.('[ghep] Claude lỗi:', e?.message || e); return null; })
         .then((c) => {
           if (c && c.safe === false) return { refused: true };
+          const prev = this.combos.get(key);
+          if (!c && prev) return prev; // nâng cấp thất bại → giữ bản cũ
           const base = c || simpleCombo(a, b, guessEmoji(a), guessEmoji(b));
-          const combo = { ...base, img: this.kitchen.url(base.ea, base.eb), key, a, b, inventor: by, at: this.now(), count: 1 };
+          const combo = { ...base, img: this.kitchen.url(base.ea, base.eb), key, a, b, inventor: by, at: this.now(), count: (prev?.count || 0) + 1, ...(vip ? { vip: true } : {}) };
           delete combo.safe;
           this.combos.set(key, combo);
           this.dirty = true;
@@ -290,14 +311,14 @@ export class GhepGame extends EventEmitter {
     }
     const combo = await this.pending.get(key);
     if (combo.refused) { this.fx([{ type: 'ghep_fail', id, by }]); return; }
-    const isNew = combo.inventor?.id === by.id && combo.count === 1;
+    const isNew = mine && combo.inventor?.id === by.id;
     if (!isNew) { combo.count++; this.dirty = true; }
-    this.pushGallery(combo, by);
-    this.fx([{ type: 'ghep_done', id, combo, isNew, gift: this.takeGift(by) }]);
+    this.pushGallery(combo, by, vip);
+    this.fx([{ type: 'ghep_done', id, combo, isNew, vip, gift: this.takeGift(by) }]);
   }
 
-  pushGallery(combo, by) {
-    this.gallery = [{ key: combo.key, ea: combo.ea, eb: combo.eb, img: combo.img, name: combo.name, mode: combo.mode, base: combo.base, tint: combo.tint, rarity: combo.rarity, by: { name: by.name } },
+  pushGallery(combo, by, vip = false) {
+    this.gallery = [{ key: combo.key, ea: combo.ea, eb: combo.eb, img: combo.img, name: combo.name, mode: combo.mode, base: combo.base, tint: combo.tint, rarity: combo.rarity, by: { name: by.name }, vip },
       ...this.gallery.filter((g) => g.key !== combo.key)].slice(0, this.cfg.gallerySize);
   }
 
@@ -345,6 +366,12 @@ export class GhepGame extends EventEmitter {
     const total = Math.max(0, Number(ev.diamonds) || 0) * Math.max(1, ev.repeatCount | 0 || 1);
     const out = [{ type: 'ghep_thanks', by, giftName: ev.giftName || 'quà', diamonds: total }];
     if (total < this.cfg.minGiftDiamonds) return out;
+    // thành VIP (cộng dồn thời gian + số xu nếu đang là VIP)
+    const t = this.now();
+    const v = this.vips.get(by.id);
+    const nv = { by, until: Math.max(v?.until || 0, t) + this.cfg.vipMs, diamonds: (v && v.until > t ? v.diamonds : 0) + total };
+    this.vips.set(by.id, nv);
+    out.push({ type: 'ghep_vip', by, diamonds: nv.diamonds, leftMs: nv.until - t, renewed: !!(v && v.until > t) });
     const last = this.lastCombo.get(by.id);
     const combo = last && this.now() - last.at <= this.cfg.comboWindowMs ? this.combos.get(last.key) : null;
     if (combo) return [...out, { type: 'ghep_spotlight', id: ++this.jobSeq, combo, by, gift: { giftName: ev.giftName || 'quà', diamonds: total } }];

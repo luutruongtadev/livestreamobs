@@ -173,19 +173,19 @@ test('quà ≥ 10 xu sau combo → trình diễn đặc biệt combo đó; quà 
   const small = g.handle({ type: 'gift', user: u('an'), giftName: 'Hoa', diamonds: 1, repeatCount: 5 });
   assert.deepEqual(small.map((e) => e.type), ['ghep_thanks']);
   const big = g.handle({ type: 'gift', user: u('an'), giftName: 'Kẹo', diamonds: 5, repeatCount: 2 });
-  assert.deepEqual(big.map((e) => e.type), ['ghep_thanks', 'ghep_spotlight']);
-  assert.equal(big[1].combo.name, 'Mèo Phản Lực');
-  assert.deepEqual(big[1].gift, { giftName: 'Kẹo', diamonds: 10 });
+  assert.deepEqual(big.map((e) => e.type), ['ghep_thanks', 'ghep_vip', 'ghep_spotlight']);
+  assert.equal(big[2].combo.name, 'Mèo Phản Lực');
+  assert.deepEqual(big[2].gift, { giftName: 'Kẹo', diamonds: 10 });
   assert.equal(client.calls.length, 1);
 });
 
 test('tặng quà trước khi bình luận → nhắc "A + B", combo kế tiếp được trình diễn đặc biệt', async () => {
   const client = fakeClient(() => COMBO);
-  const g = new GhepGame({ cooldownMs: 0 }, { client });
+  const g = new GhepGame({ cooldownMs: 0, vipCooldownMs: 0 }, { client });
   const fx = [];
   g.on('effects', (e) => fx.push(...e));
   const r = g.handle({ type: 'gift', user: u('an'), giftName: 'Kẹo', diamonds: 10 });
-  assert.deepEqual(r.map((e) => e.type), ['ghep_thanks', 'ghep_hint']);
+  assert.deepEqual(r.map((e) => e.type), ['ghep_thanks', 'ghep_vip', 'ghep_hint']);
   g.handle({ type: 'comment', user: u('an'), text: 'mèo + tên lửa' });
   await wait(20);
   assert.deepEqual(fx.find((e) => e.type === 'ghep_done').gift, { giftName: 'Kẹo', diamonds: 10 });
@@ -215,4 +215,50 @@ test('2 emoji → đặt tên bằng bảng tiếng Việt, KHÔNG gọi Claude;
   g.handle({ type: 'comment', user: u('chi'), text: 'mèo + tên lửa' });
   await wait(20);
   assert.equal(client.calls.length, 1);
+});
+
+test('VIP (tặng quà ≥ 10 xu): 5 phút, cộng dồn; combo ưu tiên + AI đặt tên riêng kể cả 2 emoji / combo cũ; hết hạn thì như thường', async () => {
+  let t = 0;
+  const client = fakeClient(() => COMBO);
+  const g = new GhepGame({ cooldownMs: 3000 }, { client, now: () => t });
+  const fx = [];
+  g.on('effects', (e) => fx.push(...e));
+  // người xem thường: 2 emoji → bảng tên, không gọi Claude
+  g.handle({ type: 'comment', user: u('an'), text: '🐱🚀' });
+  await wait(20);
+  assert.equal(client.calls.length, 0);
+  assert.equal(fx.at(-1).vip, false);
+  // tặng quà → VIP
+  const r = g.handle({ type: 'gift', user: u('an'), giftName: 'Kẹo', diamonds: 10 });
+  assert.equal(r[1].type, 'ghep_vip');
+  assert.equal(r[1].leftMs, 5 * 60_000);
+  assert.equal(g.snapshot().vips[0].name, 'an');
+  // VIP: không phải chờ 3 giây, combo cũ (bảng tên) được AI đặt tên lại
+  t = 1500;
+  const s = g.handle({ type: 'comment', user: u('an'), text: '🚀 + 🐱' });
+  assert.equal(s[0].vip, true);
+  await wait(20);
+  assert.equal(client.calls.length, 1);
+  const up = fx.filter((e) => e.type === 'ghep_done').at(-1);
+  assert.equal(up.vip, true);
+  assert.equal(up.combo.name, 'Mèo Phản Lực');
+  assert.equal(up.combo.count, 2);
+  assert.equal(g.snapshot().gallery[0].vip, true);
+  // VIP 2 emoji mới → cũng AI
+  t = 3000;
+  g.handle({ type: 'comment', user: u('an'), text: '🐶🍕' });
+  await wait(20);
+  assert.equal(client.calls.length, 2);
+  // tặng tiếp → cộng dồn
+  t = 60_000;
+  const r2 = g.handle({ type: 'gift', user: u('an'), giftName: 'Kẹo', diamonds: 20 });
+  assert.equal(r2[1].diamonds, 30);
+  assert.equal(r2[1].leftMs, 9 * 60_000);
+  // hết hạn → người xem thường
+  t = 11 * 60_000;
+  assert.equal(g.isVip('an'), false);
+  assert.equal(g.snapshot().vips.length, 0);
+  g.handle({ type: 'comment', user: u('an'), text: '🦄🌈' });
+  await wait(20);
+  assert.equal(client.calls.length, 2);
 });
