@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { GhepGame, parseCombo, comboKey, guessEmoji, emojiCombo } from '../server/ghep.js';
 import { EmojiKitchen } from '../server/emojikitchen.js';
 import { PauseController } from '../server/pause.js';
@@ -54,7 +55,7 @@ test('comboKey không phụ thuộc thứ tự; guessEmoji từ điển + emoji 
 });
 
 test('EmojiKitchen: tra ảnh ghép cho cặp emoji (2 chiều), emoji không hỗ trợ → null', () => {
-  const k = EmojiKitchen.load(path.join(import.meta.dirname, '..', 'modewords', 'emoji-kitchen.json'));
+  const k = EmojiKitchen.load(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'emoji-kitchen.json'));
   assert.ok(k.size > 100000);
   const url = k.url('🐱', '🚀');
   assert.match(url, /^https:\/\/www\.gstatic\.com\/android\/keyboard\/emojikitchen\/\d{8}\/u1f680\/u1f680_u1f431\.png$/);
