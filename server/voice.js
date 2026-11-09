@@ -352,20 +352,23 @@ export class Voice extends EventEmitter {
   gift(e) {
     if (!this.enabled || !e?.by?.id) return;
     const p = this.pendingGifts.get(e.by.id);
-    if (p) {
-      p.job.ctx.so_xu += e.diamonds || 0;
-      p.job.ctx.so_mon += e.repeat || 1;
-      if (!p.job.ctx.qua.includes(e.giftName)) p.job.ctx.qua += `, ${e.giftName}`;
-      return;
-    }
-    const job = { kind: 'gift', priority: 1, by: e.by, ctx: { qua: e.giftName || 'quà', so_mon: e.repeat || 1, so_xu: e.diamonds || 0 } };
-    const timer = setTimeout(() => {
+    const fire = (job) => () => {
       this.pendingGifts.delete(e.by.id);
       if (job.ctx.so_xu < this.cfg.minGiftDiamonds) return; // quà nhỏ: trình duyệt tự đọc
       job.priority = job.ctx.so_xu >= 99 ? 2.5 : job.ctx.so_xu >= 30 ? 2 : 1;
       this.enqueue(job);
-    }, this.cfg.giftWindowSec * 1000);
-    this.pendingGifts.set(e.by.id, { job, timer });
+    };
+    if (p) {
+      p.job.ctx.so_xu += e.diamonds || 0;
+      p.job.ctx.so_mon += e.repeat || 1;
+      if (!p.job.ctx.qua.includes(e.giftName)) p.job.ctx.qua += `, ${e.giftName}`;
+      // quà combo tới từng phần: còn quà tới thì chờ thêm (tối đa gấp 3 cửa sổ) để đọc 1 câu cho cả chuỗi
+      if (Date.now() - p.firstAt < this.cfg.giftWindowSec * 3000) { clearTimeout(p.timer); p.timer = setTimeout(fire(p.job), this.cfg.giftWindowSec * 1000); }
+      return;
+    }
+    const job = { kind: 'gift', priority: 1, by: e.by, ctx: { qua: e.giftName || 'quà', so_mon: e.repeat || 1, so_xu: e.diamonds || 0 } };
+    const timer = setTimeout(fire(job), this.cfg.giftWindowSec * 1000);
+    this.pendingGifts.set(e.by.id, { job, timer, firstAt: Date.now() });
   }
 
   enqueue(job) {

@@ -169,6 +169,13 @@ const speakName = (n) => String(n || 'bạn').replace(/[^\p{L}\p{N} ]/gu, ' ').r
 
 function thank(e) {
   const tier = tierOf(e.diamonds);
+  // quà combo tới từng phần: thẻ của đúng người + món quà đó đang hiện → cộng dồn vào thẻ, giữ thẻ lâu thêm
+  const cur = thanks.cur;
+  if (cur && cur.by?.id === e.by?.id && cur.giftName === e.giftName) {
+    cur.repeat += e.repeat; cur.diamonds += e.diamonds; cur.bonusTotal = e.bonusTotal;
+    cur.age = Math.min(cur.age, Math.max(0.4, cur.dur - 1.6));
+    return;
+  }
   // quà nhỏ dồn dập: gộp vào thẻ đang chờ của cùng người
   const same = thanks.queue.find((q) => q.by?.id === e.by?.id && q.giftName === e.giftName);
   if (same) { same.repeat += e.repeat; same.diamonds += e.diamonds; same.bonusTotal = e.bonusTotal; same.tier = Math.max(same.tier, tierOf(same.diamonds)); return; }

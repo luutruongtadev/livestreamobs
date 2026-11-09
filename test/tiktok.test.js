@@ -101,6 +101,51 @@ test('lọc tin TikTok gửi bù: lần đầu bỏ tin tạo trước khi kết
   // quà combo: nhiều tin cập nhật khác số lượng; tin kết thúc chuỗi vẫn được nhận
   const gift = (n, end) => C.last.emit('gift', { user: { uniqueId: 'g' }, giftId: 5655, repeatCount: n, repeatEnd: end, giftDetails: { giftName: 'Rose', giftType: 1, diamondCount: 1 }, common: { createTime: String(Date.now()), msgId: '77' } });
   gift(1, false); gift(2, false); gift(2, true); gift(2, true);
-  assert.deepEqual(got.slice(2), ['gift:2'], 'chỉ tính 1 lần khi kết thúc chuỗi');
+  assert.deepEqual(got.slice(2), ['gift:1', 'gift:1'], 'phát ngay phần tăng thêm, tin kết thúc chuỗi không tính lại');
+  await b.disconnect();
+});
+
+test('quà combo: phát phần tăng thêm kèm tổng chuỗi; rớt mạng giữa chuỗi không mất; mất tin kết thúc thì chuỗi sau tính lại từ đầu', async () => {
+  const C = fakeClass([]);
+  const b = new TikTokBridge({ ConnectionClass: C, log: {} });
+  const got = [];
+  b.on('event', (e) => { if (e.type === 'gift') got.push([e.repeatCount, e.streakTotal]); });
+  await b.connect('kenh');
+  let id = 100;
+  const gift = (n, end, user = 'g', type = 1) => C.last.emit('gift', { user: { uniqueId: user }, giftId: 5655, repeatCount: n, repeatEnd: end, giftDetails: { giftName: 'Rose', giftType: type, diamondCount: 1 }, common: { createTime: String(Date.now()), msgId: String(id++) } });
+  gift(1, false); gift(3, false); gift(7, false);
+  assert.deepEqual(got, [[1, 1], [2, 3], [4, 7]]);
+  // rớt giữa chuỗi → nối lại → nhận tiếp phần còn lại (không mất, không tính trùng)
+  b.retryDelay = 5;
+  C.last.emit('disconnected', { code: 1006, reason: '' });
+  await wait(30);
+  gift(10, true);
+  assert.deepEqual(got.at(-1), [3, 10]);
+  // chuỗi mới của người khác / quà thường không ảnh hưởng nhau
+  gift(2, false, 'h'); gift(1, false, 'g', 2);
+  assert.deepEqual(got.slice(-2), [[2, 2], [1, undefined]]);
+  // mất tin kết thúc của chuỗi 'h' → chuỗi mới bắt đầu lại từ 1
+  gift(1, false, 'h');
+  assert.deepEqual(got.at(-1), [1, 1]);
+  await b.disconnect();
+});
+
+test('kết nối treo quá giờ → huỷ và hẹn thử lại; lần sau kết nối được', async () => {
+  const log = [];
+  let hang = true;
+  class Slow extends EventEmitter {
+    constructor() { super(); log.push('new'); Slow.last = this; }
+    connect() { log.push('connect'); return hang ? new Promise(() => {}) : Promise.resolve({ roomId: 'R9' }); }
+    async disconnect() { log.push('disconnect'); }
+  }
+  const b = new TikTokBridge({ ConnectionClass: Slow, connectTimeoutMs: 20, retryMs: 5, log: {} });
+  await b.connect('kenh');
+  assert.equal(b.status.state, 'retrying');
+  assert.match(b.status.message, /quá/);
+  assert.ok(log.includes('disconnect'), 'huỷ kết nối dở dang');
+  hang = false;
+  await wait(40);
+  assert.equal(b.status.state, 'connected');
+  assert.equal(b.roomId, 'R9');
   await b.disconnect();
 });

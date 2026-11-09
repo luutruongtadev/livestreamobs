@@ -368,3 +368,24 @@ test('ClaudeScorer: prompt chấm cả từ đoán tiếng Anh theo nghĩa (dị
   assert.match(requests[0].system, /kem chống nắ\S* 65/);
   fs.rmSync(file, { force: true });
 });
+
+test('quà combo tới từng phần (streakTotal): luật theo ngưỡng xu tính trên cả combo, chỉ mở 1 lần khi vừa vượt ngưỡng', () => {
+  let now = 0;
+  const g = mk(fakeScorer({}), () => now, { roundSeconds: 300 });
+  // "GG" 1 xu không có trong luật theo tên → xét theo số xu của cả chuỗi
+  const part = (repeatCount, streakTotal) => g.handle({ type: 'gift', user: u('a'), giftName: 'GG', diamonds: 1, repeatCount, streakTotal }).filter((e) => e.type !== 'wg_thanks');
+  assert.deepEqual(part(4, 4), []); // 4 xu: chưa đủ ngưỡng nào
+  assert.deepEqual(part(4, 8), []);
+  assert.ok(part(4, 12).some((e) => e.type === 'wg_hint'), 'tổng 12 xu vượt ngưỡng 10 xu → mở gợi ý');
+  assert.equal(g.hintLevel, 1);
+  assert.deepEqual(part(5, 17), [], 'cộng thêm vẫn trong mức 10 xu → không mở lại');
+  assert.equal(g.hintLevel, 1);
+  now = 100_000;
+  const end = g.endsAt;
+  assert.ok(part(15, 32).some((e) => e.type === 'wg_unlock' && e.action === 'time'), 'vượt 30 xu → +giây');
+  assert.equal(g.endsAt, end + 60_000);
+  // hoa hồng combo theo tên: cộng dồn từng phần vẫn đủ 5 bông = 1 chữ
+  const rose = (repeatCount, streakTotal) => g.handle({ type: 'gift', user: u('b'), giftName: 'Rose', diamonds: 1, repeatCount, streakTotal }).filter((e) => e.type !== 'wg_thanks');
+  assert.equal(rose(3, 3)[0].type, 'wg_progress');
+  assert.equal(rose(2, 5)[0].type, 'wg_unlock');
+});
