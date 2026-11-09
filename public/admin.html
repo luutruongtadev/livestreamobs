@@ -298,7 +298,9 @@
     $('dot').className = 'dot ' + s.state;
     const d = s.lastDrop;
     const sec = (ms) => (ms / 1000).toFixed(1) + 's';
-    const lat = s.delay ? [s.delay.tiktok && `bình luận về trễ ~${sec(s.delay.tiktok.avg)} (lâu nhất ${sec(s.delay.tiktok.max)})`, s.delay.score && `chấm điểm ~${sec(s.delay.score.avg)} (lâu nhất ${sec(s.delay.score.max)})`].filter(Boolean).join(' · ') : '';
+    const ly = s.delay?.layers;
+    const layers = ly && (ly.cache + ly.dict + ly.fuzzy + ly.claude + ly.simple) ? `chấm: cache ${ly.cache} · từ điển ${ly.dict} · gõ sai ${ly.fuzzy} · Claude ${ly.claude} (${ly.judgeCalls} lần gọi, ${ly.packCalls} pack)${ly.simple ? ` · dự phòng ${ly.simple}` : ''}` : '';
+    const lat = s.delay ? [s.delay.tiktok && `bình luận về trễ ~${sec(s.delay.tiktok.avg)} (lâu nhất ${sec(s.delay.tiktok.max)})`, s.delay.score && `chấm điểm ~${sec(s.delay.score.avg)} (lâu nhất ${sec(s.delay.score.max)})`, layers].filter(Boolean).join(' · ') : '';
     $('statusText').textContent = s.message + (s.drops ? ` · đã rớt ${s.drops} lần, gần nhất ${new Date(d.at).toLocaleTimeString('vi-VN')}: ${d.reason}${d.code ? ` (mã ${d.code}${d.why ? ', ' + d.why : ''})` : ''}` : '') + (lat ? ` · ⏱ ${lat}` : '') + (s.replayed ? ` · bỏ ${s.replayed} tin cũ TikTok gửi bù` : '');
     $('viewers').textContent = fmt.format(s.viewers || 0);
     if (s.username && !$('username').value) $('username').value = s.username;

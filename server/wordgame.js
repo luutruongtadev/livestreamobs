@@ -329,6 +329,8 @@ export class WordGame extends EventEmitter {
       if (Array.isArray(w.en) && w.en.length) this.englishHints = orderEnglish(w.en); // từ soạn sẵn
       else this.loadEnglishHints();
     }
+    // chấm nhiều lớp: soạn sẵn Knowledge Pack của từ bí mật để phần lớn từ đoán có điểm ngay, không phải chờ Claude
+    if (this.mode !== 'attr') Promise.resolve(this.scorer?.prepare?.(this.secret, this.scoreCtx())).catch(() => {});
     this.dirty = true;
     const st = this.activeStreak();
     return [{ type: 'wg_start', round: this.roundNo, mode: this.mode, ...(st ? { streak: st } : {}) }];
@@ -562,8 +564,7 @@ export class WordGame extends EventEmitter {
       return;
     }
     const useScorer = limited ? null : this.scorer;
-    const ctx = this.set?.scoreContext ? { id: this.activeSet, prompt: this.set.scoreContext } : null;
-    const p = useScorer ? useScorer.score(this.secret, word, ctx) : Promise.resolve({ score: 1, source: 'limit' });
+    const p = useScorer ? useScorer.score(this.secret, word, this.scoreCtx(), { aliases: this.aliases }) : Promise.resolve({ score: 1, source: 'limit' });
     p.then(({ score, source }) => {
       if (round !== this.roundNo) return; // vòng đã qua
       this.noteScoreDelay(entry, source);
@@ -573,6 +574,9 @@ export class WordGame extends EventEmitter {
       this.emit('effects', [{ type: 'wg_scored', word, score, by: entry.by, source }]);
     }).catch((e) => console.warn('[wordgame] chấm lỗi:', e?.message || e));
   }
+
+  /** Ngữ cảnh chấm điểm của bộ từ riêng (vd LMHT) — null với bộ từ vựng chung. */
+  scoreCtx() { return this.set?.scoreContext ? { id: this.activeSet, prompt: this.set.scoreContext } : null; }
 
   /** Luật thả tim hiện tại: vòng tiếng Anh còn từ chưa mở → mở thêm từ; còn lại (mọi kiểu) → đủ likeEvery tim lộ 1 chữ cái. */
   likeRule() {
@@ -706,7 +710,7 @@ export class WordGame extends EventEmitter {
 
   /** Ghi thời gian chấm điểm (chỉ từ phải chấm mới — lấy từ cache thì gần như tức thì). */
   noteScoreDelay(entry, source) {
-    if (source === 'cache') return;
+    if (['cache', 'dict', 'fuzzy', 'limit'].includes(source)) return; // có điểm ngay, không tính vào độ trễ chấm
     this.scoreDelays.push(Math.max(0, this.clock() - entry.at));
     if (this.scoreDelays.length > 30) this.scoreDelays.shift();
   }
