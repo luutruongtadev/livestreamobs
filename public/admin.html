@@ -86,6 +86,29 @@
     </section>
 
     <section>
+      <h2>🔐 Game Giải mã (/giaima)</h2>
+      <p class="muted" style="margin-top:0">Câu bí ẩn tiếng Việt (tục ngữ, ca dao, câu nói hay…) — mỗi ô lục giác là 1 chữ cái có số bên dưới, <b>cùng số = cùng chữ</b>. Bên dưới là 2–6 gợi ý: câu hỏi tiếng Việt, đáp án tiếng Việt hoặc tiếng Anh. Người xem bình luận <b>đáp án gợi ý</b> → lộ chữ ở mọi ô cùng số; bình luận <b>cả câu</b> → thắng (+100 điểm tuần + thưởng tốc độ). Quà: 5 🌹 / 🫰 = 1 chữ · 10 xu = giải 1 gợi ý · 30 xu = +60 giây · 99 xu = 3 chữ · 1000 tim = 1 chữ. Bật: Đoán từ và Ghép tạm dừng. Kho câu đố: <code>modewords/giaima.json</code>. Màn hình OBS: <code id="gmUrl"></code></p>
+      <div id="gmInfo" class="muted" style="margin-bottom:8px">Đang tải…</div>
+      <div id="gmSecret" class="muted" style="margin-bottom:10px;display:none"></div>
+      <div class="row" style="margin-bottom:10px">
+        <button id="btnGmOn">▶ Bật game Giải mã</button>
+        <button id="btnGmOff" class="ghost">🔤 Quay lại Đoán từ</button>
+        <button id="btnGmNext" class="ghost">⏭ Câu khác</button>
+        <button id="btnGmLetter" class="ghost">💡 Lộ 1 chữ</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <input id="gmPhrase" type="text" placeholder="Tự chọn câu bí ẩn, vd: Uống nước nhớ nguồn">
+        <button id="btnGmPhrase">🔐 Chơi câu này</button>
+      </div>
+      <div class="row">
+        <input id="gmText" type="text" placeholder="Thử bình luận (đáp án gợi ý hoặc cả câu)">
+        <button id="btnGmTry">Gửi thử</button>
+        <button id="btnGmRose" class="ghost">🌹 Thử 5 hoa hồng</button>
+        <button id="btnGmGift" class="ghost">🎁 Thử quà 10 xu</button>
+      </div>
+    </section>
+
+    <section>
       <h2>Giả lập sự kiện (test không cần live)</h2>
       <div class="row" style="margin-bottom:10px">
         <input id="simName" type="text" placeholder="Tên người xem (để trống = ngẫu nhiên)">
@@ -263,13 +286,48 @@
   const fmt = new Intl.NumberFormat('vi-VN');
   $('obsUrl').textContent = location.origin + '/doantu?phone=0';
   $('ghepUrl').textContent = location.origin + '/ghep';
-  function renderGhep(g) {
-    if (!g) return;
-    $('ghepInfo').textContent = (g.active ? '🟢 Đang chơi game Ghép' : '⚪ Game Ghép đang tắt') + ` · ${g.total} combo đã lưu`;
-    $('ghepInfo').style.color = g.active ? '#4ade80' : '';
-    const want = g.active ? '/ghep' : '/doantu?mute=1';
+  // trang xem trước theo game đang chơi: Ghép / Giải mã / Đoán từ
+  const active = { ghep: false, giaima: false };
+  function syncPreview() {
+    const want = active.ghep ? '/ghep' : active.giaima ? '/giaima?mute=1' : '/doantu?mute=1';
     if (!$('preview').src.endsWith(want)) $('preview').src = want;
   }
+  function renderGhep(g) {
+    if (!g) return;
+    active.ghep = !!g.active;
+    $('ghepInfo').textContent = (g.active ? '🟢 Đang chơi game Ghép' : '⚪ Game Ghép đang tắt') + ` · ${g.total} combo đã lưu`;
+    $('ghepInfo').style.color = g.active ? '#4ade80' : '';
+    syncPreview();
+  }
+  // ---- Giải mã ----
+  $('gmUrl').textContent = location.origin + '/giaima';
+  let gmRound = -1;
+  function renderGiaima(g, secret) {
+    if (!g) return;
+    active.giaima = !!g.active;
+    const st = g.phase === 'playing' ? `vòng ${g.round} · còn ${g.remaining}s · ${g.hiddenCount ?? '?'} chữ chưa lộ` : g.phase === 'break' ? `vòng ${g.round} xong, đang nghỉ` : 'chưa bắt đầu';
+    $('gmInfo').textContent = (g.active ? '🟢 Đang chơi game Giải mã' : '⚪ Game Giải mã đang tắt') + ` · ${st} · đã chơi ${g.played}/${g.phrases} câu`;
+    $('gmInfo').style.color = g.active ? '#4ade80' : '';
+    if (secret !== undefined) {
+      $('gmSecret').style.display = secret ? '' : 'none';
+      if (secret) $('gmSecret').innerHTML = `🔑 Đáp án (không hiện trên live): <b>${secret.phrase.replace(/[&<>]/g, '')}</b> · gợi ý: ${secret.clues.map((x) => x.replace(/[&<>]/g, '')).join(', ')} · chữ không có trong gợi ý: ${secret.hidden.join(', ')}`;
+    }
+    // sang vòng mới → lấy đáp án mới (cần quyền admin)
+    if (g.round !== gmRound && secret === undefined) { gmRound = g.round; gmApi('peek').catch(() => {}); }
+    syncPreview();
+  }
+  const gmApi = (action, body) => api('/api/giaima/' + action, body).then((r) => { gmRound = r.giaima.round; renderGiaima(r.giaima, r.giaima.secret); if (r.pause) renderPause(r.pause); return r; });
+  fetch('/api/giaima').then((r) => r.json()).then((g) => renderGiaima(g)).catch(() => {});
+  const gmName = () => $('simName').value.trim() || 'Người thử';
+  const gmErr = (e) => log('Lỗi: ' + e.message);
+  $('btnGmOn').onclick = () => gmApi('on').then(() => log('Đã bật game Giải mã')).catch(gmErr);
+  $('btnGmOff').onclick = () => gmApi('off').then(() => log('Đã quay lại Đoán từ')).catch(gmErr);
+  $('btnGmNext').onclick = () => gmApi('next').then(() => log('Giải mã: sang câu khác')).catch(gmErr);
+  $('btnGmLetter').onclick = () => gmApi('letter').then((r) => log(r.effects.length ? 'Giải mã: đã lộ 1 chữ' : 'Không lộ thêm được (chỉ còn 1 chữ hoặc chưa chơi)')).catch(gmErr);
+  $('btnGmPhrase').onclick = () => gmApi('phrase', { phrase: $('gmPhrase').value }).then(() => log('Giải mã: chơi câu ' + $('gmPhrase').value)).catch(gmErr);
+  $('btnGmTry').onclick = () => gmApi('comment', { name: gmName(), text: $('gmText').value }).then((r) => log(`Giải mã: "${$('gmText').value}" → ${r.effects.map((e) => e.type).join(', ') || 'không tính (game chưa chạy?)'}`)).catch(gmErr);
+  $('btnGmRose').onclick = () => gmApi('gift', { name: gmName(), giftName: 'Rose', diamonds: 1, repeat: 5 }).then(() => log('Giải mã: thử 5 hoa hồng')).catch(gmErr);
+  $('btnGmGift').onclick = () => gmApi('gift', { name: gmName(), giftName: 'Quà thử', diamonds: 10 }).then(() => log('Giải mã: thử quà 10 xu')).catch(gmErr);
   fetch('/api/ghep').then((r) => r.json()).then(renderGhep).catch(() => {});
   $('btnGhepOn').onclick = () => api('/api/ghep/on').then((r) => { renderGhep(r.ghep); log('Đã bật game Ghép'); }).catch((e) => log('Lỗi: ' + e.message));
   $('btnGhepOff').onclick = () => api('/api/ghep/off').then((r) => { renderGhep(r.ghep); log('Đã quay lại Đoán từ'); }).catch((e) => log('Lỗi: ' + e.message));
@@ -306,7 +364,7 @@
 
   function renderPause(p) {
     if (!p) return;
-    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : p.reason === 'goodnight' ? '🌙 Đã kết thúc live — lần live sau game tự chạy' : p.reason === 'ghep' ? '🧪 Đoán từ đứng yên — đang chơi game Ghép' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
+    $('pauseText').textContent = p.paused ? (p.reason === 'offline' ? '⏸ Game tạm dừng — chờ lên live' : p.reason === 'goodnight' ? '🌙 Đã kết thúc live — lần live sau game tự chạy' : p.reason === 'ghep' ? '🧪 Đoán từ đứng yên — đang chơi game Ghép' : p.reason === 'giaima' ? '🔐 Đoán từ đứng yên — đang chơi game Giải mã' : '⏸ Game đang tạm dừng') : (p.online ? '▶ Game đang chạy' : '▶ Game đang chạy (chưa live — chế độ thử)');
     $('pauseText').style.color = p.paused ? '#facc15' : '#4ade80';
   }
 
@@ -329,7 +387,8 @@
       if (msg.type === 'hello') { renderStatus(msg.status); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
       if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
       if (msg.type === 'ghep') renderGhep(msg.ghep);
-      if (msg.type === 'hello') renderGhep(msg.ghep);
+      if (msg.type === 'hello') { renderGhep(msg.ghep); renderGiaima(msg.giaima); }
+      if (msg.type === 'giaima') renderGiaima(msg.giaima);
       if (msg.type === 'voice') playVoiceHere(msg.voice);
       if (msg.type === 'pause') { renderPause(msg.pause); log(msg.pause.paused ? 'Game tạm dừng' : 'Game tiếp tục'); }
       if (msg.type === 'status') { renderStatus(msg.status); log('TikTok: ' + msg.status.message); }

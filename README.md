@@ -102,6 +102,22 @@ Thẻ kết quả cũng đổi màu + tiêu đề theo mức (vd "⚡ THẦN Đ�
   Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
 - Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
 
+## 🔐 Game Giải mã (`/giaima`)
+
+Giải mật thư kiểu ô chữ số: phía trên là một **câu bí ẩn tiếng Việt** (tục ngữ, ca dao, thành ngữ, câu nói hay, câu nói vui…), mỗi ô lục giác là một chữ cái bị ẩn, bên dưới mỗi ô có một con số. **Mỗi số luôn là đúng một chữ cái** trong cả vòng, hai số khác nhau là hai chữ khác nhau.
+
+- Bên dưới là 2–6 **gợi ý** kèm emoji minh hoạ: **câu hỏi luôn tiếng Việt**, đáp án là một từ **tiếng Việt hoặc tiếng Anh** (có nhãn 🇻🇳 / 🇬🇧), cũng mã bằng số. Ví dụ: *"Không phải lời nói dối"* 🇬🇧 → `TRUTH`, *"Chăm chỉ làm ra mật ngọt"* 🇻🇳 → `ONG`.
+- Người xem **bình luận đáp án gợi ý** → chữ cái lộ ra ở **mọi ô cùng số** (cả câu bí ẩn lẫn gợi ý khác). Bình luận **cả câu** (không cần dấu, có thể kèm chữ khác: "đáp án là ăn quả nhớ kẻ trồng cây") → **thắng vòng**.
+- Mã hoá theo **chữ gốc bỏ dấu** (Ă / Â / Á / Ạ… cùng là A, Đ là D) nên đáp án tiếng Anh ghép được với câu tiếng Việt; ô đã lộ hiện đúng chữ có dấu.
+- Mỗi vòng server tự chọn gợi ý từ kho sao cho chữ của gợi ý đều nằm trong câu, che gần hết câu và **chừa 1–2 chữ** để người xem tự suy, ưu tiên trộn tiếng Việt + tiếng Anh, không lặp gợi ý vừa dùng. Không gọi Claude, **không tốn token**.
+- Điểm: giải 1 gợi ý **+10**, giải cả câu **+100** (bảng 🏆 *Cao thủ hôm nay* trên màn hình, đặt lại mỗi ngày giờ VN). Người giải cả câu còn được **điểm tuần** như Đoán từ (100 + thưởng tốc độ + điểm quà / chia sẻ đang tích).
+- Quà / tim: 5 🌹 (cộng dồn cả phòng) hoặc 1 🫰 = lộ 1 chữ · 🎁 ≥ 10 xu = giải hộ 1 gợi ý · 🍩 ≥ 30 xu = +60 giây · 💎 ≥ 99 xu = lộ 3 chữ · cả phòng **1000 tim** = lộ 1 chữ. Luôn chừa lại ít nhất 1 chữ. Ai tặng quà cũng có thẻ cảm ơn + đọc tên (giọng MC ElevenLabs nếu có).
+- Mỗi vòng 5 phút; hệ thống tự lộ 1 chữ ở giây 150 / 210 / 260; hết giờ hiện đáp án + ý nghĩa câu, 14 giây sau sang câu mới. Không lặp câu tới khi chơi hết kho.
+- **Bật**: admin → 🔐 Game Giải mã → **▶ Bật game Giải mã** (Đoán từ và Ghép tự đứng yên, giữ nguyên vòng). Admin còn có: xem đáp án (không hiện trên live), ⏭ câu khác, 💡 lộ 1 chữ, tự nhập câu bí ẩn để chơi, gửi thử bình luận / quà.
+- OBS: Browser Source `http://localhost:8686/giaima` (1080×1920); `?bg=green` nền xanh / `?bg=none` trong suốt, `?mute=1`, `?tts=0`.
+- **Kho câu đố** `modewords/giaima.json` (75 câu, ~430 gợi ý): `phrases: [{ text, kind, meaning }]`, `clues: [{ q, a, e, lang: "vi" | "en", alt? }]`. Thêm câu / gợi ý bằng tay rồi chạy `npm test` — test kiểm tra mọi câu đều đủ gợi ý. Câu dài nhiều chữ cái lạ (Q, X, Y…) cần có gợi ý chứa các chữ đó.
+- Chỉnh luật ở khối `giaima` trong `config.json` (`roundSeconds`, `breakSeconds`, `autoRevealAt`, `minClues`, `maxClues`, `leaveHidden`, `likeEvery`, `gifts`…, xem `GIAIMA_DEFAULTS` trong `server/giaima.js`). Trạng thái lưu ở `data/giaima.json`.
+
 ## 🌙 Hẹn giờ kết thúc live (mặc định 01:00)
 
 - **01:00 (giờ VN)**: mọi trang game hiện màn **“Chúc cả nhà ngủ ngon”** (trăng, sao, tim bay) + lời cảm ơn + đếm ngược 60 giây, đọc lời chào bằng giọng tiếng Việt của máy (`?tts=0` để tắt).
@@ -385,9 +401,11 @@ server/
   wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
   weekly.js     Bảng xếp hạng tuần · teams.js đấu đội
   voice.js      Giọng MC ElevenLabs · goodbye.js hẹn giờ kết thúc live · pause.js tạm dừng
+  ghep.js       Game Ghép (/ghep) · giaima.js game Giải mã (/giaima, kho modewords/giaima.json)
   text.js       Bỏ dấu tiếng Việt
 public/
   doantu.html, js/wordgame.js   Màn hình game (canvas 1080×1920)
+  giaima.html, js/giaima.js     Màn hình game Giải mã (HTML 1080×1920)
   js/sound.js, js/goodbye.js    Âm thanh WebAudio · màn "Chúc cả nhà ngủ ngon"
   admin.html                    Bảng điều khiển
 wordsets/                       Bộ từ có sẵn (trend MXH…)
