@@ -92,11 +92,14 @@ export function pickClues(phrase, bank, { rng = Math.random, recent = new Set(),
 
 /**
  * Dựng một câu đố: chọn gợi ý + gán số ngẫu nhiên 1..n cho các chữ cái của câu.
- * phrase: { text, kind?, meaning? }. Trả về null nếu kho gợi ý không đủ cho câu này.
+ * phrase: { text, kind?, meaning? }. leaveHidden để trống = tự chọn theo độ dài câu. Trả về null nếu kho gợi ý không đủ cho câu này.
  */
-export function buildPuzzle(phrase, clues, { rng = Math.random, recent = new Set(), minClues = 4, maxClues = 6, leaveHidden = [1, 2] } = {}) {
+export function buildPuzzle(phrase, clues, { rng = Math.random, recent = new Set(), minClues = 4, maxClues = 6, leaveHidden = null } = {}) {
   const text = String(phrase.text || '').trim().replace(/\s+/g, ' ');
-  if (letterSet(text).size < 3) return null;
+  const size = letterSet(text).size;
+  if (size < 3) return null;
+  // độ khó theo độ dài: câu nhiều chữ cái chừa 2–3 chữ không có trong gợi ý nào, câu ngắn chừa 1–2
+  if (!leaveHidden) leaveHidden = size >= 9 ? [2, 3] : [1, 2];
   const built = pickClues(text, clues, { rng, recent, minClues, maxClues, leaveHidden });
   if (!built) return null;
   const letters = shuffle([...letterSet(text)], rng);

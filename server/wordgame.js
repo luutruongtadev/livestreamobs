@@ -80,7 +80,7 @@ export const WG_DEFAULTS = {
   englishLikeEvery: 2000,
   attrUnlockAfter: 10,
   giaimaRevealAt: [120, 180, 240], // kiểu Giải mã: hệ thống tự lộ 1 chữ ở các mốc giây này (thay cho gợi ý)
-  giaima: { minClues: 4, maxClues: 6, leaveHidden: [1, 2], recentClues: 80 }, // chọn gợi ý: chừa 1–2 chữ không có trong gợi ý nào
+  giaima: { minClues: 4, maxClues: 6, leaveHidden: null, recentClues: 80 }, // chọn gợi ý; leaveHidden null = câu ≥ 9 chữ cái chừa 2–3 chữ không có trong gợi ý, câu ngắn chừa 1–2
   likeBonus: { every: 1000, points: 50 }, // 1 người thả đủ 1000 tim trong vòng mà đoán trúng → +50 điểm (đếm lại mỗi vòng)
   curatedRatio: 0.5, // kiểu Gần nghĩa: tỉ lệ vòng lấy từ kho chủ đề soạn sẵn (modewords/meaning.json); kho chung hết thì lấy hết kho này
   comboMax: 5, // đoán trúng N vòng liên tiếp → combo xN điểm thưởng của vòng (tối đa x5) // chế độ thuộc tính: cột "Chữ cái đầu" khoá, mở sau N từ đoán khác nhau // chế độ tiếng Anh: cả phòng thả đủ N tim → mở thêm 1 từ tiếng Anh (hết 5 từ thì quay về lộ chữ cái)
@@ -254,7 +254,7 @@ export class WordGame extends EventEmitter {
     const bank = this.modeWords.giaima;
     if (!bank?.phrases?.length) return null;
     const c = this.cfg.giaima || {};
-    const opts = { rng: this.random, recent: new Set(this.gmRecent), minClues: c.minClues ?? 4, maxClues: c.maxClues ?? 6, leaveHidden: c.leaveHidden ?? [1, 2] };
+    const opts = { rng: this.random, recent: new Set(this.gmRecent), minClues: c.minClues ?? 4, maxClues: c.maxClues ?? 6, leaveHidden: c.leaveHidden || null };
     let left = bank.phrases.filter((p) => p?.text && !this.gmPlayed.includes(p.text));
     if (!left.length) { this.gmPlayed = []; left = bank.phrases.filter((p) => p?.text); }
     for (const p of shuffle(left, this.random)) {
@@ -834,7 +834,8 @@ export class WordGame extends EventEmitter {
       kind: g.kind,
       meaning: ended ? g.meaning : null,
       words: cells(g.phrase),
-      clues: g.clues.map((c) => ({ q: c.q, e: c.e, lang: c.lang, cells: cells(c.a), solvedBy: c.solvedBy ? { name: c.solvedBy.name, avatar: c.solvedBy.avatar } : null, via: c.via, auto: c.auto })),
+      // emoji minh hoạ hay lộ thẳng đáp án → chỉ hiện khi gợi ý đã giải / tự lộ, hoặc sau lần tự lộ chữ đầu tiên (thêm 1 nấc gợi ý)
+      clues: g.clues.map((c) => ({ q: c.q, e: ended || c.solvedBy || c.auto || this.hintLevel >= 1 ? c.e : null, lang: c.lang, cells: cells(c.a), solvedBy: c.solvedBy ? { name: c.solvedBy.name, avatar: c.solvedBy.avatar } : null, via: c.via, auto: c.auto })),
       hiddenCount: ended ? 0 : this.gmHiddenLetters().length,
     };
   }
