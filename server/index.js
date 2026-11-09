@@ -357,6 +357,7 @@ app.post('/api/ghep/:action', requireAdmin, (req, res) => {
   if (a === 'combo') fx = ghep.handleComment(user, String(b.text || ''));
   else if (a === 'gift') fx = ghep.handleGift(user, { giftName: b.giftName || 'Hoa hồng', diamonds: Number(b.diamonds) || 10, repeatCount: 1 });
   else if (a === 'auto') fx = ghep.autoCombo();
+  else if (a === 'demo') fx = ghep.demoGift(Number(b.diamonds) || 30);
   else return res.status(404).json({ error: 'không rõ thao tác' });
   ghepBroadcast(fx);
   res.json({ ok: true, effects: fx });

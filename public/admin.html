@@ -112,6 +112,8 @@
         <button id="btnGhepTry">Ghép thử</button>
         <button id="btnGhepGift" class="ghost">🎁 Thử quà 10 xu</button>
         <button id="btnGhepAuto" class="ghost">🎲 Thử máy tự ghép</button>
+        <button id="btnGhepDemo30" class="ghost">🍩 Demo quà 30 xu</button>
+        <button id="btnGhepDemo99" class="ghost">💎 Demo quà 99 xu</button>
       </div>
     </section>
 
@@ -307,6 +309,8 @@
   const ghepName = () => $('simName').value.trim() || 'Người thử';
   $('btnGhepTry').onclick = () => api('/api/ghep/combo', { name: ghepName(), text: $('ghepText').value }).then((r) => log(r.effects.length ? `Ghép: ${$('ghepText').value}` : 'Không ghép (sai dạng "A + B" hoặc gửi quá nhanh, chờ 3 giây)')).catch((e) => log('Lỗi: ' + e.message));
   $('btnGhepAuto').onclick = () => api('/api/ghep/auto').then((r) => log(r.effects.length ? `Máy tự ghép: ${r.effects[0].a} + ${r.effects[0].b}` : 'Không ghép được (game Ghép đang tắt?)')).catch((e) => log('Lỗi: ' + e.message));
+  // demo màn trình diễn quà: dùng combo vừa ghép gần nhất (chưa có thì máy tự ghép 1 combo)
+  for (const d of [30, 99]) $('btnGhepDemo' + d).onclick = () => api('/api/ghep/demo', { diamonds: d }).then((r) => log(r.effects.length ? `Demo trình diễn quà ${d} xu` : 'Không demo được')).catch((e) => log('Lỗi: ' + e.message));
   $('btnGhepGift').onclick = () => api('/api/ghep/gift', { name: ghepName(), diamonds: 10, giftName: 'Quà thử' }).then(() => log('Đã gửi quà thử 10 xu')).catch((e) => log('Lỗi: ' + e.message));
 
   function log(msg) {

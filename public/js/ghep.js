@@ -297,7 +297,7 @@ function drawShow(t) {
   const mixMin = job.gift && job.combo && job.known ? 0.9 : job.known ? 1.3 : 2.4;
   if (cur.boomAt === null && el > mixMin && (job.combo || job.fail || el > 18)) {
     cur.boomAt = t;
-    if (job.combo) burst(CX, CY - 120, job.isNew || job.gift ? 200 : 110, job.gift || job.combo.rarity === 'huyền thoại' ? GOLD : undefined);
+    if (job.combo) burst(CX, CY - 120, job.gift ? 160 + 60 * giftTier(job.gift) : job.isNew ? 200 : 110, giftTier(job.gift) === 3 ? RAINBOW : job.gift || job.combo.rarity === 'huyền thoại' ? GOLD : undefined);
     else burst(CX, CY, 90, ['#9ca3af', '#4b5563', '#f97316']);
   }
   drawCauldron(t, cur.boomAt === null ? 1 : 0.4);
@@ -325,7 +325,7 @@ function drawShow(t) {
     return;
   }
   const rt = t - cur.boomAt;
-  const dur = job.combo ? (job.gift ? 8 : revealDur()) : 1.6;
+  const dur = job.combo ? (job.gift ? 5.5 + 2.5 * giftTier(job.gift) : revealDur()) : 1.6;
   if (job.combo) drawReveal(job, rt, t);
   else {
     ctx.textAlign = 'center'; ctx.font = `900 80px ${FONT}`; ctx.fillStyle = '#fca5a5';
@@ -347,10 +347,22 @@ function txt(text, x, y, size, color = '#fff', weight = 800) {
 }
 
 const GOLD = ['#facc15', '#fde68a', '#ffffff', '#f59e0b', '#f472b6'];
+const RAINBOW = ['#f43f5e', '#f97316', '#facc15', '#4ade80', '#38bdf8', '#a78bfa', '#ffffff'];
+/** Mức quà: 1 = từ 10 xu, 2 = từ 30 xu, 3 = từ 99 xu (càng cao trình diễn càng lâu, càng hoành tráng). */
+const giftTier = (g) => (!g ? 0 : g.diamonds >= 99 ? 3 : g.diamonds >= 30 ? 2 : 1);
+const GIFT_SHOW = {
+  1: { c: '#facc15', label: '🎁 TRÌNH DIỄN ĐẶC BIỆT' },
+  2: { c: '#fb923c', label: '🍩 TRÌNH DIỄN ĐẶC BIỆT · 30 XU' },
+  3: { c: '#38bdf8', label: '💎 SIÊU TRÌNH DIỄN · 99 XU' },
+};
 function drawReveal(job, rt, t) {
   const cb = job.combo;
-  const rar = job.gift ? { c: '#facc15', label: '🎁 TRÌNH DIỄN ĐẶC BIỆT' } : RARITY[cb.rarity] || RARITY['thường'];
-  if (job.gift && Math.random() < 0.12) burst(150 + Math.random() * (W - 300), 400 + Math.random() * 500, 40, GOLD);
+  const tier = giftTier(job.gift);
+  const rar = tier ? GIFT_SHOW[tier] : RARITY[cb.rarity] || RARITY['thường'];
+  if (tier && Math.random() < 0.08 * tier + 0.04) burst(150 + Math.random() * (W - 300), 400 + Math.random() * 500, 30 + 20 * tier, tier === 3 ? RAINBOW : GOLD);
+  if (tier === 3) { // 99 xu: màn hình nhuộm sáng nhấp nháy theo cầu vồng
+    ctx.save(); ctx.globalAlpha = 0.07 + 0.05 * Math.sin(t * 6); ctx.fillStyle = `hsl(${(t * 120) % 360},90%,60%)`; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
   const k = back(rt / 0.55);
   // vòng sáng + tia sáng xoay sau combo
   ctx.save(); ctx.translate(CX, CY - 160);
@@ -360,18 +372,23 @@ function drawReveal(job, rt, t) {
   const gl = ctx.createRadialGradient(0, 0, 40, 0, 0, 340); gl.addColorStop(0, rar.c + '88'); gl.addColorStop(1, rar.c + '00');
   ctx.fillStyle = gl; ctx.fillRect(-340, -340, 680, 680);
   ctx.restore();
-  if (job.gift) { // khung vàng xoay quanh
+  if (tier) { // khung vàng xoay quanh; 30 xu thêm vòng thứ 2; 99 xu vòng cầu vồng
     ctx.save(); ctx.translate(CX, CY - 160); ctx.rotate(-t * 0.8);
-    ctx.strokeStyle = '#facc15'; ctx.lineWidth = 10; ctx.setLineDash([40, 22]);
+    ctx.strokeStyle = rar.c; ctx.lineWidth = 10; ctx.setLineDash([40, 22]);
     ctx.beginPath(); ctx.arc(0, 0, 300 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    if (tier >= 2) {
+      ctx.save(); ctx.translate(CX, CY - 160); ctx.rotate(t * 1.3); ctx.lineWidth = 6; ctx.setLineDash([18, 14]);
+      ctx.strokeStyle = tier === 3 ? `hsl(${(t * 200) % 360},95%,65%)` : '#fde68a';
+      ctx.beginPath(); ctx.arc(0, 0, 345 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
   }
-  drawCombo(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, (job.gift ? 500 : 440) * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
+  drawCombo(ctx, cb, CX, CY - 160 + Math.sin(t * 2.2) * 12, (tier ? 480 + 30 * tier : 440) * Math.max(0.01, k), Math.sin(t * 3) * 0.06);
   // độ hiếm
   ctx.font = `900 34px ${FONT}`;
   const rw = ctx.measureText(rar.label).width + 60;
   pill(CX - rw / 2, 280, rw, 62, 'rgba(15,10,45,.85)', rar.c);
   txt(rar.label, CX, 312, 34, rar.c, 900);
-  if (job.gift) txt(`${job.by?.name} tặng ${job.gift.giftName} 💛`, CX, 390, 38, '#fde68a', 900);
+  if (job.gift) txt(`${job.by?.name} tặng ${job.gift.giftName} 💛`, CX, 390, 38, tier === 3 ? '#bae6fd' : '#fde68a', 900);
   else if (job.isNew) txt('✨ PHÁT MINH MỚI ✨', CX, 390, 38, '#4ade80', 900);
   // tên (gõ dần) + mô tả + chỉ số
   const name = cb.name.toUpperCase();

@@ -294,6 +294,23 @@ export class GhepGame extends EventEmitter {
     return this.handleComment(by, `${pair[0]} + ${pair[1]}`).map((e) => (e.type === 'ghep_job' ? { ...e, auto: true } : e));
   }
 
+  /**
+   * Admin demo màn trình diễn quà (10 / 30 / 99 xu): trình diễn lại combo vừa ghép gần nhất;
+   * chưa có combo nào thì máy tự ghép 1 combo rồi trình diễn kèm quà. Không gọi Claude.
+   */
+  demoGift(diamonds = 30) {
+    const d = Math.max(1, Number(diamonds) || 30);
+    const gift = { giftName: d >= 99 ? 'Vũ trụ (demo)' : d >= 30 ? 'Bánh donut (demo)' : 'Quà (demo)', diamonds: d };
+    const by = { id: 'demo', name: '🎬 Admin demo', avatar: null };
+    const last = this.gallery[0] && this.combos.get(this.gallery[0].key);
+    if (last) return [{ type: 'ghep_spotlight', id: ++this.jobSeq, combo: last, by, gift }];
+    const pair = this.randomPair();
+    if (!pair) return [];
+    this.pendingGift.set(by.id, { at: this.now(), ...gift }); // combo ghép xong sẽ mang quà này (takeGift)
+    this.lastAt.delete(by.id);
+    return this.handleComment(by, `${pair[0]} + ${pair[1]}`);
+  }
+
   /** Quà tặng trước khi bình luận (trong 2 phút) → áp cho combo này. */
   takeGift(by) {
     const g = this.pendingGift.get(by.id);
