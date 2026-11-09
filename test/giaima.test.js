@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { pickClues, buildPuzzle, letterKey, letterSet, splitWords } from '../server/giaima.js';
+import { buildPuzzle, letterKey, letterSet, splitWords } from '../server/giaima.js';
 import { WordGame } from '../server/wordgame.js';
 
 const BANK = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'giaima.json'), 'utf8'));
@@ -48,14 +48,17 @@ test('letterKey / splitWords: chữ có dấu quy về chữ gốc, Đ = D, bỏ
   assert.deepEqual(splitWords('Ăn quả, nhớ!'), [['Ă', 'n'], ['q', 'u', 'ả'], ['n', 'h', 'ớ']]);
 });
 
-test('kho thật: mọi câu đều chọn được 2–6 gợi ý, chữ của gợi ý nằm trong câu, chừa 1–2 chữ', () => {
+test('kho thật: mọi câu đều chọn được 2–6 gợi ý, chữ của gợi ý nằm trong câu; câu ≥ 9 chữ cái chừa 2–3 chữ, câu ngắn chừa 1–2', () => {
+  const kinds = new Set(BANK.phrases.map((p) => p.kind));
+  for (const k of ['Tục ngữ', 'Câu nói nổi tiếng', 'Slogan thương hiệu', 'Họ tên người nổi tiếng']) assert.ok(kinds.has(k), `thiếu loại câu: ${k}`);
   for (const p of BANK.phrases) {
-    const r = pickClues(p.text, BANK.clues, { rng: seeded(p.text.length) });
+    const r = buildPuzzle(p, BANK.clues, { rng: seeded(p.text.length) });
     assert.ok(r, `không đủ gợi ý cho: ${p.text}`);
     const L = letterSet(p.text);
     for (const c of r.clues) for (const l of letterSet(c.a)) assert.ok(L.has(l), `${c.a} có chữ ${l} không có trong "${p.text}"`);
     assert.ok(r.clues.length >= 2 && r.clues.length <= 6, `${p.text}: ${r.clues.length} gợi ý`);
-    assert.ok(r.hidden.length >= 1 && r.hidden.length <= 2, `${p.text}: chừa ${r.hidden.length} chữ`);
+    const [lo, hi] = L.size >= 9 ? [2, 3] : [1, 2];
+    assert.ok(r.hidden.length >= lo && r.hidden.length <= hi, `${p.text}: chừa ${r.hidden.length} chữ`);
     const covered = new Set(r.clues.flatMap((c) => [...letterSet(c.a)]));
     assert.deepEqual([...L].filter((l) => !covered.has(l)).sort(), [...r.hidden].sort());
   }
@@ -101,7 +104,9 @@ test('vòng Giải mã: cùng chữ cùng số, màn hình không lộ chữ ch�
   assert.equal(s.secret, null);
   assert.ok(!JSON.stringify(s).includes('nhớ'), 'snapshot không được chứa đáp án');
   assert.ok(s.gm.clues.length >= 2);
-  assert.ok(s.gm.clues.every((c) => c.q && c.e && ['vi', 'en'].includes(c.lang)));
+  assert.ok(s.gm.clues.every((c) => c.q && c.e === null && ['vi', 'en'].includes(c.lang)), 'emoji ẩn lúc đầu (hay lộ đáp án)');
+  say(g, 'lan', g.gm.clues[0].a);
+  assert.equal(g.snapshot().gm.clues[0].e, g.gm.clues[0].e, 'giải xong thì hiện emoji');
 });
 
 test('giải gợi ý → lộ chữ ở mọi ô cùng số; đoán sai hiện lên "vừa đoán" không chấm điểm; đoán cả câu → thắng + điểm tuần', () => {
@@ -169,6 +174,7 @@ test('hệ thống tự lộ chữ ở các mốc giờ; hết giờ lộ cả c
   assert.equal(h[0].type, 'wg_hint');
   assert.equal(h[0].gm.nums.length, 1);
   assert.equal(g.gm.revealed.size, 1);
+  assert.ok(g.snapshot().gm.clues.every((c) => c.e), 'sau lần tự lộ chữ đầu tiên thì hiện emoji của mọi gợi ý');
   clock.t += 200_000;
   const out = g.tick();
   assert.equal(out[0].type, 'wg_timeout');

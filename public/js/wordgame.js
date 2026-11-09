@@ -791,7 +791,11 @@ function drawGmClues(t) {
     // emoji minh hoạ
     ctx.textAlign = 'center'; ctx.fillStyle = '#000';
     ctx.font = `${n <= 5 ? 54 : 46}px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`;
-    ctx.fillText(noFlagsClient(c.e), x0 + 66, y + rowH / 2 + 2);
+    if (c.e) ctx.fillText(noFlagsClient(c.e), x0 + 66, y + rowH / 2 + 2);
+    else { // emoji còn ẩn (lộ sau khi giải / sau lần tự lộ chữ đầu tiên)
+      rr(x0 + 30, y + rowH / 2 - 34, 72, 68, 16); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fill();
+      ctx.font = font(900, 40); ctx.fillStyle = 'rgba(199,210,254,.7)'; ctx.fillText('?', x0 + 66, y + rowH / 2 + 2);
+    }
     // nhãn ngôn ngữ (chữ, không dùng cờ: OBS trên Windows hiện cờ thành "VN"/"GB")
     const tag = c.lang === 'en' ? 'TIẾNG ANH' : 'TIẾNG VIỆT';
     ctx.font = font(900, 15);
