@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { TikTokBridge } from './tiktok.js';
-import { WordGame } from './wordgame.js';
+import { WordGame, toSecret } from './wordgame.js';
 import { SimpleScorer, compact } from './scorer.js';
 import { LayeredScorer } from './scoring.js';
 import { Embedder } from './embeddings.js';
@@ -77,6 +77,7 @@ const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
     bands: wgCfg.scoreBands || {},
     cachePath: path.join(ROOT, 'data', 'wordscore-cache.json'),
     packPath: path.join(ROOT, 'data', 'knowledge-packs.json'),
+    seedPackPath: path.join(ROOT, 'modewords', 'knowledge-packs.json'), // pack soạn sẵn trong repo (không tốn token)
     // Lớp 3 embedding: có VOYAGE_API_KEY (hoặc OPENAI_API_KEY / EMBEDDING_PROVIDER + EMBEDDING_API_KEY) thì bật
     embedder: Embedder.fromEnv(process.env, wgCfg.embedding || {}),
     embed: wgCfg.embedding || {},
@@ -342,6 +343,36 @@ app.post('/api/weekly/:action', requireAdmin, (req, res) => {
   if (a === 'peek') return res.json({ ok: true, weekly: weekly.admin() });
   res.status(400).json({ error: 'action: peek | close' });
 });
+
+// ---------------- Knowledge Pack soạn trước cho các từ chưa chơi ----------------
+// Từ bí mật của vòng Gần nghĩa / Tiếng Anh (2 kiểu dùng bộ chấm gần nghĩa) còn trong kho, chưa chơi.
+function unplayedSecrets() {
+  const out = new Map();
+  const add = (w, from) => { const s = toSecret(w?.word); if (s && !out.has(s)) out.set(s, from); };
+  for (const w of wordBank.unused()) add(w, 'kho');
+  for (const w of wordBank.fallbackUnused()) add(w, 'config');
+  for (const [mode, list] of [['meaning', modeWords.meaning], ['english', modeWords.english]]) {
+    for (const w of list || []) if (w?.word && !wordBank.isUsed(w.word)) add(w, mode);
+  }
+  return out;
+}
+// Chỉ đọc: pack soạn sẵn nằm trong repo (modewords/knowledge-packs.json), KHÔNG dùng API key trên VPS để soạn
+function packStatus({ words = false } = {}) {
+  const all = unplayedSecrets();
+  const has = (s) => !!wgScorer.hasPack?.(s);
+  const missing = [...all.keys()].filter((s) => !has(s));
+  const bySource = {};
+  for (const [s, from] of all) { const b = (bySource[from] ||= { total: 0, withPack: 0 }); b.total++; if (has(s)) b.withPack++; }
+  let dataFiles = [];
+  try { dataFiles = fs.readdirSync(path.join(ROOT, 'data')).map((f) => { const st = fs.statSync(path.join(ROOT, 'data', f)); return { file: f, kb: Math.round(st.size / 102.4) / 10, dir: st.isDirectory() }; }); } catch { /* chưa có */ }
+  return {
+    layered: !!wgScorer.hasPack, unplayed: all.size, withPack: all.size - missing.length, missing: missing.length, bySource,
+    totalPacks: wgScorer.packs?.size || 0, seedPacks: wgScorer.seedCount || 0, played: wordBank.played().length, bank: wordBank.stats(),
+    scoring: wgScorer.stats?.() || null, dataFiles,
+    ...(words ? { missingWords: missing } : {}),
+  };
+}
+app.post('/api/packs/status', requireAdmin, (req, res) => res.json({ ok: true, ...packStatus({ words: !!req.body?.words }) }));
 
 // Game Ghép: bật / tắt (Đoán từ tự dừng khi Ghép bật), thử combo / quà
 app.get('/api/ghep', (_req, res) => res.json(ghep.snapshot()));

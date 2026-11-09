@@ -1,0 +1,82 @@
+# Xem dữ liệu trên VPS (chạy tay: Actions → "Dữ liệu VPS" → Run workflow): kho từ còn bao nhiêu, bao nhiêu từ chưa chơi
+# đã có Knowledge Pack, file trong data/. CHỈ ĐỌC — không soạn pack, không dùng API key Claude trên VPS.
+# SSH bằng cùng secrets với workflow deploy (VPS_HOST, VPS_USER, VPS_PASSWORD, VPS_PORT); gọi API app qua 127.0.0.1
+# bằng ADMIN_TOKEN đọc từ .env NGAY TRÊN VPS (token không đi qua GitHub, không in ra log).
+# ⚠️ Repo công khai: ai cũng xem được log / tóm tắt → danh sách từ chưa có pack (= đáp án sắp tới) chỉ in khi bật show_words.
+#    Muốn lấy danh sách mà không lộ: trang admin → 🔤 Đoán từ → 📋 Copy danh sách từ còn thiếu pack.
+name: Dữ liệu VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      show_words:
+        description: "In danh sách từ chưa có pack (LỘ ĐÁP ÁN — repo đang công khai)"
+        type: boolean
+        default: false
+
+jobs:
+  vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SSHPASS: ${{ secrets.VPS_PASSWORD }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+    steps:
+      - name: Cài sshpass
+        run: |
+          for i in 1 2 3 4 5; do
+            sudo apt-get install -y -qq sshpass && break
+            echo "apt lỗi, thử lại ($i)…"; sudo apt-get update -qq || true; sleep $((i * 5))
+          done
+          command -v sshpass
+
+      - name: Lấy dữ liệu từ VPS
+        run: |
+          set -euo pipefail
+          BODY='{}'; [ "${{ inputs.show_words }}" = true ] && BODY='{"words":true}'
+          # tham số đi qua ssh bị shell phía VPS tách chữ → bọc bằng printf %q
+          timeout 2m sshpass -e ssh -p "$VPS_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -o LogLevel=ERROR \
+            "$VPS_USER@$VPS_HOST" "bash -s $(printf %q "$BODY")" > status.json <<'REMOTE'
+          set -eu
+          cd '${{ vars.VPS_DIR || '/opt/chua-online' }}'
+          T="$(grep -E '^ADMIN_TOKEN=' .env | tail -1 | cut -d= -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//')"
+          curl -sS -m 60 -X POST -H 'content-type: application/json' -H "x-admin-token: $T" http://127.0.0.1:8686/api/packs/status -d "$1"
+          REMOTE
+          jq -e '.ok' status.json >/dev/null || { echo "::error::$(jq -r '.error // "không gọi được API (app chưa chạy bản mới?)"' status.json 2>/dev/null || head -c 300 status.json)"; exit 1; }
+          jq -c '{unplayed, withPack, missing, totalPacks, seedPacks, played}' status.json
+
+      - name: Báo cáo
+        run: |
+          S=status.json
+          {
+            echo "## 📦 Knowledge Pack — từ chưa chơi"
+            echo ""
+            if [ "$(jq -r '.layered' $S)" != true ]; then echo "⚠️ VPS chưa có ANTHROPIC_API_KEY → không dùng bộ chấm nhiều lớp (pack không được dùng)."; echo ""; fi
+            echo "| | Số từ |"
+            echo "|---|---|"
+            echo "| Từ chưa chơi (vòng Gần nghĩa / Tiếng Anh) | $(jq -r '.unplayed' $S) |"
+            echo "| Đã có pack | $(jq -r '.withPack' $S) |"
+            echo "| **Còn thiếu pack** | **$(jq -r '.missing' $S)** |"
+            echo "| Tổng pack (soạn sẵn trong repo) | $(jq -r '.totalPacks' $S) ($(jq -r '.seedPacks' $S)) |"
+            echo "| Từ đã chơi | $(jq -r '.played' $S) |"
+            echo ""
+            echo "**Theo nguồn:** $(jq -r '.bySource | to_entries | map("\(.key) \(.value.withPack)/\(.value.total)") | join(" · ")' $S)"
+            echo ""
+            echo "**Kho từ:** $(jq -r '.bank | "kho Claude còn \(.remaining)/\(.total) · từ có sẵn còn \(.fallbackRemaining)/\(.fallback) · tổng còn \(.totalRemaining)"' $S)"
+            echo ""
+            echo "**Chấm điểm từ lúc server chạy:** $(jq -r 'if .scoring then "cache \(.scoring.cache) · từ điển \(.scoring.dict) · gõ sai \(.scoring.fuzzy) · embedding \(.scoring.embed // 0) · Claude \(.scoring.claude) (\(.scoring.judgeCalls) lần gọi, \(.scoring.packCalls) pack)" else "—" end' $S)"
+            echo ""
+            echo "### 📁 data/ trên VPS"
+            echo "| File | KB |"
+            echo "|---|---|"
+            jq -r '.dataFiles[] | "| \(.file)\(if .dir then "/" else "" end) | \(if .dir then "—" else .kb end) |"' $S
+            if [ "$(jq -r '.missingWords != null' $S)" = true ]; then
+              echo ""
+              echo "<details><summary>Từ chưa có pack ($(jq -r '.missingWords | length' $S))</summary>"
+              echo ""
+              jq -r '.missingWords | join(" · ")' $S
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

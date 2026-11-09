@@ -168,6 +168,12 @@
         <button id="btnSettings" class="ghost">💾 Lưu</button>
       </div>
       <p class="muted" id="stText" style="margin-top:0"></p>
+      <div class="row" style="align-items:center;margin:8px 0">
+        <b>📦 Knowledge Pack:</b>
+        <span id="pkText" class="muted">đang tải…</span>
+        <button id="pkRefresh" class="ghost">🔄</button>
+        <button id="pkCopy" class="ghost">📋 Copy danh sách từ còn thiếu pack</button>
+      </div>
       <details id="wgAi" style="margin:10px 0;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
         <summary style="cursor:pointer;color:var(--gold);font-weight:600">✨ Tạo bằng Claude: bộ từ mới / gợi ý mới</summary>
         <p class="muted" id="wgAiNote" style="margin:8px 0"></p>
@@ -371,6 +377,22 @@
   $('anText').onkeydown = (e) => { if (e.key === 'Enter') anSend(); };
   $('anOff').onclick = () => api('/api/announce', { action: 'off' }).then((r) => { renderAnnounce(r.announce); log('Đã tắt thông báo'); }).catch((e) => log('Lỗi: ' + e.message));
   fetch('/api/announce').then((r) => r.json()).then(renderAnnounce).catch(() => {});
+
+  // ---- Knowledge Pack soạn sẵn (từ chưa chơi có pack → chấm ở Lớp 1 / 2, không chờ Claude) ----
+  // Không soạn trên VPS: copy danh sách từ còn thiếu gửi để soạn rồi đưa vào modewords/knowledge-packs.json
+  function renderPacks(p) {
+    if (!p || p.error) { $('pkText').textContent = p?.error || 'không lấy được trạng thái'; return; }
+    $('pkText').textContent = p.layered ? `${p.withPack}/${p.unplayed} từ chưa chơi đã có pack · còn thiếu ${p.missing} · tổng ${p.totalPacks} pack (${p.seedPacks} soạn sẵn trong repo)` : 'Chưa có ANTHROPIC_API_KEY → không dùng bộ chấm nhiều lớp';
+  }
+  const loadPacks = () => api('/api/packs/status').then(renderPacks).catch((e) => renderPacks({ error: e.message }));
+  $('pkRefresh').onclick = loadPacks;
+  $('pkCopy').onclick = () => api('/api/packs/status', { words: true }).then(async (r) => {
+    renderPacks(r);
+    const text = r.missingWords.join('\n');
+    try { await navigator.clipboard.writeText(text); log(`Đã copy ${r.missingWords.length} từ còn thiếu pack`); }
+    catch { log(`${r.missingWords.length} từ còn thiếu pack:\n${text}`); }
+  }).catch((e) => log('Lỗi: ' + e.message));
+  loadPacks();
 
   let gbFilled = false;
   function renderGoodbye(g) {

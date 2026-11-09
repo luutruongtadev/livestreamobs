@@ -1,0 +1,4 @@
+{
+  "about": "Knowledge Pack soạn sẵn cho từ bí mật (không tốn token trên VPS). packs: { \"từ bí mật\": { synonyms, strongRelated, related, weakRelated, unrelated } } — mỗi nhóm là danh sách từ, chữ thường, có dấu, xếp từ mạnh đến yếu. Server nạp khi khởi động; từ đoán nằm trong pack được chấm ngay ở Lớp 1 / 2.",
+  "packs": {}
+}

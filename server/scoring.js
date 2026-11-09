@@ -171,7 +171,7 @@ const JUDGE_SCHEMA = {
  */
 export class LayeredScorer {
   constructor({ model = 'claude-opus-5-5', packModel = null, batchMs = 400, maxBatch = 25, maxInflight = 2, timeoutMs = 20_000,
-    cachePath = null, packPath = null, client = null, bands = SCORE_BANDS, embedder = null, embed = {}, log = console } = {}) {
+    cachePath = null, packPath = null, seedPackPath = null, client = null, bands = SCORE_BANDS, embedder = null, embed = {}, log = console } = {}) {
     this.model = model;
     this.packModel = packModel || model;
     this.batchMs = batchMs;
@@ -180,6 +180,8 @@ export class LayeredScorer {
     this.timeoutMs = timeoutMs;
     this.cachePath = cachePath;
     this.packPath = packPath;
+    this.seedPackPath = seedPackPath; // pack soạn sẵn trong repo, nạp trước (pack trong data/ đè lên nếu trùng)
+    this.seedCount = 0;
     this.bands = { ...SCORE_BANDS, ...bands };
     this.log = log;
     this.client = client || new Anthropic();
@@ -204,6 +206,12 @@ export class LayeredScorer {
 
   load() {
     try { if (this.cachePath) this.cache = new Map(Object.entries(JSON.parse(fs.readFileSync(this.cachePath, 'utf8')))); } catch { /* chưa có */ }
+    try {
+      if (this.seedPackPath) {
+        const seed = JSON.parse(fs.readFileSync(this.seedPackPath, 'utf8')).packs || {};
+        for (const [word, p] of Object.entries(seed)) { this.setPack(canon(word), cleanPack(word, p)); this.seedCount++; }
+      }
+    } catch { /* chưa có */ }
     try { if (this.packPath) for (const [k, p] of Object.entries(JSON.parse(fs.readFileSync(this.packPath, 'utf8')))) this.setPack(k, p); } catch { /* chưa có */ }
   }
 
@@ -232,13 +240,13 @@ export class LayeredScorer {
   stats() { return { ...this.counts, packs: this.packs.size, embedding: this.embedder ? `${this.embedder.provider}:${this.embedder.model}` : null }; }
 
   /** Đầu vòng: soạn Knowledge Pack cho từ bí mật (1 lần gọi Claude, có cache). */
-  prepare(secret, ctx = null) {
+  prepare(secret, ctx = null, { model = null, embed = true } = {}) {
     const key = this.keyOf(secret, ctx);
     if (ctx?.prompt) this.contexts.set(key, ctx.prompt);
-    if (this.packs.has(key)) { this.prepareEmbed(key); return Promise.resolve(this.packs.get(key)); }
+    if (this.packs.has(key)) { if (embed) this.prepareEmbed(key); return Promise.resolve(this.packs.get(key)); }
     if (!this.packJobs.has(key)) {
-      const job = this.callPack(this.secretOf(key), ctx?.prompt)
-        .then((raw) => { const pack = cleanPack(this.secretOf(key), raw); this.setPack(key, pack); this.packsDirty = true; this.prepareEmbed(key); return pack; })
+      const job = this.callPack(this.secretOf(key), ctx?.prompt, model)
+        .then((raw) => { const pack = cleanPack(this.secretOf(key), raw); this.setPack(key, pack); this.packsDirty = true; if (embed) this.prepareEmbed(key); return pack; })
         .catch((e) => { this.log.warn?.(`[scoring] soạn knowledge pack cho "${this.secretOf(key)}" lỗi: ${e?.message || e}`); return null; })
         .finally(() => this.packJobs.delete(key));
       this.packJobs.set(key, job);
@@ -380,10 +388,13 @@ export class LayeredScorer {
     return response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
   }
 
-  async callPack(secret, context = '') {
+  /** Từ bí mật này đã có Knowledge Pack chưa (soạn trước hàng loạt). */
+  hasPack(secret, ctx = null) { return this.packs.has(this.keyOf(secret, ctx)); }
+
+  async callPack(secret, context = '', model = null) {
     this.counts.packCalls++;
     const res = await this.create({
-      model: this.packModel, max_tokens: 4000,
+      model: model || this.packModel, max_tokens: 4000,
       output_config: { effort: 'low', format: { type: 'json_schema', schema: PACK_SCHEMA } },
       system: PACK_SYSTEM,
       messages: [{ role: 'user', content: `${context ? `NGỮ CẢNH: ${context}\n` : ''}TỪ BÍ MẬT: ${JSON.stringify(secret)}` }],
