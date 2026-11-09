@@ -42,7 +42,7 @@ export function makePausable(cls) {
 export class PauseController {
   constructor(games, { autoPauseOffline = true, online = false, hold = null } = {}) {
     this.games = games;
-    this.hold = hold; // (game) => lý do giữ dừng game đó (vd 'ghep' khi đang chơi game Ghép) hoặc null; status() hỏi cho game đầu tiên
+    this.hold = hold; // () => lý do giữ dừng (vd 'ghep' khi đang chơi game Ghép) hoặc null
     this.autoPauseOffline = autoPauseOffline;
     this.online = online;
     this.manual = false;
@@ -51,8 +51,8 @@ export class PauseController {
     this.apply();
   }
 
-  reason(game = this.games[0]) {
-    const h = this.hold?.(game);
+  reason() {
+    const h = this.hold?.();
     if (h) return h;
     if (this.manual) return this.sleeping ? 'goodnight' : 'manual';
     if (this.autoPauseOffline && !this.online && !this.force) return 'offline';
@@ -61,9 +61,9 @@ export class PauseController {
 
   /** Áp trạng thái cho mọi game; trả về true nếu có thay đổi. */
   apply() {
+    const r = this.reason();
     let changed = false;
     for (const g of this.games) {
-      const r = this.reason(g);
       const prev = g.pauseReason;
       const did = r ? g.pause(r) : g.resume();
       if (did || (r && prev !== r)) changed = true;
