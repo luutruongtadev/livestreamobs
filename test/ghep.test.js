@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { GhepGame, parseCombo, comboKey, guessEmoji, emojiCombo } from '../server/ghep.js';
 import { EmojiKitchen } from '../server/emojikitchen.js';
 import { PauseController } from '../server/pause.js';
@@ -54,7 +55,7 @@ test('comboKey không phụ thuộc thứ tự; guessEmoji từ điển + emoji 
 });
 
 test('EmojiKitchen: tra ảnh ghép cho cặp emoji (2 chiều), emoji không hỗ trợ → null', () => {
-  const k = EmojiKitchen.load(path.join(import.meta.dirname, '..', 'modewords', 'emoji-kitchen.json'));
+  const k = EmojiKitchen.load(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'emoji-kitchen.json'));
   assert.ok(k.size > 100000);
   const url = k.url('🐱', '🚀');
   assert.match(url, /^https:\/\/www\.gstatic\.com\/android\/keyboard\/emojikitchen\/\d{8}\/u1f680\/u1f680_u1f431\.png$/);
@@ -227,4 +228,39 @@ test('quà combo tới từng phần: cảm ơn 1 lần mỗi chuỗi, trình di
   assert.deepEqual(part(4, 8), []);
   assert.deepEqual(part(4, 12), ['ghep_spotlight']);
   assert.deepEqual(part(6, 18), []);
+});
+
+test('vắng bình luận quá autoIdleSec giây (đang live) → máy tự ghép 2 emoji ngẫu nhiên có ảnh Emoji Kitchen, không gọi Claude', async () => {
+  let t = 1_000_000;
+  const client = fakeClient(() => COMBO);
+  const g = new GhepGame({ cooldownMs: 0, autoIdleSec: 20 }, { client, now: () => t });
+  const fx = [];
+  g.on('effects', (e) => fx.push(...e));
+  t += 30_000;
+  assert.deepEqual(g.tick(), [], 'game đang tắt thì không tự ghép');
+  g.setActive(true);
+  assert.deepEqual(g.tick({ live: false }), [], 'chưa live / đang tạm dừng thì không tự ghép');
+  const job = g.tick();
+  assert.equal(job[0].type, 'ghep_job');
+  assert.equal(job[0].auto, true);
+  assert.equal(job[0].by.id, 'auto');
+  assert.ok(g.kitchen.has(job[0].ea) && g.kitchen.has(job[0].eb) && job[0].img, 'cặp có ảnh ghép');
+  await wait(20);
+  assert.ok(fx.some((e) => e.type === 'ghep_done' && e.combo.source === 'table'), 'đặt tên bằng bảng có sẵn');
+  assert.equal(client.calls.length, 0, 'không tốn token');
+  // vừa tự ghép → chờ đủ 20 giây nữa mới ghép tiếp
+  t += 10_000;
+  assert.deepEqual(g.tick(), []);
+  // có người bình luận → đếm lại từ đầu
+  t += 15_000;
+  g.handle({ type: 'comment', user: u('an'), text: '🐱🚀' });
+  await wait(5);
+  t += 10_000;
+  assert.deepEqual(g.tick(), []);
+  t += 11_000;
+  assert.equal(g.tick()[0].auto, true);
+  // tắt bằng autoIdleSec = 0
+  const off = new GhepGame({ autoIdleSec: 0 }, { client, now: () => t + 999_999 });
+  off.setActive(true);
+  assert.deepEqual(off.tick(), []);
 });

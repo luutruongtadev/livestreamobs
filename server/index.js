@@ -182,6 +182,12 @@ function ghepBroadcast(effects) {
   ghepTimer = setTimeout(() => { ghepTimer = null; broadcast({ type: 'ghep', ghep: ghep.snapshot() }); }, 300);
 }
 ghep.on('effects', ghepBroadcast);
+// game Ghép: vắng bình luận quá lâu → máy tự ghép (chỉ khi đang live / admin bấm Tiếp tục để thử, không khi đang tạm dừng)
+setInterval(() => {
+  const live = !pauser.manual && (!pauser.autoPauseOffline || pauser.online || pauser.force);
+  const fx = ghep.tick({ live });
+  if (fx.length) ghepBroadcast(fx);
+}, 1000).unref();
 voice.on('voice', (v) => broadcast({ type: 'voice', game: 'wg', voice: v }));
 voice.on('state', (st) => broadcast({ type: 'voice_state', voice: st }));
 // số credit còn lại trên tài khoản ElevenLabs: lúc khởi động + mỗi 10 phút
@@ -333,6 +339,7 @@ app.post('/api/ghep/:action', requireAdmin, (req, res) => {
   let fx;
   if (a === 'combo') fx = ghep.handleComment(user, String(b.text || ''));
   else if (a === 'gift') fx = ghep.handleGift(user, { giftName: b.giftName || 'Hoa hồng', diamonds: Number(b.diamonds) || 10, repeatCount: 1 });
+  else if (a === 'auto') fx = ghep.autoCombo();
   else return res.status(404).json({ error: 'không rõ thao tác' });
   ghepBroadcast(fx);
   res.json({ ok: true, effects: fx });

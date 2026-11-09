@@ -72,7 +72,7 @@
 
     <section>
       <h2>🧪 Game Ghép (/ghep)</h2>
-      <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) hoặc chỉ <b>2 emoji</b> (vd 🐱🚀) → AI chọn emoji, đặt tên và màn hình hiện emoji ghép (kiểu Emoji Kitchen). Tặng quà ≥ 10 xu → combo của người đó được trình diễn đặc biệt (chen lên đầu, khung vàng, pháo hoa). Màn hình OBS: <code id="ghepUrl"></code></p>
+      <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) hoặc chỉ <b>2 emoji</b> (vd 🐱🚀) → AI chọn emoji, đặt tên và màn hình hiện emoji ghép (kiểu Emoji Kitchen). Tặng quà ≥ 10 xu → combo của người đó được trình diễn đặc biệt (chen lên đầu, khung vàng, pháo hoa). Không ai ghép trong 20 giây (đang live) → máy tự ghép 2 emoji ngẫu nhiên (không tốn token; chỉnh <code>ghep.autoIdleSec</code>, 0 = tắt). Màn hình OBS: <code id="ghepUrl"></code></p>
       <div id="ghepInfo" class="muted" style="margin-bottom:8px">Đang tải…</div>
       <div class="row" style="margin-bottom:10px">
         <button id="btnGhepOn">▶ Bật game Ghép</button>
@@ -82,6 +82,7 @@
         <input id="ghepText" type="text" placeholder="Thử combo, vd: mèo + tên lửa" value="mèo + tên lửa">
         <button id="btnGhepTry">Ghép thử</button>
         <button id="btnGhepGift" class="ghost">🎁 Thử quà 10 xu</button>
+        <button id="btnGhepAuto" class="ghost">🎲 Thử máy tự ghép</button>
       </div>
     </section>
 
@@ -276,6 +277,7 @@
   $('btnGhepOff').onclick = () => api('/api/ghep/off').then((r) => { renderGhep(r.ghep); log('Đã quay lại Đoán từ'); }).catch((e) => log('Lỗi: ' + e.message));
   const ghepName = () => $('simName').value.trim() || 'Người thử';
   $('btnGhepTry').onclick = () => api('/api/ghep/combo', { name: ghepName(), text: $('ghepText').value }).then((r) => log(r.effects.length ? `Ghép: ${$('ghepText').value}` : 'Không ghép (sai dạng "A + B" hoặc gửi quá nhanh, chờ 3 giây)')).catch((e) => log('Lỗi: ' + e.message));
+  $('btnGhepAuto').onclick = () => api('/api/ghep/auto').then((r) => log(r.effects.length ? `Máy tự ghép: ${r.effects[0].a} + ${r.effects[0].b}` : 'Không ghép được (game Ghép đang tắt?)')).catch((e) => log('Lỗi: ' + e.message));
   $('btnGhepGift').onclick = () => api('/api/ghep/gift', { name: ghepName(), diamonds: 10, giftName: 'Quà thử' }).then(() => log('Đã gửi quà thử 10 xu')).catch((e) => log('Lỗi: ' + e.message));
 
   function log(msg) {

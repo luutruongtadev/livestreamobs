@@ -19,6 +19,8 @@ export const GHEP_DEFAULTS = {
   maxNewPerMinute: 30, // tối đa combo MỚI nhờ Claude đặt tên mỗi phút (quá thì đặt tên đơn giản, không tốn token)
   model: 'claude-haiku-5-5',
   gallerySize: 12,
+  autoIdleSec: 20, // không ai ghép trong N giây → máy tự ghép 2 emoji ngẫu nhiên (0 = tắt)
+  autoName: '🎲 Máy tự ghép',
 };
 
 export const MODES = ['inside', 'tint', 'hat', 'eyes', 'hold', 'ride', 'half'];
@@ -175,7 +177,7 @@ const onlyEmoji = (p) => { const m = String(p).match(EMOJI_RE); return m && m[0]
 const DEFAULT_KITCHEN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'emoji-kitchen.json');
 
 export class GhepGame extends EventEmitter {
-  constructor(config = {}, { client = null, filePath = null, kitchen = null, now = () => Date.now(), log = console } = {}) {
+  constructor(config = {}, { client = null, filePath = null, kitchen = null, now = () => Date.now(), random = Math.random, log = console } = {}) {
     super();
     this.cfg = { ...GHEP_DEFAULTS, ...config };
     this.client = client;
@@ -183,7 +185,9 @@ export class GhepGame extends EventEmitter {
     this.kitchen = kitchen || EmojiKitchen.load(DEFAULT_KITCHEN);
     this.system = comboSystem(this.kitchen.list());
     this.now = now;
+    this.random = random;
     this.log = log;
+    this.lastActivityAt = now(); // lần gần nhất có combo (người xem hoặc máy tự ghép)
     this.combos = new Map(); // key -> combo
     this.active = false; // đang là game chính trên live?
     this.jobSeq = 0;
@@ -240,6 +244,7 @@ export class GhepGame extends EventEmitter {
     const t = this.now();
     if (this.lastAt.has(by.id) && t - this.lastAt.get(by.id) < this.cfg.cooldownMs) return [];
     this.lastAt.set(by.id, t);
+    this.lastActivityAt = t;
     const [a, b] = pair;
     const key = comboKey(a, b);
     const id = ++this.jobSeq;
@@ -255,6 +260,38 @@ export class GhepGame extends EventEmitter {
     }
     this.create(key, a, b, id, by).catch((e) => this.log.warn?.('[ghep] lỗi:', e?.message || e));
     return [start];
+  }
+
+  /**
+   * Gọi đều đặn: game đang bật, đang live (live = true) mà quá autoIdleSec giây không ai ghép
+   * → máy tự ghép 2 emoji ngẫu nhiên cho màn hình đỡ trống (tên đặt bằng bảng có sẵn, không tốn token).
+   */
+  tick({ live = true } = {}) {
+    if (!this.active || !live || !(this.cfg.autoIdleSec > 0)) return [];
+    if (this.pending.size || this.now() - this.lastActivityAt < this.cfg.autoIdleSec * 1000) return [];
+    return this.autoCombo();
+  }
+
+  /** 2 emoji ngẫu nhiên có ảnh Emoji Kitchen + tên tiếng Việt (để đặt tên không cần Claude). */
+  randomPair() {
+    const list = (this.kitchen.emoji || []).filter((x) => x[3]).map((x) => x[1]);
+    if (list.length < 2) return null;
+    const pick = () => list[Math.floor(this.random() * list.length)];
+    for (let i = 0; i < 80; i++) {
+      const a = pick(), b = pick();
+      if (a !== b && this.kitchen.url(a, b)) return [a, b];
+    }
+    return null;
+  }
+
+  /** Máy tự ghép (cũng dùng cho nút thử ở admin). */
+  autoCombo() {
+    const pair = this.randomPair();
+    this.lastActivityAt = this.now();
+    if (!pair) return [];
+    const by = { id: 'auto', name: this.cfg.autoName, avatar: null };
+    this.lastAt.delete(by.id);
+    return this.handleComment(by, `${pair[0]} + ${pair[1]}`).map((e) => (e.type === 'ghep_job' ? { ...e, auto: true } : e));
   }
 
   /** Quà tặng trước khi bình luận (trong 2 phút) → áp cho combo này. */

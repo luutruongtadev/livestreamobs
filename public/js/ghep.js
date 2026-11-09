@@ -217,6 +217,7 @@ function onEffect(e) {
   if (e.type === 'ghep_job') {
     ensureEmoji(e.ea); ensureEmoji(e.eb); loadImg(e.img);
     jobs.set(e.id, { ...e, typing: '', combo: null, fail: false, at: nowS() });
+    if (e.auto) toast('😴 Phòng lab vắng quá… máy tự ghép! Bình luận "A + B" để tự tay ghép nhé', '#a78bfa', 5000);
     feed.unshift({ name: e.by?.name || '?', text: `${e.a} + ${e.b}`, at: nowS() });
     feed.length = Math.min(feed.length, 5);
     showQueue.push(e.id);
