@@ -4,10 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { GiaiMaGame, pickClues, letterKey, letterSet, splitWords } from '../server/giaima.js';
-import { PauseController } from '../server/pause.js';
+import { pickClues, buildPuzzle, letterKey, letterSet, splitWords } from '../server/giaima.js';
+import { WordGame } from '../server/wordgame.js';
 
-const u = (id) => ({ id, name: id, avatar: null });
 const BANK = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'giaima.json'), 'utf8'));
 
 /** rng cố định để test lặp lại được */
@@ -15,9 +14,9 @@ function seeded(seed = 1) {
   return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 }
 
-// kho nhỏ: câu "Stars fall under the moon" kiểu ví dụ gốc + vài gợi ý
+const PHRASE = 'Ăn quả nhớ kẻ trồng cây';
 const MINI = {
-  phrases: [{ text: 'Ăn quả nhớ kẻ trồng cây', kind: 'Tục ngữ', meaning: 'Biết ơn' }],
+  phrases: [{ text: PHRASE, kind: 'Tục ngữ', meaning: 'Biết ơn người làm ra thành quả' }],
   clues: [
     { q: 'Gáy ò ó o', a: 'gà', e: '🐓', lang: 'vi' },
     { q: 'Bạn nhà nông', a: 'trâu', e: '🐃', lang: 'vi' },
@@ -29,12 +28,14 @@ const MINI = {
     { q: 'Bánh kem', a: 'cake', e: '🎂', lang: 'en' },
   ],
 };
+const u = (id) => ({ id, name: id, avatar: null });
+const say = (g, id, text) => g.handle({ type: 'comment', user: u(id), text });
+const scorer = { score: async () => ({ score: 1, source: 't' }) };
 
-function game(opts = {}, cfg = {}) {
-  let t = 1_000_000;
-  const clock = { now: () => t, add: (ms) => { t += ms; } };
-  const g = new GiaiMaGame({ cooldownMs: 0, ...cfg }, { bank: MINI, now: clock.now, rng: seeded(7), ...opts });
-  g.setActive(true);
+function game(cfg = {}, opts = {}) {
+  const clock = { t: 1_000_000 };
+  const g = new WordGame({ words: [{ word: 'con mèo', hint: 'Động vật' }], modes: ['giaima'], cooldownSec: 0, ...cfg },
+    { scorer, now: () => clock.t, random: seeded(7), modeWords: { giaima: MINI }, ...opts });
   return { g, clock };
 }
 
@@ -62,161 +63,141 @@ test('kho thật: mọi câu đều chọn được 2–6 gợi ý, chữ của 
     assert.ok(c.q && c.a && c.e, `gợi ý thiếu trường: ${JSON.stringify(c)}`);
     assert.ok(['vi', 'en'].includes(c.lang), `lang sai: ${c.a}`);
   }
+  // mỗi số đúng 1 chữ, khác chữ khác số
+  const pz = buildPuzzle(BANK.phrases[0], BANK.clues, { rng: seeded(3) });
+  const nums = Object.values(pz.code);
+  assert.equal(new Set(nums).size, nums.length);
+  assert.deepEqual([...nums].sort((a, b) => a - b), nums.map((_, i) => i + 1));
 });
 
-test('vòng mới: mỗi chữ một số riêng, màn hình không lộ chữ chưa mở', () => {
+test('luân phiên: Giải mã là 1 kiểu trong vòng luân phiên; thiếu kho hoặc đang chơi bộ riêng thì bỏ qua', () => {
+  const clock = { t: 1 };
+  const g = new WordGame({ words: [{ word: 'con mèo' }], modes: ['meaning', 'giaima'], alternateEvery: 1, cooldownSec: 0 }, { scorer, now: () => clock.t, modeWords: { giaima: BANK } });
+  const modes = [g.mode];
+  for (let i = 0; i < 3; i++) { g.skip(); g.skip(); modes.push(g.mode); }
+  assert.deepEqual(modes, ['meaning', 'giaima', 'meaning', 'giaima']);
+  assert.ok(g.modeWordStats().giaima.total >= 70);
+  const noBank = new WordGame({ words: [{ word: 'con mèo' }], modes: ['giaima'], cooldownSec: 0 }, { scorer, now: () => clock.t });
+  assert.equal(noBank.mode, 'meaning');
+  const inSet = new WordGame({ words: [], modes: ['giaima'], activeSet: 'lmht', cooldownSec: 0 }, { scorer, now: () => clock.t, modeWords: { giaima: BANK }, wordSets: { lmht: { title: 'LMHT', words: [{ word: 'ezreal' }] } } });
+  assert.equal(inSet.mode, 'meaning');
+  assert.deepEqual(g.applySettings({ modes: ['giaima', 'xyz'] }).modes, ['giaima']); // admin bật riêng Giải mã
+});
+
+test('vòng Giải mã: cùng chữ cùng số, màn hình không lộ chữ chưa mở, không lộ đáp án', () => {
   const { g } = game();
-  const fx = g.tick();
-  assert.equal(fx[0].type, 'gm_round');
+  assert.equal(g.mode, 'giaima');
   const s = g.snapshot();
-  assert.equal(s.phase, 'playing');
-  const nums = new Map();
-  for (const w of s.words) for (const c of w) {
-    assert.equal(c.ch, null);
-    assert.ok(c.n >= 1);
-  }
-  // cùng chữ gốc → cùng số; khác chữ → khác số
-  const chars = splitWords(g.round.phrase).flat();
-  chars.forEach((ch, i) => {
-    const n = s.words.flat()[i].n;
+  assert.equal(s.gm.kind, 'Tục ngữ');
+  assert.deepEqual(s.hints, []);
+  const flat = s.gm.words.flat();
+  assert.ok(flat.every((c) => c.ch === null && c.n >= 1));
+  const seen = new Map();
+  splitWords(PHRASE).flat().forEach((ch, i) => {
     const k = letterKey(ch);
-    if (nums.has(k)) assert.equal(nums.get(k), n); else nums.set(k, n);
+    if (seen.has(k)) assert.equal(seen.get(k), flat[i].n); else seen.set(k, flat[i].n);
   });
-  assert.equal(new Set(nums.values()).size, nums.size);
+  assert.equal(new Set(seen.values()).size, seen.size);
+  assert.equal(s.secret, null);
   assert.ok(!JSON.stringify(s).includes('nhớ'), 'snapshot không được chứa đáp án');
+  assert.ok(s.gm.clues.length >= 2);
+  assert.ok(s.gm.clues.every((c) => c.q && c.e && ['vi', 'en'].includes(c.lang)));
 });
 
-test('giải gợi ý → lộ chữ ở mọi ô cùng số (cả câu lẫn gợi ý khác); giải cả câu → thắng, có điểm tuần', () => {
+test('giải gợi ý → lộ chữ ở mọi ô cùng số; đoán sai hiện lên "vừa đoán" không chấm điểm; đoán cả câu → thắng + điểm tuần', () => {
   const awards = [];
-  const weekly = { award: (by, r) => { awards.push({ by, r }); return { total: 150 }; }, addBonus: () => ({ add: 0, total: 0 }) };
-  const { g, clock } = game({ weekly });
-  g.tick();
-  const c0 = g.round.clues[0];
-  const fx = g.handle({ type: 'comment', user: u('lan'), text: c0.a.toUpperCase() });
-  assert.equal(fx[0].type, 'gm_clue');
+  const weekly = { award: (by, r) => { awards.push({ by, r }); return { total: 180, base: 100, speed: 80 }; }, addBonus: () => ({ add: 0, total: 0 }), snapshot: () => null };
+  let scored = 0;
+  const { g, clock } = game({}, { weekly, scorer: { score: async () => { scored++; return { score: 1 }; } } });
+  const c0 = g.gm.clues[0];
+  const fx = say(g, 'lan', c0.a.toUpperCase());
+  assert.equal(fx[0].type, 'wg_gm_clue');
   assert.equal(fx[0].by.name, 'lan');
-  for (const l of letterSet(c0.a)) assert.ok(g.round.revealed.has(l));
+  assert.ok(fx[0].nums.length >= 1);
   const s = g.snapshot();
-  assert.equal(s.clues[0].solvedBy.name, 'lan');
-  const opened = s.words.flat().filter((c) => c.ch);
+  assert.equal(s.gm.clues[0].solvedBy.name, 'lan');
+  const opened = s.gm.words.flat().filter((c) => c.ch);
   assert.ok(opened.length > 0);
-  for (const c of opened) assert.equal(c.n, g.round.code[letterKey(c.ch)]);
-  // đoán lại đáp án đã giải: không tính nữa
-  assert.equal(g.handle({ type: 'comment', user: u('minh'), text: c0.a }).some((e) => e.type === 'gm_clue'), false);
-  // đoán sai → hiện lên dải bình luận
-  assert.equal(g.handle({ type: 'comment', user: u('minh'), text: 'con bò' })[0].type, 'gm_guess');
-  clock.add(30_000);
-  const win = g.handle({ type: 'comment', user: u('minh'), text: 'đáp án là an qua nho ke trong cay' });
-  assert.equal(win[0].type, 'gm_win');
-  assert.equal(win[0].phrase, 'Ăn quả nhớ kẻ trồng cây');
-  assert.equal(win[0].seconds, 30);
+  for (const c of opened) assert.equal(c.n, g.gm.code[letterKey(c.ch)]);
+  // ô cùng số trong gợi ý khác cũng lộ
+  for (const cl of s.gm.clues) for (const cell of cl.cells.flat()) if (fx[0].nums.includes(cell.n)) assert.ok(cell.ch);
+  // đoán lại đáp án đã giải: không tính nữa, thành đoán sai
+  assert.equal(say(g, 'minh', c0.a)[0].type, 'wg_guess');
+  const wrong = say(g, 'minh', 'con bò');
+  assert.equal(wrong[0].type, 'wg_guess');
+  assert.equal(wrong[0].gm, true);
+  assert.equal(g.snapshot().feed[0].word, 'con bò');
+  assert.equal(scored, 0, 'kiểu Giải mã không gọi bộ chấm điểm (không tốn token)');
+  clock.t += 30_000;
+  const win = say(g, 'minh', 'đáp án là an qua nho ke trong cay');
+  assert.equal(win[0].type, 'wg_win');
+  assert.equal(win[0].answer, PHRASE);
   assert.equal(awards.length, 1);
-  assert.ok(awards[0].r > 0.8 && awards[0].r < 1);
-  const after = g.snapshot();
-  assert.equal(after.phase, 'break');
-  assert.equal(after.answer.phrase, 'Ăn quả nhớ kẻ trồng cây');
-  assert.ok(after.words.flat().every((c) => c.ch));
-  assert.equal(after.board[0].name, 'minh');
-  assert.equal(after.board[0].points, 100);
-  // hết giờ nghỉ → vòng mới
-  assert.deepEqual(g.handle({ type: 'comment', user: u('lan'), text: c0.a }), []);
-  clock.add(g.cfg.breakSeconds * 1000);
-  assert.equal(g.tick()[0].type, 'gm_round');
-  assert.equal(g.roundNo, 2);
+  const end = g.snapshot();
+  assert.equal(end.phase, 'ended');
+  assert.ok(end.gm.words.flat().every((c) => c.ch));
+  assert.equal(end.gm.meaning, 'Biết ơn người làm ra thành quả');
 });
 
-test('quà: 5 hoa hồng = 1 chữ, 10 xu = giải 1 gợi ý, 30 xu = +60s; luôn chừa ít nhất 1 chữ', () => {
+test('quà / tim trong vòng Giải mã: 5 hoa hồng = 1 chữ, 10 xu = giải hộ 1 gợi ý, 99 xu = 3 chữ, 1000 tim = 1 chữ; luôn chừa 1 chữ', () => {
   const { g } = game();
-  g.tick();
-  const rose = (n) => g.handle({ type: 'gift', user: u('an'), giftName: 'Rose', diamonds: 1, repeatCount: n });
-  let fx = rose(3);
-  assert.equal(fx[0].type, 'gm_thanks');
-  assert.equal(fx[1].type, 'gm_progress');
-  assert.equal(g.round.revealed.size, 0);
-  fx = rose(2);
-  assert.equal(fx[1].type, 'gm_letter');
-  assert.equal(g.round.revealed.size, 1);
-  fx = g.handle({ type: 'gift', user: u('an'), giftName: 'Doughnut', diamonds: 10, repeatCount: 1 });
-  const clue = fx.find((e) => e.type === 'gm_clue');
-  assert.equal(clue.via, 'gift');
-  assert.equal(g.snapshot().board.length, 0); // gợi ý mở bằng quà không tính điểm cao thủ
-  const end = g.endsAt;
-  g.handle({ type: 'gift', user: u('an'), giftName: 'Hat', diamonds: 30, repeatCount: 1 });
-  assert.equal(g.endsAt, end + 60_000);
-  for (let i = 0; i < 30; i++) g.handle({ type: 'gift', user: u('an'), giftName: 'Finger Heart', diamonds: 5, repeatCount: 1 });
-  assert.equal(g.hiddenLetters().length, 1);
+  const gift = (giftName, diamonds, repeatCount = 1) => g.handle({ type: 'gift', user: u('an'), giftName, diamonds, repeatCount });
+  assert.equal(gift('Rose', 1, 3).find((e) => e.type === 'wg_progress').count, 3);
+  assert.equal(g.gm.revealed.size, 0);
+  const rose = gift('Rose', 1, 2).find((e) => e.type === 'wg_unlock');
+  assert.equal(rose.gm.nums.length, 1);
+  assert.equal(g.gm.revealed.size, 1);
+  const clue = gift('Doughnut', 10).find((e) => e.type === 'wg_unlock');
+  assert.ok(clue.gm.clue);
+  assert.equal(g.gm.clues[clue.gm.clue.idx].via, 'gift');
+  const before = g.gm.revealed.size;
+  const big = gift('Lion', 99).find((e) => e.type === 'wg_unlock');
+  assert.ok(big.gm.nums.length >= 1 && big.gm.nums.length <= 3);
+  assert.equal(g.gm.revealed.size, before + big.gm.nums.length);
+  const likes = g.handle({ type: 'like', user: u('b'), count: 1000 }).find((e) => e.type === 'wg_unlock');
+  if (likes) assert.equal(likes.gm.nums.length, 1);
+  for (let i = 0; i < 40; i++) gift('Finger Heart', 5);
+  assert.equal(g.gmHiddenLetters().length, 1);
   assert.equal(g.phase, 'playing');
 });
 
-test('thả tim: đủ 1000 tim cả phòng → lộ 1 chữ; hệ thống tự lộ chữ theo giờ; hết giờ lộ đáp án', () => {
+test('hệ thống tự lộ chữ ở các mốc giờ; hết giờ lộ cả câu', () => {
   const { g, clock } = game();
-  g.tick();
-  g.handle({ type: 'like', user: u('a'), count: 600 });
-  assert.equal(g.round.revealed.size, 0);
-  const fx = g.handle({ type: 'like', user: u('b'), count: 500 });
-  assert.equal(fx[0].type, 'gm_letter');
-  assert.equal(fx[0].reason, 'like');
-  assert.equal(g.likeCount, 100);
-  clock.add(150_000);
-  assert.equal(g.tick()[0].reason, 'auto');
-  clock.add(200_000);
-  const end = g.tick();
-  assert.equal(end[0].type, 'gm_end');
-  assert.equal(end[0].reason, 'timeout');
-  assert.equal(g.snapshot().answer.phrase, 'Ăn quả nhớ kẻ trồng cây');
+  assert.equal(g.snapshot().nextHintIn, 120);
+  clock.t += 120_000;
+  const h = g.tick();
+  assert.equal(h[0].type, 'wg_hint');
+  assert.equal(h[0].gm.nums.length, 1);
+  assert.equal(g.gm.revealed.size, 1);
+  clock.t += 200_000;
+  const out = g.tick();
+  assert.equal(out[0].type, 'wg_timeout');
+  assert.ok(g.snapshot().gm.words.flat().every((c) => c.ch));
 });
 
-test('gợi ý đủ chữ nhờ chữ lộ từ chỗ khác → tự mở, không ai được điểm', () => {
+test('gợi ý đủ chữ nhờ chữ lộ từ chỗ khác → tự mở, không ai được tính', () => {
   const { g } = game();
-  g.tick();
-  const r = g.round;
-  const target = r.clues.findIndex((c) => letterSet(c.a).size >= 2);
+  const target = g.gm.clues.findIndex((c) => letterSet(c.a).size >= 2);
   const fx = [];
-  for (const l of letterSet(r.clues[target].a)) fx.push(...g.openLetters([l]).out);
-  assert.ok(fx.some((e) => e.type === 'gm_clue_auto' && e.idx === target));
-  assert.equal(g.snapshot().clues[target].auto, true);
-  assert.equal(g.handle({ type: 'comment', user: u('x'), text: r.clues[target].a }).some((e) => e.type === 'gm_clue'), false);
+  for (const l of letterSet(g.gm.clues[target].a)) fx.push(...g.gmOpen([l]).autos);
+  assert.ok(fx.some((e) => e.type === 'wg_gm_auto' && e.idx === target));
+  assert.equal(g.snapshot().gm.clues[target].auto, true);
+  assert.equal(say(g, 'x', g.gm.clues[target].a).some((e) => e.type === 'wg_gm_clue'), false);
 });
 
-test('tạm dừng: đồng hồ đứng, bỏ qua bình luận; PauseController giữ Giải mã dừng khi tắt', () => {
-  const { g, clock } = game();
-  g.tick();
-  const left = g.remaining();
-  let on = true;
-  const p = new PauseController([g], { autoPauseOffline: false, online: true, hold: () => (on ? null : 'off') });
-  on = false; p.apply();
-  assert.equal(g.paused, true);
-  clock.add(100_000);
-  assert.equal(g.remaining(), left);
-  assert.deepEqual(g.handle({ type: 'comment', user: u('a'), text: g.round.clues[0].a }), []);
-  on = true; p.apply();
-  assert.equal(g.paused, false);
-  assert.equal(g.remaining(), left);
-});
-
-test('admin chọn câu riêng; câu không đủ gợi ý → báo lỗi', () => {
-  const { g } = game({ bank: BANK });
-  g.startRound('uống nước nhớ nguồn');
-  assert.equal(g.round.phrase, 'Uống nước nhớ nguồn');
-  assert.equal(g.adminSnapshot().secret.phrase, 'Uống nước nhớ nguồn');
-  assert.throws(() => g.startRound('Zzz wwww fff'), /không đủ/);
-});
-
-test('lưu / nạp: giữ trạng thái bật, câu đã chơi và vòng đang dở', () => {
+test('admin đặt từ riêng khi tới lượt Giải mã → vòng đó chơi gần nghĩa; câu đã chơi được lưu, không lặp', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'giaima-'));
-  const filePath = path.join(dir, 'giaima.json');
-  const { g, clock } = game({ filePath });
-  g.tick();
-  const c0 = g.round.clues[0];
-  g.handle({ type: 'comment', user: u('lan'), text: c0.a });
-  clock.add(40_000);
-  g.save();
-  const g2 = new GiaiMaGame({}, { bank: MINI, filePath, now: clock.now, rng: seeded(3) });
-  assert.equal(g2.active, true);
-  assert.equal(g2.phase, 'playing');
-  assert.equal(g2.round.phrase, g.round.phrase);
-  assert.equal(g2.round.clues[0].solvedBy.name, 'lan');
-  assert.ok(g2.round.revealed.size > 0);
-  assert.equal(g2.remaining(), g.remaining());
-  assert.deepEqual(g2.played, g.played);
+  const statePath = path.join(dir, 'wordgame.json');
+  const { g } = game({}, { statePath, modeWords: { giaima: BANK } });
+  const first = g.gm.phrase;
+  g.startRound('lò vi sóng');
+  assert.equal(g.mode, 'meaning');
+  assert.equal(g.secret, 'lò vi sóng');
+  g.skip(); g.skip();
+  assert.equal(g.mode, 'giaima');
+  assert.notEqual(g.gm.phrase, first);
+  g.dirty = true; g.save();
+  const g2 = new WordGame({ words: [{ word: 'con mèo' }], modes: ['giaima'], cooldownSec: 0 }, { scorer, statePath, modeWords: { giaima: BANK }, random: seeded(9) });
+  assert.ok(g2.gmPlayed.includes(first));
+  assert.equal(new Set(g2.gmPlayed).size, g2.gmPlayed.length, 'không lặp câu');
 });

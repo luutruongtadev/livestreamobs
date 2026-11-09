@@ -54,9 +54,9 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
 - 468 từ có sẵn trong `config.json` → `wordgame.words`: 140 từ phổ thông + 218 từ khó hơn + 78 từ tuổi thơ 8x 9x, phim / hoạt hình tuổi thơ, ẩm thực ba miền (có cách gõ khác, vd "đô rê mon" = "doraemon") + 32 từ gắn với trend / sự kiện tháng 8–11/2026 (hoa sữa, gánh hàng rong, BIGBANG, đi bão, triều cường, hoa hậu, nhóm chat, biến hình…) (đồ vật xưa, hiện tượng thiên nhiên, món ăn vùng miền, nghề đặc thù, văn hoá dân gian, khái niệm trừu tượng…). `"autoGenerate": false`: dùng hết kho Claude thì chuyển sang danh sách này (bật `true` thì kho tự sinh lô mới khi sắp hết và danh sách có sẵn chỉ là dự phòng). Đoán bỏ từ chỉ loại vẫn trúng ("chó" = "con chó").
 - OBS: `http://localhost:8686/doantu?phone=0`. Điện thoại: `https://<tên miền>/doantu?phone=1`.
 
-### 🔁 3 kiểu chơi luân phiên + mở chữ bằng tim
+### 🔁 4 kiểu chơi luân phiên + mở chữ bằng tim
 
-Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**: Gần nghĩa → Thuộc tính → Gợi ý tiếng Anh → … Bật/tắt từng kiểu và chỉnh số vòng mỗi kiểu ở admin → 🔤 Đoán từ → **Kiểu chơi** (hoặc `wordgame.modes`, `wordgame.alternateEvery` trong `config.json`). Hai kiểu dưới cần `ANTHROPIC_API_KEY`; không có key hoặc Claude lỗi thì vòng đó tự quay về kiểu Gần nghĩa.
+Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**: Gần nghĩa → Thuộc tính → Gợi ý tiếng Anh → Giải mã → … Bật/tắt từng kiểu và chỉnh số vòng mỗi kiểu ở admin → 🔤 Đoán từ → **Kiểu chơi** (hoặc `wordgame.modes`, `wordgame.alternateEvery` trong `config.json`). Hai kiểu dưới cần `ANTHROPIC_API_KEY`; không có key hoặc Claude lỗi thì vòng đó tự quay về kiểu Gần nghĩa.
 
 - **🎯 Gần nghĩa** (kiểu gốc): mỗi từ đoán được chấm 1–100.
 - **🧩 Thuộc tính**: hệ thống có **26 thuộc tính**, chỉ dùng thuộc tính khách quan (đã bỏ "trẻ em thích", "cảm giác").
@@ -66,6 +66,15 @@ Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**
   - Cách hiện ô: **xanh** là trúng; **vàng** là gần (lệch 1 bậc) hoặc trùng một phần (màu, thanh điệu); xám là khác. Thuộc tính có thứ bậc (kích thước, giá, cân nặng, nóng/lạnh, số chân, chữ cái đầu) có thêm mũi tên **↑ / ↓**: đáp án cao / thấp hơn, hoặc đứng sau / trước trong bảng chữ cái.
   - Hàng **ĐÃ BIẾT** gom những thuộc tính đã đoán trúng. Claude xếp thuộc tính mỗi từ một lần rồi lưu ở `data/attributes.json` (bản ghi cũ thiếu thuộc tính mới thì tự xếp lại). Model: `WORDGAME_ATTR_MODEL` / `wordgame.attrModel`.
 - **🇬🇧 Gợi ý tiếng Anh**: từ bí mật vẫn là tiếng Việt, gợi ý là các từ hoặc cụm mô tả ngắn tiếng Anh đơn giản (trình độ A2, vd "lives in the sea", "you can eat it"), xếp từ xa đến gần, không bao giờ là bản dịch thẳng. Hệ thống **tự mở 3 từ** theo thời gian. Từ thứ 4 và 5 chỉ mở khi cả phòng **thả đủ 2000 tim** (mỗi lần mở 1 từ) hoặc tặng quà mở gợi ý; tối đa 5 từ. Mở đủ 5 từ rồi thì thả tim quay về luật chung: 1000 tim lộ 1 chữ cái. Từ đoán vẫn chấm gần nghĩa 1–100. Gợi ý của mỗi từ lưu ở `data/english-hints.json`. Số tim chỉnh ở admin hoặc `wordgame.englishLikeEvery`. Gợi ý **đầu tiên** luôn là bản **dịch từng chữ** vui nhộn (vd "kẹo cao su" → *candy high coin*, "xấu hổ" → *ugly tiger*), sau đó là 4 gợi ý mô tả.
+- **🔐 Giải mã** (không cần Claude, không tốn token): ô chữ là một **câu bí ẩn tiếng Việt** (tục ngữ, ca dao, thành ngữ, câu nói hay, câu nói vui…), mỗi ô lục giác là một chữ cái bị ẩn, bên dưới có một con số. **Mỗi số luôn là đúng một chữ cái** trong cả vòng, hai số khác nhau là hai chữ khác nhau.
+  - Bảng bên dưới (thay bảng "gần nghĩa nhất") là 2–6 **gợi ý** kèm emoji: **câu hỏi luôn tiếng Việt**, đáp án tiếng Việt hoặc tiếng Anh (nhãn TIẾNG VIỆT / TIẾNG ANH), cũng mã bằng số. Ví dụ *"Không phải lời nói dối"* (tiếng Anh) → `TRUTH`.
+  - Người xem bình luận **đáp án gợi ý** → chữ lộ ở **mọi ô cùng số** (câu bí ẩn lẫn gợi ý khác), dòng gợi ý ghi tên người giải. Bình luận **cả câu** (không cần dấu, kèm chữ khác vẫn được) → **thắng vòng**, tính điểm tuần / combo / hiệu ứng như mọi vòng. Bình luận khác hiện ở "Vừa đoán" (không chấm điểm).
+  - Mã hoá theo **chữ gốc bỏ dấu** (Ă / Â / Á… = A, Đ = D) nên đáp án tiếng Anh ghép được với câu tiếng Việt; ô đã lộ hiện đúng chữ có dấu.
+  - Mỗi vòng tự chọn gợi ý trong kho sao cho chữ của gợi ý đều nằm trong câu, che gần hết câu và **chừa 1–2 chữ** để tự suy, trộn tiếng Việt + tiếng Anh, không lặp gợi ý vừa dùng, không lặp câu tới khi hết kho.
+  - Hệ thống tự lộ 1 chữ ở giây 120 / 180 / 240 (`wordgame.giaimaRevealAt`). Quà / tim theo luật chung: 🌹 / 🫰 / ❤️ = lộ 1 chữ · 🎁 10 xu = **giải hộ 1 gợi ý** · 💎 99 xu = **lộ 3 chữ** · 🍩 +60 giây. Luôn chừa ít nhất 1 chữ.
+  - Chỉ chơi ở bộ **từ vựng chung** (đang chơi bộ riêng như LMHT thì bỏ qua). Admin đặt từ riêng đúng lượt Giải mã thì vòng đó chơi gần nghĩa.
+  - Kho `modewords/giaima.json` (75 câu, ~430 gợi ý): `phrases: [{ text, kind, meaning }]`, `clues: [{ q, a, e, lang: "vi" | "en", alt? }]`. Thêm câu / gợi ý rồi chạy `npm test` (test kiểm tra mọi câu đều đủ gợi ý). Chỉnh cách chọn gợi ý ở `wordgame.giaima` (`minClues`, `maxClues`, `leaveHidden`).
+  - Server đang chạy có lưu sẵn danh sách kiểu chơi cũ → vào admin → 🔤 Đoán từ → **Kiểu chơi** tích **🔐 Giải mã** rồi 💾 Lưu.
 - **Kho chủ đề soạn sẵn cho kiểu Gần nghĩa** (`modewords/meaning.json`, 178 từ): cầu thủ bóng đá, hãng xe, hãng thời trang, trà sữa / cà phê, chương trình truyền hình, đơn vị tiền tệ, nghề nghiệp, trường đại học (Hà Nội / Sài Gòn), anh hùng dân tộc, người nổi tiếng, thuật ngữ ai cũng hiểu, ngày lễ Việt Nam. Mỗi từ có 3 emoji + chủ đề + 1 dòng mô tả, kèm cách gọi khác (vd "cr7" = ronaldo). Vòng Gần nghĩa có 50% lấy từ kho này (`wordgame.curatedRatio`); kho chung hết thì lấy hết kho này trước.
 - **Không lặp từ, dùng hết kho có sẵn trước**: mọi kho (kho Claude, từ có sẵn, 3 kho soạn sẵn) dùng chung một danh sách "đã chơi" nên không bao giờ ra lại từ đã chơi. Claude chỉ sinh lô từ mới khi kho chung, từ có sẵn và kho chủ đề soạn sẵn đều sắp hết.
 - **Kho từ soạn sẵn** (`modewords/`): 285 từ cho chế độ Thuộc tính (đủ 24 thuộc tính nghĩa + emoji + gợi ý) và 266 từ cho chế độ Tiếng Anh (dịch từng chữ + 4 gợi ý A2), có cả các chủ đề mới (bóng đá, xe, thời trang, cà phê, TV, tiền tệ, nghề, đại học, anh hùng, người nổi tiếng, thuật ngữ, ngày lễ). Vòng của chế độ nào thì lấy từ chưa chơi trong kho của chế độ đó trước, nên không tốn Claude cho từ bí mật. Admin hiện số từ còn lại; hết kho thì lấy từ kho chung và Claude soạn thuộc tính / gợi ý. Thêm từ bằng tay: sửa file JSON cùng định dạng.
@@ -101,22 +110,6 @@ Thẻ kết quả cũng đổi màu + tiêu đề theo mức (vd "⚡ THẦN Đ�
 - **Nút trong admin** (mục Kết nối TikTok Live): ⏸ Tạm dừng game / ▶ Tiếp tục — dùng bất cứ lúc nào, kể cả đang live.
   Bấm “Tiếp tục” khi chưa live để chơi thử bằng giả lập (lần mất live sau sẽ lại tự dừng).
 - Tắt tự dừng: `"autoPauseOffline": false` trong `config.json` hoặc biến môi trường `AUTO_PAUSE_OFFLINE=0`.
-
-## 🔐 Game Giải mã (`/giaima`)
-
-Giải mật thư kiểu ô chữ số: phía trên là một **câu bí ẩn tiếng Việt** (tục ngữ, ca dao, thành ngữ, câu nói hay, câu nói vui…), mỗi ô lục giác là một chữ cái bị ẩn, bên dưới mỗi ô có một con số. **Mỗi số luôn là đúng một chữ cái** trong cả vòng, hai số khác nhau là hai chữ khác nhau.
-
-- Bên dưới là 2–6 **gợi ý** kèm emoji minh hoạ: **câu hỏi luôn tiếng Việt**, đáp án là một từ **tiếng Việt hoặc tiếng Anh** (có nhãn 🇻🇳 / 🇬🇧), cũng mã bằng số. Ví dụ: *"Không phải lời nói dối"* 🇬🇧 → `TRUTH`, *"Chăm chỉ làm ra mật ngọt"* 🇻🇳 → `ONG`.
-- Người xem **bình luận đáp án gợi ý** → chữ cái lộ ra ở **mọi ô cùng số** (cả câu bí ẩn lẫn gợi ý khác). Bình luận **cả câu** (không cần dấu, có thể kèm chữ khác: "đáp án là ăn quả nhớ kẻ trồng cây") → **thắng vòng**.
-- Mã hoá theo **chữ gốc bỏ dấu** (Ă / Â / Á / Ạ… cùng là A, Đ là D) nên đáp án tiếng Anh ghép được với câu tiếng Việt; ô đã lộ hiện đúng chữ có dấu.
-- Mỗi vòng server tự chọn gợi ý từ kho sao cho chữ của gợi ý đều nằm trong câu, che gần hết câu và **chừa 1–2 chữ** để người xem tự suy, ưu tiên trộn tiếng Việt + tiếng Anh, không lặp gợi ý vừa dùng. Không gọi Claude, **không tốn token**.
-- Điểm: giải 1 gợi ý **+10**, giải cả câu **+100** (bảng 🏆 *Cao thủ hôm nay* trên màn hình, đặt lại mỗi ngày giờ VN). Người giải cả câu còn được **điểm tuần** như Đoán từ (100 + thưởng tốc độ + điểm quà / chia sẻ đang tích).
-- Quà / tim: 5 🌹 (cộng dồn cả phòng) hoặc 1 🫰 = lộ 1 chữ · 🎁 ≥ 10 xu = giải hộ 1 gợi ý · 🍩 ≥ 30 xu = +60 giây · 💎 ≥ 99 xu = lộ 3 chữ · cả phòng **1000 tim** = lộ 1 chữ. Luôn chừa lại ít nhất 1 chữ. Ai tặng quà cũng có thẻ cảm ơn + đọc tên (giọng MC ElevenLabs nếu có).
-- Mỗi vòng 5 phút; hệ thống tự lộ 1 chữ ở giây 150 / 210 / 260; hết giờ hiện đáp án + ý nghĩa câu, 14 giây sau sang câu mới. Không lặp câu tới khi chơi hết kho.
-- **Bật**: admin → 🔐 Game Giải mã → **▶ Bật game Giải mã** (Đoán từ và Ghép tự đứng yên, giữ nguyên vòng). Admin còn có: xem đáp án (không hiện trên live), ⏭ câu khác, 💡 lộ 1 chữ, tự nhập câu bí ẩn để chơi, gửi thử bình luận / quà.
-- OBS: Browser Source `http://localhost:8686/giaima` (1080×1920); `?bg=green` nền xanh / `?bg=none` trong suốt, `?mute=1`, `?tts=0`.
-- **Kho câu đố** `modewords/giaima.json` (75 câu, ~430 gợi ý): `phrases: [{ text, kind, meaning }]`, `clues: [{ q, a, e, lang: "vi" | "en", alt? }]`. Thêm câu / gợi ý bằng tay rồi chạy `npm test` — test kiểm tra mọi câu đều đủ gợi ý. Câu dài nhiều chữ cái lạ (Q, X, Y…) cần có gợi ý chứa các chữ đó.
-- Chỉnh luật ở khối `giaima` trong `config.json` (`roundSeconds`, `breakSeconds`, `autoRevealAt`, `minClues`, `maxClues`, `leaveHidden`, `likeEvery`, `gifts`…, xem `GIAIMA_DEFAULTS` trong `server/giaima.js`). Trạng thái lưu ở `data/giaima.json`.
 
 ## 🌙 Hẹn giờ kết thúc live (mặc định 01:00)
 
@@ -401,11 +394,10 @@ server/
   wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
   weekly.js     Bảng xếp hạng tuần · teams.js đấu đội
   voice.js      Giọng MC ElevenLabs · goodbye.js hẹn giờ kết thúc live · pause.js tạm dừng
-  ghep.js       Game Ghép (/ghep) · giaima.js game Giải mã (/giaima, kho modewords/giaima.json)
+  ghep.js       Game Ghép (/ghep) · giaima.js kiểu chơi Giải mã (chọn câu + gợi ý, kho modewords/giaima.json)
   text.js       Bỏ dấu tiếng Việt
 public/
   doantu.html, js/wordgame.js   Màn hình game (canvas 1080×1920)
-  giaima.html, js/giaima.js     Màn hình game Giải mã (HTML 1080×1920)
   js/sound.js, js/goodbye.js    Âm thanh WebAudio · màn "Chúc cả nhà ngủ ngon"
   admin.html                    Bảng điều khiển
 wordsets/                       Bộ từ có sẵn (trend MXH…)

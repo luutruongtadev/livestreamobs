@@ -17,7 +17,6 @@ import { Voice } from './voice.js';
 import { AttrStore } from './attributes.js';
 import { EnglishHintStore } from './englishhints.js';
 import { GhepGame } from './ghep.js';
-import { GiaiMaGame } from './giaima.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,6 +96,11 @@ const modeWords = {};
 for (const [mode, file] of [['meaning', 'meaning.json'], ['attr', 'attr.json'], ['english', 'english.json']]) {
   try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được modewords/${file}:`, e.message); }
 }
+// kiểu Giải mã: câu bí ẩn + gợi ý (câu hỏi tiếng Việt, đáp án Việt / Anh) soạn sẵn — không tốn token
+try {
+  const gm = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', 'giaima.json'), 'utf8'));
+  modeWords.giaima = { phrases: gm.phrases || [], clues: gm.clues || [] };
+} catch (e) { console.warn('[wordgame] không đọc được modewords/giaima.json:', e.message); }
 attrStore.seed(modeWords.attr || []);
 // thuộc tính soạn sẵn cho ~670 từ có trong hệ thống (người xem hay đoán) → không tốn token khi gặp lại
 try {
@@ -113,16 +117,8 @@ const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, '
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
 // Game "Ghép" (/ghep): bình luận "A + B" → ghép emoji kiểu Emoji Kitchen; quà ≥ 10 xu → trình diễn đặc biệt
 const ghep = new GhepGame(config.ghep || {}, { client: claudeClientFromEnv(), filePath: path.join(ROOT, 'data', 'ghep.json') });
-// Game "Giải mã" (/giaima): câu bí ẩn tiếng Việt mã bằng số, giải gợi ý (câu hỏi tiếng Việt, đáp án Việt / Anh) để lộ chữ — không tốn token
-const giaima = new GiaiMaGame(config.giaima || {}, { weekly, filePath: path.join(ROOT, 'data', 'giaima.json') });
-if (ghep.active && giaima.active) giaima.setActive(false); // chỉ 1 game phụ chạy cùng lúc
 if (ghep.active) console.log('[ghep] đang bật game Ghép (Đoán từ tạm dừng)');
-if (giaima.active) console.log('[giaima] đang bật game Giải mã (Đoán từ tạm dừng)');
-// game đang chơi = Ghép / Giải mã / Đoán từ; game không được chọn thì đứng yên (giữ nguyên vòng)
-const pauser = new PauseController([wg, giaima], {
-  autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false,
-  hold: (g) => (g === giaima ? (giaima.active ? null : 'off') : ghep.active ? 'ghep' : giaima.active ? 'giaima' : null),
-});
+const pauser = new PauseController([wg], { autoPauseOffline: config.autoPauseOffline !== false && process.env.AUTO_PAUSE_OFFLINE !== '0', online: false, hold: () => (ghep.active ? 'ghep' : null) });
 
 // ---------------- WebSocket hub ----------------
 const app = express();
@@ -142,7 +138,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState(), ghep: ghep.snapshot(), giaima: giaima.snapshot() });
+  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState(), ghep: ghep.snapshot() });
 });
 
 function ingest(ev) {
@@ -150,12 +146,6 @@ function ingest(ev) {
     // đang chơi Ghép: mọi bình luận / quà vào game Ghép, Đoán từ đứng yên
     const fx = ghep.handle(ev);
     ghepBroadcast(fx);
-    return fx;
-  }
-  if (giaima.active) {
-    // đang chơi Giải mã: bình luận / quà / tim vào game Giải mã
-    const fx = giaima.handle(ev);
-    giaimaBroadcast(fx);
     return fx;
   }
   const wgFx = wg.handle(ev);
@@ -184,23 +174,7 @@ function ghepBroadcast(effects) {
   ghepTimer = setTimeout(() => { ghepTimer = null; broadcast({ type: 'ghep', ghep: ghep.snapshot() }); }, 300);
 }
 ghep.on('effects', ghepBroadcast);
-let giaimaTimer = null;
-function giaimaBroadcast(effects) {
-  if (effects?.length) broadcast({ type: 'giaimafx', effects });
-  // vừa có người tặng quà: giọng MC cảm ơn như Đoán từ
-  for (const e of effects || []) if (e.type === 'gm_thanks') voice.gift(e);
-  if (giaimaTimer) return;
-  giaimaTimer = setTimeout(() => { giaimaTimer = null; broadcast({ type: 'giaima', giaima: giaima.snapshot() }); }, 150);
-}
-giaima.on('effects', giaimaBroadcast);
-let giaimaLastRemaining = -1;
-setInterval(() => {
-  const fx = giaima.tick();
-  const rem = giaima.remaining();
-  if (fx.length || rem !== giaimaLastRemaining) { giaimaLastRemaining = rem; giaimaBroadcast(fx); }
-}, 250).unref();
-// giọng MC phát ở trang game đang chơi (Giải mã bật → trang /giaima, không thì /doantu) để không trùng tiếng
-voice.on('voice', (v) => broadcast({ type: 'voice', game: giaima.active ? 'giaima' : 'wg', voice: v }));
+voice.on('voice', (v) => broadcast({ type: 'voice', game: 'wg', voice: v }));
 voice.on('state', (st) => broadcast({ type: 'voice_state', voice: st }));
 // số credit còn lại trên tài khoản ElevenLabs: lúc khởi động + mỗi 10 phút
 if (voice.enabled) { voice.refreshAccount(); setInterval(() => voice.refreshAccount(), 10 * 60e3).unref(); }
@@ -238,7 +212,6 @@ function pauseBroadcast() {
   console.log(`[pause] ${p.paused ? 'tạm dừng (' + p.reason + ')' : 'đang chạy'}`);
   broadcast({ type: 'pause', pause: p });
   wgBroadcast([]);
-  giaimaBroadcast([]);
 }
 
 app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
@@ -257,7 +230,7 @@ app.post('/api/goodbye', express.json({ limit: '16kb' }), requireAdmin, (req, re
 });
 
 setInterval(() => {
-  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.save(); giaima.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
+  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.save(); } catch (e) { console.warn('[wordgame] save lỗi:', e.message); }
 }, 5000).unref();
 
 // ---------------- HTTP API ----------------
@@ -341,7 +314,6 @@ app.post('/api/ghep/:action', requireAdmin, (req, res) => {
   const a = req.params.action;
   if (a === 'on' || a === 'off') {
     ghep.setActive(a === 'on');
-    if (a === 'on' && giaima.active) { giaima.setActive(false); giaimaBroadcast([]); }
     ghep.save();
     pauser.apply();
     pauseBroadcast();
@@ -356,35 +328,6 @@ app.post('/api/ghep/:action', requireAdmin, (req, res) => {
   else return res.status(404).json({ error: 'không rõ thao tác' });
   ghepBroadcast(fx);
   res.json({ ok: true, effects: fx });
-});
-
-// Game Giải mã: bật / tắt (Đoán từ & Ghép tự dừng khi bật), sang câu khác, chọn câu, mở chữ, thử bình luận / quà
-app.get('/api/giaima', (_req, res) => res.json(giaima.snapshot()));
-app.post('/api/giaima/:action', requireAdmin, (req, res) => {
-  const b = req.body || {};
-  const a = req.params.action;
-  const name = String(b.name || 'Người thử').slice(0, 40);
-  const user = { id: 'sim:' + name, name, avatar: null };
-  let fx = [];
-  try {
-    if (a === 'on' || a === 'off') {
-      giaima.setActive(a === 'on');
-      if (a === 'on' && ghep.active) { ghep.setActive(false); ghep.save(); ghepBroadcast([]); }
-      pauser.apply();
-      pauseBroadcast();
-    } else if (a === 'next') fx = giaima.skip();
-    else if (a === 'phrase') {
-      const text = String(b.phrase || '').trim();
-      if (!text) return res.status(400).json({ error: 'Nhập câu bí ẩn' });
-      fx = giaima.startRound(text);
-    } else if (a === 'letter') { if (giaima.canPlay()) fx = giaima.revealLetters(1, null, { reason: 'admin', icon: '🛠️' }); }
-    else if (a === 'comment') fx = giaima.handle({ type: 'comment', user, text: String(b.text || '') });
-    else if (a === 'gift') fx = giaima.handle({ type: 'gift', user, giftName: b.giftName || 'Quà thử', diamonds: Number(b.diamonds) || 1, repeatCount: Number(b.repeat) || 1 });
-    else if (a !== 'peek') return res.status(404).json({ error: 'action: on | off | next | phrase | letter | comment | gift | peek' });
-  } catch (e) { return res.status(400).json({ error: e.message }); }
-  giaima.dirty = true;
-  giaimaBroadcast(fx);
-  res.json({ ok: true, effects: fx, giaima: giaima.adminSnapshot(), pause: pauser.status() });
 });
 
 app.post('/api/wg/:action', requireAdmin, async (req, res) => {
@@ -525,7 +468,6 @@ server.listen(port, host, () => {
   console.log('  Đoán từ đang chạy');
   console.log(`  Màn hình game (OBS / điện thoại): ${base}/doantu`);
   console.log(`  Game Ghép (bật ở admin):          ${base}/ghep`);
-  console.log(`  Game Giải mã (bật ở admin):       ${base}/giaima`);
   console.log(`  Bảng điều khiển:                  ${base}/admin`);
   console.log('==============================================');
   if (config.autoConnect && config.tiktokUsername) {
@@ -535,7 +477,7 @@ server.listen(port, host, () => {
 
 async function shutdown() {
   console.log('\nĐang lưu dữ liệu và tắt...');
-  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.dirty = true; ghep.save(); giaima.dirty = true; giaima.save(); } catch { /* bỏ qua */ }
+  try { wg.save(); weekly.save(); attrStore.save(); englishStore.save(); ghep.dirty = true; ghep.save(); } catch { /* bỏ qua */ }
   await tiktok.disconnect().catch(() => {});
   process.exit(0);
 }

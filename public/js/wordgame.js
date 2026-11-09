@@ -26,7 +26,9 @@ let G = null; // snapshot game
 let cfg = {};
 let wsOk = false;
 let sound = new SoundBoard({ muted: opt.mute, theme: 'game' });
-const fx = { confetti: [], floaters: [], flash: 0, hintFlash: 0, rowY: new Map(), highlight: new Map(), banner: null, letterAt: new Map(), unlockFlash: new Map() };
+const fx = { confetti: [], floaters: [], flash: 0, hintFlash: 0, rowY: new Map(), highlight: new Map(), banner: null, letterAt: new Map(), unlockFlash: new Map(), gmFlash: new Map(), gmRow: new Map() };
+// kiểu Giải mã: số vừa lộ nháy sáng (cả câu bí ẩn lẫn gợi ý), dòng gợi ý vừa giải nháy xanh
+function gmFlashNums(nums) { const now = performance.now(); for (const n of nums || []) fx.gmFlash.set(n, now); }
 
 // ---------------- tiện ích ----------------
 const font = (w, s, serif = false) => `${w} ${s}px ${serif ? "'Noto Serif', serif" : "'Be Vietnam Pro', system-ui, sans-serif"}`;
@@ -241,6 +243,16 @@ function handle(e) {
       fx.banner = { text: `🔓 MỞ KHOÁ CỘT ${e.icon} ${String(e.name).toUpperCase()}!`, sub: `Đã có ${e.after} từ được đoán · ↑ đáp án đứng sau, ↓ đứng trước trong bảng chữ cái`, t: 4, color: '#facc15' };
       sound.play('levelup'); confetti(80);
       break;
+    case 'wg_gm_clue': {
+      gmFlashNums(e.nums);
+      fx.gmRow.set(e.idx, performance.now());
+      fx.banner = { text: `🔑 ${clip(e.by?.name, 16)} giải được “${String(e.answer).toUpperCase()}”`, sub: e.nums.length ? `Lộ chữ số ${e.nums.join(', ')} ở mọi ô cùng số` : 'Các chữ này đã lộ từ trước', t: 3.5, color: '#4ade80' };
+      sound.play('chime', { pitch: 1.4 });
+      break;
+    }
+    case 'wg_gm_auto':
+      fx.gmRow.set(e.idx, performance.now());
+      break;
     case 'wg_mode':
       if (e.fallback) fx.banner = { text: '🎯 Vòng này chơi kiểu gần nghĩa', sub: 'Bình luận một từ để đoán', t: 3, color: '#60a5fa' };
       break;
@@ -251,6 +263,7 @@ function handle(e) {
       break;
     case 'wg_unlock': {
       const now = performance.now();
+      if (e.gm) { gmFlashNums(e.gm.nums); if (e.gm.clue) fx.gmRow.set(e.gm.clue.idx, now); }
       fx.unlockFlash.set(G?.unlocks?.find((u) => u.label === e.label)?.id, now);
       for (const i of e.indexes || []) fx.letterAt.set(i, now);
       if (e.likes) {
@@ -263,7 +276,9 @@ function handle(e) {
         break;
       }
       const who = e.by ? clip(e.by.name, 16) : 'Ai đó';
-      const what = e.action === 'letter' ? 'lộ 1 chữ cái!' : e.action === 'syllable' ? 'lộ cả 1 tiếng!' : e.action === 'time' ? `+${e.seconds} giây!` : 'mở gợi ý!';
+      const what = e.gm
+        ? (e.gm.clue ? `giải gợi ý “${String(e.gm.clue.answer).toUpperCase()}”!` : `lộ ${e.gm.nums.length} chữ cái!`)
+        : e.action === 'letter' ? 'lộ 1 chữ cái!' : e.action === 'syllable' ? 'lộ cả 1 tiếng!' : e.action === 'time' ? `+${e.seconds} giây!` : 'mở gợi ý!';
       fx.banner = { text: `${e.icon || '🎁'} ${who} tặng ${e.repeat > 1 ? e.repeat + ' ' : ''}${e.giftName || 'quà'}: ${what}`, sub: e.hint || e.label || '', t: 4, color: '#facc15' };
       fx.hintFlash = 1;
       sound.play(e.action === 'syllable' ? 'levelup' : 'bell');
@@ -274,6 +289,7 @@ function handle(e) {
       fx.banner = { text: '✨ Gợi ý vừa được làm mới!', sub: '', t: 2.5, color: '#a5b4fc' };
       break;
     case 'wg_hint':
+      if (e.gm) gmFlashNums(e.gm.nums);
       if (e.by || e.likes) break; // gợi ý do quà / tim mở đã có thông báo wg_unlock
       fx.hintFlash = 1;
       sound.play('bell');
@@ -287,9 +303,11 @@ function handle(e) {
       sound.play('bell');
       break;
     case 'wg_start':
-      fx.rowY.clear(); fx.highlight.clear(); fx.letterAt.clear();
+      fx.rowY.clear(); fx.highlight.clear(); fx.letterAt.clear(); fx.gmFlash.clear(); fx.gmRow.clear();
       sound.play('chime');
-      fx.banner = e.mode === 'attr'
+      fx.banner = e.mode === 'giaima'
+        ? { text: `🔐 VÒNG ${e.round}: GIẢI MÃ CÂU BÍ ẨN`, sub: 'Cùng số = cùng chữ · giải gợi ý để mở chữ, đoán cả câu để thắng', t: 4.5, color: '#fbbf24' }
+        : e.mode === 'attr'
         ? { text: `🧩 VÒNG ${e.round}: ĐOÁN THUỘC TÍNH`, sub: 'Từ đoán có thuộc tính giống từ bí mật → ô xanh', t: 4, color: '#4ade80' }
         : e.mode === 'english'
           ? { text: `🔤 VÒNG ${e.round}: GỢI Ý TIẾNG ANH`, sub: 'Gợi ý bằng tiếng Anh — đoán bằng tiếng Việt', t: 4, color: '#f472b6' }
@@ -667,7 +685,149 @@ function chipLayout() {
   return { items, ws, rows, gap };
 }
 
+// ---------------- kiểu Giải mã ----------------
+function hexPath(cx, cy, w) {
+  const h = w * 1.1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - h / 2); ctx.lineTo(cx + w / 2, cy - h * 0.26); ctx.lineTo(cx + w / 2, cy + h * 0.26);
+  ctx.lineTo(cx, cy + h / 2); ctx.lineTo(cx - w / 2, cy + h * 0.26); ctx.lineTo(cx - w / 2, cy - h * 0.26); ctx.closePath();
+}
+/** 1 ô lục giác (tâm ngang cx, mép trên top, rộng w) + số bên dưới. Ô vừa lộ phóng to + nháy vàng. */
+function drawHexCell(cx, top, w, cell, numSize) {
+  const at = fx.gmFlash.get(cell.n);
+  const fl = at ? Math.max(0, 1 - (performance.now() - at) / 1400) : 0;
+  const h = w * 1.1, cy = top + h / 2;
+  ctx.save();
+  if (fl > 0) { const k = 1 + 0.3 * Math.sin(fl * Math.PI); ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(-cx, -cy); }
+  hexPath(cx, cy, w);
+  if (cell.ch) { const g = ctx.createLinearGradient(0, cy - h / 2, 0, cy + h / 2); g.addColorStop(0, '#fff3c4'); g.addColorStop(1, '#f59e0b'); ctx.fillStyle = g; }
+  else ctx.fillStyle = 'rgba(28,26,84,.96)';
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, w * 0.07); ctx.strokeStyle = fl > 0 ? '#fde047' : cell.ch ? '#fcd34d' : '#8b8cff'; ctx.stroke();
+  if (cell.ch) { ctx.font = font(900, Math.round(w * 0.56)); ctx.fillStyle = '#2b1700'; ctx.fillText(cell.ch, cx, cy + w * 0.03); }
+  ctx.restore();
+  ctx.font = font(800, numSize); ctx.fillStyle = fl > 0 ? '#fde047' : cell.ch ? 'rgba(199,210,254,.55)' : '#c7d2fe';
+  ctx.fillText(String(cell.n || ''), cx, top + h + numSize * 0.72);
+}
+/** Cỡ ô lớn nhất để câu vừa khung (ngắt dòng theo từ). */
+function gmLayout(words, maxW, maxH) {
+  for (let w = 80; w >= 30; w -= 2) {
+    const cg = Math.round(w * 0.1), wg = Math.round(w * 0.5), numSize = Math.max(15, Math.round(w * 0.3));
+    const lineH = w * 1.1 + numSize * 1.5 + 6;
+    const lines = [];
+    let cur = [], curW = 0, ok = true;
+    for (const word of words) {
+      const ww = word.length * w + (word.length - 1) * cg;
+      if (ww > maxW) { ok = false; break; }
+      if (cur.length && curW + wg + ww > maxW) { lines.push({ words: cur, w: curW }); cur = []; curW = 0; }
+      curW += (cur.length ? wg : 0) + ww;
+      cur.push(word);
+    }
+    if (!ok) continue;
+    if (cur.length) lines.push({ words: cur, w: curW });
+    if (lines.length * lineH <= maxH || w === 30) return { w, cg, wg, numSize, lineH, lines };
+  }
+}
+function drawGmSecret(t) {
+  const y = 392, gm = G.gm;
+  const Lg = gmLayout(gm.words, W - 150, 330);
+  const cellsTop = y + 64;
+  const cellsBottom = cellsTop + Lg.lines.length * Lg.lineH;
+  const infoY = cellsBottom + 18;
+  const chips = chipLayout();
+  const chipY0 = infoY + 50;
+  const h = chipY0 + Math.max(0, chips.rows.length - 1) * 46 + 36 - y;
+  L.secretBottom = y + h;
+  ctx.save();
+  rr(40, y, W - 80, h, 26);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(49,46,129,.94)'); g.addColorStop(1, 'rgba(30,27,75,.94)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = fx.hintFlash > 0 ? `rgba(250,204,21,${0.5 + fx.hintFlash / 2})` : '#fbbf24'; ctx.lineWidth = 3 + fx.hintFlash * 4; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = font(900, 24); ctx.fillStyle = '#fde68a';
+  ctx.fillText(fitText(`🔐 CÂU BÍ ẨN · ${String(gm.kind || '').toUpperCase()} · CÙNG SỐ = CÙNG CHỮ`, W - 140), W / 2, y + 32);
+  Lg.lines.forEach((line, li) => {
+    let x = W / 2 - line.w / 2;
+    const top = cellsTop + li * Lg.lineH;
+    line.words.forEach((word) => {
+      word.forEach((cell) => { drawHexCell(x + Lg.w / 2, top, Lg.w, cell, Lg.numSize); x += Lg.w + Lg.cg; });
+      x += Lg.wg - Lg.cg;
+    });
+  });
+  ctx.font = font(700, 22); ctx.fillStyle = 'rgba(224,231,255,.92)';
+  const next = G.nextHintIn != null && G.phase === 'playing' ? ` · lộ thêm 1 chữ sau ${G.nextHintIn}s` : '';
+  ctx.fillText(fitText(`💬 Bình luận đáp án gợi ý để mở chữ · đoán CẢ CÂU để thắng${next}`, W - 130), W / 2, infoY + 6);
+  drawUnlockMenu(chips, chipY0);
+  ctx.restore();
+}
+
+/** Bảng gợi ý: emoji · nhãn tiếng Việt / tiếng Anh · câu hỏi · ô đáp án có số · người giải. */
+function drawGmClues(t) {
+  const gm = G.gm, list = gm.clues || [], n = list.length;
+  const top = L.secretBottom + 22, x0 = 40, w = W - 80;
+  const rowH = n <= 4 ? 106 : n === 5 ? 98 : 88;
+  const hw = n <= 4 ? 40 : n === 5 ? 36 : 32, qY = n <= 5 ? 25 : 22, hTop = n <= 4 ? 43 : n === 5 ? 41 : 37, numSize = n <= 5 ? 15 : 14;
+  const h = 58 + n * rowH + 10;
+  L.rankTop = top; L.rankBottom = top + h;
+  ctx.save();
+  rr(x0, top, w, h, 24); ctx.fillStyle = 'rgba(15,18,60,.88)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(45,212,191,.6)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left'; ctx.font = font(800, 24); ctx.fillStyle = '#99f6e4';
+  ctx.fillText('🧩 GỢI Ý', x0 + 26, top + 30);
+  ctx.textAlign = 'right'; ctx.font = font(600, 18); ctx.fillStyle = 'rgba(199,210,254,.85)';
+  const solved = list.filter((c) => c.solvedBy || c.auto).length;
+  ctx.fillText(`Câu hỏi tiếng Việt · đáp án Việt hoặc Anh · đã giải ${solved}/${n} · còn ${gm.hiddenCount} chữ ẩn`, x0 + w - 26, top + 30);
+  const now = performance.now();
+  list.forEach((c, i) => {
+    const y = top + 56 + i * rowH;
+    const at = fx.gmRow.get(i);
+    const k = at ? Math.max(0, 1 - (now - at) / 1500) : 0;
+    rr(x0 + 14, y + 3, w - 28, rowH - 6, 16);
+    ctx.fillStyle = k > 0 ? `rgba(74,222,128,${0.15 + 0.3 * k})` : c.solvedBy ? 'rgba(74,222,128,.12)' : c.auto ? 'rgba(148,163,184,.1)' : 'rgba(255,255,255,.05)';
+    ctx.fill();
+    if (c.solvedBy) { ctx.strokeStyle = 'rgba(74,222,128,.6)'; ctx.lineWidth = 2; ctx.stroke(); }
+    // emoji minh hoạ
+    ctx.textAlign = 'center'; ctx.fillStyle = '#000';
+    ctx.font = `${n <= 5 ? 54 : 46}px 'Noto Color Emoji', 'Apple Color Emoji', sans-serif`;
+    ctx.fillText(noFlagsClient(c.e), x0 + 66, y + rowH / 2 + 2);
+    // nhãn ngôn ngữ (chữ, không dùng cờ: OBS trên Windows hiện cờ thành "VN"/"GB")
+    const tag = c.lang === 'en' ? 'TIẾNG ANH' : 'TIẾNG VIỆT';
+    ctx.font = font(900, 15);
+    const tw = ctx.measureText(tag).width + 16, tx = x0 + 112;
+    rr(tx, y + qY - 13, tw, 26, 9);
+    ctx.fillStyle = c.lang === 'en' ? 'rgba(59,130,246,.35)' : 'rgba(239,68,68,.32)'; ctx.fill();
+    ctx.fillStyle = c.lang === 'en' ? '#bfdbfe' : '#fecaca'; ctx.fillText(tag, tx + tw / 2, y + qY + 1);
+    // câu hỏi
+    ctx.textAlign = 'left'; ctx.font = font(800, n <= 5 ? 24 : 22); ctx.fillStyle = '#fff';
+    ctx.fillText(fitText(c.q, x0 + w - 30 - (tx + tw + 12)), tx + tw + 12, y + qY + 1);
+    // ô đáp án
+    ctx.textAlign = 'center';
+    let x = x0 + 112 + hw / 2;
+    c.cells.forEach((word) => {
+      word.forEach((cell) => { drawHexCell(x, y + hTop, hw, cell, numSize); x += hw + Math.round(hw * 0.14); });
+      x += Math.round(hw * 0.45);
+    });
+    // người giải
+    if (c.solvedBy || c.auto) {
+      const label = c.solvedBy ? `${c.via === 'gift' ? '🎁' : '✔'} ${clip(c.solvedBy.name, 14)}` : '🔓 tự lộ';
+      ctx.font = font(800, 19);
+      const lw = ctx.measureText(label).width + (c.solvedBy ? 52 : 24);
+      const cx = x0 + w - 28 - lw, cy = y + hTop + hw * 0.55;
+      rr(cx, cy - 18, lw, 36, 18);
+      ctx.fillStyle = c.solvedBy ? 'rgba(22,163,74,.85)' : 'rgba(71,85,105,.85)'; ctx.fill();
+      if (c.solvedBy) avatar(c.solvedBy, cx + 20, cy, 14, '#bbf7d0');
+      ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+      ctx.fillText(label, cx + (c.solvedBy ? 40 : 12), cy + 1);
+    }
+  });
+  ctx.restore();
+}
+const noFlagsClient = (s) => String(s ?? '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '🌏');
+
 function drawSecret(t) {
+  if (G.mode === 'giaima' && G.gm) return drawGmSecret(t);
   const y = 392;
   const groups = G.pattern;
   const total = groups.reduce((a, b) => a + b, 0) + (groups.length - 1) * 0.8;
@@ -878,6 +1038,7 @@ function drawAttrBoard(t) {
 
 function drawRanking(t) {
   if (G.mode === 'attr') return drawAttrBoard(t);
+  if (G.mode === 'giaima' && G.gm) return drawGmClues(t);
   const top = L.secretBottom + 26, rowH = 60, x = 40, w = W - 80;
   const list = (G.ranked || []).slice(0, L.secretBottom > 800 ? 6 : L.secretBottom > 740 ? 7 : 8);
   L.rankTop = top;
@@ -935,12 +1096,12 @@ function drawFeed() {
     ctx.font = font(700, 24);
     const label = `${clip(f.by?.name, 14)}: ${clip(f.word, 18)}`;
     const attrMode = !!f.cells;
-    const sc = f.pending ? '…' : attrMode ? `${f.score}/6` : String(f.score);
+    const sc = f.gm ? '✗' : f.pending ? '…' : attrMode ? `${f.score}/6` : String(f.score);
     const tw = ctx.measureText(label).width;
     const w = tw + 150;
     rr(40, y - 24, w, 48, 24);
     ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
-    const col = attrMode ? scoreColor(Math.round((f.score / 6) * 100)) : scoreColor(f.score);
+    const col = f.gm ? '#94a3b8' : attrMode ? scoreColor(Math.round((f.score / 6) * 100)) : scoreColor(f.score);
     ctx.strokeStyle = f.pending ? 'rgba(255,255,255,.3)' : col; ctx.lineWidth = 2; ctx.stroke();
     avatar(f.by, 66, y, 16, teamColor(teamOfUser(f.by?.id)) || 'rgba(255,255,255,.7)');
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
@@ -953,9 +1114,12 @@ function drawFeed() {
 }
 
 function drawGuide() {
-  const items = G.team?.on
-    ? ['💬 Bình luận 1 từ để đoán', `👥 "${G.team.teams[0].keyword}" / "${G.team.teams[1].keyword}" để vào đội`, '⚡ Đoán sớm = nhiều điểm']
-    : ['💬 Bình luận 1 từ để đoán', '⚡ Đoán sớm = nhiều điểm', '🔁 Share / 🎁 quà = điểm thưởng'];
+  const first = G.mode === 'giaima' ? '💬 Bình luận đáp án gợi ý' : '💬 Bình luận 1 từ để đoán';
+  const items = G.mode === 'giaima' && !G.team?.on
+    ? ['💬 Đáp án gợi ý → lộ chữ', '🏆 Đoán cả câu để thắng', '⚡ Đoán sớm = nhiều điểm']
+    : G.team?.on
+    ? [first, `👥 "${G.team.teams[0].keyword}" / "${G.team.teams[1].keyword}" để vào đội`, '⚡ Đoán sớm = nhiều điểm']
+    : [first, '⚡ Đoán sớm = nhiều điểm', '🔁 Share / 🎁 quà = điểm thưởng'];
   ctx.save();
   ctx.font = font(800, 21); ctx.textBaseline = 'middle';
   const pad = 14, gap = 10;
@@ -1073,13 +1237,17 @@ function drawEnd(t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(900, 36); ctx.fillStyle = WT ? WT.color : '#fff';
   ctx.fillText(WT ? `${WT.title} · ${win.seconds ?? ''}s` : '⏰ HẾT GIỜ!', W / 2, y + 56);
-  ctx.font = font(600, 26); ctx.fillStyle = 'rgba(255,255,255,.85)';
-  ctx.fillText('Đáp án là', W / 2, y + 108);
+  const gmEnd = G.mode === 'giaima' && G.gm;
+  ctx.font = font(600, gmEnd ? 22 : 26); ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillText(gmEnd ? fitText(`📜 ${G.gm.kind}${G.gm.meaning ? ' · ' + G.gm.meaning : ''}`, W - 220) : 'Đáp án là', W / 2, y + 108);
   const s = 1 + 0.04 * Math.sin(t * 6);
   ctx.save();
   ctx.translate(W / 2, y + 180); ctx.scale(s, s);
-  ctx.font = font(900, 78);
-  outlined(fitText((G.answer || G.secret || '').toUpperCase(), W - 240), 0, 0, '#fde68a', 'rgba(0,0,0,.5)', 10);
+  if (gmEnd) { ctx.fillStyle = '#fde68a'; wrapText((G.answer || '').toUpperCase(), 0, 0, W - 230, 62, 900, 30); }
+  else {
+    ctx.font = font(900, 78);
+    outlined(fitText((G.answer || G.secret || '').toUpperCase(), W - 240), 0, 0, '#fde68a', 'rgba(0,0,0,.5)', 10);
+  }
   ctx.restore();
   if (win) {
     avatar(win, W / 2, y + 290, 52, '#fde68a');
@@ -1097,7 +1265,8 @@ function drawEnd(t) {
   } else {
     const best = (G.ranked || [])[0];
     ctx.font = font(700, 28); ctx.fillStyle = '#fff';
-    if (best) ctx.fillText(fitText(`Gần nhất: ${best.word} (${best.score}) — ${best.by?.name || ''}`, W - 220), W / 2, y + 300);
+    if (G.mode === 'giaima' && G.gm) ctx.fillText(`Cả phòng đã giải ${G.gm.clues.filter((c) => c.solvedBy).length}/${G.gm.clues.length} gợi ý`, W / 2, y + 300);
+    else if (best) ctx.fillText(fitText(`Gần nhất: ${best.word} (${best.score}) — ${best.by?.name || ''}`, W - 220), W / 2, y + 300);
   }
   ctx.font = font(600, 22); ctx.fillStyle = 'rgba(255,255,255,.8)';
   ctx.fillText(`Vòng mới sau ${G.remaining}s`, W / 2, y + (win?.points ? 478 : 440));
