@@ -1,585 +1,4326 @@
 {
   "about": "Kho câu đố cho kiểu chơi Giải mã. phrases: câu bí ẩn (tục ngữ, ca dao, câu nói nổi tiếng, slogan thương hiệu, họ tên người nổi tiếng…) — text, kind (hiện trên màn hình lúc chơi), meaning (hiện khi lộ đáp án). clues: gợi ý — q (câu hỏi, luôn tiếng Việt, nên đố gián tiếp chứ không dịch thẳng), a (đáp án, tiếng Việt hoặc tiếng Anh), e (emoji minh hoạ), lang (vi | en), alt (cách gõ khác, tuỳ chọn). Mỗi vòng tự chọn gợi ý có chữ cái nằm trong câu bí ẩn; câu có chữ F, J, W, Z cần gợi ý tiếng Anh chứa các chữ đó.",
   "phrases": [
-    { "text": "Ăn quả nhớ kẻ trồng cây", "kind": "Tục ngữ", "meaning": "Hưởng thành quả thì nhớ ơn người làm ra nó" },
-    { "text": "Có công mài sắt có ngày nên kim", "kind": "Tục ngữ", "meaning": "Kiên trì thì việc khó mấy cũng xong" },
-    { "text": "Uống nước nhớ nguồn", "kind": "Tục ngữ", "meaning": "Luôn biết ơn cội nguồn, người đi trước" },
-    { "text": "Gần mực thì đen gần đèn thì rạng", "kind": "Tục ngữ", "meaning": "Môi trường, bạn bè ảnh hưởng tới con người" },
-    { "text": "Một cây làm chẳng nên non", "kind": "Ca dao", "meaning": "Một mình thì yếu, đoàn kết mới làm nên việc lớn" },
-    { "text": "Tốt gỗ hơn tốt nước sơn", "kind": "Tục ngữ", "meaning": "Phẩm chất bên trong quý hơn vẻ ngoài" },
-    { "text": "Học thầy không tày học bạn", "kind": "Tục ngữ", "meaning": "Học từ bạn bè cũng quý như học thầy" },
-    { "text": "Đi một ngày đàng học một sàng khôn", "kind": "Tục ngữ", "meaning": "Đi nhiều nơi thì học được nhiều điều" },
-    { "text": "Lá lành đùm lá rách", "kind": "Tục ngữ", "meaning": "Người khá giả giúp đỡ người khó khăn" },
-    { "text": "Thương người như thể thương thân", "kind": "Tục ngữ", "meaning": "Yêu thương người khác như chính mình" },
-    { "text": "Tiên học lễ hậu học văn", "kind": "Câu nói nổi tiếng", "meaning": "Học cách làm người trước, học chữ sau" },
-    { "text": "Ăn cây nào rào cây ấy", "kind": "Tục ngữ", "meaning": "Được ai giúp thì giữ gìn, bảo vệ cho người đó" },
-    { "text": "Không thầy đố mày làm nên", "kind": "Tục ngữ", "meaning": "Thành công nào cũng có công người dạy" },
-    { "text": "Cái khó ló cái khôn", "kind": "Tục ngữ", "meaning": "Gặp khó khăn con người mới nghĩ ra cách hay" },
-    { "text": "Chuồn chuồn bay thấp thì mưa", "kind": "Ca dao", "meaning": "Kinh nghiệm dân gian đoán thời tiết" },
-    { "text": "Trăm hay không bằng tay quen", "kind": "Tục ngữ", "meaning": "Làm nhiều thì giỏi, thực hành hơn lý thuyết" },
-    { "text": "Ăn trông nồi ngồi trông hướng", "kind": "Tục ngữ", "meaning": "Làm gì cũng phải ý tứ, biết nhìn trước sau" },
-    { "text": "Công cha như núi Thái Sơn", "kind": "Ca dao", "meaning": "Công ơn của cha to lớn như núi cao" },
-    { "text": "Bầu ơi thương lấy bí cùng", "kind": "Ca dao", "meaning": "Người cùng cảnh ngộ thì thương yêu nhau" },
-    { "text": "Nhiễu điều phủ lấy giá gương", "kind": "Ca dao", "meaning": "Người trong một nước phải thương nhau" },
-    { "text": "Lời nói chẳng mất tiền mua", "kind": "Ca dao", "meaning": "Nói lời hay ý đẹp có mất gì đâu" },
-    { "text": "Đói cho sạch rách cho thơm", "kind": "Tục ngữ", "meaning": "Dù nghèo khó vẫn giữ phẩm giá trong sạch" },
-    { "text": "Mất bò mới lo làm chuồng", "kind": "Tục ngữ", "meaning": "Xảy ra chuyện rồi mới lo thì đã muộn" },
-    { "text": "Thua keo này bày keo khác", "kind": "Tục ngữ", "meaning": "Thất bại thì làm lại, không bỏ cuộc" },
-    { "text": "Ếch ngồi đáy giếng", "kind": "Thành ngữ", "meaning": "Hiểu biết hạn hẹp mà tưởng mình giỏi" },
-    { "text": "Đàn gảy tai trâu", "kind": "Thành ngữ", "meaning": "Nói điều hay với người không hiểu, uổng công" },
-    { "text": "Nước đổ đầu vịt", "kind": "Thành ngữ", "meaning": "Nói mãi mà người nghe chẳng vào đầu" },
-    { "text": "Con hơn cha là nhà có phúc", "kind": "Tục ngữ", "meaning": "Con cái giỏi hơn cha mẹ là điều đáng mừng" },
-    { "text": "Kiến tha lâu đầy tổ", "kind": "Tục ngữ", "meaning": "Tích góp từng chút lâu ngày sẽ thành nhiều" },
-    { "text": "Có mới nới cũ", "kind": "Thành ngữ", "meaning": "Có cái mới thì lơ là cái cũ" },
-    { "text": "Sai một li đi một dặm", "kind": "Tục ngữ", "meaning": "Sai một chút ban đầu dẫn tới sai rất xa" },
-    { "text": "Cháy nhà ra mặt chuột", "kind": "Tục ngữ", "meaning": "Có biến cố thì kẻ xấu mới lộ mặt" },
-    { "text": "Vạn sự khởi đầu nan", "kind": "Thành ngữ", "meaning": "Việc gì lúc bắt đầu cũng khó" },
-    { "text": "Một điều nhịn chín điều lành", "kind": "Tục ngữ", "meaning": "Nhường nhịn một chút thì mọi việc êm đẹp" },
-    { "text": "Gieo gió gặt bão", "kind": "Thành ngữ", "meaning": "Gây ra điều xấu thì nhận hậu quả lớn hơn" },
-    { "text": "Mèo mù vớ cá rán", "kind": "Thành ngữ", "meaning": "Gặp may bất ngờ, không nhờ tài giỏi" },
-    { "text": "Nhập gia tùy tục", "kind": "Thành ngữ", "meaning": "Đến đâu thì theo phong tục nơi đó" },
-    { "text": "Chưa thấy quan tài chưa đổ lệ", "kind": "Thành ngữ", "meaning": "Chưa gặp hậu quả thì chưa chịu nhận sai" },
-    { "text": "Hữu xạ tự nhiên hương", "kind": "Thành ngữ", "meaning": "Người tài giỏi thì tự khắc được biết đến" },
-    { "text": "Giấy rách phải giữ lấy lề", "kind": "Tục ngữ", "meaning": "Dù khó khăn vẫn giữ nề nếp, phẩm giá" },
-    { "text": "Cười người hôm trước hôm sau người cười", "kind": "Tục ngữ", "meaning": "Đừng chê cười ai, rồi mình cũng có lúc như vậy" },
-    { "text": "Bán anh em xa mua láng giềng gần", "kind": "Tục ngữ", "meaning": "Hàng xóm gần gũi nhiều khi giúp được nhiều hơn" },
-    { "text": "Tấc đất tấc vàng", "kind": "Thành ngữ", "meaning": "Đất đai rất quý giá" },
-    { "text": "Một nụ cười bằng mười thang thuốc bổ", "kind": "Câu nói hay", "meaning": "Vui vẻ là liều thuốc tốt nhất" },
-
-    { "text": "Không có gì quý hơn độc lập tự do", "kind": "Câu nói nổi tiếng", "meaning": "Chủ tịch Hồ Chí Minh, 1966" },
-    { "text": "Dân ta phải biết sử ta", "kind": "Câu nói nổi tiếng", "meaning": "Chủ tịch Hồ Chí Minh, thơ Lịch sử nước ta (1942)" },
-    { "text": "Vì lợi ích trăm năm thì phải trồng người", "kind": "Câu nói nổi tiếng", "meaning": "Chủ tịch Hồ Chí Minh nói về giáo dục" },
-    { "text": "Biết người biết ta trăm trận trăm thắng", "kind": "Câu nói nổi tiếng", "meaning": "Binh pháp Tôn Tử" },
-    { "text": "Tôi tư duy nên tôi tồn tại", "kind": "Câu nói nổi tiếng", "meaning": "Triết gia René Descartes" },
-    { "text": "Thiên tài là một phần trăm cảm hứng", "kind": "Câu nói nổi tiếng", "meaning": "Thomas Edison — và 99% là mồ hôi" },
-    { "text": "Một bước nhỏ của một con người", "kind": "Câu nói nổi tiếng", "meaning": "Neil Armstrong khi đặt chân lên Mặt Trăng, 1969" },
-    { "text": "Stay hungry stay foolish", "kind": "Câu nói nổi tiếng", "meaning": "Steve Jobs, diễn văn tại Đại học Stanford 2005" },
-    { "text": "I have a dream", "kind": "Câu nói nổi tiếng", "meaning": "Martin Luther King, 1963" },
-    { "text": "Knowledge is power", "kind": "Câu nói nổi tiếng", "meaning": "Triết gia Francis Bacon" },
-    { "text": "To be or not to be", "kind": "Câu nói nổi tiếng", "meaning": "Hamlet của Shakespeare" },
-    { "text": "May the force be with you", "kind": "Câu thoại nổi tiếng", "meaning": "Star Wars" },
-    { "text": "Houston we have a problem", "kind": "Câu thoại nổi tiếng", "meaning": "Phi hành đoàn Apollo 13 (phim cùng tên)" },
-    { "text": "Winter is coming", "kind": "Câu thoại nổi tiếng", "meaning": "Game of Thrones, nhà Stark" },
-
-    { "text": "Just do it", "kind": "Slogan thương hiệu", "meaning": "Nike, từ năm 1988" },
-    { "text": "Think different", "kind": "Slogan thương hiệu", "meaning": "Apple, 1997" },
-    { "text": "Impossible is nothing", "kind": "Slogan thương hiệu", "meaning": "Adidas" },
-    { "text": "Connecting people", "kind": "Slogan thương hiệu", "meaning": "Nokia" },
-    { "text": "Open happiness", "kind": "Slogan thương hiệu", "meaning": "Coca-Cola" },
-    { "text": "Taste the rainbow", "kind": "Slogan thương hiệu", "meaning": "Kẹo Skittles" },
-    { "text": "Red Bull gives you wings", "kind": "Slogan thương hiệu", "meaning": "Nước tăng lực Red Bull" },
-    { "text": "The best a man can get", "kind": "Slogan thương hiệu", "meaning": "Dao cạo Gillette" },
-    { "text": "Nâng niu bàn chân Việt", "kind": "Slogan thương hiệu", "meaning": "Giày dép Biti's" },
-    { "text": "Hãy nói theo cách của bạn", "kind": "Slogan thương hiệu", "meaning": "Viettel" },
-    { "text": "Vươn cao Việt Nam", "kind": "Slogan thương hiệu", "meaning": "Vinamilk" },
-    { "text": "Khơi nguồn sáng tạo", "kind": "Slogan thương hiệu", "meaning": "Cà phê Trung Nguyên" },
-
-    { "text": "Nguyễn Thanh Tùng", "kind": "Họ tên người nổi tiếng", "meaning": "Tên thật của Sơn Tùng M-TP" },
-    { "text": "Võ Nguyên Giáp", "kind": "Họ tên người nổi tiếng", "meaning": "Đại tướng, Tổng tư lệnh chiến dịch Điện Biên Phủ" },
-    { "text": "Nguyễn Tất Thành", "kind": "Họ tên người nổi tiếng", "meaning": "Tên của Bác Hồ khi ra đi tìm đường cứu nước (1911)" },
-    { "text": "Trần Hưng Đạo", "kind": "Họ tên người nổi tiếng", "meaning": "Hưng Đạo Đại Vương Trần Quốc Tuấn, ba lần đánh thắng quân Nguyên Mông" },
-    { "text": "Nguyễn Quang Hải", "kind": "Họ tên người nổi tiếng", "meaning": "Tiền vệ đội tuyển Việt Nam, Quả bóng vàng 2018" },
-    { "text": "Phạm Nhật Vượng", "kind": "Họ tên người nổi tiếng", "meaning": "Nhà sáng lập Vingroup, tỷ phú đô la đầu tiên của Việt Nam" },
-    { "text": "Trịnh Công Sơn", "kind": "Họ tên người nổi tiếng", "meaning": "Nhạc sĩ của Diễm xưa, Hạ trắng" },
-    { "text": "Hồ Xuân Hương", "kind": "Họ tên người nổi tiếng", "meaning": "Bà chúa thơ Nôm" },
-    { "text": "Ngô Bảo Châu", "kind": "Họ tên người nổi tiếng", "meaning": "Giáo sư Toán học, giải Fields 2010" },
-    { "text": "Hoàng Xuân Vinh", "kind": "Họ tên người nổi tiếng", "meaning": "Xạ thủ giành HCV Olympic đầu tiên cho Việt Nam (Rio 2016)" },
-    { "text": "Nguyễn Thị Ánh Viên", "kind": "Họ tên người nổi tiếng", "meaning": "Kình ngư, kỷ lục gia SEA Games" },
-    { "text": "Phan Thị Mỹ Tâm", "kind": "Họ tên người nổi tiếng", "meaning": "Tên đầy đủ của ca sĩ Mỹ Tâm" },
-    { "text": "Nguyễn Đức Cường", "kind": "Họ tên người nổi tiếng", "meaning": "Tên thật của rapper Đen Vâu" },
-    { "text": "Huỳnh Trấn Thành", "kind": "Họ tên người nổi tiếng", "meaning": "MC, đạo diễn phim Bố già, Mai" },
-    { "text": "Đặng Thái Sơn", "kind": "Họ tên người nổi tiếng", "meaning": "Nghệ sĩ piano, giải Nhất cuộc thi Chopin 1980" },
-    { "text": "Cristiano Ronaldo", "kind": "Họ tên người nổi tiếng", "meaning": "Siêu sao bóng đá Bồ Đào Nha, CR7" },
-    { "text": "Lionel Messi", "kind": "Họ tên người nổi tiếng", "meaning": "Siêu sao bóng đá Argentina, vô địch World Cup 2022" },
-    { "text": "Taylor Swift", "kind": "Họ tên người nổi tiếng", "meaning": "Ca sĩ Mỹ, The Eras Tour" },
-    { "text": "Albert Einstein", "kind": "Họ tên người nổi tiếng", "meaning": "Nhà vật lý của thuyết tương đối, E = mc²" },
-    { "text": "Elon Musk", "kind": "Họ tên người nổi tiếng", "meaning": "CEO Tesla, SpaceX" },
-    { "text": "Steve Jobs", "kind": "Họ tên người nổi tiếng", "meaning": "Đồng sáng lập Apple" },
-    { "text": "Michael Jackson", "kind": "Họ tên người nổi tiếng", "meaning": "Ông hoàng nhạc Pop" },
-    { "text": "Leonardo da Vinci", "kind": "Họ tên người nổi tiếng", "meaning": "Danh hoạ của bức Mona Lisa" },
-    { "text": "Isaac Newton", "kind": "Họ tên người nổi tiếng", "meaning": "Nhà vật lý của định luật vạn vật hấp dẫn" },
-    { "text": "Lalisa Manobal", "kind": "Họ tên người nổi tiếng", "meaning": "Tên thật của Lisa nhóm Blackpink" },
-    { "text": "Bill Gates", "kind": "Họ tên người nổi tiếng", "meaning": "Đồng sáng lập Microsoft" }
+    {
+      "text": "Ăn quả nhớ kẻ trồng cây",
+      "kind": "Tục ngữ",
+      "meaning": "Hưởng thành quả thì nhớ ơn người làm ra nó"
+    },
+    {
+      "text": "Có công mài sắt có ngày nên kim",
+      "kind": "Tục ngữ",
+      "meaning": "Kiên trì thì việc khó mấy cũng xong"
+    },
+    {
+      "text": "Uống nước nhớ nguồn",
+      "kind": "Tục ngữ",
+      "meaning": "Luôn biết ơn cội nguồn, người đi trước"
+    },
+    {
+      "text": "Gần mực thì đen gần đèn thì rạng",
+      "kind": "Tục ngữ",
+      "meaning": "Môi trường, bạn bè ảnh hưởng tới con người"
+    },
+    {
+      "text": "Một cây làm chẳng nên non",
+      "kind": "Ca dao",
+      "meaning": "Một mình thì yếu, đoàn kết mới làm nên việc lớn"
+    },
+    {
+      "text": "Tốt gỗ hơn tốt nước sơn",
+      "kind": "Tục ngữ",
+      "meaning": "Phẩm chất bên trong quý hơn vẻ ngoài"
+    },
+    {
+      "text": "Học thầy không tày học bạn",
+      "kind": "Tục ngữ",
+      "meaning": "Học từ bạn bè cũng quý như học thầy"
+    },
+    {
+      "text": "Đi một ngày đàng học một sàng khôn",
+      "kind": "Tục ngữ",
+      "meaning": "Đi nhiều nơi thì học được nhiều điều"
+    },
+    {
+      "text": "Lá lành đùm lá rách",
+      "kind": "Tục ngữ",
+      "meaning": "Người khá giả giúp đỡ người khó khăn"
+    },
+    {
+      "text": "Thương người như thể thương thân",
+      "kind": "Tục ngữ",
+      "meaning": "Yêu thương người khác như chính mình"
+    },
+    {
+      "text": "Tiên học lễ hậu học văn",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Học cách làm người trước, học chữ sau"
+    },
+    {
+      "text": "Ăn cây nào rào cây ấy",
+      "kind": "Tục ngữ",
+      "meaning": "Được ai giúp thì giữ gìn, bảo vệ cho người đó"
+    },
+    {
+      "text": "Không thầy đố mày làm nên",
+      "kind": "Tục ngữ",
+      "meaning": "Thành công nào cũng có công người dạy"
+    },
+    {
+      "text": "Cái khó ló cái khôn",
+      "kind": "Tục ngữ",
+      "meaning": "Gặp khó khăn con người mới nghĩ ra cách hay"
+    },
+    {
+      "text": "Chuồn chuồn bay thấp thì mưa",
+      "kind": "Ca dao",
+      "meaning": "Kinh nghiệm dân gian đoán thời tiết"
+    },
+    {
+      "text": "Trăm hay không bằng tay quen",
+      "kind": "Tục ngữ",
+      "meaning": "Làm nhiều thì giỏi, thực hành hơn lý thuyết"
+    },
+    {
+      "text": "Ăn trông nồi ngồi trông hướng",
+      "kind": "Tục ngữ",
+      "meaning": "Làm gì cũng phải ý tứ, biết nhìn trước sau"
+    },
+    {
+      "text": "Công cha như núi Thái Sơn",
+      "kind": "Ca dao",
+      "meaning": "Công ơn của cha to lớn như núi cao"
+    },
+    {
+      "text": "Bầu ơi thương lấy bí cùng",
+      "kind": "Ca dao",
+      "meaning": "Người cùng cảnh ngộ thì thương yêu nhau"
+    },
+    {
+      "text": "Nhiễu điều phủ lấy giá gương",
+      "kind": "Ca dao",
+      "meaning": "Người trong một nước phải thương nhau"
+    },
+    {
+      "text": "Lời nói chẳng mất tiền mua",
+      "kind": "Ca dao",
+      "meaning": "Nói lời hay ý đẹp có mất gì đâu"
+    },
+    {
+      "text": "Đói cho sạch rách cho thơm",
+      "kind": "Tục ngữ",
+      "meaning": "Dù nghèo khó vẫn giữ phẩm giá trong sạch"
+    },
+    {
+      "text": "Mất bò mới lo làm chuồng",
+      "kind": "Tục ngữ",
+      "meaning": "Xảy ra chuyện rồi mới lo thì đã muộn"
+    },
+    {
+      "text": "Thua keo này bày keo khác",
+      "kind": "Tục ngữ",
+      "meaning": "Thất bại thì làm lại, không bỏ cuộc"
+    },
+    {
+      "text": "Ếch ngồi đáy giếng",
+      "kind": "Thành ngữ",
+      "meaning": "Hiểu biết hạn hẹp mà tưởng mình giỏi"
+    },
+    {
+      "text": "Đàn gảy tai trâu",
+      "kind": "Thành ngữ",
+      "meaning": "Nói điều hay với người không hiểu, uổng công"
+    },
+    {
+      "text": "Nước đổ đầu vịt",
+      "kind": "Thành ngữ",
+      "meaning": "Nói mãi mà người nghe chẳng vào đầu"
+    },
+    {
+      "text": "Con hơn cha là nhà có phúc",
+      "kind": "Tục ngữ",
+      "meaning": "Con cái giỏi hơn cha mẹ là điều đáng mừng"
+    },
+    {
+      "text": "Kiến tha lâu đầy tổ",
+      "kind": "Tục ngữ",
+      "meaning": "Tích góp từng chút lâu ngày sẽ thành nhiều"
+    },
+    {
+      "text": "Có mới nới cũ",
+      "kind": "Thành ngữ",
+      "meaning": "Có cái mới thì lơ là cái cũ"
+    },
+    {
+      "text": "Sai một li đi một dặm",
+      "kind": "Tục ngữ",
+      "meaning": "Sai một chút ban đầu dẫn tới sai rất xa"
+    },
+    {
+      "text": "Cháy nhà ra mặt chuột",
+      "kind": "Tục ngữ",
+      "meaning": "Có biến cố thì kẻ xấu mới lộ mặt"
+    },
+    {
+      "text": "Vạn sự khởi đầu nan",
+      "kind": "Thành ngữ",
+      "meaning": "Việc gì lúc bắt đầu cũng khó"
+    },
+    {
+      "text": "Một điều nhịn chín điều lành",
+      "kind": "Tục ngữ",
+      "meaning": "Nhường nhịn một chút thì mọi việc êm đẹp"
+    },
+    {
+      "text": "Gieo gió gặt bão",
+      "kind": "Thành ngữ",
+      "meaning": "Gây ra điều xấu thì nhận hậu quả lớn hơn"
+    },
+    {
+      "text": "Mèo mù vớ cá rán",
+      "kind": "Thành ngữ",
+      "meaning": "Gặp may bất ngờ, không nhờ tài giỏi"
+    },
+    {
+      "text": "Nhập gia tùy tục",
+      "kind": "Thành ngữ",
+      "meaning": "Đến đâu thì theo phong tục nơi đó"
+    },
+    {
+      "text": "Chưa thấy quan tài chưa đổ lệ",
+      "kind": "Thành ngữ",
+      "meaning": "Chưa gặp hậu quả thì chưa chịu nhận sai"
+    },
+    {
+      "text": "Hữu xạ tự nhiên hương",
+      "kind": "Thành ngữ",
+      "meaning": "Người tài giỏi thì tự khắc được biết đến"
+    },
+    {
+      "text": "Giấy rách phải giữ lấy lề",
+      "kind": "Tục ngữ",
+      "meaning": "Dù khó khăn vẫn giữ nề nếp, phẩm giá"
+    },
+    {
+      "text": "Cười người hôm trước hôm sau người cười",
+      "kind": "Tục ngữ",
+      "meaning": "Đừng chê cười ai, rồi mình cũng có lúc như vậy"
+    },
+    {
+      "text": "Bán anh em xa mua láng giềng gần",
+      "kind": "Tục ngữ",
+      "meaning": "Hàng xóm gần gũi nhiều khi giúp được nhiều hơn"
+    },
+    {
+      "text": "Tấc đất tấc vàng",
+      "kind": "Thành ngữ",
+      "meaning": "Đất đai rất quý giá"
+    },
+    {
+      "text": "Một nụ cười bằng mười thang thuốc bổ",
+      "kind": "Câu nói hay",
+      "meaning": "Vui vẻ là liều thuốc tốt nhất"
+    },
+    {
+      "text": "Không có gì quý hơn độc lập tự do",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Chủ tịch Hồ Chí Minh, 1966"
+    },
+    {
+      "text": "Dân ta phải biết sử ta",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Chủ tịch Hồ Chí Minh, thơ Lịch sử nước ta (1942)"
+    },
+    {
+      "text": "Vì lợi ích trăm năm thì phải trồng người",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Chủ tịch Hồ Chí Minh nói về giáo dục"
+    },
+    {
+      "text": "Biết người biết ta trăm trận trăm thắng",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Binh pháp Tôn Tử"
+    },
+    {
+      "text": "Tôi tư duy nên tôi tồn tại",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Triết gia René Descartes"
+    },
+    {
+      "text": "Thiên tài là một phần trăm cảm hứng",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Thomas Edison — và 99% là mồ hôi"
+    },
+    {
+      "text": "Một bước nhỏ của một con người",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Neil Armstrong khi đặt chân lên Mặt Trăng, 1969"
+    },
+    {
+      "text": "Stay hungry stay foolish",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Steve Jobs, diễn văn tại Đại học Stanford 2005"
+    },
+    {
+      "text": "I have a dream",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Martin Luther King, 1963"
+    },
+    {
+      "text": "Knowledge is power",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Triết gia Francis Bacon"
+    },
+    {
+      "text": "To be or not to be",
+      "kind": "Câu nói nổi tiếng",
+      "meaning": "Hamlet của Shakespeare"
+    },
+    {
+      "text": "May the force be with you",
+      "kind": "Câu thoại nổi tiếng",
+      "meaning": "Star Wars"
+    },
+    {
+      "text": "Houston we have a problem",
+      "kind": "Câu thoại nổi tiếng",
+      "meaning": "Phi hành đoàn Apollo 13 (phim cùng tên)"
+    },
+    {
+      "text": "Winter is coming",
+      "kind": "Câu thoại nổi tiếng",
+      "meaning": "Game of Thrones, nhà Stark"
+    },
+    {
+      "text": "Just do it",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Nike, từ năm 1988"
+    },
+    {
+      "text": "Think different",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Apple, 1997"
+    },
+    {
+      "text": "Impossible is nothing",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Adidas"
+    },
+    {
+      "text": "Connecting people",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Nokia"
+    },
+    {
+      "text": "Open happiness",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Coca-Cola"
+    },
+    {
+      "text": "Taste the rainbow",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Kẹo Skittles"
+    },
+    {
+      "text": "Red Bull gives you wings",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Nước tăng lực Red Bull"
+    },
+    {
+      "text": "The best a man can get",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Dao cạo Gillette"
+    },
+    {
+      "text": "Nâng niu bàn chân Việt",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Giày dép Biti's"
+    },
+    {
+      "text": "Hãy nói theo cách của bạn",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Viettel"
+    },
+    {
+      "text": "Vươn cao Việt Nam",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Vinamilk"
+    },
+    {
+      "text": "Khơi nguồn sáng tạo",
+      "kind": "Slogan thương hiệu",
+      "meaning": "Cà phê Trung Nguyên"
+    },
+    {
+      "text": "Nguyễn Thanh Tùng",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tên thật của Sơn Tùng M-TP"
+    },
+    {
+      "text": "Võ Nguyên Giáp",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Đại tướng, Tổng tư lệnh chiến dịch Điện Biên Phủ"
+    },
+    {
+      "text": "Nguyễn Tất Thành",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tên của Bác Hồ khi ra đi tìm đường cứu nước (1911)"
+    },
+    {
+      "text": "Trần Hưng Đạo",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Hưng Đạo Đại Vương Trần Quốc Tuấn, ba lần đánh thắng quân Nguyên Mông"
+    },
+    {
+      "text": "Nguyễn Quang Hải",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tiền vệ đội tuyển Việt Nam, Quả bóng vàng 2018"
+    },
+    {
+      "text": "Phạm Nhật Vượng",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Nhà sáng lập Vingroup, tỷ phú đô la đầu tiên của Việt Nam"
+    },
+    {
+      "text": "Trịnh Công Sơn",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Nhạc sĩ của Diễm xưa, Hạ trắng"
+    },
+    {
+      "text": "Hồ Xuân Hương",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Bà chúa thơ Nôm"
+    },
+    {
+      "text": "Ngô Bảo Châu",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Giáo sư Toán học, giải Fields 2010"
+    },
+    {
+      "text": "Hoàng Xuân Vinh",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Xạ thủ giành HCV Olympic đầu tiên cho Việt Nam (Rio 2016)"
+    },
+    {
+      "text": "Nguyễn Thị Ánh Viên",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Kình ngư, kỷ lục gia SEA Games"
+    },
+    {
+      "text": "Phan Thị Mỹ Tâm",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tên đầy đủ của ca sĩ Mỹ Tâm"
+    },
+    {
+      "text": "Nguyễn Đức Cường",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tên thật của rapper Đen Vâu"
+    },
+    {
+      "text": "Huỳnh Trấn Thành",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "MC, đạo diễn phim Bố già, Mai"
+    },
+    {
+      "text": "Đặng Thái Sơn",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Nghệ sĩ piano, giải Nhất cuộc thi Chopin 1980"
+    },
+    {
+      "text": "Cristiano Ronaldo",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Siêu sao bóng đá Bồ Đào Nha, CR7"
+    },
+    {
+      "text": "Lionel Messi",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Siêu sao bóng đá Argentina, vô địch World Cup 2022"
+    },
+    {
+      "text": "Taylor Swift",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Ca sĩ Mỹ, The Eras Tour"
+    },
+    {
+      "text": "Albert Einstein",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Nhà vật lý của thuyết tương đối, E = mc²"
+    },
+    {
+      "text": "Elon Musk",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "CEO Tesla, SpaceX"
+    },
+    {
+      "text": "Steve Jobs",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Đồng sáng lập Apple"
+    },
+    {
+      "text": "Michael Jackson",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Ông hoàng nhạc Pop"
+    },
+    {
+      "text": "Leonardo da Vinci",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Danh hoạ của bức Mona Lisa"
+    },
+    {
+      "text": "Isaac Newton",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Nhà vật lý của định luật vạn vật hấp dẫn"
+    },
+    {
+      "text": "Lalisa Manobal",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Tên thật của Lisa nhóm Blackpink"
+    },
+    {
+      "text": "Bill Gates",
+      "kind": "Họ tên người nổi tiếng",
+      "meaning": "Đồng sáng lập Microsoft"
+    },
+    {
+      "text": "Lạc Trôi",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Sơn Tùng M-TP, phát hành năm 2017."
+    },
+    {
+      "text": "Nơi Này Có Anh",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Sơn Tùng M-TP, phát hành năm 2017."
+    },
+    {
+      "text": "Hãy Trao Cho Anh",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Sơn Tùng M-TP kết hợp Snoop Dogg, năm 2019."
+    },
+    {
+      "text": "Chạy Ngay Đi",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Sơn Tùng M-TP, phát hành năm 2018."
+    },
+    {
+      "text": "Em Của Ngày Hôm Qua",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Sơn Tùng M-TP, phát hành năm 2014."
+    },
+    {
+      "text": "Bạc Phận",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Jack và K-ICM, phát hành năm 2019."
+    },
+    {
+      "text": "See Tình",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Hoàng Thùy Linh, gây sốt toàn cầu trên TikTok năm 2022."
+    },
+    {
+      "text": "Để Mị Nói Cho Mà Nghe",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Hoàng Thùy Linh, phát hành năm 2019."
+    },
+    {
+      "text": "Người Lạ Ơi",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Superbrothers, Karik và Orange, năm 2017."
+    },
+    {
+      "text": "Waiting For You",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của MONO, phát hành năm 2022."
+    },
+    {
+      "text": "Ngày Mai Người Ta Lấy Chồng",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Thành Đạt, nổi tiếng năm 2020."
+    },
+    {
+      "text": "Có Hẹn Với Thanh Xuân",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của nhóm MONSTAR, phát hành năm 2021."
+    },
+    {
+      "text": "Bước Qua Nhau",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Vũ, phát hành năm 2021."
+    },
+    {
+      "text": "Đi Về Nhà",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Đen Vâu và JustaTee, phát hành dịp Tết 2020."
+    },
+    {
+      "text": "Mang Tiền Về Cho Mẹ",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Đen Vâu, phát hành cuối năm 2021."
+    },
+    {
+      "text": "Thằng Điên",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của JustaTee và Phương Ly, phát hành năm 2018."
+    },
+    {
+      "text": "Hơn Cả Yêu",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Đức Phúc, phát hành năm 2020."
+    },
+    {
+      "text": "Nàng Thơ",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Hoàng Dũng, phát hành năm 2020."
+    },
+    {
+      "text": "Tháng Tư Là Lời Nói Dối Của Em",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Bài hát của Hà Anh Tuấn, sáng tác Phạm Toàn Thắng, năm 2016."
+    },
+    {
+      "text": "Diễm Xưa",
+      "kind": "Tên bài hát Việt",
+      "meaning": "Ca khúc kinh điển của nhạc sĩ Trịnh Công Sơn, sáng tác thập niên 1960."
+    },
+    {
+      "text": "Hai Phượng",
+      "kind": "Tên phim",
+      "meaning": "Phim hành động Việt Nam của Lê Văn Kiệt, Ngô Thanh Vân đóng chính, năm 2019."
+    },
+    {
+      "text": "Mắt Biếc",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam của Victor Vũ, chuyển thể truyện Nguyễn Nhật Ánh, năm 2019."
+    },
+    {
+      "text": "Em Chưa Mười Tám",
+      "kind": "Tên phim",
+      "meaning": "Phim hài Việt Nam của Lê Thanh Sơn, năm 2017."
+    },
+    {
+      "text": "Cô Ba Sài Gòn",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam về áo dài, do Ngô Thanh Vân sản xuất, năm 2017."
+    },
+    {
+      "text": "Tôi Thấy Hoa Vàng Trên Cỏ Xanh",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam của Victor Vũ, chuyển thể truyện Nguyễn Nhật Ánh, năm 2015."
+    },
+    {
+      "text": "Gái Già Lắm Chiêu",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam của đạo diễn Bảo Nhân và Namcito, năm 2016."
+    },
+    {
+      "text": "Tháng Năm Rực Rỡ",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam của Nguyễn Quang Dũng, làm lại từ phim Hàn Sunny, năm 2018."
+    },
+    {
+      "text": "Đào Phở Và Piano",
+      "kind": "Tên phim",
+      "meaning": "Phim Việt Nam về Hà Nội năm 1946 của Phi Tiến Sơn, năm 2024."
+    },
+    {
+      "text": "Người Vợ Cuối Cùng",
+      "kind": "Tên phim",
+      "meaning": "Phim cổ trang Việt Nam của Victor Vũ, năm 2023."
+    },
+    {
+      "text": "Cua Lại Vợ Bầu",
+      "kind": "Tên phim",
+      "meaning": "Phim hài Việt Nam của Nhất Trung, Trấn Thành đóng chính, năm 2019."
+    },
+    {
+      "text": "Avengers Endgame",
+      "kind": "Tên phim",
+      "meaning": "Phim siêu anh hùng Marvel của anh em Russo, Mỹ, năm 2019."
+    },
+    {
+      "text": "Harry Potter",
+      "kind": "Tên phim",
+      "meaning": "Bộ truyện và loạt phim về cậu bé phù thủy của nhà văn người Anh J K Rowling."
+    },
+    {
+      "text": "Spider Man",
+      "kind": "Tên phim",
+      "meaning": "Người Nhện, siêu anh hùng Marvel, loạt phim Mỹ từ năm 2002."
+    },
+    {
+      "text": "Kung Fu Panda",
+      "kind": "Tên phim",
+      "meaning": "Phim hoạt hình DreamWorks của Mỹ về chú gấu trúc Po, năm 2008."
+    },
+    {
+      "text": "Thám Tử Lừng Danh Conan",
+      "kind": "Tên phim",
+      "meaning": "Truyện tranh và phim hoạt hình Nhật Bản của Aoyama Gosho."
+    },
+    {
+      "text": "Tom Và Jerry",
+      "kind": "Tên phim",
+      "meaning": "Phim hoạt hình mèo và chuột của Mỹ, ra đời năm 1940."
+    },
+    {
+      "text": "Ký Sinh Trùng",
+      "kind": "Tên phim",
+      "meaning": "Phim Hàn Quốc Parasite của Bong Joon-ho, đoạt Oscar Phim hay nhất năm 2020."
+    },
+    {
+      "text": "Chuyến Tàu Sinh Tử",
+      "kind": "Tên phim",
+      "meaning": "Phim xác sống Hàn Quốc Train to Busan của Yeon Sang-ho, năm 2016."
+    },
+    {
+      "text": "Bảy Viên Ngọc Rồng",
+      "kind": "Tên phim",
+      "meaning": "Dragon Ball, truyện tranh và phim hoạt hình Nhật Bản của Toriyama Akira."
+    },
+    {
+      "text": "Nữ Hoàng Băng Giá",
+      "kind": "Tên phim",
+      "meaning": "Frozen, phim hoạt hình Disney của Mỹ, năm 2013."
+    },
+    {
+      "text": "Mãi Đỉnh",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Lời khen kiểu Gen Z: quá xuất sắc, luôn ở đỉnh cao."
+    },
+    {
+      "text": "Hết Nước Chấm",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Khen thứ gì đó hoàn hảo, không còn gì để chê."
+    },
+    {
+      "text": "Còn Cái Nịt",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Mất sạch, chẳng còn gì; nổi lên từ một video hài trên mạng năm 2021."
+    },
+    {
+      "text": "Đỉnh Của Chóp",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Đỉnh nhất trong những thứ đỉnh, lời khen cực mạnh của giới trẻ."
+    },
+    {
+      "text": "Khum Bít",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Cách viết nũng nịu của \"không biết\" trên mạng xã hội."
+    },
+    {
+      "text": "Cạn Lời",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Bất ngờ hoặc bó tay tới mức không nói được gì nữa."
+    },
+    {
+      "text": "Không Phải Dạng Vừa Đâu",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Ý nói ai đó rất lợi hại, không hề đơn giản."
+    },
+    {
+      "text": "Toang Rồi",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Hỏng bét, mọi chuyện đổ vỡ hết rồi."
+    },
+    {
+      "text": "Ảo Thật Đấy",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Thốt lên khi thấy điều khó tin, như không có thật."
+    },
+    {
+      "text": "Chất Như Nước Cất",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Câu vần của giới trẻ khen ai đó hay thứ gì đó rất chất."
+    },
+    {
+      "text": "Đu Trend",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Bắt chước, theo kịp xu hướng đang hot trên mạng."
+    },
+    {
+      "text": "Chán Như Con Gián",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Câu vần vui để than buồn chán, chẳng có gì làm."
+    },
+    {
+      "text": "Lú Như Con Cú",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Câu vần vui để tả trạng thái ngơ ngác, chẳng hiểu gì."
+    },
+    {
+      "text": "Đẳng Cấp Là Mãi Mãi",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Dịch từ câu Class is permanent, khen người giỏi thì giỏi mãi."
+    },
+    {
+      "text": "Tới Công Chuyện",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Câu cảnh báo vui kiểu miền Trung: sắp có chuyện lớn rồi đó."
+    },
+    {
+      "text": "Kiếp Nạn Thứ Tám Mươi Hai",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Lấy ý từ 81 kiếp nạn trong Tây Du Ký, chỉ thêm một rắc rối nữa."
+    },
+    {
+      "text": "Ô Mai Gót",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Cách đọc kiểu Việt của Oh my god, thốt lên khi ngạc nhiên."
+    },
+    {
+      "text": "Tôi Là Ai Đây Là Đâu",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Câu đùa khi bị bối rối, ngơ ngác không hiểu chuyện gì."
+    },
+    {
+      "text": "Chuẩn Không Cần Chỉnh",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Đúng tuyệt đối, không cần sửa gì thêm."
+    },
+    {
+      "text": "Quẩy Lên",
+      "kind": "Câu cửa miệng mạng xã hội",
+      "meaning": "Lời hô hào vui chơi, nhảy nhót hết mình."
+    },
+    {
+      "text": "Vịnh Hạ Long",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Quảng Ninh, di sản thiên nhiên thế giới với hàng nghìn đảo đá vôi."
+    },
+    {
+      "text": "Phố Cổ Hội An",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Quảng Nam, đô thị cổ nổi tiếng với đèn lồng, di sản thế giới."
+    },
+    {
+      "text": "Chợ Bến Thành",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "TP Hồ Chí Minh, khu chợ biểu tượng của Sài Gòn."
+    },
+    {
+      "text": "Hồ Hoàn Kiếm",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Hà Nội, hồ Gươm giữa thủ đô gắn với truyền thuyết trả gươm."
+    },
+    {
+      "text": "Văn Miếu Quốc Tử Giám",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Hà Nội, trường đại học đầu tiên của Việt Nam."
+    },
+    {
+      "text": "Cầu Vàng Bà Nà",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Đà Nẵng, cây cầu được hai bàn tay khổng lồ nâng đỡ."
+    },
+    {
+      "text": "Động Phong Nha",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Quảng Bình, hang động nổi tiếng thuộc vườn quốc gia Phong Nha Kẻ Bàng."
+    },
+    {
+      "text": "Ruộng Bậc Thang Mù Cang Chải",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Yên Bái, ruộng bậc thang vàng óng mùa lúa chín."
+    },
+    {
+      "text": "Đỉnh Fansipan",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Lào Cai, nóc nhà Đông Dương cao hơn 3100 mét."
+    },
+    {
+      "text": "Cố Đô Huế",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Thừa Thiên Huế, kinh đô triều Nguyễn, di sản thế giới."
+    },
+    {
+      "text": "Tràng An Ninh Bình",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Ninh Bình, quần thể danh thắng sông núi, di sản thế giới."
+    },
+    {
+      "text": "Đảo Phú Quốc",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Kiên Giang, đảo ngọc lớn nhất Việt Nam với biển xanh cát trắng."
+    },
+    {
+      "text": "Nhà Thờ Đức Bà",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "TP Hồ Chí Minh, công trình gạch đỏ biểu tượng của Sài Gòn."
+    },
+    {
+      "text": "Thung Lũng Tình Yêu",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Lâm Đồng, điểm tham quan lãng mạn nổi tiếng ở Đà Lạt."
+    },
+    {
+      "text": "Chùa Một Cột",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Hà Nội, ngôi chùa hình bông sen dựng trên một cột đá."
+    },
+    {
+      "text": "Cột Cờ Lũng Cú",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Hà Giang, cột cờ nơi địa đầu cực Bắc Tổ quốc."
+    },
+    {
+      "text": "Địa Đạo Củ Chi",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "TP Hồ Chí Minh, hệ thống đường hầm nổi tiếng thời kháng chiến."
+    },
+    {
+      "text": "Cầu Rồng Đà Nẵng",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Đà Nẵng, cây cầu hình rồng biết phun lửa và phun nước."
+    },
+    {
+      "text": "Chợ Nổi Cái Răng",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Cần Thơ, chợ họp trên sông đặc trưng miền Tây."
+    },
+    {
+      "text": "Đèo Mã Pí Lèng",
+      "kind": "Địa danh Việt Nam",
+      "meaning": "Hà Giang, một trong tứ đại đỉnh đèo hùng vĩ bên sông Nho Quế."
+    },
+    {
+      "text": "Bún Chả Hà Nội",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bún ăn với chả nướng than hoa và nước chấm chua ngọt."
+    },
+    {
+      "text": "Cơm Tấm Sài Gòn",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Cơm gạo tấm với sườn nướng, bì, chả và mỡ hành."
+    },
+    {
+      "text": "Bánh Xèo Miền Tây",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bánh vàng giòn nhân tôm thịt giá, cuốn rau chấm nước mắm."
+    },
+    {
+      "text": "Phở Nam Định",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Phở bò quê Nam Định, một trong những cái nôi của phở."
+    },
+    {
+      "text": "Bún Bò Huế",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bún nước dùng cay thơm mùi sả và mắm ruốc của xứ Huế."
+    },
+    {
+      "text": "Mì Quảng",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Mì sợi to vàng, ít nước, ăn với bánh tráng nướng, đặc sản Quảng Nam."
+    },
+    {
+      "text": "Cao Lầu Hội An",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Mì sợi dai ăn với thịt xíu và rau sống, chỉ có ở Hội An."
+    },
+    {
+      "text": "Bánh Mì Sài Gòn",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Ổ bánh mì giòn kẹp pate, thịt, chả, nổi tiếng khắp thế giới."
+    },
+    {
+      "text": "Hủ Tiếu Nam Vang",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Hủ tiếu nước ngọt thanh với tôm, thịt, gan, phổ biến ở Sài Gòn."
+    },
+    {
+      "text": "Chả Cá Lã Vọng",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Cá nướng nghệ chiên với thì là, món nổi tiếng phố cổ Hà Nội."
+    },
+    {
+      "text": "Nem Chua Thanh Hóa",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Thịt lợn lên men gói lá chuối, chua cay, quà biếu xứ Thanh."
+    },
+    {
+      "text": "Bánh Đa Cua Hải Phòng",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bánh đa đỏ trong nước riêu cua đồng, món sáng đất Cảng."
+    },
+    {
+      "text": "Bún Đậu Mắm Tôm",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bún lá ăn với đậu rán giòn chấm mắm tôm, món dân dã Hà Nội."
+    },
+    {
+      "text": "Bánh Cuốn Thanh Trì",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bánh cuốn mỏng như lụa của làng Thanh Trì, Hà Nội."
+    },
+    {
+      "text": "Kẹo Dừa Bến Tre",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Kẹo làm từ nước cốt dừa của xứ dừa Bến Tre."
+    },
+    {
+      "text": "Bánh Pía Sóc Trăng",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bánh nhiều lớp vỏ nhân đậu xanh sầu riêng trứng muối."
+    },
+    {
+      "text": "Cốm Làng Vòng",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Cốm xanh dẻo thơm làm từ lúa non, quà mùa thu Hà Nội."
+    },
+    {
+      "text": "Bánh Đậu Xanh Hải Dương",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Bánh đậu xanh ngọt mịn tan trong miệng, đặc sản Hải Dương."
+    },
+    {
+      "text": "Nước Mắm Phú Quốc",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Nước mắm cá cơm thơm ngon nổi tiếng của đảo Phú Quốc."
+    },
+    {
+      "text": "Chè Thái Nguyên",
+      "kind": "Đặc sản vùng miền",
+      "meaning": "Trà xanh Tân Cương nước xanh vị chát hậu ngọt, đệ nhất danh trà."
+    },
+    {
+      "text": "Liên Quân Mobile",
+      "kind": "Tên game và app",
+      "meaning": "Game MOBA 5 đấu 5 nổi tiếng nhất Việt Nam, do Garena phát hành."
+    },
+    {
+      "text": "Garena Free Fire",
+      "kind": "Tên game và app",
+      "meaning": "Game bắn súng sinh tồn trên điện thoại, mỗi trận 50 người nhảy dù."
+    },
+    {
+      "text": "Candy Crush Saga",
+      "kind": "Tên game và app",
+      "meaning": "Game xếp kẹo ba viên cùng màu của hãng King."
+    },
+    {
+      "text": "Plants vs Zombies",
+      "kind": "Tên game và app",
+      "meaning": "Game trồng cây bắn đậu chống lũ zombie của hãng PopCap."
+    },
+    {
+      "text": "Flappy Bird",
+      "kind": "Tên game và app",
+      "meaning": "Game chú chim vượt ống nước do người Việt Nguyễn Hà Đông làm ra, gây sốt năm 2014."
+    },
+    {
+      "text": "Angry Birds",
+      "kind": "Tên game và app",
+      "meaning": "Game bắn chim bằng ná vào lũ heo xanh của hãng Rovio, Phần Lan."
+    },
+    {
+      "text": "Subway Surfers",
+      "kind": "Tên game và app",
+      "meaning": "Game chạy vô tận trên đường ray tàu điện, né tàu và ông bảo vệ."
+    },
+    {
+      "text": "Pokemon Go",
+      "kind": "Tên game và app",
+      "meaning": "Game bắt Pokémon ngoài đời thật bằng định vị điện thoại, gây sốt năm 2016."
+    },
+    {
+      "text": "Among Us",
+      "kind": "Tên game và app",
+      "meaning": "Game tìm kẻ giả mạo trên tàu vũ trụ, cực hot mùa dịch 2020."
+    },
+    {
+      "text": "Clash of Clans",
+      "kind": "Tên game và app",
+      "meaning": "Game xây làng, luyện quân và đi đánh nhà người khác của Supercell."
+    },
+    {
+      "text": "Grand Theft Auto",
+      "kind": "Tên game và app",
+      "meaning": "Series game thế giới mở GTA của Rockstar, nổi tiếng với GTA Vice City và GTA V."
+    },
+    {
+      "text": "Call of Duty",
+      "kind": "Tên game và app",
+      "meaning": "Series game bắn súng góc nhìn thứ nhất về chiến tranh của Activision."
+    },
+    {
+      "text": "Liên Minh Huyền Thoại",
+      "kind": "Tên game và app",
+      "meaning": "Tên tiếng Việt của League of Legends, game MOBA trên máy tính của Riot."
+    },
+    {
+      "text": "Đột Kích",
+      "kind": "Tên game và app",
+      "meaning": "Tên tiếng Việt của CrossFire, game bắn súng huyền thoại ở quán net Việt Nam."
+    },
+    {
+      "text": "Võ Lâm Truyền Kỳ",
+      "kind": "Tên game và app",
+      "meaning": "Game nhập vai kiếm hiệp online gắn với tuổi thơ 8x 9x, do VNG phát hành."
+    },
+    {
+      "text": "Temple Run",
+      "kind": "Tên game và app",
+      "meaning": "Game chạy trốn khỏi bầy khỉ quỷ trong ngôi đền cổ."
+    },
+    {
+      "text": "Fruit Ninja",
+      "kind": "Tên game và app",
+      "meaning": "Game dùng ngón tay chém trái cây bay lên, tránh chém trúng bom."
+    },
+    {
+      "text": "Genshin Impact",
+      "kind": "Tên game và app",
+      "meaning": "Game nhập vai thế giới mở phong cách anime của HoYoverse."
+    },
+    {
+      "text": "Google Maps",
+      "kind": "Tên game và app",
+      "meaning": "Ứng dụng bản đồ và chỉ đường của Google."
+    },
+    {
+      "text": "Facebook Messenger",
+      "kind": "Tên game và app",
+      "meaning": "Ứng dụng nhắn tin, gọi điện đi kèm Facebook."
+    },
+    {
+      "text": "Tháp Eiffel",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Tháp sắt biểu tượng của Paris, Pháp, hoàn thành năm 1889."
+    },
+    {
+      "text": "Vạn Lý Trường Thành",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Bức tường thành dài hàng nghìn cây số ở Trung Quốc."
+    },
+    {
+      "text": "Kim Tự Tháp Giza",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Lăng mộ các pharaoh ở Ai Cập, kỳ quan cổ đại duy nhất còn tồn tại."
+    },
+    {
+      "text": "Tượng Nữ Thần Tự Do",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Bức tượng ở New York, Mỹ, món quà của nước Pháp năm 1886."
+    },
+    {
+      "text": "Đấu Trường La Mã",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Đấu trường Colosseum ở Rome, Ý, nơi các võ sĩ giác đấu thời La Mã."
+    },
+    {
+      "text": "Tháp Nghiêng Pisa",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Tháp chuông bị nghiêng nổi tiếng ở thành phố Pisa, Ý."
+    },
+    {
+      "text": "Đền Taj Mahal",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Lăng mộ bằng đá cẩm thạch trắng ở Ấn Độ, biểu tượng của tình yêu."
+    },
+    {
+      "text": "Angkor Wat",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Quần thể đền đá khổng lồ ở Campuchia, có cả trên quốc kỳ nước này."
+    },
+    {
+      "text": "Machu Picchu",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Thành phố cổ của người Inca trên núi cao ở Peru."
+    },
+    {
+      "text": "Núi Phú Sĩ",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Ngọn núi lửa cao nhất và là biểu tượng của Nhật Bản."
+    },
+    {
+      "text": "Chichen Itza",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Kim tự tháp của người Maya ở Mexico, một trong bảy kỳ quan thế giới mới."
+    },
+    {
+      "text": "Nhà Hát Opera Sydney",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Nhà hát mái hình cánh buồm, biểu tượng của nước Úc."
+    },
+    {
+      "text": "Tháp Big Ben",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Tháp đồng hồ nổi tiếng bên sông Thames ở London, Anh."
+    },
+    {
+      "text": "Cầu Cổng Vàng",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Cầu treo Golden Gate màu đỏ cam ở San Francisco, Mỹ."
+    },
+    {
+      "text": "Tượng Nhân Sư",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Tượng mình sư tử đầu người khổng lồ cạnh kim tự tháp ở Ai Cập."
+    },
+    {
+      "text": "Khải Hoàn Môn",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Cổng chiến thắng trên đại lộ Champs Élysées ở Paris, Pháp."
+    },
+    {
+      "text": "Burj Khalifa",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Tòa nhà chọc trời hơn 800 mét ở Dubai."
+    },
+    {
+      "text": "Tháp Đôi Petronas",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Hai tòa tháp sinh đôi biểu tượng của Kuala Lumpur, Malaysia."
+    },
+    {
+      "text": "Hang Sơn Đoòng",
+      "kind": "Kỳ quan thế giới",
+      "meaning": "Hang động tự nhiên lớn nhất thế giới, ở Quảng Bình, Việt Nam."
+    },
+    {
+      "text": "An Khang Thịnh Vượng",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc bình an, khỏe mạnh và làm ăn giàu có."
+    },
+    {
+      "text": "Vạn Sự Như Ý",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc mọi việc đều diễn ra theo ý muốn."
+    },
+    {
+      "text": "Tiền Vô Như Nước",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc tiền bạc chảy vào nhà nhiều như nước."
+    },
+    {
+      "text": "Phát Tài Phát Lộc",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc làm ăn phát đạt, có nhiều tiền tài và may mắn."
+    },
+    {
+      "text": "Sức Khỏe Dồi Dào",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc luôn mạnh khỏe, tràn đầy năng lượng cả năm."
+    },
+    {
+      "text": "Cung Hỷ Phát Tài",
+      "kind": "Lời chúc Tết",
+      "meaning": "Câu chúc gốc Hoa: chúc mừng năm mới, chúc phát tài."
+    },
+    {
+      "text": "Tấn Tài Tấn Lộc",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc tiền tài và lộc may mắn ngày càng tăng thêm."
+    },
+    {
+      "text": "Năm Mới Bình An",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc một năm mới yên ổn, không gặp chuyện xui."
+    },
+    {
+      "text": "Mã Đáo Thành Công",
+      "kind": "Lời chúc Tết",
+      "meaning": "Ngựa về là thành công: chúc mọi việc vừa bắt đầu đã thắng lợi."
+    },
+    {
+      "text": "Tài Lộc Đầy Nhà",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc của cải và may mắn tràn đầy trong nhà."
+    },
+    {
+      "text": "Hạnh Phúc Viên Mãn",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc cuộc sống hạnh phúc trọn vẹn, đủ đầy."
+    },
+    {
+      "text": "Công Thành Danh Toại",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc sự nghiệp thành công, có danh tiếng như ý."
+    },
+    {
+      "text": "Thuận Buồm Xuôi Gió",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc mọi việc suôn sẻ như thuyền đi thuận gió."
+    },
+    {
+      "text": "Học Hành Tấn Tới",
+      "kind": "Lời chúc Tết",
+      "meaning": "Lời chúc dành cho học sinh: học ngày càng giỏi."
+    },
+    {
+      "text": "Buôn May Bán Đắt",
+      "kind": "Lời chúc Tết",
+      "meaning": "Lời chúc dân buôn bán: hàng bán chạy, khách đông."
+    },
+    {
+      "text": "Phúc Lộc Song Toàn",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc có cả phúc đức lẫn tài lộc trọn vẹn."
+    },
+    {
+      "text": "Sống Lâu Trăm Tuổi",
+      "kind": "Lời chúc Tết",
+      "meaning": "Lời chúc thọ dành cho ông bà, người lớn tuổi."
+    },
+    {
+      "text": "Tiền Đầy Túi Tình Đầy Tim",
+      "kind": "Lời chúc Tết",
+      "meaning": "Câu chúc vui của giới trẻ: vừa nhiều tiền vừa có người yêu."
+    },
+    {
+      "text": "Chúc Mừng Năm Mới",
+      "kind": "Lời chúc Tết",
+      "meaning": "Câu chúc quen thuộc nhất mỗi dịp Tết đến."
+    },
+    {
+      "text": "Đại Cát Đại Lợi",
+      "kind": "Lời chúc Tết",
+      "meaning": "Chúc gặp nhiều điều may mắn và lợi lộc lớn."
+    },
+    {
+      "text": "Dế Mèn Phiêu Lưu Ký",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện thiếu nhi của nhà văn Tô Hoài về chú dế đi phiêu lưu khắp nơi."
+    },
+    {
+      "text": "Truyện Kiều",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện thơ lục bát của đại thi hào Nguyễn Du về số phận nàng Thúy Kiều."
+    },
+    {
+      "text": "Thánh Gióng",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyền thuyết cậu bé làng Gióng lớn vụt lên, cưỡi ngựa sắt đánh giặc Ân."
+    },
+    {
+      "text": "Sơn Tinh Thủy Tinh",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyền thuyết hai vị thần tranh nhau cầu hôn Mị Nương, giải thích lũ lụt."
+    },
+    {
+      "text": "Chí Phèo",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện ngắn của Nam Cao về anh nông dân bị tha hóa ở làng Vũ Đại."
+    },
+    {
+      "text": "Vợ Chồng A Phủ",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện ngắn của Tô Hoài về Mị và A Phủ ở vùng núi Tây Bắc."
+    },
+    {
+      "text": "Bình Ngô Đại Cáo",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Áng thiên cổ hùng văn của Nguyễn Trãi sau khi đánh thắng quân Minh."
+    },
+    {
+      "text": "Thạch Sanh",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện cổ tích chàng trai hiền lành diệt chằn tinh, bị Lý Thông lừa."
+    },
+    {
+      "text": "Cô Bé Lọ Lem",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện cổ tích cô gái đánh rơi chiếc giày thủy tinh và gặp hoàng tử."
+    },
+    {
+      "text": "Bạch Tuyết và Bảy Chú Lùn",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện cổ Grimm về nàng công chúa ăn phải quả táo độc."
+    },
+    {
+      "text": "Hoàng Tử Bé",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Tác phẩm của Antoine de Saint Exupéry về cậu bé đến từ hành tinh nhỏ."
+    },
+    {
+      "text": "Nhà Giả Kim",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Tiểu thuyết của Paulo Coelho về chàng chăn cừu đi tìm kho báu."
+    },
+    {
+      "text": "Vợ Nhặt",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện ngắn của Kim Lân về nạn đói năm 1945."
+    },
+    {
+      "text": "Lục Vân Tiên",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện thơ Nôm của Nguyễn Đình Chiểu đề cao nhân nghĩa."
+    },
+    {
+      "text": "Cô Bé Bán Diêm",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện của Andersen về cô bé nghèo bán diêm trong đêm giao thừa giá rét."
+    },
+    {
+      "text": "Sự Tích Hồ Gươm",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyền thuyết vua Lê Lợi trả gươm thần cho Rùa Vàng."
+    },
+    {
+      "text": "Chiếc Lược Ngà",
+      "kind": "Truyện và tác phẩm văn học",
+      "meaning": "Truyện ngắn của Nguyễn Quang Sáng về tình cha con thời chiến tranh."
+    },
+    {
+      "text": "Manchester United",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ Quỷ Đỏ của Anh, sân nhà Old Trafford."
+    },
+    {
+      "text": "Real Madrid",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ Tây Ban Nha giữ kỷ lục vô địch Champions League nhiều nhất."
+    },
+    {
+      "text": "Ngoại Hạng Anh",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Premier League, giải vô địch bóng đá hàng đầu nước Anh."
+    },
+    {
+      "text": "Hoàng Anh Gia Lai",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ phố núi Pleiku, nổi tiếng với lò đào tạo trẻ của bầu Đức."
+    },
+    {
+      "text": "Manchester City",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ áo xanh da trời của Anh, sân nhà Etihad."
+    },
+    {
+      "text": "Bayern Munich",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ giàu thành tích nhất nước Đức."
+    },
+    {
+      "text": "Liverpool FC",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ The Kop của Anh, sân nhà Anfield."
+    },
+    {
+      "text": "FC Barcelona",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ xứ Catalonia, Tây Ban Nha, nơi Messi trưởng thành."
+    },
+    {
+      "text": "Paris Saint Germain",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "PSG, câu lạc bộ lớn nhất nước Pháp."
+    },
+    {
+      "text": "AC Milan",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ áo sọc đỏ đen của thành phố Milan, Ý."
+    },
+    {
+      "text": "Champions League",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Cúp C1 châu Âu, giải đấu cấp câu lạc bộ danh giá nhất thế giới."
+    },
+    {
+      "text": "World Cup",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Giải vô địch bóng đá thế giới, tổ chức bốn năm một lần."
+    },
+    {
+      "text": "AFF Suzuki Cup",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Tên cũ của giải vô địch bóng đá Đông Nam Á, Việt Nam từng vô địch năm 2008 và 2018."
+    },
+    {
+      "text": "V League",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Giải bóng đá chuyên nghiệp cao nhất Việt Nam."
+    },
+    {
+      "text": "Borussia Dortmund",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ áo vàng đen của Đức với khán đài Bức Tường Vàng."
+    },
+    {
+      "text": "Hà Nội FC",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ thủ đô nhiều lần vô địch V League."
+    },
+    {
+      "text": "Thể Công Viettel",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ bóng đá quân đội ở Hà Nội, tiền thân là Thể Công."
+    },
+    {
+      "text": "Công An Hà Nội",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ bóng đá ở thủ đô Hà Nội, thi đấu tại V League."
+    },
+    {
+      "text": "Copa America",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Giải vô địch bóng đá các đội tuyển Nam Mỹ."
+    },
+    {
+      "text": "Tottenham Hotspur",
+      "kind": "Đội bóng và giải đấu",
+      "meaning": "Câu lạc bộ Gà Trống ở London, Anh, đội cũ của Son Heung Min."
+    }
   ],
   "clues": [
-    { "q": "Con giáp thứ tư của người Việt — ở Trung Quốc vị trí này lại là con thỏ", "a": "mèo", "e": "🐱", "lang": "vi" },
-    { "q": "Hachiko — biểu tượng lòng trung thành ở Nhật — là con vật gì", "a": "chó", "e": "🐕", "lang": "vi" },
-    { "q": "Nó có trước hay quả trứng có trước? Câu hỏi muôn đời chưa có lời giải", "a": "gà", "e": "🐓", "lang": "vi" },
-    { "q": "Donald mặc áo thủy thủ của Disney là con gì", "a": "vịt", "e": "🦆", "lang": "vi" },
-    { "q": "Con giáp thứ hai (Sửu), \"đầu cơ nghiệp\" của nhà nông", "a": "trâu", "e": "🐃", "lang": "vi" },
-    { "q": "Con giáp cuối cùng, có \"ống\" bằng đất để bỏ tiền tiết kiệm", "a": "heo", "e": "🐷", "lang": "vi", "alt": ["lợn"] },
-    { "q": "Hai Bà Trưng cưỡi con vật này ra trận", "a": "voi", "e": "🐘", "lang": "vi" },
-    { "q": "Tôn Ngộ Không vốn là loài gì", "a": "khỉ", "e": "🐒", "lang": "vi" },
-    { "q": "Con giáp thứ bảy; Thánh Gióng cưỡi phiên bản bằng sắt", "a": "ngựa", "e": "🐎", "lang": "vi" },
-    { "q": "Con giáp thứ sáu (Tỵ), phải lột da mới lớn được", "a": "rắn", "e": "🐍", "lang": "vi" },
-    { "q": "Loài duy nhất làm ra thực phẩm để hàng nghìn năm không hỏng", "a": "ong", "e": "🐝", "lang": "vi" },
-    { "q": "Sống thành bầy có nữ hoàng, nhấc được vật nặng gấp 50 lần thân mình", "a": "kiến", "e": "🐜", "lang": "vi" },
-    { "q": "Bơi giật lùi, đầu có \"gạch\", nướng muối ớt thì đỏ au", "a": "tôm", "e": "🦐", "lang": "vi" },
-    { "q": "Tám chân hai càng, cả đời đi ngang; \"... đồng\" nấu bún riêu", "a": "cua", "e": "🦀", "lang": "vi" },
-    { "q": "Cả đời mang nhà theo người, \"chậm như ...\"", "a": "ốc", "e": "🐌", "lang": "vi" },
-    { "q": "Thần Kim Quy đòi lại gươm của Lê Lợi ở hồ Hoàn Kiếm là con gì", "a": "rùa", "e": "🐢", "lang": "vi" },
-    { "q": "Có lông vũ, xương rỗng bên trong để nhẹ mà bay", "a": "chim", "e": "🐦", "lang": "vi" },
-    { "q": "Chú Cuội có cây đa, còn chị Hằng ôm con vật gì", "a": "thỏ", "e": "🐰", "lang": "vi" },
-    { "q": "Con giáp đứng đầu (Tý); Mickey cũng thuộc loài này", "a": "chuột", "e": "🐭", "lang": "vi" },
-    { "q": "Con giáp thứ ba (Dần), \"chúa sơn lâm\"", "a": "hổ", "e": "🐯", "lang": "vi", "alt": ["cọp"] },
-    { "q": "Winnie the Pooh mê mật ong là con gì", "a": "gấu", "e": "🐻", "lang": "vi" },
-    { "q": "Ngồi đáy giếng tưởng trời chỉ bằng cái vung", "a": "ếch", "e": "🐸", "lang": "vi" },
-    { "q": "Con giáp thứ tám (Mùi), có râu dù là con cái", "a": "dê", "e": "🐐", "lang": "vi" },
-    { "q": "Có ba quả tim, máu màu xanh, phun chất đen để chạy trốn", "a": "mực", "e": "🦑", "lang": "vi" },
-    { "q": "Peter Parker có siêu năng lực vì bị con gì cắn", "a": "nhện", "e": "🕷️", "lang": "vi" },
-    { "q": "Hiệu ứng ... : vỗ cánh ở Brazil gây bão ở Texas", "a": "bướm", "e": "🦋", "lang": "vi" },
-    { "q": "Chim có đuôi hàng trăm \"con mắt\", chỉ con trống mới sặc sỡ", "a": "công", "e": "🦚", "lang": "vi" },
-    { "q": "\"Học như ...\": nói giống hệt mà không hiểu mình nói gì", "a": "vẹt", "e": "🦜", "lang": "vi" },
-    { "q": "Kẻ giả làm bà ngoại trong truyện Cô bé quàng khăn đỏ", "a": "sói", "e": "🐺", "lang": "vi" },
-    { "q": "Con vật trong Hoàng tử bé xin được \"cảm hóa\"", "a": "cáo", "e": "🦊", "lang": "vi" },
-    { "q": "Rudolph mũi đỏ kéo xe cho ông già Noel là con gì", "a": "tuần lộc", "e": "🦌", "lang": "vi" },
-    { "q": "\"Con tàu của sa mạc\", nhịn uống được cả tuần", "a": "lạc đà", "e": "🐫", "lang": "vi" },
-    { "q": "Simba và Mufasa thuộc loài gì", "a": "sư tử", "e": "🦁", "lang": "vi" },
-    { "q": "Động vật lớn nhất từng sống trên Trái Đất (loài xanh)", "a": "cá voi", "e": "🐋", "lang": "vi" },
-    { "q": "Bộ phim Jaws (1975) của Spielberg kể về con vật gì", "a": "cá mập", "e": "🦈", "lang": "vi" },
-    { "q": "Ăn lá dâu, nhả tơ dệt nên lụa Vạn Phúc", "a": "tằm", "e": "🐛", "lang": "vi" },
-    { "q": "Loài vật giết nhiều người nhất mỗi năm; chỉ con cái mới hút máu", "a": "muỗi", "e": "🦟", "lang": "vi" },
-    { "q": "Mắt kép hàng nghìn ô, \"kẻ thù\" của cái vỉ nhựa", "a": "ruồi", "e": "🪰", "lang": "vi" },
-    { "q": "Hedwig — thú cưng đưa thư của Harry Potter — thuộc loài nào", "a": "cú mèo", "e": "🦉", "lang": "vi" },
-    { "q": "Po trong phim Kung Fu Panda là con gì (tiếng Việt)", "a": "gấu trúc", "e": "🐼", "lang": "vi" },
-    { "q": "Ngủ chỉ bằng một nửa bộ não, \"nói chuyện\" bằng sóng siêu âm", "a": "cá heo", "e": "🐬", "lang": "vi" },
-    { "q": "Lạc Long Quân thuộc dòng dõi này; con giáp Thìn", "a": "rồng", "e": "🐉", "lang": "vi" },
-    { "q": "Âu Cơ thuộc dòng dõi này, sinh ra bọc trăm trứng", "a": "tiên", "e": "🧚", "lang": "vi" },
-    { "q": "Tên gọi can chi của con giáp cuối cùng", "a": "hợi", "e": "🐖", "lang": "vi" },
-    { "q": "Tên gọi can chi của năm con chuột", "a": "tý", "e": "🐀", "lang": "vi" },
-
-    { "q": "Người Việt bảo bữa ăn mà thiếu thứ này thì \"chưa gọi là ăn\"", "a": "cơm", "e": "🍚", "lang": "vi" },
-    { "q": "Món có \"gánh\" Hà Nội, có quẩy, có cả biến tấu \"cuốn\"", "a": "phở", "e": "🍜", "lang": "vi" },
-    { "q": "Món đường phố Việt có tên trong từ điển Oxford từ năm 2011", "a": "bánh mì", "e": "🥖", "lang": "vi" },
-    { "q": "Món ngọt có \"thập cẩm\", \"bưởi\", \"khúc bạch\"", "a": "chè", "e": "🍧", "lang": "vi" },
-    { "q": "Có \"đá\" vỉa hè, có \"chanh\" giã tay, có \"sữa\" trân châu", "a": "trà", "e": "🍵", "lang": "vi" },
-    { "q": "\"Gừng cay ... mặn\" — gia vị làm đậm tình trong ca dao", "a": "muối", "e": "🧂", "lang": "vi" },
-    { "q": "Độ cay của nó được đo bằng thang Scoville", "a": "ớt", "e": "🌶️", "lang": "vi" },
-    { "q": "Thứ ma cà rồng sợ nhất trong gian bếp", "a": "tỏi", "e": "🧄", "lang": "vi" },
-    { "q": "Thái ra cay mắt vì chất lưu huỳnh; có \"tây\", có \"lá\"", "a": "hành", "e": "🧅", "lang": "vi" },
-    { "q": "Quả giàu kali; vỏ của nó làm người ta trượt ngã trong phim hài", "a": "chuối", "e": "🍌", "lang": "vi" },
-    { "q": "Quả mang tên một màu; có \"Vinh\", có \"sành\"", "a": "cam", "e": "🍊", "lang": "vi" },
-    { "q": "Đặc sản của \"xứ\" Bến Tre, có cả kẹo làm từ nó", "a": "dừa", "e": "🥥", "lang": "vi" },
-    { "q": "Quốc quả của Ấn Độ; Việt Nam có giống \"cát Hòa Lộc\"", "a": "xoài", "e": "🥭", "lang": "vi" },
-    { "q": "Ninh Thuận nổi tiếng với quả này, phơi khô thì teo lại", "a": "nho", "e": "🍇", "lang": "vi" },
-    { "q": "Rơi trúng đầu Newton; cũng là logo của Apple", "a": "táo", "e": "🍎", "lang": "vi" },
-    { "q": "Mai An Tiêm trồng quả này trên đảo hoang", "a": "dưa hấu", "e": "🍉", "lang": "vi" },
-    { "q": "Miền Nam gọi là thơm, có nơi gọi là khóm", "a": "dứa", "e": "🍍", "lang": "vi" },
-    { "q": "Cút, vịt lộn, bắc thảo… đều là các loại…", "a": "trứng", "e": "🥚", "lang": "vi" },
-    { "q": "Có \"chua\", có \"đặc có đường\", con bê bú thứ này", "a": "sữa", "e": "🥛", "lang": "vi" },
-    { "q": "Có \"gấc\", có \"xéo\", nấu bằng gạo nếp", "a": "xôi", "e": "🍙", "lang": "vi" },
-    { "q": "Có \"kéo\", \"lạc\", \"mút\" — ăn nhiều thì sâu răng", "a": "kẹo", "e": "🍬", "lang": "vi" },
-    { "q": "Lang Liêu dâng vua Hùng thứ bánh vuông tượng trưng cho đất", "a": "bánh chưng", "e": "🟩", "lang": "vi" },
-    { "q": "Thực phẩm tìm thấy trong lăng mộ Ai Cập vẫn còn ăn được", "a": "mật ong", "e": "🍯", "lang": "vi" },
-    { "q": "Việt Nam là một trong ba nước xuất khẩu thứ này nhiều nhất thế giới", "a": "gạo", "e": "🌾", "lang": "vi" },
-    { "q": "\"Râu\" của nó nấu nước uống cho mát", "a": "ngô", "e": "🌽", "lang": "vi", "alt": ["bắp"] },
-    { "q": "Có \"lang\", \"môn\", \"mỡ\", \"tây\"", "a": "khoai", "e": "🍠", "lang": "vi" },
-    { "q": "Món nước \"chua\", \"cua\", \"cải\" trong mâm cơm", "a": "canh", "e": "🥣", "lang": "vi" },
-    { "q": "Có \"muống\", \"má\", \"răm\", \"mùi\"", "a": "rau", "e": "🥬", "lang": "vi" },
-    { "q": "Quả \"sáp\" Đắk Lắk, xay sinh tố béo ngậy", "a": "bơ", "e": "🥑", "lang": "vi" },
-    { "q": "Hoa Tết miền Bắc, có làng \"Nhật Tân\"", "a": "đào", "e": "🌸", "lang": "vi" },
-    { "q": "Hoa vàng năm cánh ngày Tết miền Nam", "a": "mai", "e": "🌼", "lang": "vi" },
-    { "q": "\"Gần bùn mà chẳng hôi tanh mùi bùn\"", "a": "sen", "e": "🪷", "lang": "vi" },
-    { "q": "Bánh nướng, bánh dẻo bày mâm cỗ rằm tháng Tám", "a": "bánh trung thu", "e": "🥮", "lang": "vi" },
-    { "q": "Món Obama ăn cùng đầu bếp Anthony Bourdain ở Hà Nội năm 2016", "a": "bún chả", "e": "🍢", "lang": "vi" },
-    { "q": "Bánh tráng cuốn tôm thịt rau sống, chấm tương đậu", "a": "gỏi cuốn", "e": "🥗", "lang": "vi" },
-    { "q": "Đặc sản xứ Huế có sả và mắm ruốc", "a": "bún bò", "e": "🌶️", "lang": "vi" },
-    { "q": "\"Muối\", \"trứng\", \"cốt dừa\", \"bạc xỉu\" đều là các kiểu…", "a": "cà phê", "e": "☕", "lang": "vi" },
-    { "q": "Món ăn kèm bắt buộc khi xem phim ở rạp", "a": "bỏng ngô", "e": "🍿", "lang": "vi", "alt": ["bắp rang"] },
-
-    { "q": "\"... là nơi để về\" — công trình có mái che", "a": "nhà", "e": "🏠", "lang": "vi" },
-    { "q": "Có \"đa\", \"đề\", \"si\" ở đầu làng", "a": "cây", "e": "🌳", "lang": "vi" },
-    { "q": "\"... lành đùm ... rách\"", "a": "lá", "e": "🍂", "lang": "vi" },
-    { "q": "Danh hiệu cuộc thi sắc đẹp: \"... hậu\"", "a": "hoa", "e": "👑", "lang": "vi" },
-    { "q": "Neil Armstrong đặt chân lên đây năm 1969", "a": "trăng", "e": "🌕", "lang": "vi" },
-    { "q": "Trên cờ đỏ có một ngôi … vàng", "a": "sao", "e": "⭐", "lang": "vi" },
-    { "q": "\"Chín tầng ...\"; iCloud là \"đám ...\" của Apple", "a": "mây", "e": "☁️", "lang": "vi" },
-    { "q": "\"... dầm thấm lâu\"", "a": "mưa", "e": "🌧️", "lang": "vi" },
-    { "q": "\"Gieo ... gặt bão\"", "a": "gió", "e": "💨", "lang": "vi" },
-    { "q": "Fansipan là … cao nhất Đông Dương", "a": "núi", "e": "⛰️", "lang": "vi" },
-    { "q": "\"Rừng vàng ... bạc\"", "a": "biển", "e": "🌊", "lang": "vi" },
-    { "q": "Hồng, Đà, Cửu Long đều là…", "a": "sông", "e": "🏞️", "lang": "vi" },
-    { "q": "\"Nước chảy ... mòn\"", "a": "đá", "e": "🪨", "lang": "vi" },
-    { "q": "Prometheus đánh cắp thứ này từ thần linh trao cho loài người", "a": "lửa", "e": "🔥", "lang": "vi" },
-    { "q": "\"Tấc ... tấc vàng\"", "a": "đất", "e": "🟫", "lang": "vi" },
-    { "q": "Bạch … và bảy chú lùn", "a": "tuyết", "e": "❄️", "lang": "vi" },
-    { "q": "Thần Thor vung búa tạo ra thứ này", "a": "sấm", "e": "⛈️", "lang": "vi" },
-    { "q": "Ánh sáng tách 7 màu khi đi qua giọt nước", "a": "cầu vồng", "e": "🌈", "lang": "vi" },
-    { "q": "\"... mưa là chuyện của trời\"", "a": "nắng", "e": "☀️", "lang": "vi" },
-    { "q": "Edison cải tiến loại … dây tóc", "a": "đèn", "e": "💡", "lang": "vi" },
-    { "q": "\"... nóng\" là vị trí chịu nhiều áp lực", "a": "ghế", "e": "🪑", "lang": "vi" },
-    { "q": "\"... kia ngự ở trên tường, thế gian ai đẹp được dường như ta\"", "a": "gương", "e": "🪞", "lang": "vi" },
-    { "q": "Vật nhỏ hay \"mất tích\" đúng lúc chuẩn bị ra khỏi nhà", "a": "chìa khóa", "e": "🔑", "lang": "vi" },
-    { "q": "Oẳn tù tì: thắng \"bao\", thua \"búa\"", "a": "kéo", "e": "✂️", "lang": "vi" },
-    { "q": "Vũ khí Mjölnir của thần Thor", "a": "búa", "e": "🔨", "lang": "vi" },
-    { "q": "Mary Poppins dùng vật này để bay", "a": "ô", "e": "☂️", "lang": "vi", "alt": ["dù"] },
-    { "q": "Vũ khí \"ba tiêu\" của Thiết Phiến công chúa", "a": "quạt", "e": "🪭", "lang": "vi" },
-    { "q": "Phương tiện \"Thống Nhất\" chạy Bắc – Nam", "a": "tàu hỏa", "e": "🚆", "lang": "vi" },
-    { "q": "\"... về bến đợi\" — chở khách qua sông bằng mái chèo", "a": "thuyền", "e": "⛵", "lang": "vi" },
-    { "q": "\"... là ngọn đèn sáng bất diệt của trí tuệ\" (Gorky)", "a": "sách", "e": "📖", "lang": "vi" },
-    { "q": "\"Nét chữ nết người\" — dụng cụ gì", "a": "bút", "e": "✏️", "lang": "vi" },
-    { "q": "\"... đồng\" Đông Sơn, cũng là vật báo giờ vào lớp", "a": "trống", "e": "🥁", "lang": "vi" },
-    { "q": "\"... bầu\" chỉ có một dây của Việt Nam", "a": "đàn", "e": "🎸", "lang": "vi" },
-    { "q": "\"Có ... mua tiên cũng được\"", "a": "tiền", "e": "💵", "lang": "vi" },
-    { "q": "Kim loại có ký hiệu hóa học Au", "a": "vàng", "e": "🥇", "lang": "vi" },
-    { "q": "Kim loại có ký hiệu hóa học Ag, đeo để \"giải gió\"", "a": "bạc", "e": "🥈", "lang": "vi" },
-    { "q": "\"Gõ mõ, thỉnh ...\" ở chùa", "a": "chuông", "e": "🔔", "lang": "vi" },
-    { "q": "Thứ cắm trên bánh sinh nhật để thổi", "a": "nến", "e": "🕯️", "lang": "vi" },
-    { "q": "Đồ chơi bay nhờ gió, gắn \"sáo\" kêu vi vu", "a": "diều", "e": "🪁", "lang": "vi" },
-    { "q": "Thứ ông già Noel bỏ vào chiếc tất treo đầu giường", "a": "quà", "e": "🎁", "lang": "vi" },
-    { "q": "Bồ câu ngày xưa mang thứ này", "a": "thư", "e": "✉️", "lang": "vi" },
-    { "q": "Chiếc … phân loại ở Hogwarts biết nói", "a": "mũ", "e": "🎩", "lang": "vi" },
-    { "q": "Harry Potter đeo đồ vật tròn này trên mặt", "a": "kính", "e": "👓", "lang": "vi" },
-    { "q": "Big Ben ở London thật ra là một chiếc…", "a": "đồng hồ", "e": "⏰", "lang": "vi" },
-    { "q": "Anh em nhà Wright cho nó cất cánh năm 1903", "a": "máy bay", "e": "✈️", "lang": "vi" },
-    { "q": "Starship của SpaceX là một…", "a": "tên lửa", "e": "🚀", "lang": "vi" },
-    { "q": "Đà Nẵng có lễ hội quốc tế về thứ này", "a": "pháo hoa", "e": "🎆", "lang": "vi" },
-    { "q": "Áp vào tai nghe như có tiếng sóng biển", "a": "vỏ ốc", "e": "🐚", "lang": "vi" },
-    { "q": "\"... piêu\" của người Thái; trời lạnh quàng quanh cổ", "a": "khăn", "e": "🧣", "lang": "vi" },
-    { "q": "\"... dài\" là quốc phục Việt Nam", "a": "áo", "e": "👘", "lang": "vi" },
-    { "q": "Lọ Lem đánh rơi chiếc … thủy tinh", "a": "giày", "e": "👠", "lang": "vi" },
-
-    { "q": "\"Nghĩa ... như nước trong nguồn chảy ra\"", "a": "mẹ", "e": "👩", "lang": "vi" },
-    { "q": "\"... Táo\" lên chầu trời ngày 23 tháng Chạp", "a": "ông", "e": "👴", "lang": "vi" },
-    { "q": "Núi … Nà ở Đà Nẵng có Cầu Vàng bàn tay khổng lồ", "a": "bà", "e": "🌉", "lang": "vi" },
-    { "q": "\"Được làm ..., thua làm giặc\"", "a": "vua", "e": "👑", "lang": "vi" },
-    { "q": "Nhân vật hiện lên hỏi \"Vì sao con khóc?\" trong truyện Tấm Cám", "a": "bụt", "e": "🧙", "lang": "vi" },
-    { "q": "\"Hồn ... bóng quế\"; Halloween hóa trang thành nó", "a": "ma", "e": "👻", "lang": "vi" },
-    { "q": "\"... thấy tai nghe\"", "a": "mắt", "e": "👀", "lang": "vi" },
-    { "q": "\"Đàn gảy ... trâu\"", "a": "tai", "e": "👂", "lang": "vi" },
-    { "q": "Pinocchio nói dối thì bộ phận này dài ra", "a": "mũi", "e": "👃", "lang": "vi" },
-    { "q": "\"Trăm hay không bằng ... quen\"", "a": "tay", "e": "✋", "lang": "vi" },
-    { "q": "Achilles bất tử trừ chỗ gót…", "a": "chân", "e": "🦶", "lang": "vi" },
-    { "q": "Cơ quan đập khoảng 100.000 lần mỗi ngày", "a": "tim", "e": "❤️", "lang": "vi" },
-    { "q": "\"Môi hở ... lạnh\"", "a": "răng", "e": "🦷", "lang": "vi" },
-    { "q": "Rapunzel thả thứ này xuống từ ngọn tháp", "a": "tóc", "e": "💇", "lang": "vi" },
-    { "q": "\"Lương y như từ mẫu\" nói về nghề này", "a": "bác sĩ", "e": "🩺", "lang": "vi" },
-    { "q": "Mỹ Tâm, Hà Anh Tuấn làm nghề gì", "a": "ca sĩ", "e": "🎤", "lang": "vi" },
-    { "q": "\"Không ... đố mày làm nên\"", "a": "thầy", "e": "🧑‍🏫", "lang": "vi" },
-    { "q": "\"Một nắng hai sương\" là nỗi vất vả của ai", "a": "nông dân", "e": "🧑‍🌾", "lang": "vi" },
-    { "q": "Dịp có câu đối đỏ, cây nêu, bánh chưng xanh", "a": "tết", "e": "🧧", "lang": "vi" },
-    { "q": "Phong bao đỏ mừng tuổi đầu năm", "a": "lì xì", "e": "🧧", "lang": "vi" },
-    { "q": "Tết của thiếu nhi, rằm tháng Tám", "a": "trung thu", "e": "🏮", "lang": "vi" },
-    { "q": "Đồ chơi năm cánh rước đêm rằm tháng Tám", "a": "đèn ông sao", "e": "⭐", "lang": "vi" },
-    { "q": "Tấm Cám, Sọ Dừa thuộc thể loại truyện…", "a": "cổ tích", "e": "📚", "lang": "vi" },
-    { "q": "Vùng đất \"chín rồng\", có chợ nổi Cái Răng", "a": "miền tây", "e": "🛶", "lang": "vi" },
-    { "q": "\"... như Tết\"", "a": "vui", "e": "😄", "lang": "vi" },
-    { "q": "\"... như con chuồn chuồn\" (bài đồng dao)", "a": "buồn", "e": "😢", "lang": "vi" },
-    { "q": "\"... nhau yêu cả đường đi\"", "a": "yêu", "e": "💕", "lang": "vi" },
-    { "q": "\"Ăn no ... kỹ\"", "a": "ngủ", "e": "😴", "lang": "vi" },
-    { "q": "\"... trời không khỏi nắng\"", "a": "chạy", "e": "🏃", "lang": "vi" },
-    { "q": "Việc người ta làm ở phòng karaoke", "a": "hát", "e": "🎤", "lang": "vi" },
-    { "q": "\"Một nụ ... bằng mười thang thuốc bổ\"", "a": "cười", "e": "😂", "lang": "vi" },
-    { "q": "\"Bé ... nhè\", nước mắt rơi", "a": "khóc", "e": "😭", "lang": "vi" },
-    { "q": "\"Bước ... vọt của nhân loại\" (Armstrong)", "a": "nhảy", "e": "💃", "lang": "vi" },
-    { "q": "Ánh Viên đoạt hàng chục HCV SEA Games ở môn này", "a": "bơi", "e": "🏊", "lang": "vi" },
-    { "q": "Màu thẻ phạt đuổi cầu thủ khỏi sân", "a": "đỏ", "e": "🟥", "lang": "vi" },
-    { "q": "\"Tre ... xanh tự bao giờ\"", "a": "xanh", "e": "🎋", "lang": "vi" },
-    { "q": "Màu \"hoa sim\", màu áo dài nữ sinh xứ Huế", "a": "tím", "e": "🟪", "lang": "vi" },
-    { "q": "\"Gần mực thì ...\"", "a": "đen", "e": "⬛", "lang": "vi" },
-    { "q": "Màu áo blouse của bác sĩ", "a": "trắng", "e": "🥼", "lang": "vi" },
-    { "q": "\"Tin ...\", \"ghế ...\", \"đường dây ...\"", "a": "nóng", "e": "🔥", "lang": "vi" },
-    { "q": "\"Môi hở răng ...\"", "a": "lạnh", "e": "🥶", "lang": "vi" },
-    { "q": "Số cánh của ngôi sao trên cờ Tổ quốc", "a": "năm", "e": "⭐", "lang": "vi" },
-    { "q": "Số chú lùn đi cùng Bạch Tuyết", "a": "bảy", "e": "🧌", "lang": "vi" },
-    { "q": "Số chân của con nhện", "a": "tám", "e": "🕷️", "lang": "vi" },
-    { "q": "\"... phân vẹn mười\"", "a": "mười", "e": "🔟", "lang": "vi" },
-    { "q": "\"Một nắng ... sương\"", "a": "hai", "e": "✌️", "lang": "vi" },
-    { "q": "\"Một điều nhịn ... điều lành\"", "a": "chín", "e": "9️⃣", "lang": "vi" },
-    { "q": "Thủ đô ngàn năm văn hiến", "a": "hà nội", "e": "🏛️", "lang": "vi" },
-    { "q": "Kinh đô của triều Nguyễn", "a": "huế", "e": "🏯", "lang": "vi" },
-    { "q": "Thành phố ngàn thông có hồ Xuân Hương", "a": "đà lạt", "e": "🌲", "lang": "vi" },
-    { "q": "Vịnh có hòn Trống Mái, hòn Đỉnh Hương", "a": "hạ long", "e": "🏝️", "lang": "vi" },
-    { "q": "Tỉnh có \"Đất Mũi\" cực Nam Tổ quốc", "a": "cà mau", "e": "🗺️", "lang": "vi" },
-    { "q": "\"Tôi đi học\" của Thanh Tịnh tả buổi đầu tới đây", "a": "trường", "e": "🏫", "lang": "vi" },
-    { "q": "\"... Bến Thành\", \"... Đồng Xuân\"", "a": "chợ", "e": "🛒", "lang": "vi" },
-    { "q": "\"Đêm ... lắm rồi\", giờ của cú đêm", "a": "khuya", "e": "🌙", "lang": "vi" },
-    { "q": "Biển … của Việt Nam, phía mặt trời mọc", "a": "đông", "e": "🌅", "lang": "vi" },
-    { "q": "Đường Tăng đi thỉnh kinh về phương nào", "a": "tây", "e": "🌇", "lang": "vi" },
-    { "q": "Sao … Đẩu dẫn đường cho người đi biển", "a": "bắc", "e": "🧭", "lang": "vi" },
-    { "q": "\"Phương ... Hải\" hay \"Thiên ... Địa Bắc\"", "a": "nam", "e": "⬇️", "lang": "vi" },
-    { "q": "Ánh chớp nóng gấp 5 lần bề mặt Mặt Trời", "a": "sét", "e": "⚡", "lang": "vi" },
-    { "q": "Câu mở đầu quen thuộc của bài hát ru", "a": "à ơi", "e": "👶", "lang": "vi" },
-
-    { "q": "Không phải lời nói dối", "a": "truth", "e": "🤥", "lang": "en" },
-    { "q": "Gió mạnh kèm mưa to", "a": "storm", "e": "⛈️", "lang": "en" },
-    { "q": "Tom trong \"Tom và Jerry\" là con gì", "a": "cat", "e": "🐱", "lang": "en" },
-    { "q": "Scooby-Doo là con gì", "a": "dog", "e": "🐶", "lang": "en" },
-    { "q": "Ngôi sao gần Trái Đất nhất", "a": "sun", "e": "☀️", "lang": "en" },
-    { "q": "Vệ tinh tự nhiên duy nhất của Trái Đất", "a": "moon", "e": "🌕", "lang": "en" },
-    { "q": "Người nổi tiếng, cũng là thứ lấp lánh trên trời đêm", "a": "star", "e": "⭐", "lang": "en" },
-    { "q": "\"Singin' in the ...\" — phim nhạc kịch Gene Kelly nhảy dưới mưa", "a": "rain", "e": "🌧️", "lang": "en" },
-    { "q": "Christmas … là cây thông Noel", "a": "tree", "e": "🎄", "lang": "en" },
-    { "q": "Lương thực chính của châu Á, \"fried ...\" là cơm chiên", "a": "rice", "e": "🍚", "lang": "en" },
-    { "q": "Thứ được giấu đi cho trẻ con tìm trong lễ Phục sinh", "a": "egg", "e": "🥚", "lang": "en" },
-    { "q": "\"… tea\" là trà sữa", "a": "milk", "e": "🥛", "lang": "en" },
-    { "q": "Người Anh nhâm nhi thứ này lúc 5 giờ chiều", "a": "tea", "e": "🍵", "lang": "en" },
-    { "q": "\"... dog\" là xúc xích kẹp bánh mì", "a": "hot", "e": "🌭", "lang": "en" },
-    { "q": "\"… War\" — Chiến tranh Lạnh", "a": "cold", "e": "🥶", "lang": "en" },
-    { "q": "Màu áo của Liverpool và Man United", "a": "red", "e": "🟥", "lang": "en" },
-    { "q": "Màu áo Chelsea; \"feeling ...\" nghĩa là buồn", "a": "blue", "e": "🟦", "lang": "en" },
-    { "q": "Màu da của gã chằn tinh Shrek", "a": "green", "e": "🟩", "lang": "en" },
-    { "q": "\"... Friday\" — ngày săn sale lớn nhất năm", "a": "black", "e": "⬛", "lang": "en" },
-    { "q": "\"Black…\" — nhóm nhạc của Jisoo, Jennie, Rosé, Lisa", "a": "pink", "e": "🩷", "lang": "en" },
-    { "q": "\"... Piece\" — bộ truyện về Luffy mũ rơm", "a": "one", "e": "🏴‍☠️", "lang": "en" },
-    { "q": "Số chú heo con trong truyện đấu trí với sói", "a": "three", "e": "🐷", "lang": "en" },
-    { "q": "Số mặt của một con xúc xắc", "a": "six", "e": "🎲", "lang": "en" },
-    { "q": "Số kỳ quan của thế giới cổ đại", "a": "seven", "e": "🏛️", "lang": "en" },
-    { "q": "Số tay của con bạch tuộc", "a": "eight", "e": "🐙", "lang": "en" },
-    { "q": "Số hành tinh trước khi sao Diêm Vương bị \"loại\" năm 2006", "a": "nine", "e": "🪐", "lang": "en" },
-    { "q": "Điểm tuyệt đối ở trường học Việt Nam", "a": "ten", "e": "💯", "lang": "en" },
-    { "q": "\"All you need is ...\" (The Beatles)", "a": "love", "e": "💖", "lang": "en" },
-    { "q": "\"... Alone\" — phim Giáng sinh cậu bé Kevin ở nhà một mình", "a": "home", "e": "🏡", "lang": "en" },
-    { "q": "\"Face...\" — mạng xã hội lớn nhất thế giới", "a": "book", "e": "📘", "lang": "en" },
-    { "q": "\"I have a …, I have an apple\" — bài hát gây sốt năm 2016", "a": "pen", "e": "🖊️", "lang": "en" },
-    { "q": "Tia Chớp McQueen trong phim Pixar là một chiếc…", "a": "car", "e": "🏎️", "lang": "en" },
-    { "q": "Chiếc \"school ...\" màu vàng chở học sinh Mỹ", "a": "bus", "e": "🚌", "lang": "en" },
-    { "q": "Titanic là một con…", "a": "ship", "e": "🚢", "lang": "en" },
-    { "q": "Harry Potter đến Hogwarts bằng thứ này từ sân ga 9¾", "a": "train", "e": "🚂", "lang": "en" },
-    { "q": "\"The Lion ...\" — phim Disney 1994", "a": "king", "e": "🤴", "lang": "en" },
-    { "q": "Ban nhạc của Freddie Mercury hát \"Bohemian Rhapsody\"", "a": "queen", "e": "👸", "lang": "en" },
-    { "q": "\"... Heist\" — phim băng cướp đeo mặt nạ Dalí", "a": "money", "e": "💰", "lang": "en" },
-    { "q": "Huy chương hạng nhất ở Olympic", "a": "gold", "e": "🥇", "lang": "en" },
-    { "q": "\"Second-...\" — đồ cũ, hàng đã qua sử dụng", "a": "hand", "e": "✋", "lang": "en" },
-    { "q": "\"London ...\" — vòng quay khổng lồ bên sông Thames", "a": "eye", "e": "🎡", "lang": "en" },
-    { "q": "Van Gogh tự cắt bộ phận này của mình", "a": "ear", "e": "👂", "lang": "en" },
-    { "q": "Bộ phận dài ra khi Pinocchio nói dối", "a": "nose", "e": "👃", "lang": "en" },
-    { "q": "\"Big ...\" — người hay ba hoa, lộ bí mật", "a": "mouth", "e": "👄", "lang": "en" },
-    { "q": "Thứ Rapunzel thả xuống tháp cho hoàng tử leo", "a": "hair", "e": "💇", "lang": "en" },
-    { "q": "Biểu tượng ❤️, cơ quan bơm máu", "a": "heart", "e": "❤️", "lang": "en" },
-    { "q": "Thứ thợ ảnh bảo bạn làm khi nói \"cheese\"", "a": "smile", "e": "😊", "lang": "en" },
-    { "q": "\"... birthday to you\"", "a": "happy", "e": "🎂", "lang": "en" },
-    { "q": "Cảm xúc màu xanh dương trong phim Inside Out", "a": "sad", "e": "😢", "lang": "en" },
-    { "q": "\"... morning, Vietnam!\" — câu chào nổi tiếng của Robin Williams", "a": "good", "e": "🌄", "lang": "en" },
-    { "q": "\"Breaking ...\" — phim về ông thầy dạy hóa", "a": "bad", "e": "🧪", "lang": "en" },
-    { "q": "\"... Bang\" — thuyết vụ nổ lớn, cũng là tên nhóm nhạc của G-Dragon", "a": "big", "e": "💥", "lang": "en" },
-    { "q": "Cỡ nhỏ nhất khi gọi cốc trà sữa: S là viết tắt của…", "a": "small", "e": "🥤", "lang": "en" },
-    { "q": "\"YouTube ...s\" — video dọc dưới 1 phút", "a": "short", "e": "📱", "lang": "en" },
-    { "q": "\"... time no see\" — lâu rồi không gặp", "a": "long", "e": "⏳", "lang": "en" },
-    { "q": "\"... motion\" — quay chậm", "a": "slow", "e": "🐢", "lang": "en" },
-    { "q": "\"Crazy ... Asians\" — phim về giới siêu giàu Singapore", "a": "rich", "e": "🤑", "lang": "en" },
-    { "q": "Việc bạn làm ở phòng karaoke (tiếng Anh)", "a": "sing", "e": "🎤", "lang": "en" },
-    { "q": "\"Just ...\" — bài hát đầu tay của Lady Gaga", "a": "dance", "e": "💃", "lang": "en" },
-    { "q": "\"..., Forrest, ...!\"", "a": "run", "e": "🏃", "lang": "en" },
-    { "q": "\"...ing Beauty\" — Người đẹp ngủ trong rừng", "a": "sleep", "e": "😴", "lang": "en" },
-    { "q": "\"... Pray Love\" — phim của Julia Roberts", "a": "eat", "e": "🍝", "lang": "en" },
-    { "q": "\"Soft ...\" — nước ngọt có ga", "a": "drink", "e": "🥤", "lang": "en" },
-    { "q": "Họ của Tim — CEO hiện tại của Apple", "a": "cook", "e": "🧑‍🍳", "lang": "en" },
-    { "q": "Động từ có quá khứ viết y hệt hiện tại, nghĩa là đọc", "a": "read", "e": "📚", "lang": "en" },
-    { "q": "Apple … — ứng dụng nghe nhạc của Apple", "a": "music", "e": "🎵", "lang": "en" },
-    { "q": "Thứ bạn mua vé ở CGV để xem", "a": "movie", "e": "🎬", "lang": "en" },
-    { "q": "\"i…\" — điện thoại của Apple", "a": "phone", "e": "📱", "lang": "en" },
-    { "q": "\"Eye of the ...\" — nhạc phim Rocky", "a": "tiger", "e": "🐯", "lang": "en" },
-    { "q": "Con vật trên logo của Peugeot", "a": "lion", "e": "🦁", "lang": "en" },
-    { "q": "Paddington mê bánh mì mứt cam là chú…", "a": "bear", "e": "🐻", "lang": "en" },
-    { "q": "\"Trojan ...\" — con ngựa gỗ thành Troy, cũng là tên một loại virus", "a": "horse", "e": "🐴", "lang": "en" },
-    { "q": "\"Peppa ...\" — hoạt hình cô heo hồng", "a": "pig", "e": "🐷", "lang": "en" },
-    { "q": "Donald …", "a": "duck", "e": "🦆", "lang": "en" },
-    { "q": "\"Kentucky Fried ...\" (KFC)", "a": "chicken", "e": "🍗", "lang": "en" },
-    { "q": "\"Angry ...s\" — game bắn chim vào lợn xanh", "a": "bird", "e": "🐦", "lang": "en" },
-    { "q": "Game kinh điển trên điện thoại Nokia đời cũ", "a": "snake", "e": "🐍", "lang": "en" },
-    { "q": "\"Arctic …s\" — ban nhạc Anh; cũng là loài của Tôn Ngộ Không", "a": "monkey", "e": "🐒", "lang": "en" },
-    { "q": "Mickey …", "a": "mouse", "e": "🐭", "lang": "en" },
-    { "q": "Bugs Bunny là một con…", "a": "rabbit", "e": "🐰", "lang": "en" },
-    { "q": "Viết tắt của \"Greatest Of All Time\", cũng là con dê", "a": "goat", "e": "🐐", "lang": "en" },
-    { "q": "Dolly — con vật nhân bản đầu tiên — là một con…", "a": "sheep", "e": "🐑", "lang": "en" },
-    { "q": "Logo công ty của Steve Jobs là quả này bị cắn", "a": "apple", "e": "🍎", "lang": "en" },
-    { "q": "Minions mê món này", "a": "banana", "e": "🍌", "lang": "en" },
-    { "q": "Màu áo đội tuyển Hà Lan, cũng là một loại quả", "a": "orange", "e": "🍊", "lang": "en" },
-    { "q": "\"When life gives you …s, make lemonade\"", "a": "lemon", "e": "🍋", "lang": "en" },
-    { "q": "Quả \"cát Hòa Lộc\" (tiếng Anh)", "a": "mango", "e": "🥭", "lang": "en" },
-    { "q": "Quả có ba \"mắt\" trên vỏ, nhiều nước", "a": "coconut", "e": "🥥", "lang": "en" },
-    { "q": "\"... Crush\" — game xếp kẹo", "a": "candy", "e": "🍬", "lang": "en" },
-    { "q": "\"Let them eat ...\" (gán cho Marie Antoinette)", "a": "cake", "e": "🎂", "lang": "en" },
-    { "q": "Bánh mì gối (tiếng Anh)", "a": "bread", "e": "🍞", "lang": "en" },
-    { "q": "Thứ khiến nước biển có vị mặn", "a": "salt", "e": "🧂", "lang": "en" },
-    { "q": "\"... Daddy\" — người lớn tuổi giàu có bao nuôi", "a": "sugar", "e": "🍬", "lang": "en" },
-    { "q": "Cách gọi người yêu ngọt ngào, cũng là mật ong", "a": "honey", "e": "🍯", "lang": "en" },
-    { "q": "\"Chicken ... for the Soul\" — bộ sách Hạt giống tâm hồn", "a": "soup", "e": "🥣", "lang": "en" },
-    { "q": "\"Pacific ...\" — Thái Bình Dương", "a": "ocean", "e": "🌊", "lang": "en" },
-    { "q": "\"Dead ...\" — Biển Chết", "a": "sea", "e": "🏖️", "lang": "en" },
-    { "q": "\"Moon ...\" — bài hát trong phim Breakfast at Tiffany's", "a": "river", "e": "🏞️", "lang": "en" },
-    { "q": "\"Rocky …s\" — dãy núi ở Bắc Mỹ", "a": "mountain", "e": "⛰️", "lang": "en" },
-    { "q": "Dwayne \"The ...\" Johnson", "a": "rock", "e": "🪨", "lang": "en" },
-    { "q": "Thứ trẻ con xây lâu đài trên bãi biển", "a": "sand", "e": "🏝️", "lang": "en" },
-    { "q": "\"... Age\" — phim hoạt hình chú sóc và hạt dẻ", "a": "ice", "e": "🧊", "lang": "en" },
-    { "q": "Hành tinh thứ ba tính từ Mặt Trời", "a": "earth", "e": "🌍", "lang": "en" },
-    { "q": "\"The ...'s the limit\" — không có giới hạn", "a": "sky", "e": "🌌", "lang": "en" },
-    { "q": "\"i…\" — dịch vụ lưu trữ của Apple", "a": "cloud", "e": "☁️", "lang": "en" },
-    { "q": "Thứ Pinocchio nói khiến mũi dài ra", "a": "lie", "e": "🤥", "lang": "en" },
-    { "q": "\"The ... remembers\" — nhà Stark, Game of Thrones", "a": "north", "e": "🧭", "lang": "en" },
-    { "q": "\"... Korea\" — Hàn Quốc", "a": "south", "e": "🇰🇷", "lang": "en" },
-    { "q": "\"Far ...\" — Viễn Đông", "a": "east", "e": "🌅", "lang": "en" },
-    { "q": "\"Silent ...\" — bài hát Giáng sinh kinh điển", "a": "night", "e": "🌃", "lang": "en" },
-    { "q": "\"High ...\" — đúng 12 giờ trưa, phim cao bồi kinh điển", "a": "noon", "e": "🕛", "lang": "en" },
-    { "q": "\"... is money\"", "a": "time", "e": "⏳", "lang": "en" },
-    { "q": "Lời đầu tiên khi nhấc máy; bài hit của Adele năm 2015", "a": "hello", "e": "👋", "lang": "en" },
-    { "q": "\"...giving\" — lễ Tạ ơn ở Mỹ", "a": "thanks", "e": "🦃", "lang": "en" },
-    { "q": "Bài hit của Justin Bieber năm 2015, nghĩa là xin lỗi", "a": "sorry", "e": "🙇", "lang": "en" },
-    { "q": "\"...s' Day\" — ngày 20 tháng 11", "a": "teacher", "e": "🧑‍🏫", "lang": "en" },
-    { "q": "\"... Strange\" — phù thủy tối thượng Marvel", "a": "doctor", "e": "🩺", "lang": "en" },
-    { "q": "Người cầm thẻ HSSV đi học (tiếng Anh)", "a": "student", "e": "🎓", "lang": "en" },
-    { "q": "\"...'s Day\" — Ngày của Mẹ", "a": "mother", "e": "👩", "lang": "en" },
-    { "q": "\"Big ...\" — truyền hình thực tế, \"anh cả\" theo dõi mọi người", "a": "brother", "e": "👦", "lang": "en" },
-    { "q": "\"... Act\" — phim bà sơ hát của Whoopi Goldberg", "a": "sister", "e": "👧", "lang": "en" },
-    { "q": "\"... Shark\" — bài thiếu nhi nhiều lượt xem nhất YouTube", "a": "baby", "e": "🦈", "lang": "en" },
-    { "q": "\"Knock knock\" là tiếng gõ lên thứ này", "a": "door", "e": "🚪", "lang": "en" },
-    { "q": "\"Dr. ...\" — bác sĩ thiên tài khó tính trên truyền hình Mỹ", "a": "house", "e": "🏠", "lang": "en" },
-    { "q": "\"Arm…\" — ghế bành", "a": "chair", "e": "🪑", "lang": "en" },
-    { "q": "\"Periodic ...\" — bảng tuần hoàn", "a": "table", "e": "🧪", "lang": "en" },
-    { "q": "\"... and breakfast\" (B&B)", "a": "bed", "e": "🛏️", "lang": "en" },
-    { "q": "Cây đèn thần của Aladdin (tiếng Anh)", "a": "lamp", "e": "🪔", "lang": "en" },
-    { "q": "\"Rock Around the ...\" — bài rock and roll kinh điển 1954", "a": "clock", "e": "🕰️", "lang": "en" },
-    { "q": "\"…board\" là bàn phím; vật dùng để mở khóa", "a": "key", "e": "🔑", "lang": "en" },
-    { "q": "\"The Cat in the ...\" — sách của Dr. Seuss", "a": "hat", "e": "🎩", "lang": "en" },
-    { "q": "Lọ Lem đánh rơi một chiếc (tiếng Anh)", "a": "shoe", "e": "👠", "lang": "en" },
-    { "q": "\"T-...\" — áo phông", "a": "shirt", "e": "👕", "lang": "en" },
-    { "q": "\"Rain…\" — áo mưa", "a": "coat", "e": "🧥", "lang": "en" },
-    { "q": "\"The Lord of the …s\"", "a": "ring", "e": "💍", "lang": "en" },
-    { "q": "A, B, C… là các…", "a": "letter", "e": "🔤", "lang": "en" },
-    { "q": "\"...shop\" — phần mềm chỉnh ảnh của Adobe", "a": "photo", "e": "📷", "lang": "en" },
-    { "q": "\"High ... Musical\" — phim ca nhạc tuổi học trò", "a": "school", "e": "🏫", "lang": "en" },
-    { "q": "Nơi diễn ra phim Grey's Anatomy", "a": "hospital", "e": "🏥", "lang": "en" },
-    { "q": "\"Super…\" — siêu thị", "a": "market", "e": "🛒", "lang": "en" },
-    { "q": "\"Vietcom…\", \"Techcom…\" đều kết thúc bằng từ này", "a": "bank", "e": "🏦", "lang": "en" },
-    { "q": "\"The Grand Budapest ...\" — phim của Wes Anderson", "a": "hotel", "e": "🏨", "lang": "en" },
-    { "q": "\"Madison Square ...\" — nhà thi đấu ở New York", "a": "garden", "e": "🌷", "lang": "en" },
-    { "q": "\"Miami ...\" — bãi biển nổi tiếng ở Florida", "a": "beach", "e": "🏖️", "lang": "en" },
-    { "q": "\"Treasure ...\" — Đảo giấu vàng", "a": "island", "e": "🏝️", "lang": "en" },
-    { "q": "\"... busters\" — biệt đội săn ma", "a": "ghost", "e": "👻", "lang": "en" },
-    { "q": "\"Los ...es\" — thành phố của các thiên thần", "a": "angel", "e": "😇", "lang": "en" },
-    { "q": "\"Big ... 6\" — phim có robot Baymax", "a": "hero", "e": "🦸", "lang": "en" },
-    { "q": "\"I have a ...\" (Martin Luther King)", "a": "dream", "e": "💭", "lang": "en" },
-    { "q": "Thứ duy nhất còn lại trong chiếc hộp Pandora", "a": "hope", "e": "🌱", "lang": "en" },
-    { "q": "\"... out!\" — chào tạm biệt kèm ký hiệu ✌️", "a": "peace", "e": "🕊️", "lang": "en" },
-    { "q": "\"...phone\" — điện thoại thông minh", "a": "smart", "e": "🧠", "lang": "en" },
-    { "q": "\"What doesn't kill you makes you ...er\" (Kelly Clarkson)", "a": "strong", "e": "💪", "lang": "en" },
-    { "q": "Vị của quả sấu, quả me", "a": "sour", "e": "🍋", "lang": "en" },
-    { "q": "Vị của mướp đắng", "a": "bitter", "e": "☕", "lang": "en" },
-    { "q": "Vị của mì Buldak Hàn Quốc", "a": "spicy", "e": "🌶️", "lang": "en" },
-    { "q": "\"The ... Games\" — Đấu trường sinh tử", "a": "hungry", "e": "🏹", "lang": "en" },
-    { "q": "Cảm giác sau ca làm 12 tiếng", "a": "tired", "e": "😩", "lang": "en" },
-    { "q": "\"... Birds\" — chim nổi giận", "a": "angry", "e": "😡", "lang": "en" },
-    { "q": "Bài song ca của Jason Mraz và Colbie Caillat (2008)", "a": "lucky", "e": "🍀", "lang": "en" },
-    { "q": "\"... AI\" — công ty tạo ra ChatGPT", "a": "open", "e": "🤖", "lang": "en" },
-    { "q": "Nút ✖ trên cửa sổ máy tính để làm gì", "a": "close", "e": "🔒", "lang": "en" },
-    { "q": "Nút khởi động huyền thoại của Windows", "a": "start", "e": "🏁", "lang": "en" },
-    { "q": "Biển báo hình bát giác màu đỏ", "a": "stop", "e": "🛑", "lang": "en" },
-    { "q": "WALL-E là một…", "a": "robot", "e": "🤖", "lang": "en" },
-    { "q": "Thành viên Blackpink hát \"APT.\" cùng Bruno Mars", "a": "rose", "e": "🌹", "lang": "en" },
-    { "q": "Hãng xe thể thao Anh, cũng là tên hoa sen", "a": "lotus", "e": "🪷", "lang": "en" },
-    { "q": "Mr. … của Rowan Atkinson", "a": "bean", "e": "🫘", "lang": "en" },
-    { "q": "\"Pop…\" — bỏng ngô", "a": "corn", "e": "🌽", "lang": "en" },
-    { "q": "Lễ hội La Tomatina ở Tây Ban Nha ném nhau bằng quả này", "a": "tomato", "e": "🍅", "lang": "en" },
-    { "q": "\"Couch ...\" — người suốt ngày nằm sofa xem tivi", "a": "potato", "e": "🥔", "lang": "en" },
-    { "q": "Shrek bảo yêu tinh có nhiều lớp như củ…", "a": "onion", "e": "🧅", "lang": "en" },
-    { "q": "Thứ làm mũi người tuyết", "a": "carrot", "e": "🥕", "lang": "en" },
-    { "q": "Bài hit của BTS năm 2021, \"smooth like ...\"", "a": "butter", "e": "🧈", "lang": "en" },
-    { "q": "\"Say ...!\" — câu nói khi chụp ảnh", "a": "cheese", "e": "🧀", "lang": "en" },
-    { "q": "Món Nhật cơm cuộn cá sống", "a": "sushi", "e": "🍣", "lang": "en" },
-    { "q": "Big Mac là một chiếc…", "a": "burger", "e": "🍔", "lang": "en" },
-    { "q": "Môn thể thao của Federer, Nadal, Djokovic", "a": "tennis", "e": "🎾", "lang": "en" },
-    { "q": "Nhạc cụ có 88 phím đen trắng", "a": "piano", "e": "🎹", "lang": "en" },
-    { "q": "Nhạc cụ 6 dây của Slash", "a": "guitar", "e": "🎸", "lang": "en" },
-    { "q": "Nhạc cụ gõ giữ nhịp trong ban nhạc rock", "a": "drum", "e": "🥁", "lang": "en" },
-    { "q": "\"Eurovision ... Contest\"", "a": "song", "e": "🎶", "lang": "en" },
-    { "q": "Sao Hỏa, sao Kim, sao Mộc đều là…", "a": "planet", "e": "🪐", "lang": "en" },
-    { "q": "Chú gấu mèo cầm súng trong Guardians of the Galaxy", "a": "rocket", "e": "🦝", "lang": "en" },
-    { "q": "\"... Boulevard\" — đại lộ nổi tiếng ở Los Angeles", "a": "sunset", "e": "🌇", "lang": "en" },
-    { "q": "\"Before ...\" — phim của Ethan Hawke (1995)", "a": "sunrise", "e": "🌅", "lang": "en" },
-    { "q": "\"How to Train Your ...\"", "a": "dragon", "e": "🐉", "lang": "en" },
-    { "q": "Startup được định giá trên 1 tỷ đô được gọi là…", "a": "unicorn", "e": "🦄", "lang": "en" },
-    { "q": "Sinh vật trong Jurassic Park", "a": "dinosaur", "e": "🦖", "lang": "en" },
-    { "q": "Kẻ thù của Batman, cũng là chim không biết bay", "a": "penguin", "e": "🐧", "lang": "en" },
-    { "q": "Po trong \"Kung Fu ...\"", "a": "panda", "e": "🐼", "lang": "en" },
-    { "q": "Biểu tượng quốc gia của Mỹ, chim săn mồi", "a": "eagle", "e": "🦅", "lang": "en" },
-    { "q": "Con chim đậu trên vai cướp biển", "a": "parrot", "e": "🦜", "lang": "en" },
-    { "q": "\"Teenage Mutant Ninja …s\"", "a": "turtle", "e": "🐢", "lang": "en" },
-    { "q": "Mr. Krabs trong SpongeBob là con…", "a": "crab", "e": "🦀", "lang": "en" },
-    { "q": "Bubba Gump trong Forrest Gump mê nuôi con này", "a": "shrimp", "e": "🦐", "lang": "en" },
-    { "q": "Paul — \"nhà tiên tri\" World Cup 2010 — là con…", "a": "octopus", "e": "🐙", "lang": "en" },
-    { "q": "Sinh vật trong phim Jaws (tiếng Anh)", "a": "shark", "e": "🦈", "lang": "en" },
-    { "q": "\"Miami ...s\" — đội bóng bầu dục Mỹ, linh vật cá heo", "a": "dolphin", "e": "🐬", "lang": "en" },
-    { "q": "\"Con tàu của sa mạc\" (tiếng Anh)", "a": "camel", "e": "🐫", "lang": "en" },
-    { "q": "\"Doe, a ..., a female ...\" — bài Do-Re-Mi", "a": "deer", "e": "🦌", "lang": "en" },
-    { "q": "\"... bumps\" — nổi da gà", "a": "goose", "e": "🪿", "lang": "en" },
-    { "q": "\"...-Man\" — người nhện", "a": "spider", "e": "🕷️", "lang": "en" },
-    { "q": "\"... Movie\" — phim hoạt hình về chú ong Barry", "a": "bee", "e": "🐝", "lang": "en" },
-    { "q": "\"...-Man\" — siêu anh hùng thu nhỏ của Marvel", "a": "ant", "e": "🐜", "lang": "en" },
-    { "q": "\"... mail\" — thư bưu điện chậm như ốc sên", "a": "snail", "e": "🐌", "lang": "en" },
-    { "q": "\"... blossom\" — hoa anh đào", "a": "cherry", "e": "🍒", "lang": "en" },
-    { "q": "Công chúa được Mario giải cứu", "a": "peach", "e": "🍑", "lang": "en" },
-    { "q": "\"...fruit\" — bưởi chùm", "a": "grape", "e": "🍇", "lang": "en" },
-    { "q": "\"Water…\" — dưa hấu", "a": "melon", "e": "🍈", "lang": "en" },
-    { "q": "\"... salad\" — gỏi đu đủ Thái \"som tam\"", "a": "papaya", "e": "🥗", "lang": "en" },
-    { "q": "Cá … đại dương Phú Yên (tiếng Anh)", "a": "tuna", "e": "🐟", "lang": "en" },
-    { "q": "Nhân vật đội nấm trong Mario, tên nghĩa là con cóc", "a": "toad", "e": "🍄", "lang": "en" },
-    { "q": "File nhỏ trình duyệt lưu khi bạn vào web, cũng là bánh quy", "a": "cookie", "e": "🍪", "lang": "en" },
-    { "q": "Cơm nắm tam giác Nhật Bản", "a": "onigiri", "e": "🍙", "lang": "en" },
-    { "q": "\"Instant ...\" — mì gói", "a": "noodle", "e": "🍜", "lang": "en" },
-    { "q": "\"... Claus\" — ông già Noel", "a": "santa", "e": "🎅", "lang": "en" },
-    { "q": "\"Like a ... in the Wind\" — Elton John", "a": "candle", "e": "🕯️", "lang": "en" },
-    { "q": "\"Jingle …s\"", "a": "bell", "e": "🔔", "lang": "en" },
-    { "q": "Quốc hoa Hà Lan", "a": "tulip", "e": "🌷", "lang": "en" },
-    { "q": "\"Row, row, row your ...\"", "a": "boat", "e": "🛶", "lang": "en" },
-    { "q": "\"Top ...\" — chương trình xe hơi của BBC; cũng là bánh răng", "a": "gear", "e": "⚙️", "lang": "en" },
-    { "q": "Bài hit của Rihanna \"ella ella eh eh\"", "a": "umbrella", "e": "☂️", "lang": "en" },
-    { "q": "Google …", "a": "map", "e": "🗺️", "lang": "en" },
-    { "q": "Dora the Explorer có chiếc … biết nói", "a": "backpack", "e": "🎒", "lang": "en" },
-    { "q": "\"... of Thrones\"", "a": "game", "e": "🎮", "lang": "en" },
-    { "q": "\"Pool ...\", \"birthday ...\" — bữa tiệc", "a": "party", "e": "🥳", "lang": "en" },
-    { "q": "Instagram … tự biến mất sau 24 giờ", "a": "story", "e": "📖", "lang": "en" },
-    { "q": "Ban nhạc rock trang điểm mặt trắng đen, lè lưỡi", "a": "kiss", "e": "💋", "lang": "en" },
-    { "q": "\"Free …s\" — ôm miễn phí ngoài phố", "a": "hug", "e": "🤗", "lang": "en" },
-    { "q": "Tết Nguyên Đán viết không dấu trong báo nước ngoài", "a": "tet", "e": "🧧", "lang": "en" },
-    { "q": "Món Việt trong từ điển Oxford, viết không dấu, 3 chữ cái", "a": "pho", "e": "🍜", "lang": "en" },
-    { "q": "Anh em chí cốt, Gen Z gọi là \"bờ-rồ\"", "a": "bro", "e": "🤜", "lang": "en" },
-
-    { "q": "Công thức hóa học H₂O", "a": "water", "e": "💧", "lang": "en" },
-    { "q": "\"Finding Nemo\" kể về loài…", "a": "fish", "e": "🐠", "lang": "en" },
-    { "q": "Số ngón trên một bàn tay; \"... Guys\" là chuỗi burger Mỹ", "a": "five", "e": "🖐️", "lang": "en" },
-    { "q": "\"A Song of Ice and ...\" — tiểu thuyết gốc của Game of Thrones", "a": "fire", "e": "🔥", "lang": "en" },
-    { "q": "Kermit trong The Muppets là con…", "a": "frog", "e": "🐸", "lang": "en" },
-    { "q": "\"The ... of Wall Street\" — phim của Leonardo DiCaprio", "a": "wolf", "e": "🐺", "lang": "en" },
-    { "q": "Hệ điều hành của Microsoft", "a": "windows", "e": "🪟", "lang": "en" },
-    { "q": "\"... is coming\" — nhà Stark", "a": "winter", "e": "❄️", "lang": "en" },
-    { "q": "\"... power\" — khẩu hiệu phong trào hippie", "a": "flower", "e": "🌸", "lang": "en" },
-    { "q": "\"Bungee …ing\" — nhảy dây thun từ trên cao", "a": "jump", "e": "🪂", "lang": "en" },
-    { "q": "\"Orange ...\" — nước cam ép", "a": "juice", "e": "🧃", "lang": "en" },
-    { "q": "\"...topia\" — phim có cô thỏ cảnh sát Judy", "a": "zoo", "e": "🦓", "lang": "en" },
-    { "q": "Con vật sọc đen trắng; vạch qua đường cũng mang tên nó", "a": "zebra", "e": "🦓", "lang": "en" },
-    { "q": "Món Ý có loại Margherita mang tên hoàng hậu", "a": "pizza", "e": "🍕", "lang": "en" },
-    { "q": "Thể loại nhạc của Louis Armstrong ở New Orleans", "a": "jazz", "e": "🎷", "lang": "en" },
-    { "q": "Thứ đầu tiên khách hỏi mật khẩu khi vào quán cà phê", "a": "wifi", "e": "📶", "lang": "en" },
-    { "q": "Người hâm mộ, cũng là cái quạt", "a": "fan", "e": "🪭", "lang": "en" },
-    { "q": "\"Red ...\" — dấu hiệu cảnh báo trong tình yêu", "a": "flag", "e": "🚩", "lang": "en" },
-    { "q": "\"Fantastic Mr. ...\" — phim của Wes Anderson", "a": "fox", "e": "🦊", "lang": "en" },
-    { "q": "Quần bò, Levi's (tiếng Anh)", "a": "jeans", "e": "👖", "lang": "en" },
-    { "q": "Bỏ chữ \"r\" ở kẻ thù của Batman là ra câu chuyện cười", "a": "joke", "e": "🃏", "lang": "en" },
-    { "q": "\"The ... Book\" — cậu bé Mowgli", "a": "jungle", "e": "🌴", "lang": "en" },
-    { "q": "\"Gone with the ...\" — Cuốn theo chiều gió", "a": "wind", "e": "🌬️", "lang": "en" },
-    { "q": "\"... Cup\" — giải bóng đá 4 năm một lần", "a": "world", "e": "🏆", "lang": "en" },
-    { "q": "\"Snow ...\" — Bạch Tuyết", "a": "white", "e": "⬜", "lang": "en" },
-    { "q": "Màu của Minions, cũng là bài hit của Coldplay năm 2000", "a": "yellow", "e": "🟨", "lang": "en" },
-    { "q": "\"... me to the moon\" — Frank Sinatra", "a": "fly", "e": "🪽", "lang": "en" },
-    { "q": "\"… Fire\" — game sinh tồn bắn súng trên điện thoại", "a": "free", "e": "🔫", "lang": "en" },
-    { "q": "\"... & Furious\" — loạt phim đua xe", "a": "fast", "e": "🏎️", "lang": "en" },
-    { "q": "\"The ... of Oz\"", "a": "wizard", "e": "🧙", "lang": "en" },
-    { "q": "Thuyền trưởng … Sparrow của Ngọc trai đen", "a": "jack", "e": "🏴‍☠️", "lang": "en" },
-    { "q": "\"... Waste\" — lối sống không rác thải", "a": "zero", "e": "♻️", "lang": "en" },
-    { "q": "Môn thể thao của Tiger Woods", "a": "golf", "e": "⛳", "lang": "en" },
-    { "q": "Mạng xã hội chim xanh nay đổi tên thành X", "a": "twitter", "e": "🐦", "lang": "en" },
-    { "q": "Dịch vụ xem phim có chữ N đỏ", "a": "netflix", "e": "🎬", "lang": "en" },
-    { "q": "Rừng mưa lớn nhất thế giới, cũng là công ty của Jeff Bezos", "a": "amazon", "e": "📦", "lang": "en" },
-    { "q": "Công cụ tìm kiếm được dùng nhiều nhất thế giới", "a": "google", "e": "🔎", "lang": "en" },
-    { "q": "Nền tảng bạn đang xem live này", "a": "tiktok", "e": "🎵", "lang": "en" },
-    { "q": "Nền tảng video của Google, nút play đỏ", "a": "youtube", "e": "▶️", "lang": "en" },
-    { "q": "Sàn thương mại điện tử màu cam với ngày sale 9.9, 11.11", "a": "shopee", "e": "🛍️", "lang": "en" },
-    { "q": "Ứng dụng gọi xe ôm công nghệ màu xanh lá", "a": "grab", "e": "🛵", "lang": "en" },
-    { "q": "Ứng dụng nhắn tin \"made in Vietnam\" logo chữ Z", "a": "zalo", "e": "💬", "lang": "en" },
-    { "q": "Hãng điện thoại Hàn Quốc có dòng Galaxy", "a": "samsung", "e": "📱", "lang": "en" },
-    { "q": "Hãng xe máy Nhật mà nhiều người Việt dùng tên để gọi luôn xe máy", "a": "honda", "e": "🏍️", "lang": "en" },
-    { "q": "Hãng ô tô Nhật bán chạy nhất thế giới, có dòng Vios, Camry", "a": "toyota", "e": "🚗", "lang": "en" },
-    { "q": "Đối thủ truyền kiếp của Coca-Cola", "a": "pepsi", "e": "🥤", "lang": "en" }
+    {
+      "q": "Con giáp thứ tư của người Việt — ở Trung Quốc vị trí này lại là con thỏ",
+      "a": "mèo",
+      "e": "🐱",
+      "lang": "vi"
+    },
+    {
+      "q": "Hachiko — biểu tượng lòng trung thành ở Nhật — là con vật gì",
+      "a": "chó",
+      "e": "🐕",
+      "lang": "vi"
+    },
+    {
+      "q": "Nó có trước hay quả trứng có trước? Câu hỏi muôn đời chưa có lời giải",
+      "a": "gà",
+      "e": "🐓",
+      "lang": "vi"
+    },
+    {
+      "q": "Donald mặc áo thủy thủ của Disney là con gì",
+      "a": "vịt",
+      "e": "🦆",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp thứ hai (Sửu), \"đầu cơ nghiệp\" của nhà nông",
+      "a": "trâu",
+      "e": "🐃",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp cuối cùng, có \"ống\" bằng đất để bỏ tiền tiết kiệm",
+      "a": "heo",
+      "e": "🐷",
+      "lang": "vi",
+      "alt": [
+        "lợn"
+      ]
+    },
+    {
+      "q": "Hai Bà Trưng cưỡi con vật này ra trận",
+      "a": "voi",
+      "e": "🐘",
+      "lang": "vi"
+    },
+    {
+      "q": "Tôn Ngộ Không vốn là loài gì",
+      "a": "khỉ",
+      "e": "🐒",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp thứ bảy; Thánh Gióng cưỡi phiên bản bằng sắt",
+      "a": "ngựa",
+      "e": "🐎",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp thứ sáu (Tỵ), phải lột da mới lớn được",
+      "a": "rắn",
+      "e": "🐍",
+      "lang": "vi"
+    },
+    {
+      "q": "Loài duy nhất làm ra thực phẩm để hàng nghìn năm không hỏng",
+      "a": "ong",
+      "e": "🐝",
+      "lang": "vi"
+    },
+    {
+      "q": "Sống thành bầy có nữ hoàng, nhấc được vật nặng gấp 50 lần thân mình",
+      "a": "kiến",
+      "e": "🐜",
+      "lang": "vi"
+    },
+    {
+      "q": "Bơi giật lùi, đầu có \"gạch\", nướng muối ớt thì đỏ au",
+      "a": "tôm",
+      "e": "🦐",
+      "lang": "vi"
+    },
+    {
+      "q": "Tám chân hai càng, cả đời đi ngang; \"... đồng\" nấu bún riêu",
+      "a": "cua",
+      "e": "🦀",
+      "lang": "vi"
+    },
+    {
+      "q": "Cả đời mang nhà theo người, \"chậm như ...\"",
+      "a": "ốc",
+      "e": "🐌",
+      "lang": "vi"
+    },
+    {
+      "q": "Thần Kim Quy đòi lại gươm của Lê Lợi ở hồ Hoàn Kiếm là con gì",
+      "a": "rùa",
+      "e": "🐢",
+      "lang": "vi"
+    },
+    {
+      "q": "Có lông vũ, xương rỗng bên trong để nhẹ mà bay",
+      "a": "chim",
+      "e": "🐦",
+      "lang": "vi"
+    },
+    {
+      "q": "Chú Cuội có cây đa, còn chị Hằng ôm con vật gì",
+      "a": "thỏ",
+      "e": "🐰",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp đứng đầu (Tý); Mickey cũng thuộc loài này",
+      "a": "chuột",
+      "e": "🐭",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp thứ ba (Dần), \"chúa sơn lâm\"",
+      "a": "hổ",
+      "e": "🐯",
+      "lang": "vi",
+      "alt": [
+        "cọp"
+      ]
+    },
+    {
+      "q": "Winnie the Pooh mê mật ong là con gì",
+      "a": "gấu",
+      "e": "🐻",
+      "lang": "vi"
+    },
+    {
+      "q": "Ngồi đáy giếng tưởng trời chỉ bằng cái vung",
+      "a": "ếch",
+      "e": "🐸",
+      "lang": "vi"
+    },
+    {
+      "q": "Con giáp thứ tám (Mùi), có râu dù là con cái",
+      "a": "dê",
+      "e": "🐐",
+      "lang": "vi"
+    },
+    {
+      "q": "Có ba quả tim, máu màu xanh, phun chất đen để chạy trốn",
+      "a": "mực",
+      "e": "🦑",
+      "lang": "vi"
+    },
+    {
+      "q": "Peter Parker có siêu năng lực vì bị con gì cắn",
+      "a": "nhện",
+      "e": "🕷️",
+      "lang": "vi"
+    },
+    {
+      "q": "Hiệu ứng ... : vỗ cánh ở Brazil gây bão ở Texas",
+      "a": "bướm",
+      "e": "🦋",
+      "lang": "vi"
+    },
+    {
+      "q": "Chim có đuôi hàng trăm \"con mắt\", chỉ con trống mới sặc sỡ",
+      "a": "công",
+      "e": "🦚",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Học như ...\": nói giống hệt mà không hiểu mình nói gì",
+      "a": "vẹt",
+      "e": "🦜",
+      "lang": "vi"
+    },
+    {
+      "q": "Kẻ giả làm bà ngoại trong truyện Cô bé quàng khăn đỏ",
+      "a": "sói",
+      "e": "🐺",
+      "lang": "vi"
+    },
+    {
+      "q": "Con vật trong Hoàng tử bé xin được \"cảm hóa\"",
+      "a": "cáo",
+      "e": "🦊",
+      "lang": "vi"
+    },
+    {
+      "q": "Rudolph mũi đỏ kéo xe cho ông già Noel là con gì",
+      "a": "tuần lộc",
+      "e": "🦌",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Con tàu của sa mạc\", nhịn uống được cả tuần",
+      "a": "lạc đà",
+      "e": "🐫",
+      "lang": "vi"
+    },
+    {
+      "q": "Simba và Mufasa thuộc loài gì",
+      "a": "sư tử",
+      "e": "🦁",
+      "lang": "vi"
+    },
+    {
+      "q": "Động vật lớn nhất từng sống trên Trái Đất (loài xanh)",
+      "a": "cá voi",
+      "e": "🐋",
+      "lang": "vi"
+    },
+    {
+      "q": "Bộ phim Jaws (1975) của Spielberg kể về con vật gì",
+      "a": "cá mập",
+      "e": "🦈",
+      "lang": "vi"
+    },
+    {
+      "q": "Ăn lá dâu, nhả tơ dệt nên lụa Vạn Phúc",
+      "a": "tằm",
+      "e": "🐛",
+      "lang": "vi"
+    },
+    {
+      "q": "Loài vật giết nhiều người nhất mỗi năm; chỉ con cái mới hút máu",
+      "a": "muỗi",
+      "e": "🦟",
+      "lang": "vi"
+    },
+    {
+      "q": "Mắt kép hàng nghìn ô, \"kẻ thù\" của cái vỉ nhựa",
+      "a": "ruồi",
+      "e": "🪰",
+      "lang": "vi"
+    },
+    {
+      "q": "Hedwig — thú cưng đưa thư của Harry Potter — thuộc loài nào",
+      "a": "cú mèo",
+      "e": "🦉",
+      "lang": "vi"
+    },
+    {
+      "q": "Po trong phim Kung Fu Panda là con gì (tiếng Việt)",
+      "a": "gấu trúc",
+      "e": "🐼",
+      "lang": "vi"
+    },
+    {
+      "q": "Ngủ chỉ bằng một nửa bộ não, \"nói chuyện\" bằng sóng siêu âm",
+      "a": "cá heo",
+      "e": "🐬",
+      "lang": "vi"
+    },
+    {
+      "q": "Lạc Long Quân thuộc dòng dõi này; con giáp Thìn",
+      "a": "rồng",
+      "e": "🐉",
+      "lang": "vi"
+    },
+    {
+      "q": "Âu Cơ thuộc dòng dõi này, sinh ra bọc trăm trứng",
+      "a": "tiên",
+      "e": "🧚",
+      "lang": "vi"
+    },
+    {
+      "q": "Tên gọi can chi của con giáp cuối cùng",
+      "a": "hợi",
+      "e": "🐖",
+      "lang": "vi"
+    },
+    {
+      "q": "Tên gọi can chi của năm con chuột",
+      "a": "tý",
+      "e": "🐀",
+      "lang": "vi"
+    },
+    {
+      "q": "Người Việt bảo bữa ăn mà thiếu thứ này thì \"chưa gọi là ăn\"",
+      "a": "cơm",
+      "e": "🍚",
+      "lang": "vi"
+    },
+    {
+      "q": "Món có \"gánh\" Hà Nội, có quẩy, có cả biến tấu \"cuốn\"",
+      "a": "phở",
+      "e": "🍜",
+      "lang": "vi"
+    },
+    {
+      "q": "Món đường phố Việt có tên trong từ điển Oxford từ năm 2011",
+      "a": "bánh mì",
+      "e": "🥖",
+      "lang": "vi"
+    },
+    {
+      "q": "Món ngọt có \"thập cẩm\", \"bưởi\", \"khúc bạch\"",
+      "a": "chè",
+      "e": "🍧",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"đá\" vỉa hè, có \"chanh\" giã tay, có \"sữa\" trân châu",
+      "a": "trà",
+      "e": "🍵",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Gừng cay ... mặn\" — gia vị làm đậm tình trong ca dao",
+      "a": "muối",
+      "e": "🧂",
+      "lang": "vi"
+    },
+    {
+      "q": "Độ cay của nó được đo bằng thang Scoville",
+      "a": "ớt",
+      "e": "🌶️",
+      "lang": "vi"
+    },
+    {
+      "q": "Thứ ma cà rồng sợ nhất trong gian bếp",
+      "a": "tỏi",
+      "e": "🧄",
+      "lang": "vi"
+    },
+    {
+      "q": "Thái ra cay mắt vì chất lưu huỳnh; có \"tây\", có \"lá\"",
+      "a": "hành",
+      "e": "🧅",
+      "lang": "vi"
+    },
+    {
+      "q": "Quả giàu kali; vỏ của nó làm người ta trượt ngã trong phim hài",
+      "a": "chuối",
+      "e": "🍌",
+      "lang": "vi"
+    },
+    {
+      "q": "Quả mang tên một màu; có \"Vinh\", có \"sành\"",
+      "a": "cam",
+      "e": "🍊",
+      "lang": "vi"
+    },
+    {
+      "q": "Đặc sản của \"xứ\" Bến Tre, có cả kẹo làm từ nó",
+      "a": "dừa",
+      "e": "🥥",
+      "lang": "vi"
+    },
+    {
+      "q": "Quốc quả của Ấn Độ; Việt Nam có giống \"cát Hòa Lộc\"",
+      "a": "xoài",
+      "e": "🥭",
+      "lang": "vi"
+    },
+    {
+      "q": "Ninh Thuận nổi tiếng với quả này, phơi khô thì teo lại",
+      "a": "nho",
+      "e": "🍇",
+      "lang": "vi"
+    },
+    {
+      "q": "Rơi trúng đầu Newton; cũng là logo của Apple",
+      "a": "táo",
+      "e": "🍎",
+      "lang": "vi"
+    },
+    {
+      "q": "Mai An Tiêm trồng quả này trên đảo hoang",
+      "a": "dưa hấu",
+      "e": "🍉",
+      "lang": "vi"
+    },
+    {
+      "q": "Miền Nam gọi là thơm, có nơi gọi là khóm",
+      "a": "dứa",
+      "e": "🍍",
+      "lang": "vi"
+    },
+    {
+      "q": "Cút, vịt lộn, bắc thảo… đều là các loại…",
+      "a": "trứng",
+      "e": "🥚",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"chua\", có \"đặc có đường\", con bê bú thứ này",
+      "a": "sữa",
+      "e": "🥛",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"gấc\", có \"xéo\", nấu bằng gạo nếp",
+      "a": "xôi",
+      "e": "🍙",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"kéo\", \"lạc\", \"mút\" — ăn nhiều thì sâu răng",
+      "a": "kẹo",
+      "e": "🍬",
+      "lang": "vi"
+    },
+    {
+      "q": "Lang Liêu dâng vua Hùng thứ bánh vuông tượng trưng cho đất",
+      "a": "bánh chưng",
+      "e": "🟩",
+      "lang": "vi"
+    },
+    {
+      "q": "Thực phẩm tìm thấy trong lăng mộ Ai Cập vẫn còn ăn được",
+      "a": "mật ong",
+      "e": "🍯",
+      "lang": "vi"
+    },
+    {
+      "q": "Việt Nam là một trong ba nước xuất khẩu thứ này nhiều nhất thế giới",
+      "a": "gạo",
+      "e": "🌾",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Râu\" của nó nấu nước uống cho mát",
+      "a": "ngô",
+      "e": "🌽",
+      "lang": "vi",
+      "alt": [
+        "bắp"
+      ]
+    },
+    {
+      "q": "Có \"lang\", \"môn\", \"mỡ\", \"tây\"",
+      "a": "khoai",
+      "e": "🍠",
+      "lang": "vi"
+    },
+    {
+      "q": "Món nước \"chua\", \"cua\", \"cải\" trong mâm cơm",
+      "a": "canh",
+      "e": "🥣",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"muống\", \"má\", \"răm\", \"mùi\"",
+      "a": "rau",
+      "e": "🥬",
+      "lang": "vi"
+    },
+    {
+      "q": "Quả \"sáp\" Đắk Lắk, xay sinh tố béo ngậy",
+      "a": "bơ",
+      "e": "🥑",
+      "lang": "vi"
+    },
+    {
+      "q": "Hoa Tết miền Bắc, có làng \"Nhật Tân\"",
+      "a": "đào",
+      "e": "🌸",
+      "lang": "vi"
+    },
+    {
+      "q": "Hoa vàng năm cánh ngày Tết miền Nam",
+      "a": "mai",
+      "e": "🌼",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Gần bùn mà chẳng hôi tanh mùi bùn\"",
+      "a": "sen",
+      "e": "🪷",
+      "lang": "vi"
+    },
+    {
+      "q": "Bánh nướng, bánh dẻo bày mâm cỗ rằm tháng Tám",
+      "a": "bánh trung thu",
+      "e": "🥮",
+      "lang": "vi"
+    },
+    {
+      "q": "Món Obama ăn cùng đầu bếp Anthony Bourdain ở Hà Nội năm 2016",
+      "a": "bún chả",
+      "e": "🍢",
+      "lang": "vi"
+    },
+    {
+      "q": "Bánh tráng cuốn tôm thịt rau sống, chấm tương đậu",
+      "a": "gỏi cuốn",
+      "e": "🥗",
+      "lang": "vi"
+    },
+    {
+      "q": "Đặc sản xứ Huế có sả và mắm ruốc",
+      "a": "bún bò",
+      "e": "🌶️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Muối\", \"trứng\", \"cốt dừa\", \"bạc xỉu\" đều là các kiểu…",
+      "a": "cà phê",
+      "e": "☕",
+      "lang": "vi"
+    },
+    {
+      "q": "Món ăn kèm bắt buộc khi xem phim ở rạp",
+      "a": "bỏng ngô",
+      "e": "🍿",
+      "lang": "vi",
+      "alt": [
+        "bắp rang"
+      ]
+    },
+    {
+      "q": "\"... là nơi để về\" — công trình có mái che",
+      "a": "nhà",
+      "e": "🏠",
+      "lang": "vi"
+    },
+    {
+      "q": "Có \"đa\", \"đề\", \"si\" ở đầu làng",
+      "a": "cây",
+      "e": "🌳",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... lành đùm ... rách\"",
+      "a": "lá",
+      "e": "🍂",
+      "lang": "vi"
+    },
+    {
+      "q": "Danh hiệu cuộc thi sắc đẹp: \"... hậu\"",
+      "a": "hoa",
+      "e": "👑",
+      "lang": "vi"
+    },
+    {
+      "q": "Neil Armstrong đặt chân lên đây năm 1969",
+      "a": "trăng",
+      "e": "🌕",
+      "lang": "vi"
+    },
+    {
+      "q": "Trên cờ đỏ có một ngôi … vàng",
+      "a": "sao",
+      "e": "⭐",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Chín tầng ...\"; iCloud là \"đám ...\" của Apple",
+      "a": "mây",
+      "e": "☁️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... dầm thấm lâu\"",
+      "a": "mưa",
+      "e": "🌧️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Gieo ... gặt bão\"",
+      "a": "gió",
+      "e": "💨",
+      "lang": "vi"
+    },
+    {
+      "q": "Fansipan là … cao nhất Đông Dương",
+      "a": "núi",
+      "e": "⛰️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Rừng vàng ... bạc\"",
+      "a": "biển",
+      "e": "🌊",
+      "lang": "vi"
+    },
+    {
+      "q": "Hồng, Đà, Cửu Long đều là…",
+      "a": "sông",
+      "e": "🏞️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Nước chảy ... mòn\"",
+      "a": "đá",
+      "e": "🪨",
+      "lang": "vi"
+    },
+    {
+      "q": "Prometheus đánh cắp thứ này từ thần linh trao cho loài người",
+      "a": "lửa",
+      "e": "🔥",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Tấc ... tấc vàng\"",
+      "a": "đất",
+      "e": "🟫",
+      "lang": "vi"
+    },
+    {
+      "q": "Bạch … và bảy chú lùn",
+      "a": "tuyết",
+      "e": "❄️",
+      "lang": "vi"
+    },
+    {
+      "q": "Thần Thor vung búa tạo ra thứ này",
+      "a": "sấm",
+      "e": "⛈️",
+      "lang": "vi"
+    },
+    {
+      "q": "Ánh sáng tách 7 màu khi đi qua giọt nước",
+      "a": "cầu vồng",
+      "e": "🌈",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... mưa là chuyện của trời\"",
+      "a": "nắng",
+      "e": "☀️",
+      "lang": "vi"
+    },
+    {
+      "q": "Edison cải tiến loại … dây tóc",
+      "a": "đèn",
+      "e": "💡",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... nóng\" là vị trí chịu nhiều áp lực",
+      "a": "ghế",
+      "e": "🪑",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... kia ngự ở trên tường, thế gian ai đẹp được dường như ta\"",
+      "a": "gương",
+      "e": "🪞",
+      "lang": "vi"
+    },
+    {
+      "q": "Vật nhỏ hay \"mất tích\" đúng lúc chuẩn bị ra khỏi nhà",
+      "a": "chìa khóa",
+      "e": "🔑",
+      "lang": "vi"
+    },
+    {
+      "q": "Oẳn tù tì: thắng \"bao\", thua \"búa\"",
+      "a": "kéo",
+      "e": "✂️",
+      "lang": "vi"
+    },
+    {
+      "q": "Vũ khí Mjölnir của thần Thor",
+      "a": "búa",
+      "e": "🔨",
+      "lang": "vi"
+    },
+    {
+      "q": "Mary Poppins dùng vật này để bay",
+      "a": "ô",
+      "e": "☂️",
+      "lang": "vi",
+      "alt": [
+        "dù"
+      ]
+    },
+    {
+      "q": "Vũ khí \"ba tiêu\" của Thiết Phiến công chúa",
+      "a": "quạt",
+      "e": "🪭",
+      "lang": "vi"
+    },
+    {
+      "q": "Phương tiện \"Thống Nhất\" chạy Bắc – Nam",
+      "a": "tàu hỏa",
+      "e": "🚆",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... về bến đợi\" — chở khách qua sông bằng mái chèo",
+      "a": "thuyền",
+      "e": "⛵",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... là ngọn đèn sáng bất diệt của trí tuệ\" (Gorky)",
+      "a": "sách",
+      "e": "📖",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Nét chữ nết người\" — dụng cụ gì",
+      "a": "bút",
+      "e": "✏️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... đồng\" Đông Sơn, cũng là vật báo giờ vào lớp",
+      "a": "trống",
+      "e": "🥁",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... bầu\" chỉ có một dây của Việt Nam",
+      "a": "đàn",
+      "e": "🎸",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Có ... mua tiên cũng được\"",
+      "a": "tiền",
+      "e": "💵",
+      "lang": "vi"
+    },
+    {
+      "q": "Kim loại có ký hiệu hóa học Au",
+      "a": "vàng",
+      "e": "🥇",
+      "lang": "vi"
+    },
+    {
+      "q": "Kim loại có ký hiệu hóa học Ag, đeo để \"giải gió\"",
+      "a": "bạc",
+      "e": "🥈",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Gõ mõ, thỉnh ...\" ở chùa",
+      "a": "chuông",
+      "e": "🔔",
+      "lang": "vi"
+    },
+    {
+      "q": "Thứ cắm trên bánh sinh nhật để thổi",
+      "a": "nến",
+      "e": "🕯️",
+      "lang": "vi"
+    },
+    {
+      "q": "Đồ chơi bay nhờ gió, gắn \"sáo\" kêu vi vu",
+      "a": "diều",
+      "e": "🪁",
+      "lang": "vi"
+    },
+    {
+      "q": "Thứ ông già Noel bỏ vào chiếc tất treo đầu giường",
+      "a": "quà",
+      "e": "🎁",
+      "lang": "vi"
+    },
+    {
+      "q": "Bồ câu ngày xưa mang thứ này",
+      "a": "thư",
+      "e": "✉️",
+      "lang": "vi"
+    },
+    {
+      "q": "Chiếc … phân loại ở Hogwarts biết nói",
+      "a": "mũ",
+      "e": "🎩",
+      "lang": "vi"
+    },
+    {
+      "q": "Harry Potter đeo đồ vật tròn này trên mặt",
+      "a": "kính",
+      "e": "👓",
+      "lang": "vi"
+    },
+    {
+      "q": "Big Ben ở London thật ra là một chiếc…",
+      "a": "đồng hồ",
+      "e": "⏰",
+      "lang": "vi"
+    },
+    {
+      "q": "Anh em nhà Wright cho nó cất cánh năm 1903",
+      "a": "máy bay",
+      "e": "✈️",
+      "lang": "vi"
+    },
+    {
+      "q": "Starship của SpaceX là một…",
+      "a": "tên lửa",
+      "e": "🚀",
+      "lang": "vi"
+    },
+    {
+      "q": "Đà Nẵng có lễ hội quốc tế về thứ này",
+      "a": "pháo hoa",
+      "e": "🎆",
+      "lang": "vi"
+    },
+    {
+      "q": "Áp vào tai nghe như có tiếng sóng biển",
+      "a": "vỏ ốc",
+      "e": "🐚",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... piêu\" của người Thái; trời lạnh quàng quanh cổ",
+      "a": "khăn",
+      "e": "🧣",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... dài\" là quốc phục Việt Nam",
+      "a": "áo",
+      "e": "👘",
+      "lang": "vi"
+    },
+    {
+      "q": "Lọ Lem đánh rơi chiếc … thủy tinh",
+      "a": "giày",
+      "e": "👠",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Nghĩa ... như nước trong nguồn chảy ra\"",
+      "a": "mẹ",
+      "e": "👩",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... Táo\" lên chầu trời ngày 23 tháng Chạp",
+      "a": "ông",
+      "e": "👴",
+      "lang": "vi"
+    },
+    {
+      "q": "Núi … Nà ở Đà Nẵng có Cầu Vàng bàn tay khổng lồ",
+      "a": "bà",
+      "e": "🌉",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Được làm ..., thua làm giặc\"",
+      "a": "vua",
+      "e": "👑",
+      "lang": "vi"
+    },
+    {
+      "q": "Nhân vật hiện lên hỏi \"Vì sao con khóc?\" trong truyện Tấm Cám",
+      "a": "bụt",
+      "e": "🧙",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Hồn ... bóng quế\"; Halloween hóa trang thành nó",
+      "a": "ma",
+      "e": "👻",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... thấy tai nghe\"",
+      "a": "mắt",
+      "e": "👀",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Đàn gảy ... trâu\"",
+      "a": "tai",
+      "e": "👂",
+      "lang": "vi"
+    },
+    {
+      "q": "Pinocchio nói dối thì bộ phận này dài ra",
+      "a": "mũi",
+      "e": "👃",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Trăm hay không bằng ... quen\"",
+      "a": "tay",
+      "e": "✋",
+      "lang": "vi"
+    },
+    {
+      "q": "Achilles bất tử trừ chỗ gót…",
+      "a": "chân",
+      "e": "🦶",
+      "lang": "vi"
+    },
+    {
+      "q": "Cơ quan đập khoảng 100.000 lần mỗi ngày",
+      "a": "tim",
+      "e": "❤️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Môi hở ... lạnh\"",
+      "a": "răng",
+      "e": "🦷",
+      "lang": "vi"
+    },
+    {
+      "q": "Rapunzel thả thứ này xuống từ ngọn tháp",
+      "a": "tóc",
+      "e": "💇",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Lương y như từ mẫu\" nói về nghề này",
+      "a": "bác sĩ",
+      "e": "🩺",
+      "lang": "vi"
+    },
+    {
+      "q": "Mỹ Tâm, Hà Anh Tuấn làm nghề gì",
+      "a": "ca sĩ",
+      "e": "🎤",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Không ... đố mày làm nên\"",
+      "a": "thầy",
+      "e": "🧑‍🏫",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Một nắng hai sương\" là nỗi vất vả của ai",
+      "a": "nông dân",
+      "e": "🧑‍🌾",
+      "lang": "vi"
+    },
+    {
+      "q": "Dịp có câu đối đỏ, cây nêu, bánh chưng xanh",
+      "a": "tết",
+      "e": "🧧",
+      "lang": "vi"
+    },
+    {
+      "q": "Phong bao đỏ mừng tuổi đầu năm",
+      "a": "lì xì",
+      "e": "🧧",
+      "lang": "vi"
+    },
+    {
+      "q": "Tết của thiếu nhi, rằm tháng Tám",
+      "a": "trung thu",
+      "e": "🏮",
+      "lang": "vi"
+    },
+    {
+      "q": "Đồ chơi năm cánh rước đêm rằm tháng Tám",
+      "a": "đèn ông sao",
+      "e": "⭐",
+      "lang": "vi"
+    },
+    {
+      "q": "Tấm Cám, Sọ Dừa thuộc thể loại truyện…",
+      "a": "cổ tích",
+      "e": "📚",
+      "lang": "vi"
+    },
+    {
+      "q": "Vùng đất \"chín rồng\", có chợ nổi Cái Răng",
+      "a": "miền tây",
+      "e": "🛶",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... như Tết\"",
+      "a": "vui",
+      "e": "😄",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... như con chuồn chuồn\" (bài đồng dao)",
+      "a": "buồn",
+      "e": "😢",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... nhau yêu cả đường đi\"",
+      "a": "yêu",
+      "e": "💕",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Ăn no ... kỹ\"",
+      "a": "ngủ",
+      "e": "😴",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... trời không khỏi nắng\"",
+      "a": "chạy",
+      "e": "🏃",
+      "lang": "vi"
+    },
+    {
+      "q": "Việc người ta làm ở phòng karaoke",
+      "a": "hát",
+      "e": "🎤",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Một nụ ... bằng mười thang thuốc bổ\"",
+      "a": "cười",
+      "e": "😂",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Bé ... nhè\", nước mắt rơi",
+      "a": "khóc",
+      "e": "😭",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Bước ... vọt của nhân loại\" (Armstrong)",
+      "a": "nhảy",
+      "e": "💃",
+      "lang": "vi"
+    },
+    {
+      "q": "Ánh Viên đoạt hàng chục HCV SEA Games ở môn này",
+      "a": "bơi",
+      "e": "🏊",
+      "lang": "vi"
+    },
+    {
+      "q": "Màu thẻ phạt đuổi cầu thủ khỏi sân",
+      "a": "đỏ",
+      "e": "🟥",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Tre ... xanh tự bao giờ\"",
+      "a": "xanh",
+      "e": "🎋",
+      "lang": "vi"
+    },
+    {
+      "q": "Màu \"hoa sim\", màu áo dài nữ sinh xứ Huế",
+      "a": "tím",
+      "e": "🟪",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Gần mực thì ...\"",
+      "a": "đen",
+      "e": "⬛",
+      "lang": "vi"
+    },
+    {
+      "q": "Màu áo blouse của bác sĩ",
+      "a": "trắng",
+      "e": "🥼",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Tin ...\", \"ghế ...\", \"đường dây ...\"",
+      "a": "nóng",
+      "e": "🔥",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Môi hở răng ...\"",
+      "a": "lạnh",
+      "e": "🥶",
+      "lang": "vi"
+    },
+    {
+      "q": "Số cánh của ngôi sao trên cờ Tổ quốc",
+      "a": "năm",
+      "e": "⭐",
+      "lang": "vi"
+    },
+    {
+      "q": "Số chú lùn đi cùng Bạch Tuyết",
+      "a": "bảy",
+      "e": "🧌",
+      "lang": "vi"
+    },
+    {
+      "q": "Số chân của con nhện",
+      "a": "tám",
+      "e": "🕷️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... phân vẹn mười\"",
+      "a": "mười",
+      "e": "🔟",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Một nắng ... sương\"",
+      "a": "hai",
+      "e": "✌️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Một điều nhịn ... điều lành\"",
+      "a": "chín",
+      "e": "9️⃣",
+      "lang": "vi"
+    },
+    {
+      "q": "Thủ đô ngàn năm văn hiến",
+      "a": "hà nội",
+      "e": "🏛️",
+      "lang": "vi"
+    },
+    {
+      "q": "Kinh đô của triều Nguyễn",
+      "a": "huế",
+      "e": "🏯",
+      "lang": "vi"
+    },
+    {
+      "q": "Thành phố ngàn thông có hồ Xuân Hương",
+      "a": "đà lạt",
+      "e": "🌲",
+      "lang": "vi"
+    },
+    {
+      "q": "Vịnh có hòn Trống Mái, hòn Đỉnh Hương",
+      "a": "hạ long",
+      "e": "🏝️",
+      "lang": "vi"
+    },
+    {
+      "q": "Tỉnh có \"Đất Mũi\" cực Nam Tổ quốc",
+      "a": "cà mau",
+      "e": "🗺️",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Tôi đi học\" của Thanh Tịnh tả buổi đầu tới đây",
+      "a": "trường",
+      "e": "🏫",
+      "lang": "vi"
+    },
+    {
+      "q": "\"... Bến Thành\", \"... Đồng Xuân\"",
+      "a": "chợ",
+      "e": "🛒",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Đêm ... lắm rồi\", giờ của cú đêm",
+      "a": "khuya",
+      "e": "🌙",
+      "lang": "vi"
+    },
+    {
+      "q": "Biển … của Việt Nam, phía mặt trời mọc",
+      "a": "đông",
+      "e": "🌅",
+      "lang": "vi"
+    },
+    {
+      "q": "Đường Tăng đi thỉnh kinh về phương nào",
+      "a": "tây",
+      "e": "🌇",
+      "lang": "vi"
+    },
+    {
+      "q": "Sao … Đẩu dẫn đường cho người đi biển",
+      "a": "bắc",
+      "e": "🧭",
+      "lang": "vi"
+    },
+    {
+      "q": "\"Phương ... Hải\" hay \"Thiên ... Địa Bắc\"",
+      "a": "nam",
+      "e": "⬇️",
+      "lang": "vi"
+    },
+    {
+      "q": "Ánh chớp nóng gấp 5 lần bề mặt Mặt Trời",
+      "a": "sét",
+      "e": "⚡",
+      "lang": "vi"
+    },
+    {
+      "q": "Câu mở đầu quen thuộc của bài hát ru",
+      "a": "à ơi",
+      "e": "👶",
+      "lang": "vi"
+    },
+    {
+      "q": "Không phải lời nói dối",
+      "a": "truth",
+      "e": "🤥",
+      "lang": "en"
+    },
+    {
+      "q": "Gió mạnh kèm mưa to",
+      "a": "storm",
+      "e": "⛈️",
+      "lang": "en"
+    },
+    {
+      "q": "Tom trong \"Tom và Jerry\" là con gì",
+      "a": "cat",
+      "e": "🐱",
+      "lang": "en"
+    },
+    {
+      "q": "Scooby-Doo là con gì",
+      "a": "dog",
+      "e": "🐶",
+      "lang": "en"
+    },
+    {
+      "q": "Ngôi sao gần Trái Đất nhất",
+      "a": "sun",
+      "e": "☀️",
+      "lang": "en"
+    },
+    {
+      "q": "Vệ tinh tự nhiên duy nhất của Trái Đất",
+      "a": "moon",
+      "e": "🌕",
+      "lang": "en"
+    },
+    {
+      "q": "Người nổi tiếng, cũng là thứ lấp lánh trên trời đêm",
+      "a": "star",
+      "e": "⭐",
+      "lang": "en"
+    },
+    {
+      "q": "\"Singin' in the ...\" — phim nhạc kịch Gene Kelly nhảy dưới mưa",
+      "a": "rain",
+      "e": "🌧️",
+      "lang": "en"
+    },
+    {
+      "q": "Christmas … là cây thông Noel",
+      "a": "tree",
+      "e": "🎄",
+      "lang": "en"
+    },
+    {
+      "q": "Lương thực chính của châu Á, \"fried ...\" là cơm chiên",
+      "a": "rice",
+      "e": "🍚",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ được giấu đi cho trẻ con tìm trong lễ Phục sinh",
+      "a": "egg",
+      "e": "🥚",
+      "lang": "en"
+    },
+    {
+      "q": "\"… tea\" là trà sữa",
+      "a": "milk",
+      "e": "🥛",
+      "lang": "en"
+    },
+    {
+      "q": "Người Anh nhâm nhi thứ này lúc 5 giờ chiều",
+      "a": "tea",
+      "e": "🍵",
+      "lang": "en"
+    },
+    {
+      "q": "\"... dog\" là xúc xích kẹp bánh mì",
+      "a": "hot",
+      "e": "🌭",
+      "lang": "en"
+    },
+    {
+      "q": "\"… War\" — Chiến tranh Lạnh",
+      "a": "cold",
+      "e": "🥶",
+      "lang": "en"
+    },
+    {
+      "q": "Màu áo của Liverpool và Man United",
+      "a": "red",
+      "e": "🟥",
+      "lang": "en"
+    },
+    {
+      "q": "Màu áo Chelsea; \"feeling ...\" nghĩa là buồn",
+      "a": "blue",
+      "e": "🟦",
+      "lang": "en"
+    },
+    {
+      "q": "Màu da của gã chằn tinh Shrek",
+      "a": "green",
+      "e": "🟩",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Friday\" — ngày săn sale lớn nhất năm",
+      "a": "black",
+      "e": "⬛",
+      "lang": "en"
+    },
+    {
+      "q": "\"Black…\" — nhóm nhạc của Jisoo, Jennie, Rosé, Lisa",
+      "a": "pink",
+      "e": "🩷",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Piece\" — bộ truyện về Luffy mũ rơm",
+      "a": "one",
+      "e": "🏴‍☠️",
+      "lang": "en"
+    },
+    {
+      "q": "Số chú heo con trong truyện đấu trí với sói",
+      "a": "three",
+      "e": "🐷",
+      "lang": "en"
+    },
+    {
+      "q": "Số mặt của một con xúc xắc",
+      "a": "six",
+      "e": "🎲",
+      "lang": "en"
+    },
+    {
+      "q": "Số kỳ quan của thế giới cổ đại",
+      "a": "seven",
+      "e": "🏛️",
+      "lang": "en"
+    },
+    {
+      "q": "Số tay của con bạch tuộc",
+      "a": "eight",
+      "e": "🐙",
+      "lang": "en"
+    },
+    {
+      "q": "Số hành tinh trước khi sao Diêm Vương bị \"loại\" năm 2006",
+      "a": "nine",
+      "e": "🪐",
+      "lang": "en"
+    },
+    {
+      "q": "Điểm tuyệt đối ở trường học Việt Nam",
+      "a": "ten",
+      "e": "💯",
+      "lang": "en"
+    },
+    {
+      "q": "\"All you need is ...\" (The Beatles)",
+      "a": "love",
+      "e": "💖",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Alone\" — phim Giáng sinh cậu bé Kevin ở nhà một mình",
+      "a": "home",
+      "e": "🏡",
+      "lang": "en"
+    },
+    {
+      "q": "\"Face...\" — mạng xã hội lớn nhất thế giới",
+      "a": "book",
+      "e": "📘",
+      "lang": "en"
+    },
+    {
+      "q": "\"I have a …, I have an apple\" — bài hát gây sốt năm 2016",
+      "a": "pen",
+      "e": "🖊️",
+      "lang": "en"
+    },
+    {
+      "q": "Tia Chớp McQueen trong phim Pixar là một chiếc…",
+      "a": "car",
+      "e": "🏎️",
+      "lang": "en"
+    },
+    {
+      "q": "Chiếc \"school ...\" màu vàng chở học sinh Mỹ",
+      "a": "bus",
+      "e": "🚌",
+      "lang": "en"
+    },
+    {
+      "q": "Titanic là một con…",
+      "a": "ship",
+      "e": "🚢",
+      "lang": "en"
+    },
+    {
+      "q": "Harry Potter đến Hogwarts bằng thứ này từ sân ga 9¾",
+      "a": "train",
+      "e": "🚂",
+      "lang": "en"
+    },
+    {
+      "q": "\"The Lion ...\" — phim Disney 1994",
+      "a": "king",
+      "e": "🤴",
+      "lang": "en"
+    },
+    {
+      "q": "Ban nhạc của Freddie Mercury hát \"Bohemian Rhapsody\"",
+      "a": "queen",
+      "e": "👸",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Heist\" — phim băng cướp đeo mặt nạ Dalí",
+      "a": "money",
+      "e": "💰",
+      "lang": "en"
+    },
+    {
+      "q": "Huy chương hạng nhất ở Olympic",
+      "a": "gold",
+      "e": "🥇",
+      "lang": "en"
+    },
+    {
+      "q": "\"Second-...\" — đồ cũ, hàng đã qua sử dụng",
+      "a": "hand",
+      "e": "✋",
+      "lang": "en"
+    },
+    {
+      "q": "\"London ...\" — vòng quay khổng lồ bên sông Thames",
+      "a": "eye",
+      "e": "🎡",
+      "lang": "en"
+    },
+    {
+      "q": "Van Gogh tự cắt bộ phận này của mình",
+      "a": "ear",
+      "e": "👂",
+      "lang": "en"
+    },
+    {
+      "q": "Bộ phận dài ra khi Pinocchio nói dối",
+      "a": "nose",
+      "e": "👃",
+      "lang": "en"
+    },
+    {
+      "q": "\"Big ...\" — người hay ba hoa, lộ bí mật",
+      "a": "mouth",
+      "e": "👄",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ Rapunzel thả xuống tháp cho hoàng tử leo",
+      "a": "hair",
+      "e": "💇",
+      "lang": "en"
+    },
+    {
+      "q": "Biểu tượng ❤️, cơ quan bơm máu",
+      "a": "heart",
+      "e": "❤️",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ thợ ảnh bảo bạn làm khi nói \"cheese\"",
+      "a": "smile",
+      "e": "😊",
+      "lang": "en"
+    },
+    {
+      "q": "\"... birthday to you\"",
+      "a": "happy",
+      "e": "🎂",
+      "lang": "en"
+    },
+    {
+      "q": "Cảm xúc màu xanh dương trong phim Inside Out",
+      "a": "sad",
+      "e": "😢",
+      "lang": "en"
+    },
+    {
+      "q": "\"... morning, Vietnam!\" — câu chào nổi tiếng của Robin Williams",
+      "a": "good",
+      "e": "🌄",
+      "lang": "en"
+    },
+    {
+      "q": "\"Breaking ...\" — phim về ông thầy dạy hóa",
+      "a": "bad",
+      "e": "🧪",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Bang\" — thuyết vụ nổ lớn, cũng là tên nhóm nhạc của G-Dragon",
+      "a": "big",
+      "e": "💥",
+      "lang": "en"
+    },
+    {
+      "q": "Cỡ nhỏ nhất khi gọi cốc trà sữa: S là viết tắt của…",
+      "a": "small",
+      "e": "🥤",
+      "lang": "en"
+    },
+    {
+      "q": "\"YouTube ...s\" — video dọc dưới 1 phút",
+      "a": "short",
+      "e": "📱",
+      "lang": "en"
+    },
+    {
+      "q": "\"... time no see\" — lâu rồi không gặp",
+      "a": "long",
+      "e": "⏳",
+      "lang": "en"
+    },
+    {
+      "q": "\"... motion\" — quay chậm",
+      "a": "slow",
+      "e": "🐢",
+      "lang": "en"
+    },
+    {
+      "q": "\"Crazy ... Asians\" — phim về giới siêu giàu Singapore",
+      "a": "rich",
+      "e": "🤑",
+      "lang": "en"
+    },
+    {
+      "q": "Việc bạn làm ở phòng karaoke (tiếng Anh)",
+      "a": "sing",
+      "e": "🎤",
+      "lang": "en"
+    },
+    {
+      "q": "\"Just ...\" — bài hát đầu tay của Lady Gaga",
+      "a": "dance",
+      "e": "💃",
+      "lang": "en"
+    },
+    {
+      "q": "\"..., Forrest, ...!\"",
+      "a": "run",
+      "e": "🏃",
+      "lang": "en"
+    },
+    {
+      "q": "\"...ing Beauty\" — Người đẹp ngủ trong rừng",
+      "a": "sleep",
+      "e": "😴",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Pray Love\" — phim của Julia Roberts",
+      "a": "eat",
+      "e": "🍝",
+      "lang": "en"
+    },
+    {
+      "q": "\"Soft ...\" — nước ngọt có ga",
+      "a": "drink",
+      "e": "🥤",
+      "lang": "en"
+    },
+    {
+      "q": "Họ của Tim — CEO hiện tại của Apple",
+      "a": "cook",
+      "e": "🧑‍🍳",
+      "lang": "en"
+    },
+    {
+      "q": "Động từ có quá khứ viết y hệt hiện tại, nghĩa là đọc",
+      "a": "read",
+      "e": "📚",
+      "lang": "en"
+    },
+    {
+      "q": "Apple … — ứng dụng nghe nhạc của Apple",
+      "a": "music",
+      "e": "🎵",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ bạn mua vé ở CGV để xem",
+      "a": "movie",
+      "e": "🎬",
+      "lang": "en"
+    },
+    {
+      "q": "\"i…\" — điện thoại của Apple",
+      "a": "phone",
+      "e": "📱",
+      "lang": "en"
+    },
+    {
+      "q": "\"Eye of the ...\" — nhạc phim Rocky",
+      "a": "tiger",
+      "e": "🐯",
+      "lang": "en"
+    },
+    {
+      "q": "Con vật trên logo của Peugeot",
+      "a": "lion",
+      "e": "🦁",
+      "lang": "en"
+    },
+    {
+      "q": "Paddington mê bánh mì mứt cam là chú…",
+      "a": "bear",
+      "e": "🐻",
+      "lang": "en"
+    },
+    {
+      "q": "\"Trojan ...\" — con ngựa gỗ thành Troy, cũng là tên một loại virus",
+      "a": "horse",
+      "e": "🐴",
+      "lang": "en"
+    },
+    {
+      "q": "\"Peppa ...\" — hoạt hình cô heo hồng",
+      "a": "pig",
+      "e": "🐷",
+      "lang": "en"
+    },
+    {
+      "q": "Donald …",
+      "a": "duck",
+      "e": "🦆",
+      "lang": "en"
+    },
+    {
+      "q": "\"Kentucky Fried ...\" (KFC)",
+      "a": "chicken",
+      "e": "🍗",
+      "lang": "en"
+    },
+    {
+      "q": "\"Angry ...s\" — game bắn chim vào lợn xanh",
+      "a": "bird",
+      "e": "🐦",
+      "lang": "en"
+    },
+    {
+      "q": "Game kinh điển trên điện thoại Nokia đời cũ",
+      "a": "snake",
+      "e": "🐍",
+      "lang": "en"
+    },
+    {
+      "q": "\"Arctic …s\" — ban nhạc Anh; cũng là loài của Tôn Ngộ Không",
+      "a": "monkey",
+      "e": "🐒",
+      "lang": "en"
+    },
+    {
+      "q": "Mickey …",
+      "a": "mouse",
+      "e": "🐭",
+      "lang": "en"
+    },
+    {
+      "q": "Bugs Bunny là một con…",
+      "a": "rabbit",
+      "e": "🐰",
+      "lang": "en"
+    },
+    {
+      "q": "Viết tắt của \"Greatest Of All Time\", cũng là con dê",
+      "a": "goat",
+      "e": "🐐",
+      "lang": "en"
+    },
+    {
+      "q": "Dolly — con vật nhân bản đầu tiên — là một con…",
+      "a": "sheep",
+      "e": "🐑",
+      "lang": "en"
+    },
+    {
+      "q": "Logo công ty của Steve Jobs là quả này bị cắn",
+      "a": "apple",
+      "e": "🍎",
+      "lang": "en"
+    },
+    {
+      "q": "Minions mê món này",
+      "a": "banana",
+      "e": "🍌",
+      "lang": "en"
+    },
+    {
+      "q": "Màu áo đội tuyển Hà Lan, cũng là một loại quả",
+      "a": "orange",
+      "e": "🍊",
+      "lang": "en"
+    },
+    {
+      "q": "\"When life gives you …s, make lemonade\"",
+      "a": "lemon",
+      "e": "🍋",
+      "lang": "en"
+    },
+    {
+      "q": "Quả \"cát Hòa Lộc\" (tiếng Anh)",
+      "a": "mango",
+      "e": "🥭",
+      "lang": "en"
+    },
+    {
+      "q": "Quả có ba \"mắt\" trên vỏ, nhiều nước",
+      "a": "coconut",
+      "e": "🥥",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Crush\" — game xếp kẹo",
+      "a": "candy",
+      "e": "🍬",
+      "lang": "en"
+    },
+    {
+      "q": "\"Let them eat ...\" (gán cho Marie Antoinette)",
+      "a": "cake",
+      "e": "🎂",
+      "lang": "en"
+    },
+    {
+      "q": "Bánh mì gối (tiếng Anh)",
+      "a": "bread",
+      "e": "🍞",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ khiến nước biển có vị mặn",
+      "a": "salt",
+      "e": "🧂",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Daddy\" — người lớn tuổi giàu có bao nuôi",
+      "a": "sugar",
+      "e": "🍬",
+      "lang": "en"
+    },
+    {
+      "q": "Cách gọi người yêu ngọt ngào, cũng là mật ong",
+      "a": "honey",
+      "e": "🍯",
+      "lang": "en"
+    },
+    {
+      "q": "\"Chicken ... for the Soul\" — bộ sách Hạt giống tâm hồn",
+      "a": "soup",
+      "e": "🥣",
+      "lang": "en"
+    },
+    {
+      "q": "\"Pacific ...\" — Thái Bình Dương",
+      "a": "ocean",
+      "e": "🌊",
+      "lang": "en"
+    },
+    {
+      "q": "\"Dead ...\" — Biển Chết",
+      "a": "sea",
+      "e": "🏖️",
+      "lang": "en"
+    },
+    {
+      "q": "\"Moon ...\" — bài hát trong phim Breakfast at Tiffany's",
+      "a": "river",
+      "e": "🏞️",
+      "lang": "en"
+    },
+    {
+      "q": "\"Rocky …s\" — dãy núi ở Bắc Mỹ",
+      "a": "mountain",
+      "e": "⛰️",
+      "lang": "en"
+    },
+    {
+      "q": "Dwayne \"The ...\" Johnson",
+      "a": "rock",
+      "e": "🪨",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ trẻ con xây lâu đài trên bãi biển",
+      "a": "sand",
+      "e": "🏝️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Age\" — phim hoạt hình chú sóc và hạt dẻ",
+      "a": "ice",
+      "e": "🧊",
+      "lang": "en"
+    },
+    {
+      "q": "Hành tinh thứ ba tính từ Mặt Trời",
+      "a": "earth",
+      "e": "🌍",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ...'s the limit\" — không có giới hạn",
+      "a": "sky",
+      "e": "🌌",
+      "lang": "en"
+    },
+    {
+      "q": "\"i…\" — dịch vụ lưu trữ của Apple",
+      "a": "cloud",
+      "e": "☁️",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ Pinocchio nói khiến mũi dài ra",
+      "a": "lie",
+      "e": "🤥",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ... remembers\" — nhà Stark, Game of Thrones",
+      "a": "north",
+      "e": "🧭",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Korea\" — Hàn Quốc",
+      "a": "south",
+      "e": "🇰🇷",
+      "lang": "en"
+    },
+    {
+      "q": "\"Far ...\" — Viễn Đông",
+      "a": "east",
+      "e": "🌅",
+      "lang": "en"
+    },
+    {
+      "q": "\"Silent ...\" — bài hát Giáng sinh kinh điển",
+      "a": "night",
+      "e": "🌃",
+      "lang": "en"
+    },
+    {
+      "q": "\"High ...\" — đúng 12 giờ trưa, phim cao bồi kinh điển",
+      "a": "noon",
+      "e": "🕛",
+      "lang": "en"
+    },
+    {
+      "q": "\"... is money\"",
+      "a": "time",
+      "e": "⏳",
+      "lang": "en"
+    },
+    {
+      "q": "Lời đầu tiên khi nhấc máy; bài hit của Adele năm 2015",
+      "a": "hello",
+      "e": "👋",
+      "lang": "en"
+    },
+    {
+      "q": "\"...giving\" — lễ Tạ ơn ở Mỹ",
+      "a": "thanks",
+      "e": "🦃",
+      "lang": "en"
+    },
+    {
+      "q": "Bài hit của Justin Bieber năm 2015, nghĩa là xin lỗi",
+      "a": "sorry",
+      "e": "🙇",
+      "lang": "en"
+    },
+    {
+      "q": "\"...s' Day\" — ngày 20 tháng 11",
+      "a": "teacher",
+      "e": "🧑‍🏫",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Strange\" — phù thủy tối thượng Marvel",
+      "a": "doctor",
+      "e": "🩺",
+      "lang": "en"
+    },
+    {
+      "q": "Người cầm thẻ HSSV đi học (tiếng Anh)",
+      "a": "student",
+      "e": "🎓",
+      "lang": "en"
+    },
+    {
+      "q": "\"...'s Day\" — Ngày của Mẹ",
+      "a": "mother",
+      "e": "👩",
+      "lang": "en"
+    },
+    {
+      "q": "\"Big ...\" — truyền hình thực tế, \"anh cả\" theo dõi mọi người",
+      "a": "brother",
+      "e": "👦",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Act\" — phim bà sơ hát của Whoopi Goldberg",
+      "a": "sister",
+      "e": "👧",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Shark\" — bài thiếu nhi nhiều lượt xem nhất YouTube",
+      "a": "baby",
+      "e": "🦈",
+      "lang": "en"
+    },
+    {
+      "q": "\"Knock knock\" là tiếng gõ lên thứ này",
+      "a": "door",
+      "e": "🚪",
+      "lang": "en"
+    },
+    {
+      "q": "\"Dr. ...\" — bác sĩ thiên tài khó tính trên truyền hình Mỹ",
+      "a": "house",
+      "e": "🏠",
+      "lang": "en"
+    },
+    {
+      "q": "\"Arm…\" — ghế bành",
+      "a": "chair",
+      "e": "🪑",
+      "lang": "en"
+    },
+    {
+      "q": "\"Periodic ...\" — bảng tuần hoàn",
+      "a": "table",
+      "e": "🧪",
+      "lang": "en"
+    },
+    {
+      "q": "\"... and breakfast\" (B&B)",
+      "a": "bed",
+      "e": "🛏️",
+      "lang": "en"
+    },
+    {
+      "q": "Cây đèn thần của Aladdin (tiếng Anh)",
+      "a": "lamp",
+      "e": "🪔",
+      "lang": "en"
+    },
+    {
+      "q": "\"Rock Around the ...\" — bài rock and roll kinh điển 1954",
+      "a": "clock",
+      "e": "🕰️",
+      "lang": "en"
+    },
+    {
+      "q": "\"…board\" là bàn phím; vật dùng để mở khóa",
+      "a": "key",
+      "e": "🔑",
+      "lang": "en"
+    },
+    {
+      "q": "\"The Cat in the ...\" — sách của Dr. Seuss",
+      "a": "hat",
+      "e": "🎩",
+      "lang": "en"
+    },
+    {
+      "q": "Lọ Lem đánh rơi một chiếc (tiếng Anh)",
+      "a": "shoe",
+      "e": "👠",
+      "lang": "en"
+    },
+    {
+      "q": "\"T-...\" — áo phông",
+      "a": "shirt",
+      "e": "👕",
+      "lang": "en"
+    },
+    {
+      "q": "\"Rain…\" — áo mưa",
+      "a": "coat",
+      "e": "🧥",
+      "lang": "en"
+    },
+    {
+      "q": "\"The Lord of the …s\"",
+      "a": "ring",
+      "e": "💍",
+      "lang": "en"
+    },
+    {
+      "q": "A, B, C… là các…",
+      "a": "letter",
+      "e": "🔤",
+      "lang": "en"
+    },
+    {
+      "q": "\"...shop\" — phần mềm chỉnh ảnh của Adobe",
+      "a": "photo",
+      "e": "📷",
+      "lang": "en"
+    },
+    {
+      "q": "\"High ... Musical\" — phim ca nhạc tuổi học trò",
+      "a": "school",
+      "e": "🏫",
+      "lang": "en"
+    },
+    {
+      "q": "Nơi diễn ra phim Grey's Anatomy",
+      "a": "hospital",
+      "e": "🏥",
+      "lang": "en"
+    },
+    {
+      "q": "\"Super…\" — siêu thị",
+      "a": "market",
+      "e": "🛒",
+      "lang": "en"
+    },
+    {
+      "q": "\"Vietcom…\", \"Techcom…\" đều kết thúc bằng từ này",
+      "a": "bank",
+      "e": "🏦",
+      "lang": "en"
+    },
+    {
+      "q": "\"The Grand Budapest ...\" — phim của Wes Anderson",
+      "a": "hotel",
+      "e": "🏨",
+      "lang": "en"
+    },
+    {
+      "q": "\"Madison Square ...\" — nhà thi đấu ở New York",
+      "a": "garden",
+      "e": "🌷",
+      "lang": "en"
+    },
+    {
+      "q": "\"Miami ...\" — bãi biển nổi tiếng ở Florida",
+      "a": "beach",
+      "e": "🏖️",
+      "lang": "en"
+    },
+    {
+      "q": "\"Treasure ...\" — Đảo giấu vàng",
+      "a": "island",
+      "e": "🏝️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... busters\" — biệt đội săn ma",
+      "a": "ghost",
+      "e": "👻",
+      "lang": "en"
+    },
+    {
+      "q": "\"Los ...es\" — thành phố của các thiên thần",
+      "a": "angel",
+      "e": "😇",
+      "lang": "en"
+    },
+    {
+      "q": "\"Big ... 6\" — phim có robot Baymax",
+      "a": "hero",
+      "e": "🦸",
+      "lang": "en"
+    },
+    {
+      "q": "\"I have a ...\" (Martin Luther King)",
+      "a": "dream",
+      "e": "💭",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ duy nhất còn lại trong chiếc hộp Pandora",
+      "a": "hope",
+      "e": "🌱",
+      "lang": "en"
+    },
+    {
+      "q": "\"... out!\" — chào tạm biệt kèm ký hiệu ✌️",
+      "a": "peace",
+      "e": "🕊️",
+      "lang": "en"
+    },
+    {
+      "q": "\"...phone\" — điện thoại thông minh",
+      "a": "smart",
+      "e": "🧠",
+      "lang": "en"
+    },
+    {
+      "q": "\"What doesn't kill you makes you ...er\" (Kelly Clarkson)",
+      "a": "strong",
+      "e": "💪",
+      "lang": "en"
+    },
+    {
+      "q": "Vị của quả sấu, quả me",
+      "a": "sour",
+      "e": "🍋",
+      "lang": "en"
+    },
+    {
+      "q": "Vị của mướp đắng",
+      "a": "bitter",
+      "e": "☕",
+      "lang": "en"
+    },
+    {
+      "q": "Vị của mì Buldak Hàn Quốc",
+      "a": "spicy",
+      "e": "🌶️",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ... Games\" — Đấu trường sinh tử",
+      "a": "hungry",
+      "e": "🏹",
+      "lang": "en"
+    },
+    {
+      "q": "Cảm giác sau ca làm 12 tiếng",
+      "a": "tired",
+      "e": "😩",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Birds\" — chim nổi giận",
+      "a": "angry",
+      "e": "😡",
+      "lang": "en"
+    },
+    {
+      "q": "Bài song ca của Jason Mraz và Colbie Caillat (2008)",
+      "a": "lucky",
+      "e": "🍀",
+      "lang": "en"
+    },
+    {
+      "q": "\"... AI\" — công ty tạo ra ChatGPT",
+      "a": "open",
+      "e": "🤖",
+      "lang": "en"
+    },
+    {
+      "q": "Nút ✖ trên cửa sổ máy tính để làm gì",
+      "a": "close",
+      "e": "🔒",
+      "lang": "en"
+    },
+    {
+      "q": "Nút khởi động huyền thoại của Windows",
+      "a": "start",
+      "e": "🏁",
+      "lang": "en"
+    },
+    {
+      "q": "Biển báo hình bát giác màu đỏ",
+      "a": "stop",
+      "e": "🛑",
+      "lang": "en"
+    },
+    {
+      "q": "WALL-E là một…",
+      "a": "robot",
+      "e": "🤖",
+      "lang": "en"
+    },
+    {
+      "q": "Thành viên Blackpink hát \"APT.\" cùng Bruno Mars",
+      "a": "rose",
+      "e": "🌹",
+      "lang": "en"
+    },
+    {
+      "q": "Hãng xe thể thao Anh, cũng là tên hoa sen",
+      "a": "lotus",
+      "e": "🪷",
+      "lang": "en"
+    },
+    {
+      "q": "Mr. … của Rowan Atkinson",
+      "a": "bean",
+      "e": "🫘",
+      "lang": "en"
+    },
+    {
+      "q": "\"Pop…\" — bỏng ngô",
+      "a": "corn",
+      "e": "🌽",
+      "lang": "en"
+    },
+    {
+      "q": "Lễ hội La Tomatina ở Tây Ban Nha ném nhau bằng quả này",
+      "a": "tomato",
+      "e": "🍅",
+      "lang": "en"
+    },
+    {
+      "q": "\"Couch ...\" — người suốt ngày nằm sofa xem tivi",
+      "a": "potato",
+      "e": "🥔",
+      "lang": "en"
+    },
+    {
+      "q": "Shrek bảo yêu tinh có nhiều lớp như củ…",
+      "a": "onion",
+      "e": "🧅",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ làm mũi người tuyết",
+      "a": "carrot",
+      "e": "🥕",
+      "lang": "en"
+    },
+    {
+      "q": "Bài hit của BTS năm 2021, \"smooth like ...\"",
+      "a": "butter",
+      "e": "🧈",
+      "lang": "en"
+    },
+    {
+      "q": "\"Say ...!\" — câu nói khi chụp ảnh",
+      "a": "cheese",
+      "e": "🧀",
+      "lang": "en"
+    },
+    {
+      "q": "Món Nhật cơm cuộn cá sống",
+      "a": "sushi",
+      "e": "🍣",
+      "lang": "en"
+    },
+    {
+      "q": "Big Mac là một chiếc…",
+      "a": "burger",
+      "e": "🍔",
+      "lang": "en"
+    },
+    {
+      "q": "Môn thể thao của Federer, Nadal, Djokovic",
+      "a": "tennis",
+      "e": "🎾",
+      "lang": "en"
+    },
+    {
+      "q": "Nhạc cụ có 88 phím đen trắng",
+      "a": "piano",
+      "e": "🎹",
+      "lang": "en"
+    },
+    {
+      "q": "Nhạc cụ 6 dây của Slash",
+      "a": "guitar",
+      "e": "🎸",
+      "lang": "en"
+    },
+    {
+      "q": "Nhạc cụ gõ giữ nhịp trong ban nhạc rock",
+      "a": "drum",
+      "e": "🥁",
+      "lang": "en"
+    },
+    {
+      "q": "\"Eurovision ... Contest\"",
+      "a": "song",
+      "e": "🎶",
+      "lang": "en"
+    },
+    {
+      "q": "Sao Hỏa, sao Kim, sao Mộc đều là…",
+      "a": "planet",
+      "e": "🪐",
+      "lang": "en"
+    },
+    {
+      "q": "Chú gấu mèo cầm súng trong Guardians of the Galaxy",
+      "a": "rocket",
+      "e": "🦝",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Boulevard\" — đại lộ nổi tiếng ở Los Angeles",
+      "a": "sunset",
+      "e": "🌇",
+      "lang": "en"
+    },
+    {
+      "q": "\"Before ...\" — phim của Ethan Hawke (1995)",
+      "a": "sunrise",
+      "e": "🌅",
+      "lang": "en"
+    },
+    {
+      "q": "\"How to Train Your ...\"",
+      "a": "dragon",
+      "e": "🐉",
+      "lang": "en"
+    },
+    {
+      "q": "Startup được định giá trên 1 tỷ đô được gọi là…",
+      "a": "unicorn",
+      "e": "🦄",
+      "lang": "en"
+    },
+    {
+      "q": "Sinh vật trong Jurassic Park",
+      "a": "dinosaur",
+      "e": "🦖",
+      "lang": "en"
+    },
+    {
+      "q": "Kẻ thù của Batman, cũng là chim không biết bay",
+      "a": "penguin",
+      "e": "🐧",
+      "lang": "en"
+    },
+    {
+      "q": "Po trong \"Kung Fu ...\"",
+      "a": "panda",
+      "e": "🐼",
+      "lang": "en"
+    },
+    {
+      "q": "Biểu tượng quốc gia của Mỹ, chim săn mồi",
+      "a": "eagle",
+      "e": "🦅",
+      "lang": "en"
+    },
+    {
+      "q": "Con chim đậu trên vai cướp biển",
+      "a": "parrot",
+      "e": "🦜",
+      "lang": "en"
+    },
+    {
+      "q": "\"Teenage Mutant Ninja …s\"",
+      "a": "turtle",
+      "e": "🐢",
+      "lang": "en"
+    },
+    {
+      "q": "Mr. Krabs trong SpongeBob là con…",
+      "a": "crab",
+      "e": "🦀",
+      "lang": "en"
+    },
+    {
+      "q": "Bubba Gump trong Forrest Gump mê nuôi con này",
+      "a": "shrimp",
+      "e": "🦐",
+      "lang": "en"
+    },
+    {
+      "q": "Paul — \"nhà tiên tri\" World Cup 2010 — là con…",
+      "a": "octopus",
+      "e": "🐙",
+      "lang": "en"
+    },
+    {
+      "q": "Sinh vật trong phim Jaws (tiếng Anh)",
+      "a": "shark",
+      "e": "🦈",
+      "lang": "en"
+    },
+    {
+      "q": "\"Miami ...s\" — đội bóng bầu dục Mỹ, linh vật cá heo",
+      "a": "dolphin",
+      "e": "🐬",
+      "lang": "en"
+    },
+    {
+      "q": "\"Con tàu của sa mạc\" (tiếng Anh)",
+      "a": "camel",
+      "e": "🐫",
+      "lang": "en"
+    },
+    {
+      "q": "\"Doe, a ..., a female ...\" — bài Do-Re-Mi",
+      "a": "deer",
+      "e": "🦌",
+      "lang": "en"
+    },
+    {
+      "q": "\"... bumps\" — nổi da gà",
+      "a": "goose",
+      "e": "🪿",
+      "lang": "en"
+    },
+    {
+      "q": "\"...-Man\" — người nhện",
+      "a": "spider",
+      "e": "🕷️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Movie\" — phim hoạt hình về chú ong Barry",
+      "a": "bee",
+      "e": "🐝",
+      "lang": "en"
+    },
+    {
+      "q": "\"...-Man\" — siêu anh hùng thu nhỏ của Marvel",
+      "a": "ant",
+      "e": "🐜",
+      "lang": "en"
+    },
+    {
+      "q": "\"... mail\" — thư bưu điện chậm như ốc sên",
+      "a": "snail",
+      "e": "🐌",
+      "lang": "en"
+    },
+    {
+      "q": "\"... blossom\" — hoa anh đào",
+      "a": "cherry",
+      "e": "🍒",
+      "lang": "en"
+    },
+    {
+      "q": "Công chúa được Mario giải cứu",
+      "a": "peach",
+      "e": "🍑",
+      "lang": "en"
+    },
+    {
+      "q": "\"...fruit\" — bưởi chùm",
+      "a": "grape",
+      "e": "🍇",
+      "lang": "en"
+    },
+    {
+      "q": "\"Water…\" — dưa hấu",
+      "a": "melon",
+      "e": "🍈",
+      "lang": "en"
+    },
+    {
+      "q": "\"... salad\" — gỏi đu đủ Thái \"som tam\"",
+      "a": "papaya",
+      "e": "🥗",
+      "lang": "en"
+    },
+    {
+      "q": "Cá … đại dương Phú Yên (tiếng Anh)",
+      "a": "tuna",
+      "e": "🐟",
+      "lang": "en"
+    },
+    {
+      "q": "Nhân vật đội nấm trong Mario, tên nghĩa là con cóc",
+      "a": "toad",
+      "e": "🍄",
+      "lang": "en"
+    },
+    {
+      "q": "File nhỏ trình duyệt lưu khi bạn vào web, cũng là bánh quy",
+      "a": "cookie",
+      "e": "🍪",
+      "lang": "en"
+    },
+    {
+      "q": "Cơm nắm tam giác Nhật Bản",
+      "a": "onigiri",
+      "e": "🍙",
+      "lang": "en"
+    },
+    {
+      "q": "\"Instant ...\" — mì gói",
+      "a": "noodle",
+      "e": "🍜",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Claus\" — ông già Noel",
+      "a": "santa",
+      "e": "🎅",
+      "lang": "en"
+    },
+    {
+      "q": "\"Like a ... in the Wind\" — Elton John",
+      "a": "candle",
+      "e": "🕯️",
+      "lang": "en"
+    },
+    {
+      "q": "\"Jingle …s\"",
+      "a": "bell",
+      "e": "🔔",
+      "lang": "en"
+    },
+    {
+      "q": "Quốc hoa Hà Lan",
+      "a": "tulip",
+      "e": "🌷",
+      "lang": "en"
+    },
+    {
+      "q": "\"Row, row, row your ...\"",
+      "a": "boat",
+      "e": "🛶",
+      "lang": "en"
+    },
+    {
+      "q": "\"Top ...\" — chương trình xe hơi của BBC; cũng là bánh răng",
+      "a": "gear",
+      "e": "⚙️",
+      "lang": "en"
+    },
+    {
+      "q": "Bài hit của Rihanna \"ella ella eh eh\"",
+      "a": "umbrella",
+      "e": "☂️",
+      "lang": "en"
+    },
+    {
+      "q": "Google …",
+      "a": "map",
+      "e": "🗺️",
+      "lang": "en"
+    },
+    {
+      "q": "Dora the Explorer có chiếc … biết nói",
+      "a": "backpack",
+      "e": "🎒",
+      "lang": "en"
+    },
+    {
+      "q": "\"... of Thrones\"",
+      "a": "game",
+      "e": "🎮",
+      "lang": "en"
+    },
+    {
+      "q": "\"Pool ...\", \"birthday ...\" — bữa tiệc",
+      "a": "party",
+      "e": "🥳",
+      "lang": "en"
+    },
+    {
+      "q": "Instagram … tự biến mất sau 24 giờ",
+      "a": "story",
+      "e": "📖",
+      "lang": "en"
+    },
+    {
+      "q": "Ban nhạc rock trang điểm mặt trắng đen, lè lưỡi",
+      "a": "kiss",
+      "e": "💋",
+      "lang": "en"
+    },
+    {
+      "q": "\"Free …s\" — ôm miễn phí ngoài phố",
+      "a": "hug",
+      "e": "🤗",
+      "lang": "en"
+    },
+    {
+      "q": "Tết Nguyên Đán viết không dấu trong báo nước ngoài",
+      "a": "tet",
+      "e": "🧧",
+      "lang": "en"
+    },
+    {
+      "q": "Món Việt trong từ điển Oxford, viết không dấu, 3 chữ cái",
+      "a": "pho",
+      "e": "🍜",
+      "lang": "en"
+    },
+    {
+      "q": "Anh em chí cốt, Gen Z gọi là \"bờ-rồ\"",
+      "a": "bro",
+      "e": "🤜",
+      "lang": "en"
+    },
+    {
+      "q": "Công thức hóa học H₂O",
+      "a": "water",
+      "e": "💧",
+      "lang": "en"
+    },
+    {
+      "q": "\"Finding Nemo\" kể về loài…",
+      "a": "fish",
+      "e": "🐠",
+      "lang": "en"
+    },
+    {
+      "q": "Số ngón trên một bàn tay; \"... Guys\" là chuỗi burger Mỹ",
+      "a": "five",
+      "e": "🖐️",
+      "lang": "en"
+    },
+    {
+      "q": "\"A Song of Ice and ...\" — tiểu thuyết gốc của Game of Thrones",
+      "a": "fire",
+      "e": "🔥",
+      "lang": "en"
+    },
+    {
+      "q": "Kermit trong The Muppets là con…",
+      "a": "frog",
+      "e": "🐸",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ... of Wall Street\" — phim của Leonardo DiCaprio",
+      "a": "wolf",
+      "e": "🐺",
+      "lang": "en"
+    },
+    {
+      "q": "Hệ điều hành của Microsoft",
+      "a": "windows",
+      "e": "🪟",
+      "lang": "en"
+    },
+    {
+      "q": "\"... is coming\" — nhà Stark",
+      "a": "winter",
+      "e": "❄️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... power\" — khẩu hiệu phong trào hippie",
+      "a": "flower",
+      "e": "🌸",
+      "lang": "en"
+    },
+    {
+      "q": "\"Bungee …ing\" — nhảy dây thun từ trên cao",
+      "a": "jump",
+      "e": "🪂",
+      "lang": "en"
+    },
+    {
+      "q": "\"Orange ...\" — nước cam ép",
+      "a": "juice",
+      "e": "🧃",
+      "lang": "en"
+    },
+    {
+      "q": "\"...topia\" — phim có cô thỏ cảnh sát Judy",
+      "a": "zoo",
+      "e": "🦓",
+      "lang": "en"
+    },
+    {
+      "q": "Con vật sọc đen trắng; vạch qua đường cũng mang tên nó",
+      "a": "zebra",
+      "e": "🦓",
+      "lang": "en"
+    },
+    {
+      "q": "Món Ý có loại Margherita mang tên hoàng hậu",
+      "a": "pizza",
+      "e": "🍕",
+      "lang": "en"
+    },
+    {
+      "q": "Thể loại nhạc của Louis Armstrong ở New Orleans",
+      "a": "jazz",
+      "e": "🎷",
+      "lang": "en"
+    },
+    {
+      "q": "Thứ đầu tiên khách hỏi mật khẩu khi vào quán cà phê",
+      "a": "wifi",
+      "e": "📶",
+      "lang": "en"
+    },
+    {
+      "q": "Người hâm mộ, cũng là cái quạt",
+      "a": "fan",
+      "e": "🪭",
+      "lang": "en"
+    },
+    {
+      "q": "\"Red ...\" — dấu hiệu cảnh báo trong tình yêu",
+      "a": "flag",
+      "e": "🚩",
+      "lang": "en"
+    },
+    {
+      "q": "\"Fantastic Mr. ...\" — phim của Wes Anderson",
+      "a": "fox",
+      "e": "🦊",
+      "lang": "en"
+    },
+    {
+      "q": "Quần bò, Levi's (tiếng Anh)",
+      "a": "jeans",
+      "e": "👖",
+      "lang": "en"
+    },
+    {
+      "q": "Bỏ chữ \"r\" ở kẻ thù của Batman là ra câu chuyện cười",
+      "a": "joke",
+      "e": "🃏",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ... Book\" — cậu bé Mowgli",
+      "a": "jungle",
+      "e": "🌴",
+      "lang": "en"
+    },
+    {
+      "q": "\"Gone with the ...\" — Cuốn theo chiều gió",
+      "a": "wind",
+      "e": "🌬️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Cup\" — giải bóng đá 4 năm một lần",
+      "a": "world",
+      "e": "🏆",
+      "lang": "en"
+    },
+    {
+      "q": "\"Snow ...\" — Bạch Tuyết",
+      "a": "white",
+      "e": "⬜",
+      "lang": "en"
+    },
+    {
+      "q": "Màu của Minions, cũng là bài hit của Coldplay năm 2000",
+      "a": "yellow",
+      "e": "🟨",
+      "lang": "en"
+    },
+    {
+      "q": "\"... me to the moon\" — Frank Sinatra",
+      "a": "fly",
+      "e": "🪽",
+      "lang": "en"
+    },
+    {
+      "q": "\"… Fire\" — game sinh tồn bắn súng trên điện thoại",
+      "a": "free",
+      "e": "🔫",
+      "lang": "en"
+    },
+    {
+      "q": "\"... & Furious\" — loạt phim đua xe",
+      "a": "fast",
+      "e": "🏎️",
+      "lang": "en"
+    },
+    {
+      "q": "\"The ... of Oz\"",
+      "a": "wizard",
+      "e": "🧙",
+      "lang": "en"
+    },
+    {
+      "q": "Thuyền trưởng … Sparrow của Ngọc trai đen",
+      "a": "jack",
+      "e": "🏴‍☠️",
+      "lang": "en"
+    },
+    {
+      "q": "\"... Waste\" — lối sống không rác thải",
+      "a": "zero",
+      "e": "♻️",
+      "lang": "en"
+    },
+    {
+      "q": "Môn thể thao của Tiger Woods",
+      "a": "golf",
+      "e": "⛳",
+      "lang": "en"
+    },
+    {
+      "q": "Mạng xã hội chim xanh nay đổi tên thành X",
+      "a": "twitter",
+      "e": "🐦",
+      "lang": "en"
+    },
+    {
+      "q": "Dịch vụ xem phim có chữ N đỏ",
+      "a": "netflix",
+      "e": "🎬",
+      "lang": "en"
+    },
+    {
+      "q": "Rừng mưa lớn nhất thế giới, cũng là công ty của Jeff Bezos",
+      "a": "amazon",
+      "e": "📦",
+      "lang": "en"
+    },
+    {
+      "q": "Công cụ tìm kiếm được dùng nhiều nhất thế giới",
+      "a": "google",
+      "e": "🔎",
+      "lang": "en"
+    },
+    {
+      "q": "Nền tảng bạn đang xem live này",
+      "a": "tiktok",
+      "e": "🎵",
+      "lang": "en"
+    },
+    {
+      "q": "Nền tảng video của Google, nút play đỏ",
+      "a": "youtube",
+      "e": "▶️",
+      "lang": "en"
+    },
+    {
+      "q": "Sàn thương mại điện tử màu cam với ngày sale 9.9, 11.11",
+      "a": "shopee",
+      "e": "🛍️",
+      "lang": "en"
+    },
+    {
+      "q": "Ứng dụng gọi xe ôm công nghệ màu xanh lá",
+      "a": "grab",
+      "e": "🛵",
+      "lang": "en"
+    },
+    {
+      "q": "Ứng dụng nhắn tin \"made in Vietnam\" logo chữ Z",
+      "a": "zalo",
+      "e": "💬",
+      "lang": "en"
+    },
+    {
+      "q": "Hãng điện thoại Hàn Quốc có dòng Galaxy",
+      "a": "samsung",
+      "e": "📱",
+      "lang": "en"
+    },
+    {
+      "q": "Hãng xe máy Nhật mà nhiều người Việt dùng tên để gọi luôn xe máy",
+      "a": "honda",
+      "e": "🏍️",
+      "lang": "en"
+    },
+    {
+      "q": "Hãng ô tô Nhật bán chạy nhất thế giới, có dòng Vios, Camry",
+      "a": "toyota",
+      "e": "🚗",
+      "lang": "en"
+    },
+    {
+      "q": "Đối thủ truyền kiếp của Coca-Cola",
+      "a": "pepsi",
+      "e": "🥤",
+      "lang": "en"
+    }
   ]
 }
