@@ -666,8 +666,13 @@ export class WordGame extends EventEmitter {
     const by = user ? { id: user.id, name: user.name, avatar: user.avatar } : null;
     const repeat = Math.max(1, ev.repeatCount | 0 || 1);
     const unit = Math.max(0, Number(ev.diamonds) || 0);
-    const rule = this.matchUnlock(ev.giftName, unit, unit * repeat);
+    // quà combo tới từng phần (repeat = số món mới, streakTotal = tổng cả chuỗi): luật theo ngưỡng xu tính trên cả combo,
+    // mở khi tổng vừa vượt lên mức của luật đó (không mở lại mỗi lần chuỗi cộng thêm)
+    const total = unit * (ev.streakTotal ?? repeat);
+    const rule = this.matchUnlock(ev.giftName, unit, total);
     if (!rule) return [];
+    const before = ev.streakTotal != null ? unit * (ev.streakTotal - repeat) : 0;
+    if (!rule.gifts && before > 0 && this.matchUnlock(ev.giftName, unit, before) === rule) return [];
     let times = 1;
     if (rule.every) {
       const cnt = (this.giftCounters[rule.id] || 0) + repeat;

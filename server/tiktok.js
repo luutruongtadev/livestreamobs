@@ -38,13 +38,15 @@ export function normalizeComment(data) {
   return { type: 'comment', user: normalizeUser(data.user), text: String(first(data.content, data.comment) ?? ''), sentAt: sentAtOf(data) };
 }
 
-/** Trả về null nếu là quà combo đang chạy (chỉ tính khi kết thúc chuỗi). */
+/**
+ * Chuẩn hoá tin quà. Quà combo (giftType 1) gửi nhiều tin, repeatCount là TỔNG số món tới lúc đó;
+ * streakable = true để TikTokBridge đổi thành phần tăng thêm (xem giftDelta).
+ */
 export function normalizeGift(data) {
   const details = data.giftDetails || {};
   const gift = data.gift || {};
   const ext = data.extendedGiftInfo || {};
   const giftType = first(details.giftType, gift.type, ext.type);
-  if (giftType === 1 && !data.repeatEnd) return null;
   return {
     type: 'gift',
     user: normalizeUser(data.user),
@@ -53,7 +55,19 @@ export function normalizeGift(data) {
     giftImage: first(pickUrl(details.giftImage), details.giftPictureUrl, pickUrl(gift.image), pickUrl(gift.icon), pickUrl(ext.image)) || null,
     diamonds: Number(first(details.diamondCount, gift.diamondCount, ext.diamond_count, ext.diamondCount, 1)),
     repeatCount: Number(first(data.repeatCount, data.comboCount, 1)) || 1,
+    streakable: giftType === 1,
+    streakEnd: !!data.repeatEnd,
   };
+}
+
+/** Promise quá ms mili giây chưa xong → lỗi (err.timeout = true). */
+export function withTimeout(promise, ms) {
+  if (!(ms > 0)) return promise;
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => { const e = new Error(`Kết nối quá ${Math.round(ms / 1000)}s không xong`); e.timeout = true; reject(e); }, ms);
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -61,7 +75,7 @@ export function normalizeGift(data) {
  * Phát ra: 'event' (sự kiện chuẩn hoá), 'status' ({ state, message, roomId, viewers }).
  */
 export class TikTokBridge extends EventEmitter {
-  constructor({ signApiKey, stallMs = 90_000, ConnectionClass = TikTokLiveConnection, log = console } = {}) {
+  constructor({ signApiKey, stallMs = 90_000, connectTimeoutMs = 40_000, retryMs = 5000, ConnectionClass = TikTokLiveConnection, log = console } = {}) {
     super();
     this.signApiKey = signApiKey || undefined;
     this.ConnectionClass = ConnectionClass;
@@ -70,7 +84,8 @@ export class TikTokBridge extends EventEmitter {
     this.username = '';
     this.wanted = false;
     this.retryTimer = null;
-    this.retryDelay = 5000;
+    this.retryMs = retryMs; // chờ lần thử lại đầu tiên (gấp đôi mỗi lần, tối đa 60s)
+    this.retryDelay = retryMs;
     this.stallMs = stallMs; // không nhận được dữ liệu gì trong khoảng này → coi như kết nối "chết lâm sàng", nối lại
     this.watchdog = null;
     this.lastDataAt = 0;
@@ -80,6 +95,10 @@ export class TikTokBridge extends EventEmitter {
     this.replayed = 0; // số tin cũ đã bỏ qua
     this.delays = []; // độ trễ TikTok → server của các bình luận gần đây (ms)
     this.roomId = null; // nhớ room id của buổi live để nối lại nhanh, đỡ tốn lượt gọi máy chủ ký (Euler)
+    // connect() của thư viện có thể treo (mạng / máy chủ ký không trả lời) → quá giờ thì bỏ, hẹn thử lại
+    this.connectTimeoutMs = connectTimeoutMs;
+    // quà combo đang chạy: `${user}:${giftId}` → { counted: số món đã phát, at } (phát ngay phần tăng thêm, không chờ hết chuỗi)
+    this.streaks = new Map();
     this.status = { state: 'idle', message: 'Chưa kết nối', username: '', viewers: 0, drops: 0, lastDrop: null };
   }
 
@@ -101,7 +120,7 @@ export class TikTokBridge extends EventEmitter {
     await this.disconnect();
     this.username = username;
     this.wanted = true;
-    this.retryDelay = 5000;
+    this.retryDelay = this.retryMs;
     this.roomId = null;
     this.lastDropAt = null;
     this.replayed = 0;
@@ -162,13 +181,13 @@ export class TikTokBridge extends EventEmitter {
     try {
       // nối lại trong cùng buổi live: dùng luôn room id cũ (bỏ bước dò room id, nhanh hơn, ít bị chặn)
       let state;
-      try { state = await conn.connect(this.roomId || undefined); } catch (e) {
-        if (!this.roomId || this.conn !== conn) throw e;
+      try { state = await withTimeout(conn.connect(this.roomId || undefined), this.connectTimeoutMs); } catch (e) {
+        if (!this.roomId || this.conn !== conn || e?.timeout) throw e;
         this.roomId = null; // room id cũ hết hạn (buổi live mới) → dò lại
-        state = await conn.connect();
+        state = await withTimeout(conn.connect(), this.connectTimeoutMs);
       }
       if (this.conn !== conn) return;
-      this.retryDelay = 5000;
+      this.retryDelay = this.retryMs;
       this.roomId = state?.roomId || this.roomId;
       this.lastDataAt = Date.now();
       clearInterval(this.watchdog);
@@ -182,12 +201,35 @@ export class TikTokBridge extends EventEmitter {
       if (this.conn !== conn) return;
       conn.removeAllListeners();
       this.conn = null;
+      // treo quá giờ: huỷ kết nối dở dang (lỡ nó kết nối xong muộn thì cũng không còn nhận sự kiện)
+      if (err?.timeout) { this.log.warn?.(`[tiktok] ${err.message} @${this.username}`); try { Promise.resolve(conn.disconnect()).catch(() => {}); } catch { /* bỏ qua */ } }
       if (err?.name === 'UserOfflineError' || /offline|not live|isn't online/i.test(err?.message || '')) this.roomId = null;
       const msg = err?.name === 'UserOfflineError' || /offline|not live|isn't online/i.test(err?.message || '')
         ? `@${this.username} chưa phát live`
         : `Lỗi kết nối: ${err?.message || err}`;
       this.#scheduleRetry(msg);
     }
+  }
+
+  /**
+   * Quà combo: TikTok gửi nhiều tin, mỗi tin mang TỔNG số món tới lúc đó. Phát ngay phần tăng thêm (repeatCount = số món mới)
+   * để màn hình / điểm cập nhật liền và rớt mạng giữa chuỗi không mất cả combo. streakTotal = tổng cả chuỗi tới giờ
+   * (để luật quà theo ngưỡng xu tính trên cả combo). Quà thường thì giữ nguyên.
+   */
+  giftDelta(ev) {
+    if (!ev?.streakable) return ev;
+    const key = `${ev.user?.id || ''}:${ev.giftId || ev.giftName}`;
+    const now = Date.now();
+    if (this.streaks.size > 300) for (const [k, s] of this.streaks) if (now - s.at > 120_000) this.streaks.delete(k);
+    const s = this.streaks.get(key);
+    const total = ev.repeatCount;
+    let prev = s && now - s.at < 120_000 ? s.counted : 0;
+    if (total < prev) prev = 0; // số món nhỏ hơn đã đếm → chuỗi mới (mất tin kết thúc của chuỗi trước)
+    if (ev.streakEnd) this.streaks.delete(key);
+    else this.streaks.set(key, { counted: Math.max(prev, total), at: now });
+    const delta = total - prev;
+    if (delta <= 0) return null; // tin kết thúc chuỗi lặp lại số món đã phát
+    return { ...ev, repeatCount: delta, streakTotal: total };
   }
 
   /** Tin mới thật? Bỏ tin cũ TikTok gửi bù khi (nối lại) kết nối và tin trùng mã. */
@@ -224,7 +266,7 @@ export class TikTokBridge extends EventEmitter {
     conn.on(WebcastEvent.SHARE, (d) => { if (this.fresh(d)) emit({ type: 'share', user: normalizeUser(d.user) }); });
     conn.on(WebcastEvent.FOLLOW, (d) => { if (this.fresh(d)) emit({ type: 'follow', user: normalizeUser(d.user) }); });
     // quà combo gửi nhiều tin cập nhật → khoá chống trùng gồm cả số lượng / cờ kết thúc chuỗi
-    conn.on(WebcastEvent.GIFT, (d) => { if (this.fresh(d, `:${d.repeatCount ?? ''}:${d.repeatEnd ? 1 : 0}`)) emit(normalizeGift(d)); });
+    conn.on(WebcastEvent.GIFT, (d) => { if (this.fresh(d, `:${d.repeatCount ?? ''}:${d.repeatEnd ? 1 : 0}`)) emit(this.giftDelta(normalizeGift(d))); });
     conn.on(WebcastEvent.MEMBER, (d) => emit({ type: 'member', user: normalizeUser(d.user) }));
     conn.on(WebcastEvent.ROOM_USER, (d) => {
       if (this.conn === conn) this.setStatus({ viewers: Number(d.viewerCount) || 0 });

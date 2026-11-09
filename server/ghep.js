@@ -342,9 +342,13 @@ export class GhepGame extends EventEmitter {
   }
 
   handleGift(by, ev) {
-    const total = Math.max(0, Number(ev.diamonds) || 0) * Math.max(1, ev.repeatCount | 0 || 1);
-    const out = [{ type: 'ghep_thanks', by, giftName: ev.giftName || 'quà', diamonds: total }];
-    if (total < this.cfg.minGiftDiamonds) return out;
+    const unit = Math.max(0, Number(ev.diamonds) || 0);
+    const repeat = Math.max(1, ev.repeatCount | 0 || 1);
+    // quà combo tới từng phần: streakTotal = tổng cả chuỗi tới giờ → tính ngưỡng trên cả combo, chỉ trình diễn 1 lần khi vừa vượt ngưỡng
+    const total = unit * (ev.streakTotal ?? repeat);
+    const before = ev.streakTotal != null ? unit * (ev.streakTotal - repeat) : 0;
+    const out = before > 0 ? [] : [{ type: 'ghep_thanks', by, giftName: ev.giftName || 'quà', diamonds: total }]; // cảm ơn 1 lần mỗi chuỗi
+    if (total < this.cfg.minGiftDiamonds || before >= this.cfg.minGiftDiamonds) return out;
     const last = this.lastCombo.get(by.id);
     const combo = last && this.now() - last.at <= this.cfg.comboWindowMs ? this.combos.get(last.key) : null;
     if (combo) return [...out, { type: 'ghep_spotlight', id: ++this.jobSeq, combo, by, gift: { giftName: ev.giftName || 'quà', diamonds: total } }];

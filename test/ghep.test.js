@@ -216,3 +216,15 @@ test('2 emoji → đặt tên bằng bảng tiếng Việt, KHÔNG gọi Claude;
   await wait(20);
   assert.equal(client.calls.length, 1);
 });
+
+test('quà combo tới từng phần: cảm ơn 1 lần mỗi chuỗi, trình diễn đặc biệt đúng 1 lần khi tổng chuỗi vừa vượt 10 xu', async () => {
+  const client = fakeClient(() => COMBO);
+  const g = new GhepGame({ cooldownMs: 0 }, { client });
+  g.handle({ type: 'comment', user: u('an'), text: 'mèo + tên lửa' });
+  await wait(20);
+  const part = (repeatCount, streakTotal) => g.handle({ type: 'gift', user: u('an'), giftName: 'Rose', diamonds: 1, repeatCount, streakTotal }).map((e) => e.type);
+  assert.deepEqual(part(4, 4), ['ghep_thanks']);
+  assert.deepEqual(part(4, 8), []);
+  assert.deepEqual(part(4, 12), ['ghep_spotlight']);
+  assert.deepEqual(part(6, 18), []);
+});
