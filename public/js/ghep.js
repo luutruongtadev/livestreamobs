@@ -256,6 +256,11 @@ function connect() {
     if (d.type === 'hello' || d.type === 'ghep') {
       if (d.ghep) { snap = d.ghep; gallery = d.ghep.gallery || []; for (const g of gallery) { ensureEmoji(g.ea); ensureEmoji(g.eb); loadImg(g.img); } }
     } else if (d.type === 'ghepfx') for (const e of d.effects || []) onEffect(e);
+    if (d.type === 'hello' || d.type === 'announce') {
+      const a = d.announce?.active || null;
+      if (a && a.id !== announce?.id) announceAt = nowS();
+      announce = a;
+    }
   };
   ws.onclose = () => setTimeout(connect, 2000);
 }
@@ -409,6 +414,34 @@ function drawHeader() {
   if (!snap.active) { pill(CX - 250, 1180, 500, 50, 'rgba(239,68,68,.25)', '#ef4444'); txt('Game đang tắt — bật ở trang admin', CX, 1206, 26, '#fecaca', 800); }
 }
 
+// thông báo của admin: banner dưới tiêu đề, chữ dài thì chạy ngang, mới gửi thì viền nháy sáng
+let announce = null;
+let announceAt = 0;
+function drawAnnounce(t) {
+  if (!announce) return;
+  const x = 40, y = 204, w = W - 80, h = 54;
+  const age = t - announceAt;
+  const pulse = age < 3 ? 0.5 + 0.5 * Math.sin(age * 12) : 0;
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 27);
+  ctx.fillStyle = 'rgba(219,39,119,.92)'; ctx.fill();
+  ctx.strokeStyle = pulse ? `rgba(255,255,255,${0.5 + pulse / 2})` : '#fbcfe8'; ctx.lineWidth = 3 + pulse * 4; ctx.stroke();
+  txt('📢', x + 38, y + h / 2 + 1, 26, '#fff', 900);
+  const tx = x + 70, tw = w - 84;
+  ctx.font = `800 26px ${FONT}`;
+  const textW = ctx.measureText(announce.text).width;
+  ctx.beginPath(); ctx.rect(tx, y, tw, h); ctx.clip();
+  ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+  if (textW <= tw) { ctx.textAlign = 'center'; ctx.fillText(announce.text, tx + tw / 2, y + h / 2 + 1); }
+  else {
+    ctx.textAlign = 'left';
+    const span = textW + 120, off = (Math.max(0, age - 1.2) * 110) % span;
+    ctx.fillText(announce.text, tx - off, y + h / 2 + 1);
+    ctx.fillText(announce.text, tx - off + span, y + h / 2 + 1);
+  }
+  ctx.restore();
+}
+
 function drawFeed(t) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   feed.forEach((f, i) => {
@@ -476,6 +509,7 @@ function frame() {
   const t = nowS();
   ctx.clearRect(0, 0, W, H);
   drawHeader();
+  drawAnnounce(t);
   drawShow(t);
   drawSparks();
   drawFeed(t);

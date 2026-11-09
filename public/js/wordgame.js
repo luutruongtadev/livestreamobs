@@ -614,6 +614,7 @@ function connect() {
     } else if (msg.type === 'voice' && msg.game === 'wg') {
       onVoice(msg.voice);
     }
+    if (msg.type === 'hello' || msg.type === 'announce') onAnnounce(msg.announce, msg.type === 'announce');
   };
 }
 const soundBtn = document.getElementById('sound');
@@ -1203,7 +1204,58 @@ function drawTeamBar(t) {
   ctx.restore();
 }
 
+// ---------------- thông báo của admin (banner trên cùng) ----------------
+let announce = null; // { id, text, speak, remaining }
+let announceAt = 0;
+let announceSpoken = 0;
+function onAnnounce(a, fresh) {
+  const cur = a?.active || null;
+  if (cur && cur.id !== announce?.id) {
+    announceAt = performance.now();
+    if (fresh) { // vừa gửi (không phải lúc mở / tải lại trang): chuông + đọc to nếu admin chọn
+      sound.play('bell');
+      if (cur.speak && announceSpoken !== cur.id) { announceSpoken = cur.id; speak(cur.text.replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, ' ')); }
+    }
+  }
+  announce = cur;
+}
+/** Banner thông báo: chữ dài thì chạy ngang; mới gửi thì viền nháy sáng. */
+function drawAnnounce(t) {
+  const y = 236, h = 54, x = 40, w = W - 80;
+  const age = (performance.now() - announceAt) / 1000;
+  ctx.save();
+  const g = ctx.createLinearGradient(x, y, x + w, y);
+  g.addColorStop(0, 'rgba(190,24,93,.95)'); g.addColorStop(0.5, 'rgba(219,39,119,.95)'); g.addColorStop(1, 'rgba(190,24,93,.95)');
+  rr(x, y, w, h, 27); ctx.fillStyle = g; ctx.fill();
+  const pulse = age < 3 ? 0.5 + 0.5 * Math.sin(age * 12) : 0;
+  ctx.strokeStyle = pulse ? `rgba(255,255,255,${0.5 + pulse / 2})` : '#fbcfe8'; ctx.lineWidth = 3 + pulse * 4; ctx.stroke();
+  // nhãn 📢 bên trái
+  const tagW = 64;
+  rr(x + 6, y + 6, tagW, h - 12, 21); ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font(900, 26); ctx.fillStyle = '#fff';
+  ctx.fillText('📢', x + 6 + tagW / 2, y + h / 2 + 1);
+  // nội dung: vừa thì đứng giữa, dài thì chạy ngang
+  const tx = x + tagW + 20, tw = w - tagW - 34;
+  ctx.font = font(800, 26);
+  const text = announce.text;
+  const textW = ctx.measureText(text).width;
+  ctx.save(); ctx.beginPath(); ctx.rect(tx, y, tw, h); ctx.clip();
+  ctx.fillStyle = '#fff';
+  if (textW <= tw) { ctx.textAlign = 'center'; ctx.fillText(text, tx + tw / 2, y + h / 2 + 1); }
+  else {
+    ctx.textAlign = 'left';
+    const gap = 120, span = textW + gap;
+    const off = (Math.max(0, age - 1.2) * 110) % span; // đứng yên 1,2 giây cho kịp đọc đầu câu rồi mới chạy
+    ctx.fillText(text, tx - off, y + h / 2 + 1);
+    ctx.fillText(text, tx - off + span, y + h / 2 + 1);
+  }
+  ctx.restore();
+  ctx.restore();
+}
+
 function drawKing(t) {
+  // thông báo của admin thế chỗ banner Vua tuần; đang đấu đội thì luân phiên 8 giây với thanh tỉ số
+  if (announce && (!G.team?.on || Math.floor(t / 8) % 2 === 0)) return drawAnnounce(t);
   if (G.team?.on) return drawTeamBar(t);
   const wk = G.weekly;
   if (!wk) return;

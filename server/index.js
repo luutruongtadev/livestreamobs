@@ -14,6 +14,7 @@ import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
 import { PauseController } from './pause.js';
 import { WeeklyBoard } from './weekly.js';
 import { Goodbye } from './goodbye.js';
+import { Announcer } from './announce.js';
 import { Voice } from './voice.js';
 import { AttrStore } from './attributes.js';
 import { EnglishHintStore } from './englishhints.js';
@@ -122,6 +123,8 @@ const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
 const voice = new Voice(config.voice || {}, { apiKey: process.env.ELEVENLABS_API_KEY || null, claude: claudeClientFromEnv(), dir: path.join(ROOT, 'data', 'voice') });
 if (voice.enabled) console.log('[voice] Giọng MC ElevenLabs: bật'); else if (!process.env.ELEVENLABS_API_KEY) console.log('[voice] Chưa có ELEVENLABS_API_KEY → đọc tên bằng giọng của trình duyệt');
 const goodbye = new Goodbye(config.goodbye || {}, { statePath: path.join(ROOT, 'data', 'goodbye.json') });
+// Thông báo của admin hiện ở banner trên cùng màn hình game (/doantu, /ghep)
+const announcer = new Announcer({ statePath: path.join(ROOT, 'data', 'announce.json') });
 // Tạm dừng game khi chưa live (không tốn từ / không chạy vòng trống); tắt bằng "autoPauseOffline": false
 // Game "Ghép" (/ghep): bình luận "A + B" → ghép emoji kiểu Emoji Kitchen; quà ≥ 10 xu → trình diễn đặc biệt
 const ghep = new GhepGame(config.ghep || {}, { client: claudeClientFromEnv(), filePath: path.join(ROOT, 'data', 'ghep.json') });
@@ -146,7 +149,7 @@ function publicConfig() {
 }
 
 wss.on('connection', (ws) => {
-  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState(), ghep: ghep.snapshot() });
+  send(ws, { type: 'hello', config: publicConfig(), status: tiktok.status, wg: wg.snapshot(), pause: pauser.status(), goodbye: goodbye.status(), voice: voice.publicState(), ghep: ghep.snapshot(), announce: announcer.status() });
 });
 
 function ingest(ev) {
@@ -213,7 +216,9 @@ tiktok.on('status', (status) => {
 
 // ---------------- Chào tạm biệt / kết thúc live theo giờ hẹn ----------------
 function goodbyeBroadcast() { broadcast({ type: 'goodbye', goodbye: goodbye.status() }); }
+function announceBroadcast() { broadcast({ type: 'announce', announce: announcer.status() }); }
 setInterval(() => {
+  if (announcer.tick()) announceBroadcast(); // thông báo hết thời gian → gỡ khỏi màn hình
   const r = goodbye.tick();
   if (r === 'start') { console.log('[goodbye] tới giờ hẹn — chào tạm biệt'); goodbyeBroadcast(); }
   if (r === 'end') { goodbyeBroadcast(); if (pauser.sleep()) pauseBroadcast(); }
@@ -232,6 +237,18 @@ app.post('/api/pause', requireAdmin, (_req, res) => { if (pauser.pause()) pauseB
 app.post('/api/resume', requireAdmin, (_req, res) => { if (pauser.resume()) pauseBroadcast(); res.json({ ok: true, pause: pauser.status() }); });
 app.get('/api/pause', (_req, res) => res.json(pauser.status()));
 // Hẹn giờ chào tạm biệt: { action: 'now' | 'cancel' | 'set', enabled, at: 'HH:MM', seconds, message }
+// Thông báo lên màn hình live: { action: 'set', text, minutes (0 = tới khi tắt), speak } | { action: 'off' }
+app.get('/api/announce', (_req, res) => res.json(announcer.status()));
+app.post('/api/announce', express.json({ limit: '16kb' }), requireAdmin, (req, res) => {
+  const b = req.body || {};
+  try {
+    if (b.action === 'off') announcer.clear();
+    else announcer.set({ text: b.text, minutes: b.minutes, speak: b.speak });
+  } catch (e) { return res.status(400).json({ error: e.message }); }
+  announceBroadcast();
+  res.json({ ok: true, announce: announcer.status() });
+});
+
 app.post('/api/goodbye', express.json({ limit: '16kb' }), requireAdmin, (req, res) => {
   const b = req.body || {};
   try {

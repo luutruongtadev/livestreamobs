@@ -71,6 +71,35 @@
     </section>
 
     <section>
+      <h2>📢 Thông báo lên màn hình live</h2>
+      <p class="muted" style="margin-top:0">Hiện ở banner trên cùng màn hình game (Đoán từ / Giải mã / Ghép), chữ dài thì tự chạy ngang. Không gửi được vào khung chat TikTok — thư viện kết nối chỉ đọc bình luận.</p>
+      <div class="row">
+        <input id="anText" type="text" maxlength="140" placeholder="Nội dung thông báo, vd: 🎁 Tặng 1 hoa hồng để mở chữ nha cả nhà!">
+      </div>
+      <div class="row" style="margin-top:8px;align-items:center">
+        <select id="anMin" style="max-width:190px">
+          <option value="0">Hiện tới khi tắt</option>
+          <option value="1">Hiện 1 phút</option>
+          <option value="5" selected>Hiện 5 phút</option>
+          <option value="15">Hiện 15 phút</option>
+          <option value="30">Hiện 30 phút</option>
+          <option value="60">Hiện 60 phút</option>
+        </select>
+        <label style="display:flex;gap:6px;align-items:center"><input id="anSpeak" type="checkbox"> 🔊 Đọc to (giọng máy)</label>
+        <span id="anCount" class="muted">0/140</span>
+        <button id="anSend">📢 Gửi lên live</button>
+        <button id="anOff" class="ghost">✖ Tắt thông báo</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" data-an="🎁 Tặng 1 hoa hồng = góp mở chữ, 5 bông lộ 1 chữ nha cả nhà!">Mẫu: quà mở chữ</button>
+        <button class="ghost" data-an="❤️ Thả tim đủ 1.000 cả phòng sẽ lộ thêm 1 chữ!">Mẫu: thả tim</button>
+        <button class="ghost" data-an="🔁 Chia sẻ live giúp mình nhé, mỗi lượt +20 điểm tuần!">Mẫu: chia sẻ</button>
+        <button class="ghost" data-an="👑 Top 1 điểm tuần được ghim tên và nhận quà từ chủ kênh!">Mẫu: top tuần</button>
+      </div>
+      <div id="anStatus" class="muted" style="margin-top:8px">Chưa có thông báo</div>
+    </section>
+
+    <section>
       <h2>🧪 Game Ghép (/ghep)</h2>
       <p class="muted" style="margin-top:0">Bật: mọi bình luận / quà vào game Ghép, Đoán từ tạm dừng (giữ nguyên vòng đang chơi). Người xem bình luận <b>"A + B"</b> (chữ hoặc emoji) hoặc chỉ <b>2 emoji</b> (vd 🐱🚀) → AI chọn emoji, đặt tên và màn hình hiện emoji ghép (kiểu Emoji Kitchen). Tặng quà ≥ 10 xu → combo của người đó được trình diễn đặc biệt (chen lên đầu, khung vàng, pháo hoa). Không ai ghép trong 20 giây (đang live) → máy tự ghép 2 emoji ngẫu nhiên (không tốn token; chỉnh <code>ghep.autoIdleSec</code>, 0 = tắt). Màn hình OBS: <code id="ghepUrl"></code></p>
       <div id="ghepInfo" class="muted" style="margin-bottom:8px">Đang tải…</div>
@@ -315,6 +344,30 @@
     $('pauseText').style.color = p.paused ? '#facc15' : '#4ade80';
   }
 
+  // ---- thông báo lên màn hình live ----
+  let anEndsAt = null, anCur = null; // esc(): hàm thoát HTML khai báo ở dưới
+  function anStatusText() {
+    if (!anCur) { $('anStatus').textContent = 'Chưa có thông báo'; $('anStatus').style.color = ''; return; }
+    const left = anEndsAt ? Math.max(0, Math.ceil((anEndsAt - Date.now()) / 1000)) : null;
+    $('anStatus').innerHTML = `🟢 Đang hiện: <b>${esc(anCur.text)}</b> · ${left == null ? 'tới khi tắt' : `còn ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`}${anCur.speak ? ' · có đọc to' : ''}`;
+    $('anStatus').style.color = '#4ade80';
+  }
+  function renderAnnounce(a) {
+    anCur = a?.active || null;
+    anEndsAt = anCur?.remaining != null ? Date.now() + anCur.remaining * 1000 : null;
+    anStatusText();
+  }
+  setInterval(() => { if (anEndsAt) anStatusText(); }, 1000);
+  const anCount = () => { $('anCount').textContent = `${[...$('anText').value].length}/140`; };
+  $('anText').oninput = anCount;
+  document.querySelectorAll('[data-an]').forEach((b) => (b.onclick = () => { $('anText').value = b.dataset.an; anCount(); $('anText').focus(); }));
+  const anSend = () => api('/api/announce', { action: 'set', text: $('anText').value, minutes: Number($('anMin').value), speak: $('anSpeak').checked })
+    .then((r) => { renderAnnounce(r.announce); log('Đã gửi thông báo lên live'); }).catch((e) => log('Lỗi: ' + e.message));
+  $('anSend').onclick = anSend;
+  $('anText').onkeydown = (e) => { if (e.key === 'Enter') anSend(); };
+  $('anOff').onclick = () => api('/api/announce', { action: 'off' }).then((r) => { renderAnnounce(r.announce); log('Đã tắt thông báo'); }).catch((e) => log('Lỗi: ' + e.message));
+  fetch('/api/announce').then((r) => r.json()).then(renderAnnounce).catch(() => {});
+
   let gbFilled = false;
   function renderGoodbye(g) {
     if (!g) return;
@@ -331,8 +384,9 @@
     const s = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
     s.onmessage = (m) => {
       const msg = JSON.parse(m.data);
-      if (msg.type === 'hello') { renderStatus(msg.status); renderPause(msg.pause); renderGoodbye(msg.goodbye); }
+      if (msg.type === 'hello') { renderStatus(msg.status); renderPause(msg.pause); renderGoodbye(msg.goodbye); renderAnnounce(msg.announce); }
       if (msg.type === 'goodbye') renderGoodbye(msg.goodbye);
+      if (msg.type === 'announce') renderAnnounce(msg.announce);
       if (msg.type === 'ghep') renderGhep(msg.ghep);
       if (msg.type === 'hello') renderGhep(msg.ghep);
       if (msg.type === 'voice') playVoiceHere(msg.voice);
