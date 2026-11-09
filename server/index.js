@@ -6,7 +6,8 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { TikTokBridge } from './tiktok.js';
 import { WordGame } from './wordgame.js';
-import { ClaudeScorer, SimpleScorer, compact } from './scorer.js';
+import { SimpleScorer, compact } from './scorer.js';
+import { LayeredScorer } from './scoring.js';
 import { WordBank, claudeClientFromEnv, cleanDesc, cleanEmoji, validWord } from './wordbank.js';
 import { WordSetStore } from './wordsets.js';
 import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
@@ -67,7 +68,14 @@ const wgCfg = config.wordgame || {};
 const hasClaudeCreds = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
 const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
   ? new SimpleScorer()
-  : new ClaudeScorer({ model: process.env.WORDGAME_MODEL || wgCfg.model || 'claude-opus-5-5', cachePath: path.join(ROOT, 'data', 'wordscore-cache.json') });
+  // chấm nhiều lớp: cache → Knowledge Pack (Lớp 1) → gõ sai chính tả (Lớp 2) → Claude phân loại (Lớp 4); chỉ từ chưa rõ mới tốn token
+  : new LayeredScorer({
+    model: process.env.WORDGAME_MODEL || wgCfg.model || 'claude-opus-5-5',
+    packModel: process.env.WORDGAME_PACK_MODEL || wgCfg.packModel || null,
+    bands: wgCfg.scoreBands || {},
+    cachePath: path.join(ROOT, 'data', 'wordscore-cache.json'),
+    packPath: path.join(ROOT, 'data', 'knowledge-packs.json'),
+  });
 if (wgScorer instanceof SimpleScorer) console.warn('[wordgame] Chưa có ANTHROPIC_API_KEY → chấm điểm đơn giản theo chữ (không hiểu nghĩa).');
 const wordBank = new WordBank({
   filePath: path.join(ROOT, 'data', 'wordbank.json'),
@@ -188,8 +196,8 @@ setInterval(() => {
 tiktok.on('event', ingest);
 // đo độ trễ mỗi 15s: TikTok → server (bình luận về chậm) và từ đoán → có điểm (Claude chấm chậm) → hiện ở admin
 setInterval(() => {
-  const delay = { tiktok: tiktok.delayStats(), score: wg.scoreDelayStats() };
-  if (delay.tiktok || delay.score || tiktok.replayed) tiktok.setStatus({ delay, replayed: tiktok.replayed });
+  const delay = { tiktok: tiktok.delayStats(), score: wg.scoreDelayStats(), layers: wgScorer.stats?.() || null };
+  if (delay.tiktok || delay.score || delay.layers || tiktok.replayed) tiktok.setStatus({ delay, replayed: tiktok.replayed });
 }, 15_000).unref();
 tiktok.on('status', (status) => {
   console.log(`[tiktok] ${status.state}: ${status.message}`);

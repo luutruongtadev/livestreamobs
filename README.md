@@ -15,7 +15,14 @@ TikTok Live ──(tiktok-live-connector)──► Node.js server ──(WebSock
 Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng tiếng: `_ _ _  _ _ _ _`). Người xem bình luận một từ (tối đa 4 tiếng), từ đó hiện lên kèm **điểm gần nghĩa 1–100** so với từ bí mật; bảng **GẦN NGHĨA NHẤT** xếp 8 từ điểm cao nhất (thanh màu đỏ → vàng → xanh). Đoán trúng (không phân biệt dấu, hoa thường) = **100 điểm, thắng vòng**.
 
 - **Chấm điểm bằng Claude** (hiểu nghĩa tiếng Việt, kể cả gõ không dấu). Đặt `ANTHROPIC_API_KEY` trong `.env` (lấy ở console.anthropic.com). Model mặc định `claude-opus-5-5`, đổi bằng `WORDGAME_MODEL` hoặc `config.json` → `wordgame.model`.
-- **Tiết kiệm chi phí**: mỗi cặp (từ bí mật, từ đoán) chỉ chấm **một lần** rồi lưu cache (`data/wordscore-cache.json`), nhiều người đoán trùng không tốn thêm; từ đoán được gom lô ~1 giây/lần; tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
+- **Chấm nhiều lớp** (lớp trước xử lý được thì dừng, chỉ từ chưa rõ mới tốn token):
+  1. **Cache**: mỗi cặp (từ bí mật, từ đoán) chỉ chấm **một lần** (`data/wordscore-cache.json`, điểm của bộ chấm cũ vẫn dùng lại).
+  2. **Lớp 1 — Knowledge Pack**: đầu mỗi vòng Claude soạn **một lần** bộ từ cho từ bí mật: đồng nghĩa / liên quan mạnh / liên quan / liên quan yếu / không liên quan (`data/knowledge-packs.json`, gặp lại từ cũ không soạn lại). Từ đoán nằm trong bộ (có dấu, không dấu hay viết liền đều nhận) → có điểm ngay.
+  3. **Lớp 2 — Gõ sai chính tả**: thừa / thiếu / sai 1–2 ký tự so với đáp án (→ 97 điểm, "suýt trúng") hoặc so với một từ trong pack (→ điểm nhóm của từ đó). Dùng khoảng cách Levenshtein, không gọi API.
+  4. **Lớp 4 — Claude phân loại**: từ còn lại gom lô ~0,4 giây/lần gửi Claude, Claude chỉ **xếp nhóm** (rất gần / liên quan mạnh / liên quan / liên quan yếu / không liên quan + độ tin cậy); tối đa 2 request cùng lúc, timeout 20 giây; lỗi thì chấm đơn giản theo chữ.
+  - **Node quyết định điểm** theo nhóm: rất gần 90–97 · liên quan mạnh 75–88 · liên quan 55–72 · liên quan yếu 25–45 · không liên quan 1–9 (vị trí trong khoảng theo thứ tự trong pack / độ tin cậy). Đổi khoảng điểm ở `wordgame.scoreBands` trong `config.json`; model soạn pack: `wordgame.packModel` / `WORDGAME_PACK_MODEL` (mặc định như model chấm).
+  - Admin (mục Kết nối TikTok Live) hiện số từ chấm ở mỗi lớp: cache / từ điển / gõ sai / Claude, số lần gọi Claude — dựa vào đó để quyết định có cần thêm lớp embedding hay không.
+  - Tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
 - **Không có API key** → tự chuyển sang chấm đơn giản theo chữ (không hiểu nghĩa, chỉ để test).
 - **Gợi ý**: tự mở sau 60 / 150 / 230 giây (chủ đề → chữ đầu mỗi tiếng → lộ một tiếng).
 - **Quà mở khoá** (hiện thành dòng chip dưới ô chữ, kèm tiến độ gom quà):
@@ -389,7 +396,7 @@ server/
   index.js      HTTP + WebSocket hub, API admin, lưu state
   tiktok.js     Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
   wordgame.js   Luật game Đoán từ (vòng, gợi ý, quà, thắng / thua)
-  scorer.js     Chấm độ gần nghĩa (Claude) + nhận đáp án
+  scorer.js     Nhận đáp án, chấm đơn giản dự phòng · scoring.js chấm gần nghĩa nhiều lớp (pack → gõ sai → Claude)
   wordbank.js   Kho từ: sinh từ bằng Claude, từ có sẵn, đánh dấu từ đã chơi, chống trùng
   wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
   weekly.js     Bảng xếp hạng tuần · teams.js đấu đội
