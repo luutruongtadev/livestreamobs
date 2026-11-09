@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { canon, compact, simpleScore } from './scorer.js';
+import { EMBED_DEFAULTS, calibrate, cosine, embedClassify } from './embeddings.js';
 
 /**
  * Chấm độ gần nghĩa theo lớp — lớp trước xử lý được thì dừng, chỉ trường hợp chưa rõ mới đi tiếp:
@@ -9,7 +10,7 @@ import { canon, compact, simpleScore } from './scorer.js';
  *   Lớp 1    Knowledge Pack: bộ từ đồng nghĩa / liên quan mạnh / liên quan / liên quan yếu / không liên quan
  *            Claude soạn MỘT lần cho mỗi từ bí mật (đầu vòng, lưu data/knowledge-packs.json)
  *   Lớp 2    Fuzzy: gõ sai chính tả, thiếu / thừa ký tự, sai khoảng trắng (Levenshtein) so với đáp án và các từ trong pack
- *   Lớp 3    (chưa dùng — embedding; thêm sau nếu dữ liệu thực tế cho thấy cần)
+ *   Lớp 3    Embedding (Voyage / OpenAI, tuỳ chọn): so với các nhóm tham chiếu trong pack (xem server/embeddings.js); chỉ nhận trường hợp rõ ràng
  *   Lớp 4    Claude: chỉ PHÂN LOẠI các từ còn lại (gom lô); Score Engine bên dưới mới quyết định điểm
  * Đoán trúng (100) do WordGame tự xử lý trước khi gọi bộ chấm.
  */
@@ -118,6 +119,7 @@ export function fuzzyLookup(word, { secret, aliases = [], index = null }) {
 
 // ---------------- Claude ----------------
 const JUDGE_V = 'v4-cat'; // đổi khi sửa tiêu chí phân loại → kết quả cũ trong cache không dùng lại
+const EMBED_V = 'v1-emb'; // kết quả của Lớp 3 (embedding)
 const LEGACY_KEYS = ['v3-rel']; // điểm 1–99 của bộ chấm cũ vẫn dùng lại được (không tốn token)
 
 const PACK_SYSTEM = `Bạn soạn "bộ từ tham chiếu" cho trò chơi đoán từ tiếng Việt trên livestream: người xem bình luận một từ, hệ thống chấm mức gần nghĩa / liên quan với TỪ BÍ MẬT.
@@ -164,12 +166,12 @@ const JUDGE_SCHEMA = {
 
 /**
  * Bộ chấm nhiều lớp, cùng giao diện với ClaudeScorer: score(secret, word, ctx, { aliases }) → Promise<{ score, source, category }>.
- * source: cache | dict (Lớp 1) | fuzzy (Lớp 2) | claude (Lớp 4) | simple (Claude lỗi).
+ * source: cache | dict (Lớp 1) | fuzzy (Lớp 2) | embed (Lớp 3) | claude (Lớp 4) | simple (Claude lỗi).
  * prepare(secret, ctx): soạn Knowledge Pack trước khi người xem đoán (gọi ở đầu vòng).
  */
 export class LayeredScorer {
   constructor({ model = 'claude-opus-5-5', packModel = null, batchMs = 400, maxBatch = 25, maxInflight = 2, timeoutMs = 20_000,
-    cachePath = null, packPath = null, client = null, bands = SCORE_BANDS, log = console } = {}) {
+    cachePath = null, packPath = null, client = null, bands = SCORE_BANDS, embedder = null, embed = {}, log = console } = {}) {
     this.model = model;
     this.packModel = packModel || model;
     this.batchMs = batchMs;
@@ -189,7 +191,14 @@ export class LayeredScorer {
     this.contexts = new Map(); // secretKey → prompt ngữ cảnh của bộ từ (vd LMHT)
     this.timer = null;
     this.inflight = 0;
-    this.counts = { cache: 0, dict: 0, fuzzy: 0, claude: 0, simple: 0, judgeCalls: 0, packCalls: 0 };
+    // Lớp 3: embedding (null = không dùng)
+    this.embedder = embedder;
+    this.embedCfg = { ...EMBED_DEFAULTS, ...embed };
+    this.embedState = new Map(); // secretKey → { sv, calib, entries: [{ category, strength, vec }] } | 'pending' | 'off'
+    this.vecCache = new Map(); // từ đoán → vector (LRU)
+    this.embedQueue = new Map(); // secretKey → Map(word → [resolve])
+    this.embedTimer = null;
+    this.counts = { cache: 0, dict: 0, fuzzy: 0, embed: 0, claude: 0, simple: 0, judgeCalls: 0, packCalls: 0, embedCalls: 0 };
     this.load();
   }
 
@@ -220,16 +229,16 @@ export class LayeredScorer {
   }
 
   /** Thống kê số từ được chấm ở mỗi lớp (để xem admin / quyết định có cần thêm lớp embedding). */
-  stats() { return { ...this.counts, packs: this.packs.size }; }
+  stats() { return { ...this.counts, packs: this.packs.size, embedding: this.embedder ? `${this.embedder.provider}:${this.embedder.model}` : null }; }
 
   /** Đầu vòng: soạn Knowledge Pack cho từ bí mật (1 lần gọi Claude, có cache). */
   prepare(secret, ctx = null) {
     const key = this.keyOf(secret, ctx);
     if (ctx?.prompt) this.contexts.set(key, ctx.prompt);
-    if (this.packs.has(key)) return Promise.resolve(this.packs.get(key));
+    if (this.packs.has(key)) { this.prepareEmbed(key); return Promise.resolve(this.packs.get(key)); }
     if (!this.packJobs.has(key)) {
       const job = this.callPack(this.secretOf(key), ctx?.prompt)
-        .then((raw) => { const pack = cleanPack(this.secretOf(key), raw); this.setPack(key, pack); this.packsDirty = true; return pack; })
+        .then((raw) => { const pack = cleanPack(this.secretOf(key), raw); this.setPack(key, pack); this.packsDirty = true; this.prepareEmbed(key); return pack; })
         .catch((e) => { this.log.warn?.(`[scoring] soạn knowledge pack cho "${this.secretOf(key)}" lỗi: ${e?.message || e}`); return null; })
         .finally(() => this.packJobs.delete(key));
       this.packJobs.set(key, job);
@@ -237,12 +246,81 @@ export class LayeredScorer {
     return this.packJobs.get(key);
   }
 
+  /**
+   * Lớp 3: embedding từ bí mật + mọi từ trong pack (1 lần gọi API mỗi vòng), hiệu chỉnh ngưỡng theo nhóm tham chiếu.
+   * Embedding không tách được các nhóm (mốc không giảm dần) → tắt lớp này cho từ bí mật đó.
+   */
+  async prepareEmbed(key) {
+    if (!this.embedder || this.embedState.has(key) || !this.packs.has(key)) return;
+    this.embedState.set(key, 'pending');
+    const index = this.indexes.get(key);
+    try {
+      const [sv, ...vecs] = await this.embedder.embed([this.secretOf(key), ...index.list.map((e) => e.ref)]);
+      this.counts.embedCalls = this.embedder.calls;
+      const entries = index.list.map((e, i) => ({ category: e.category, strength: e.strength, vec: vecs[i] }));
+      const simsByCat = {};
+      for (const e of entries) (simsByCat[e.category] ||= []).push(cosine(sv, e.vec));
+      const calib = calibrate(simsByCat, this.embedCfg);
+      if (!calib.ok) { this.log.warn?.(`[scoring] embedding bỏ qua "${this.secretOf(key)}": ${calib.reason}`); this.embedState.set(key, 'off'); return; }
+      this.embedState.set(key, { sv, entries, calib });
+      if (this.embedState.size > 30) this.embedState.delete(this.embedState.keys().next().value); // giữ ~30 từ bí mật gần nhất
+    } catch (e) {
+      this.log.warn?.(`[scoring] embedding pack "${this.secretOf(key)}" lỗi: ${e?.message || e}`);
+      this.embedState.delete(key); // lần sau thử lại
+    }
+  }
+
+  /** Thêm từ vào hàng chờ (Lớp 3 hoặc Lớp 4) và hẹn xử lý lô. */
+  enqueue(queue, key, w, resolvers) {
+    if (!queue.has(key)) queue.set(key, new Map());
+    const q = queue.get(key);
+    if (!q.has(w)) q.set(w, []);
+    q.get(w).push(...resolvers);
+    if (queue === this.embedQueue) { if (!this.embedTimer) this.embedTimer = setTimeout(() => this.flushEmbed(), this.batchMs); }
+    else if (!this.timer) this.timer = setTimeout(() => this.flush(), this.batchMs);
+  }
+
+  /** Lớp 3: lấy vector các từ đoán (1 lần gọi cho cả lô), xếp nhóm; từ mơ hồ → hàng chờ Claude. */
+  async flushEmbed() {
+    this.embedTimer = null;
+    const batch = [...this.embedQueue.entries()];
+    this.embedQueue.clear();
+    const words = [...new Set(batch.flatMap(([, q]) => [...q.keys()]))].filter((w) => !this.vecCache.has(w));
+    try {
+      if (words.length) {
+        const vecs = await this.embedder.embed(words);
+        this.counts.embedCalls = this.embedder.calls;
+        words.forEach((w, i) => this.vecCache.set(w, vecs[i]));
+        while (this.vecCache.size > 5000) this.vecCache.delete(this.vecCache.keys().next().value);
+      }
+    } catch (e) {
+      this.log.warn?.(`[scoring] embedding từ đoán lỗi: ${e?.message || e} — chuyển Claude`);
+    }
+    for (const [key, q] of batch) {
+      const st = this.embedState.get(key);
+      for (const [w, resolvers] of q) {
+        const v = this.vecCache.get(w);
+        const r = v && st?.calib ? embedClassify({
+          sim: cosine(st.sv, v),
+          neighbors: st.entries.map((e) => ({ sim: cosine(v, e.vec), category: e.category, strength: e.strength })),
+          calib: st.calib, cfg: this.embedCfg,
+        }) : null;
+        if (!r) { this.enqueue(this.queue, key, w, resolvers); continue; }
+        const score = scoreOf(r.category, r.strength, this.bands);
+        this.cache.set(`${key}|${w}|${EMBED_V}`, score);
+        this.cacheDirty = true;
+        this.counts.embed++;
+        for (const res of resolvers) res({ score, source: 'embed', category: r.category });
+      }
+    }
+  }
+
   score(secret, word, ctx = null, { aliases = [] } = {}) {
     const key = this.keyOf(secret, ctx);
     const w = canon(word);
     const done = (score, source, category = null) => { this.counts[source] = (this.counts[source] || 0) + 1; return Promise.resolve({ score, source, category }); };
     // cache: kết quả mới, hoặc điểm của bộ chấm cũ
-    for (const v of [JUDGE_V, ...LEGACY_KEYS]) {
+    for (const v of [JUDGE_V, EMBED_V, ...LEGACY_KEYS]) {
       const c = this.cache.get(`${key}|${w}|${v}`);
       if (Number.isFinite(c)) return done(c, 'cache');
     }
@@ -253,15 +331,10 @@ export class LayeredScorer {
     // Lớp 2: gõ sai chính tả
     const fz = fuzzyLookup(w, { secret: this.secretOf(key), aliases, index });
     if (fz) return done(scoreOf(fz.category, fz.strength, this.bands), 'fuzzy', fz.category);
-    // Lớp 4: Claude phân loại (gom lô)
     if (ctx?.prompt) this.contexts.set(key, ctx.prompt);
-    return new Promise((resolve) => {
-      if (!this.queue.has(key)) this.queue.set(key, new Map());
-      const q = this.queue.get(key);
-      if (!q.has(w)) q.set(w, []);
-      q.get(w).push(resolve);
-      if (!this.timer) this.timer = setTimeout(() => this.flush(), this.batchMs);
-    });
+    // Lớp 3 (embedding, nếu có và đã hiệu chỉnh xong cho từ bí mật này) → không chắc thì Lớp 4: Claude phân loại (gom lô)
+    const useEmbed = this.embedder && this.embedState.get(key)?.calib;
+    return new Promise((resolve) => this.enqueue(useEmbed ? this.embedQueue : this.queue, key, w, [resolve]));
   }
 
   async flush() {

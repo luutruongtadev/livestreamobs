@@ -8,6 +8,7 @@ import { TikTokBridge } from './tiktok.js';
 import { WordGame } from './wordgame.js';
 import { SimpleScorer, compact } from './scorer.js';
 import { LayeredScorer } from './scoring.js';
+import { Embedder } from './embeddings.js';
 import { WordBank, claudeClientFromEnv, cleanDesc, cleanEmoji, validWord } from './wordbank.js';
 import { WordSetStore } from './wordsets.js';
 import { SetGenerator, validSecretName, cleanAliases } from './setgen.js';
@@ -76,7 +77,11 @@ const wgScorer = wgCfg.scorer === 'simple' || !hasClaudeCreds
     bands: wgCfg.scoreBands || {},
     cachePath: path.join(ROOT, 'data', 'wordscore-cache.json'),
     packPath: path.join(ROOT, 'data', 'knowledge-packs.json'),
+    // Lớp 3 embedding: có VOYAGE_API_KEY (hoặc OPENAI_API_KEY / EMBEDDING_PROVIDER + EMBEDDING_API_KEY) thì bật
+    embedder: Embedder.fromEnv(process.env, wgCfg.embedding || {}),
+    embed: wgCfg.embedding || {},
   });
+if (wgScorer.embedder) console.log(`[wordgame] Lớp 3 embedding: ${wgScorer.embedder.provider} · ${wgScorer.embedder.model}`);
 if (wgScorer instanceof SimpleScorer) console.warn('[wordgame] Chưa có ANTHROPIC_API_KEY → chấm điểm đơn giản theo chữ (không hiểu nghĩa).');
 const wordBank = new WordBank({
   filePath: path.join(ROOT, 'data', 'wordbank.json'),
