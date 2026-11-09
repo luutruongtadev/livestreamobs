@@ -184,7 +184,8 @@ export class LayeredScorer {
     this.seedCount = 0;
     this.bands = { ...SCORE_BANDS, ...bands };
     this.log = log;
-    this.client = client || new Anthropic();
+    // client = false: không có API key Claude → vẫn chấm bằng pack soạn sẵn (Lớp 1 / 2), từ ngoài pack chấm đơn giản theo chữ
+    this.client = client === false ? null : client || new Anthropic();
     this.cache = new Map(); // `${secretKey}|${word}|${JUDGE_V}` → score
     this.packs = new Map(); // secretKey → pack
     this.indexes = new Map(); // secretKey → packIndex
@@ -244,6 +245,7 @@ export class LayeredScorer {
     const key = this.keyOf(secret, ctx);
     if (ctx?.prompt) this.contexts.set(key, ctx.prompt);
     if (this.packs.has(key)) { if (embed) this.prepareEmbed(key); return Promise.resolve(this.packs.get(key)); }
+    if (!this.client) return Promise.resolve(null); // không có Claude: chỉ dùng pack soạn sẵn
     if (!this.packJobs.has(key)) {
       const job = this.callPack(this.secretOf(key), ctx?.prompt, model)
         .then((raw) => { const pack = cleanPack(this.secretOf(key), raw); this.setPack(key, pack); this.packsDirty = true; if (embed) this.prepareEmbed(key); return pack; })
@@ -359,7 +361,7 @@ export class LayeredScorer {
     if (this.queue.size && !this.timer) this.timer = setTimeout(() => this.flush(), 0);
     this.inflight++;
     let results = {};
-    try { results = await this.callJudge(this.secretOf(key), words, this.contexts.get(key)); } catch (e) {
+    try { if (this.client) results = await this.callJudge(this.secretOf(key), words, this.contexts.get(key)); } catch (e) {
       this.log.warn?.(`[scoring] Claude phân loại lỗi (${e?.status || ''} ${e?.message || e}) — dùng chấm đơn giản`);
     } finally { this.inflight--; }
     for (const [w, resolvers] of chunk) {
