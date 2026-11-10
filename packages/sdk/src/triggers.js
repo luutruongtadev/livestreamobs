@@ -106,8 +106,8 @@ export function createTriggers(bindings = [], { now = () => Date.now() } = {}) {
 }
 
 // ---- mô tả trigger cho màn hình (vd bảng "quà → tác dụng" của game) ----
-const GIFT_VI = { rose: 'Hoa hồng', 'finger heart': 'Tim tay', tiktok: 'TikTok', 'heart me': 'Heart Me', 'ice cream cone': 'Kem ốc quế', doughnut: 'Bánh donut', galaxy: 'Thiên hà', lion: 'Sư tử', perfume: 'Nước hoa', 'hand hearts': 'Tim tay đôi', 'love you': 'Love you', gg: 'GG' };
-const GIFT_ICON = { rose: '🌹', 'finger heart': '🫰', 'ice cream cone': '🍦', doughnut: '🍩', galaxy: '🌌', lion: '🦁', perfume: '🧴', 'hand hearts': '🫶', 'heart me': '💗', 'love you': '💕', gg: '🎮', tiktok: '🎵' };
+const GIFT_VI = { rose: 'Hoa hồng', 'finger heart': 'Tim tay', tiktok: 'TikTok', 'heart me': 'Heart Me', 'ice cream cone': 'Kem ốc quế', doughnut: 'Bánh donut', galaxy: 'Thiên hà', lion: 'Sư tử', perfume: 'Nước hoa', 'hand hearts': 'Tim tay đôi', 'love you': 'Love you', gg: 'GG', 'money gun': 'Súng tiền', corgi: 'Chó Corgi', sunglasses: 'Kính râm', cap: 'Mũ lưỡi trai', 'hat and mustache': 'Mũ và ria' };
+const GIFT_ICON = { rose: '🌹', 'finger heart': '🫰', 'ice cream cone': '🍦', doughnut: '🍩', galaxy: '🌌', lion: '🦁', perfume: '🧴', 'hand hearts': '🫶', 'heart me': '💗', 'love you': '💕', gg: '🎮', tiktok: '🎵', 'money gun': '💸', corgi: '🐕', sunglasses: '🕶️', cap: '🧢', 'hat and mustache': '🥸' };
 const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(Number(n) || 0);
 
 /** Tên quà tiếng Việt (nếu biết), không thì giữ tên gốc. */

@@ -263,6 +263,9 @@ function liveTab(c, g) {
   let n = 0; const user = () => ({ id: `sim${++n % 7}`, name: `Khán giả ${n % 7 + 1}` });
   return h('div', { class: 'cols' },
     h('div', {},
+      g?.play ? h('div', { class: 'card' }, h('h2', {}, '🎮 Cửa sổ chơi'),
+        h('p', { class: 'small muted' }, 'Game này cần streamer gõ phím / bấm chuột. Mở cửa sổ chơi, rồi trong OBS / LIVE Studio thêm Window Capture cửa sổ đó (hoặc cứ giữ Browser Source: nó tự hiện theo). Cửa sổ chơi tự nhận làm overlay chính, giữ nguyên ván đang chơi.'),
+        h('button', { onclick: () => window.open(`/o/${c.overlay_key}?play=1`, `play-${c.id}`, 'width=540,height=960') }, 'Mở cửa sổ chơi')) : null,
       h('div', { class: 'card' }, h('h2', {}, 'Lệnh'), h('div', { class: 'row' },
         h('button', { class: 'ghost', onclick: () => cmd('pause') }, '⏸ Tạm dừng'), h('button', { class: 'ghost', onclick: () => cmd('resume') }, '▶ Tiếp tục'),
         (g?.commands || []).map((x) => h('button', { onclick: () => cmd(x.id) }, x.label)),
@@ -398,6 +401,7 @@ const overlayLinks = (c) => [
   ['Đầy đủ (game + widget)', overlayUrl(c)],
   ['Chỉ game', `${overlayUrl(c)}?layer=game`],
   ['Chỉ widget (nền trong suốt, đặt chồng lên camera)', `${overlayUrl(c)}?layer=widgets`],
+  ['Cửa sổ chơi (game cần gõ phím / bấm chuột, mở rồi Window Capture)', `${overlayUrl(c)}?play=1`],
 ];
 
 function studioTab(c) {

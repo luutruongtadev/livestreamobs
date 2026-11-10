@@ -1,0 +1,190 @@
+{
+  "id": "deadline",
+  "name": "Deadline Dí",
+  "description": "Game văn phòng: streamer chạy deadline trước camera hoặc trên máy tính giả lập, người xem tặng quà để làm sếp ping, sếp đến soi, gọi họp, thả virus… hoặc cứu bằng cà phê, gia hạn deadline. Quà lớn phát meme.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "party",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment"
+  ],
+  "restore": "full",
+  "server": false,
+  "play": true,
+  "data": {
+    "office": "data/office.json"
+  },
+  "actions": [
+    {
+      "id": "ping",
+      "label": "Sếp ping",
+      "icon": "🔔",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rose"
+        }
+      ]
+    },
+    {
+      "id": "soi",
+      "label": "Sếp đến soi",
+      "icon": "👀",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        }
+      ]
+    },
+    {
+      "id": "ban",
+      "label": "Ném bút bi",
+      "icon": "🎯",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Doughnut"
+        }
+      ]
+    },
+    {
+      "id": "mayin",
+      "label": "Kẹt máy in",
+      "icon": "🖨️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Perfume"
+        }
+      ]
+    },
+    {
+      "id": "buzz",
+      "label": "Sếp nói trend",
+      "icon": "🗣️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hat and Mustache"
+        }
+      ]
+    },
+    {
+      "id": "hop",
+      "label": "Họp đột xuất",
+      "icon": "🚨",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Money Gun"
+        }
+      ]
+    },
+    {
+      "id": "cattg",
+      "label": "Cắt giảm nhân sự",
+      "icon": "📄",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Galaxy"
+        }
+      ]
+    },
+    {
+      "id": "virus",
+      "label": "Dính virus",
+      "icon": "👾",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Corgi"
+        }
+      ]
+    },
+    {
+      "id": "lamlai",
+      "label": "Sửa chút: làm lại",
+      "icon": "🔁",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Cap"
+        }
+      ]
+    },
+    {
+      "id": "cafe",
+      "label": "Cà phê sữa đá",
+      "icon": "☕",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Heart Me"
+        },
+        {
+          "type": "like",
+          "every": 1000
+        }
+      ]
+    },
+    {
+      "id": "giahan",
+      "label": "Gia hạn deadline",
+      "icon": "📅",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hand Hearts"
+        }
+      ]
+    },
+    {
+      "id": "intern",
+      "label": "Thực tập sinh làm hộ",
+      "icon": "🧑‍💼",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Sunglasses"
+        }
+      ]
+    },
+    {
+      "id": "thangchuc",
+      "label": "Thăng chức",
+      "icon": "🏆",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Lion"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "step",
+      "label": "+1 bước"
+    },
+    {
+      "id": "undo-step",
+      "label": "−1 bước"
+    },
+    {
+      "id": "next",
+      "label": "Ca mới"
+    },
+    {
+      "id": "clear-board",
+      "label": "Xoá bảng điểm"
+    }
+  ]
+}

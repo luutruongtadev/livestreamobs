@@ -3,12 +3,14 @@
 //   ?preview=1  chỉ hiển thị lại trạng thái của overlay chính (dashboard)   ?mute=1  ?debug=1  ?tts=0
 //   ?layer=game     chỉ game (không widget)      ?layer=widgets  chỉ widget Studio, nền trong suốt (đặt chồng lên camera)
 //   ?widgets=0      ẩn widget (trình chỉnh Studio dùng)   ?sound=1  cho overlay "chỉ widget" phát luật âm thanh
+//   ?play=1         cửa sổ chơi: giành vai overlay chính (nhận trạng thái mới nhất) để streamer gõ phím / bấm chuột vào game
 import { createHost, memoryStorage, defaultBindings, triggerText, triggerIcon } from '#sdk';
 import { createStudioLayer } from './studio-layer.js';
 
 const qs = new URLSearchParams(location.search);
 const key = location.pathname.split('/').filter(Boolean)[1] || '';
 const preview = qs.get('preview') === '1';
+const play = qs.get('play') === '1' && !preview;
 const options = { mute: qs.get('mute') === '1' || preview, debug: qs.get('debug') === '1', tts: qs.get('tts') !== '0' && !preview };
 const layer = ['game', 'widgets'].includes(qs.get('layer')) ? qs.get('layer') : 'all';
 const gameOn = layer !== 'widgets';
@@ -73,7 +75,7 @@ fit();
 // ---------------- kết nối ----------------
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws?overlay=${encodeURIComponent(key)}${preview ? '&preview=1' : ''}${gameOn ? '' : '&passive=1'}${seq ? `&since=${seq}` : ''}`);
+  ws = new WebSocket(`${proto}://${location.host}/ws?overlay=${encodeURIComponent(key)}${preview ? '&preview=1' : ''}${gameOn ? '' : '&passive=1'}${play && gameOn ? '&play=1' : ''}${seq ? `&since=${seq}` : ''}`);
   ws.onopen = () => { wsOk = true; retry = 500; refreshBadge(); ping(); };
   ws.onclose = (e) => {
     wsOk = false; refreshBadge();
@@ -125,6 +127,9 @@ async function onMsg(m) {
     case 'snap': if (role !== 'leader') game?.view?.update(m.s); break;
     case 'fx': if (role !== 'leader') for (const e of m.fx || []) game?.view?.effect(e); break;
     case 'cmd': if (role === 'leader' && game?.host) { applyFx(game.host.command(m.id, m.args || {})); draw(); } break;
+    case 'in': if (role === 'leader' && game?.host) { applyFx(game.host.input(m.ev || {})); draw(); } break;
+    // cửa sổ chơi vừa mở: gửi trạng thái mới nhất để nó tiếp quản (gateway chuyển vai sau khi nhận)
+    case 'handoff': if (role === 'leader' && game?.host) send({ t: 'save', game: game.id, state: game.host.serialize(), handoff: true }); else send({ t: 'save', handoff: true }); break;
     case 'g': { const p = pending.get(m.id); if (p) { pending.delete(m.id); m.err ? p.reject(new Error(m.err)) : p.resolve(m.r); } break; }
     case 'tk': tk = m.tk; refreshBadge(); break;
     case 'pong': {
@@ -164,7 +169,7 @@ async function loadGame(ch) {
     const canvas = document.createElement('canvas');
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
     stage.replaceChildren(canvas, ...(studio ? [studio.el] : []));
-    const view = render.mount(stage, { canvas, options, sound: null });
+    const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     fit();
     if (role === 'leader') startHost({ ...ch, state: carry ?? ch.state }, { manifest, schema, createGame: engine.createGame }, data);
@@ -199,6 +204,13 @@ function startHost(ch, module, data) {
 }
 
 // ---------------- đường đi nóng ----------------
+/** Đầu vào tại chỗ (bàn phím / chuột của streamer): overlay chính xử lý ngay, overlay phụ chuyển qua gateway cho overlay chính. */
+function sendInput(ev) {
+  if (!ev?.type) return;
+  if (role === 'leader' && game?.host) { applyFx(game.host.input(ev)); draw(); }
+  else send({ t: 'in', ev });
+}
+
 function applyFx(fx) {
   if (!fx?.length || !game) return;
   for (const e of fx) { try { game.view.effect(e); } catch (err) { console.warn(err); } }

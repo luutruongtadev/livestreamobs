@@ -87,6 +87,12 @@ export function createHost(module, {
       return fx;
     },
 
+    /** Đầu vào tại chỗ của streamer (bàn phím / chuột trong cửa sổ chơi), không qua trigger. Game không có input() thì bỏ qua. */
+    input(ev) {
+      if (state !== 'running' || !ev?.type || typeof game.input !== 'function') return [];
+      return list(guard('input', () => game.input(ev), []));
+    },
+
     /** Lệnh từ dashboard. pause / resume do nền tảng xử lý (game có pause() / resume()). */
     command(id, args = {}) {
       if (PLATFORM_COMMANDS.includes(id)) return guard(id, () => (typeof game[id] === 'function' ? (game[id](args.reason), []) : []), []);

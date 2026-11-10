@@ -44,6 +44,7 @@ Tạo nhanh: `npm run new-game <id> "Tên hiển thị"`.
 | `server` | – | `true` nếu có `server/index.js` |
 | `secrets` | – | tên biến môi trường phần server được nhận (vd `ANTHROPIC_API_KEY`) |
 | `restore` | – | `full` (reload overlay khôi phục nguyên ván) · `partial` (chỉ giữ dữ liệu bền) |
+| `play` | – | `true`: streamer chơi bằng bàn phím / chuột → dashboard hiện nút **Mở cửa sổ chơi** (`/o/<mã>?play=1`) |
 
 **Trigger** (streamer gán lại trong dashboard; một action có thể có nhiều trigger):
 ```jsonc
@@ -78,6 +79,7 @@ ctx = {
   action(actionId, event, binding) → effects[] | false   // false = không áp dụng được → nền tảng trả lượt (bộ đếm every)
   progress?(actionId, { count, every, binding, event }) → effects[]   // tiến độ gom (tuỳ chọn)
   command(commandId, args) → effects[]
+  input?(ev) → effects[]             // đầu vào tại chỗ của streamer (bàn phím / chuột), không qua trigger — xem bên dưới
   tick(now) → effects[]              // ~4 lần / giây
   pause?(reason), resume?()          // nếu game hỗ trợ tạm dừng (dùng makePausable của SDK)
   snapshot() → object                // cho renderer; có thể ẩn bí mật; PHẢI tuần tự hoá JSON được
@@ -90,12 +92,13 @@ ctx = {
 - **Game không tự đọc quà / tim.** Nền tảng so trigger rồi gọi `action()`; quà vẫn được chuyển vào `handle()` nếu game khai báo `gift` trong `inputs` (vd để cảm ơn).
 - Đường đi nóng: `handle()` phải đồng bộ và nhanh (p95 < 1 ms). Việc chậm (gọi API) → `ctx.server.request()` rồi `emit('effects')`.
 - Vẽ bảng "quà → tác dụng": dùng `triggerText(trigger)` / `triggerIcon(trigger)` của SDK ("5 Hoa hồng", "300 tim", "Quà ≥ 10 xu" · 🌹 ❤️ 🎁) trên kết quả `ctx.bindings.view()`.
+- **Đầu vào tại chỗ (`input`, tuỳ chọn):** renderer nhận `ctx.input(ev)` trong `mount()`, tự xác định người chơi bấm / gõ vào đâu rồi gửi sự kiện tự đặt (vd `{ type: 'click', target, id }`, `{ type: 'text', value }`). Overlay chính gọi thẳng `game.input()`; overlay phụ chuyển qua gateway. Cửa sổ chơi `?play=1` giành vai overlay chính (nhận trạng thái mới nhất) nên streamer gõ không bị trễ. Mọi trạng thái do `input` thay đổi phải nằm trong snapshot để overlay trong OBS hiện giống hệt.
 - Sự kiện chuẩn hoá: `{ type, user: { id, name, avatar }, text?, giftName?, giftId?, diamonds?, count?, streakTotal?, seq, sentAt, gwAt }`.
 
 ## 4. Renderer — `mount(el, ctx)`
 
 ```js
-mount(el, { canvas, sound?, options?, i18n? }) → { update(snapshot), effect(fx), resumeAudio?(), resize(), destroy() }
+mount(el, { canvas, sound?, options?, i18n?, input? }) → { update(snapshot), effect(fx), resumeAudio?(), resize(), destroy() }
 ```
 Không đụng DOM khi import (mọi thứ trong `mount`). Nền tảng lo kết nối, nút bật âm thanh, chế độ điện thoại, lớp UI chung (trạng thái kết nối, BXH, bảng quà).
 

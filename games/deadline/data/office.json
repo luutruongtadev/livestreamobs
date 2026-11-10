@@ -1,0 +1,90 @@
+{
+  "ranks": ["Thực tập sinh", "Nhân viên", "Chuyên viên", "Trưởng nhóm", "Trưởng phòng", "Giám đốc", "Chủ tịch"],
+  "desktopTasks": [
+    { "name": "Dọn bàn làm việc: mail, hộp thư, bảng tính, file", "file": "DonViec_final.docx" },
+    { "name": "Chạy báo cáo cuối tháng trước khi sếp vào", "file": "BaoCao_final_final_v7.docx" },
+    { "name": "Chốt sổ KPI quý 4", "file": "KPI_Q4_ban_chot_that_su.xlsx" },
+    { "name": "Xử lý việc tồn trước giờ tan làm", "file": "ViecTon_tuan_truoc.docx" },
+    { "name": "Soạn hồ sơ đấu thầu gấp", "file": "HoSo_gap_lam_roi.pdf" },
+    { "name": "Trả lời hết email chưa đọc", "file": "Inbox_999+.msg" }
+  ],
+  "cameraTasks": [
+    { "name": "Gấp {n} chiếc máy bay giấy", "file": "MayBayGiay_x10" },
+    { "name": "Viết tay {n} dòng: Em sẽ không trễ deadline", "file": "BanKiemDiem_v2.docx" },
+    { "name": "Xếp {n} cây bút theo màu", "file": "ButBi_sapxep.xlsx" },
+    { "name": "Ký {n} tờ hợp đồng", "file": "HopDong_can_ky_gap.pdf" },
+    { "name": "Dán {n} tờ giấy nhớ lên màn hình", "file": "GiayNho_todo.txt" },
+    { "name": "Gõ {n} dòng báo cáo tuần", "file": "BaoCaoTuan_final.docx" },
+    { "name": "Gấp {n} chiếc áo cho gọn", "file": "Ao_quan_chua_gap.jpg" },
+    { "name": "Đọc to {n} email của sếp", "file": "Mail_sep_chua_doc.msg" }
+  ],
+  "pings": [
+    "Xong chưa em?", "Em ơi file đâu rồi?", "Có update gì chưa em?", "Em check mail chưa?", "Gọi anh 5 phút nhé",
+    "Sao chưa thấy gửi?", "Em đang làm hay đang live đấy?", "Cái này gấp lắm nha em", "Tối nay ở lại thêm xíu nha",
+    "Anh cần trước 5 giờ chiều", "Em online không?", "Seen rồi sao không rep?", "Anh vừa gửi thêm 3 file",
+    "Đổi font chữ giúp anh nhé", "Sửa nhỏ thôi: làm lại từ đầu nhé", "Mai nộp được không em?", "Em rảnh không, qua phòng anh",
+    "Số liệu này sai rồi em", "Nhanh lên em ơi", "Khách đang hỏi đó em"
+  ],
+  "soiLines": [
+    "Đang làm gì đấy em?", "Anh đứng đây xem chút thôi", "Màn hình em đang mở gì vậy?", "Làm nhanh tay lên nào",
+    "Anh không vội đâu… nhưng mà nhanh lên", "Cái này em làm từ sáng à?", "Hồi anh bằng tuổi em, anh làm xong lâu rồi"
+  ],
+  "mail": [
+    "Em gửi anh bản báo cáo final ạ", "Dạ em đang làm, chiều nay có ạ", "Em xin phép nghỉ phép thứ sáu ạ",
+    "Số liệu tháng này tăng nhẹ so với tháng trước", "Nhờ chị duyệt giúp em đề xuất này", "Em đã cập nhật slide theo góp ý",
+    "Họp giao ban dời sang chín giờ sáng mai", "Em gửi lại file đính kèm ạ", "Dạ em nhận việc ạ", "Cảm ơn anh chị đã hỗ trợ",
+    "Em xin lỗi vì phản hồi chậm", "Báo cáo doanh thu quý bốn đã xong", "Hạn nộp hồ sơ là thứ hai tuần sau",
+    "Mọi người kiểm tra mail giúp em nhé", "Em đã đặt phòng họp tầng ba", "Phiền anh ký giúp em tờ trình",
+    "Em gửi bảng chấm công tháng này", "Khách hàng đã xác nhận đơn hàng", "Em sẽ gửi bản sửa trước năm giờ",
+    "Dạ em hiểu rồi ạ", "Tài liệu họp em để trong thư mục chung", "Em đề xuất tăng ngân sách quảng cáo"
+  ],
+  "buzz": [
+    "Em sync lại với team rồi push gấp giúp anh nhé", "Mình align lại KPI rồi chốt deadline nhé", "Em follow up task này giúp anh",
+    "Cuối ngày mình catch up nhanh 5 phút", "Em check lại rồi feedback sớm cho anh", "Mình brainstorm thêm vài option nhé",
+    "Em update tiến độ vào sheet giúp anh", "Cái này urgent, em handle trước nha", "Mình cần thêm insight cho phần này",
+    "Em double check số liệu giúp anh", "Em take note lại action item giúp anh", "Mình làm cho nó wow hơn chút nhé"
+  ],
+  "inbox": {
+    "keep": [
+      ["Phòng nhân sự", "Lịch nghỉ Tết 2027"], ["Kế toán", "Bảng lương tháng 11"], ["Sếp", "Họp giao ban 9 giờ"],
+      ["Khách hàng", "Xác nhận đơn hàng #2381"], ["Phòng IT", "Đổi mật khẩu định kỳ"], ["Chị Lan", "Gửi em file hợp đồng"],
+      ["Công đoàn", "Đăng ký du lịch hè"], ["Team", "Biên bản họp tuần"], ["Giám đốc", "Kế hoạch quý 1"], ["Lễ tân", "Có bưu phẩm cho bạn"]
+    ],
+    "spam": [
+      ["Quà Tặng VIP", "Chúc mừng bạn trúng iPhone 17!!!"], ["Vay Nhanh", "Vay 50 triệu 5 phút không cần giấy tờ"],
+      ["Giao Hàng", "Kiện hàng bị giữ, bấm vào đây ngay"], ["Tăng Follow", "10.000 follow chỉ 99k"],
+      ["Hoàng tử", "Tôi cần chuyển 5 triệu đô cho bạn"], ["Làm Giàu", "Khoá học giàu sau 7 ngày"],
+      ["Ngân Hàng (giả)", "Tài khoản của bạn bị khoá!!!"], ["Giảm Cân", "Giảm 10 ký trong 3 ngày"]
+    ]
+  },
+  "files": [
+    ["anh_team_building.jpg", "anh"], ["chup_man_hinh_01.png", "anh"], ["logo_moi.png", "anh"], ["anh_meo_van_phong.gif", "anh"],
+    ["hop_dong_khach.pdf", "tailieu"], ["bao_cao_q4.xlsx", "tailieu"], ["de_xuat.docx", "tailieu"], ["slide_giao_ban.pptx", "tailieu"],
+    ["bien_ban_hop.docx", "tailieu"], ["tai_ve_mien_phi.exe", "rac"], ["crack_office.exe", "rac"], ["hot_girl_xinh.scr", "rac"], ["virus_that.bat", "rac"]
+  ],
+  "viruses": [
+    "ngua_go_trojan.exe", "dao_tien_ao.exe", "quang_cao_bat_len.exe", "theo_doi_sep.exe", "ma_hoa_tong_tien.exe",
+    "spam_bot.exe", "keylogger_xin.exe", "tang_toc_gia.exe"
+  ],
+  "punishments": [
+    "Hát một câu bất kỳ thật to", "Chống đẩy 10 cái", "Đọc to 3 lần: Em hứa không trễ deadline nữa",
+    "Đeo kính râm làm việc ca sau", "Nhảy một điệu TikTok", "Giả vờ gọi điện xin lỗi sếp",
+    "Cười như được tăng lương 10 giây", "Đứng làm việc ca sau", "Kể một chuyện cười văn phòng",
+    "Ngồi không tựa lưng ca sau", "Cảm ơn từng người tặng quà", "Làm mặt nghiêm túc 20 giây không được cười"
+  ],
+  "memes": {
+    "ping": { "mood": "shock", "lines": ["Ting ting! Sếp nhắn 📱", "Lại là sếp…", "Không dám mở tin nhắn"] },
+    "soi": { "mood": "shock", "lines": ["Ủa alo??", "Sếp đứng sau lưng từ bao giờ 😨", "Giả vờ bận… giả vờ bận…"] },
+    "ban": { "mood": "dizzy", "lines": ["BỐP! Đau nha 😵", "Ai ném đó?!", "Né không kịp luôn"] },
+    "mayin": { "mood": "angry", "lines": ["Máy in lại dỗi rồi 💢", "In 1 tờ mà kẹt 3 lần", "Đập nhẹ thử xem…"] },
+    "buzz": { "mood": "cry", "lines": ["Sếp nói gì em không hiểu 🥲", "Sync, align, push… em xỉu", "Tiếng Việt đâu rồi sếp ơi"] },
+    "hop": { "mood": "cry", "lines": ["Lại họp nữa hả trời 😩", "Cuộc họp này lẽ ra chỉ là 1 email", "Họp xong quên luôn đang làm gì"] },
+    "cattg": { "mood": "skull", "lines": ["Thôi xong… toang rồi 💀", "Ôm thùng carton ra về", "Mất việc thật rồi sao 😭"] },
+    "virus": { "mood": "shock", "lines": ["Ét o ét!! 🆘", "Máy tính bốc khói rồi", "Ai tải file lạ về vậy?!"] },
+    "lamlai": { "mood": "cry", "lines": ["Làm lại từ đầu?! 😭", "Ctrl+Z cả cuộc đời", "Sửa nhỏ thôi mà…"] },
+    "cafe": { "mood": "happy", "lines": ["Sống lại rồi ☕✨", "Một ly cà phê, mười cái deadline", "Tỉnh cả người"] },
+    "giahan": { "mood": "happy", "lines": ["Được cứu rồi 😭🙏", "Sếp hôm nay hiền thế", "Thêm giờ, thêm hy vọng"] },
+    "intern": { "mood": "happy", "lines": ["Thực tập sinh là chân ái 🫶", "Có người gánh team rồi", "Em giỏi quá em ơi"] },
+    "thangchuc": { "mood": "rich", "lines": ["Giàu rồi!! 💸", "Lên chức rồi mọi người ơi 🎉", "Từ nay gọi em là sếp"] }
+  }
+}

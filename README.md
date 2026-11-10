@@ -29,7 +29,7 @@ TikTok ─WebSocket─► gateway/ (Node, đa kênh) ─WebSocket─► /o/<key>
 
 - **Độ trễ thấp**: sự kiện đi thẳng WebSocket, gateway gửi ngay từng sự kiện (chỉ gộp tim ~200 ms), engine xử lý đồng bộ trong overlay; từ có trong Knowledge Pack chấm tại chỗ (0 ms). Overlay rớt mạng → tự nối lại và nhận bù theo `seq` (gateway giữ 10 giây sự kiện). Dashboard hiện độ trễ TikTok → gateway và gateway → màn hình.
 - **Mỗi game một module** (`games/<id>`, chuẩn: [`docs/game-module-standard.md`](docs/game-module-standard.md)): `npm run new-game <id> "Tên"`.
-- **Game:** Đoán từ (`doantu`), Nhớ số (`memory`), Đoán cờ vòng quanh thế giới (`flagtrip`, 195 nước, bản đồ + thẻ du lịch). Trang chủ chạy demo thật của từng game ở `/demo?game=<id>`, với người xem mô phỏng khai báo trong `games/<id>/demo/index.js`. Tên thương hiệu đặt bằng biến môi trường `BRAND_NAME`, mặc định "Game Live".
+- **Game:** Đoán từ (`doantu`), Nhớ số (`memory`), Đoán cờ vòng quanh thế giới (`flagtrip`, 195 nước, bản đồ + thẻ du lịch), Deadline Dí (`deadline`, game văn phòng: streamer chạy deadline trên máy tính giả lập hoặc trước camera, quà làm sếp ping / soi / gọi họp, quà lớn phát meme; chơi bằng bàn phím / chuột qua cửa sổ chơi `?play=1`). Trang chủ chạy demo thật của từng game ở `/demo?game=<id>`, với người xem mô phỏng khai báo trong `games/<id>/demo/index.js`. Tên thương hiệu đặt bằng biến môi trường `BRAND_NAME`, mặc định "Game Live".
 - **🎬 Studio** (tab Studio + Âm thanh trên dashboard, chi tiết: [`docs/studio.md`](docs/studio.md)): kéo thả widget lên khung 9:16, dùng chung mọi game. Có 7 widget: mục tiêu, thông báo quà, bảng xếp hạng, bảng quà, bình luận, bộ đếm, chữ / banner. Luật âm thanh "khi quà / tim / follow / đạt mục tiêu thì phát …" dùng 46 âm tổng hợp sẵn (6 nhóm) hoặc link mp3. Có thêm bảng âm thanh trên tab Điều khiển: bấm là phát ngay trên live. Link theo lớp: `?layer=game` (chỉ game), `?layer=widgets` (chỉ widget, nền trong suốt). Mỗi widget là một module trong `widgets/<id>`.
 - **Nhiều overlay cùng mở**: overlay đầu tiên là *leader* (chạy engine), các overlay sau / xem trước chỉ hiển thị lại; leader đóng → overlay khác lên thay.
 - **Lưu trữ**: có `SUPABASE_URL` + `SUPABASE_SECRET_KEY` → Supabase; chưa có → file `data/platform.json`, đăng nhập dashboard bằng `GATEWAY_DEV_TOKEN` (hoặc `ADMIN_TOKEN`).
@@ -429,6 +429,7 @@ packages/sdk/                   Hợp đồng game ↔ nền tảng (import '#sd
 games/doantu/                   Game Đoán từ theo chuẩn module: engine/ (WordGame, kiểu chơi, đội, pack, nhận đáp án),
                                 render/ (canvas 1080×1920), server/ (chấm gần nghĩa nhiều lớp, thuộc tính, gợi ý tiếng Anh), data/ (kho soạn sẵn)
 games/memory/                   Game Nhớ số (mẫu thứ 2, không có server)
+games/deadline/                 Game Deadline Dí (văn phòng, chơi bằng bàn phím / chuột qua game.input)
 scripts/new-game.mjs            npm run new-game <id> "Tên" — tạo game mới từ template
 gateway/                        Gateway đa kênh: TikTok → WebSocket → overlay, định tuyến op tới games/<id>/server, lưu trữ Supabase / file
 web/                            Trang chủ, dashboard /app, overlay shell /o/<key> (ES module chạy thẳng, import map '#sdk')

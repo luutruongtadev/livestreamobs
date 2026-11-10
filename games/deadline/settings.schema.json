@@ -1,0 +1,191 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "title": "Chế độ chơi",
+      "enum": [
+        "desktop",
+        "camera"
+      ],
+      "enumNames": [
+        "Máy tính giả lập (streamer tự gõ phím, bấm chuột trong cửa sổ chơi)",
+        "Camera (streamer làm việc thật, bấm +1 bước)"
+      ],
+      "default": "desktop"
+    },
+    "steps": {
+      "type": "integer",
+      "title": "Số bước mỗi nhiệm vụ",
+      "minimum": 3,
+      "maximum": 30,
+      "default": 10
+    },
+    "shiftSeconds": {
+      "type": "integer",
+      "title": "Deadline mỗi ca (giây)",
+      "minimum": 60,
+      "maximum": 1800,
+      "default": 300
+    },
+    "cameraTask": {
+      "type": "string",
+      "title": "Việc làm thật ở chế độ camera (để trống = chọn ngẫu nhiên)",
+      "maxLength": 80,
+      "default": ""
+    },
+    "briefSeconds": {
+      "type": "integer",
+      "title": "Thời gian giao việc đầu ca (giây)",
+      "minimum": 2,
+      "maximum": 15,
+      "default": 4
+    },
+    "resultSeconds": {
+      "type": "integer",
+      "title": "Thời gian hiện kết quả ca (giây)",
+      "minimum": 4,
+      "maximum": 30,
+      "default": 10
+    },
+    "startRank": {
+      "type": "integer",
+      "title": "Chức khởi đầu (0 = Thực tập sinh, 1 Nhân viên, 2 Chuyên viên, 3 Trưởng nhóm, 4 Trưởng phòng, 5 Giám đốc, 6 Chủ tịch)",
+      "minimum": 0,
+      "maximum": 6,
+      "default": 0
+    },
+    "demoteOnFail": {
+      "type": "boolean",
+      "title": "Trễ deadline thì xuống 1 chức",
+      "default": true
+    },
+    "punishments": {
+      "type": "boolean",
+      "title": "Hiện hình phạt vui khi trễ deadline",
+      "default": true
+    },
+    "strictAccents": {
+      "type": "boolean",
+      "title": "Bắt gõ đúng dấu tiếng Việt (tắt = gõ không dấu cũng được)",
+      "default": false
+    },
+    "pingSeconds": {
+      "type": "integer",
+      "title": "Chế độ camera: thông báo sếp ping hiện bao lâu (giây)",
+      "minimum": 3,
+      "maximum": 20,
+      "default": 7
+    },
+    "pingWaitSeconds": {
+      "type": "integer",
+      "title": "Chờ người tặng quà ping gõ câu sếp nhắn (giây)",
+      "minimum": 3,
+      "maximum": 30,
+      "default": 10
+    },
+    "maxPings": {
+      "type": "integer",
+      "title": "Số popup ping tối đa cùng lúc",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 6
+    },
+    "bannedWords": {
+      "type": "string",
+      "title": "Từ cấm trong câu sếp ping (cách nhau dấu phẩy)",
+      "maxLength": 1000,
+      "default": "đm, dm, địt, đjt, lồn, cặc, đéo, vcl, vkl, clm, đĩ, óc chó"
+    },
+    "memes": {
+      "type": "boolean",
+      "title": "Phát meme khi có quà lớn",
+      "default": true
+    },
+    "memeMinCoins": {
+      "type": "integer",
+      "title": "Quà từ bao nhiêu xu thì phát meme",
+      "minimum": 1,
+      "maximum": 100000,
+      "default": 5
+    },
+    "memeClip_ping": {
+      "type": "string",
+      "title": "Link video meme cho “Sếp ping” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_soi": {
+      "type": "string",
+      "title": "Link video meme cho “Sếp đến soi” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_ban": {
+      "type": "string",
+      "title": "Link video meme cho “Ném bút bi” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_mayin": {
+      "type": "string",
+      "title": "Link video meme cho “Kẹt máy in” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_buzz": {
+      "type": "string",
+      "title": "Link video meme cho “Sếp nói trend” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_hop": {
+      "type": "string",
+      "title": "Link video meme cho “Họp đột xuất” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_cattg": {
+      "type": "string",
+      "title": "Link video meme cho “Cắt giảm nhân sự” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_virus": {
+      "type": "string",
+      "title": "Link video meme cho “Dính virus” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_lamlai": {
+      "type": "string",
+      "title": "Link video meme cho “Sửa chút: làm lại” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_cafe": {
+      "type": "string",
+      "title": "Link video meme cho “Cà phê sữa đá” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_giahan": {
+      "type": "string",
+      "title": "Link video meme cho “Gia hạn deadline” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_intern": {
+      "type": "string",
+      "title": "Link video meme cho “Thực tập sinh làm hộ” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_thangchuc": {
+      "type": "string",
+      "title": "Link video meme cho “Thăng chức” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    }
+  }
+}

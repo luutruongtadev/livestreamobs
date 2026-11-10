@@ -90,6 +90,19 @@ test('overlay: leader nhận sự kiện TikTok ngay (seq, gwAt), overlay thứ 
     assert.ok(ev.e.gwAt > 0);
     a.send({ t: 'snap', s: { round: 7 } });
     assert.deepEqual((await b.next((m) => m.t === 'snap')).s, { round: 7 }, 'follower nhận snapshot của leader');
+    // cửa sổ chơi (?play=1) giành vai leader, mang theo trạng thái mới nhất; overlay phụ chuyển đầu vào tại chỗ cho nó
+    const c = client(`ws://${s.base}/ws?overlay=${s.ch.overlay_key}&play=1`); await c.open();
+    assert.equal((await c.next((m) => m.t === 'hello')).role, 'follower');
+    await a.next((m) => m.t === 'handoff');
+    a.send({ t: 'save', game: 'doantu', state: { round: 8 }, handoff: true });
+    const rc = await c.next((m) => m.t === 'role');
+    assert.equal(rc.role, 'leader');
+    assert.deepEqual(rc.channel.state, { round: 8 }, 'cửa sổ chơi nhận trạng thái mới nhất');
+    assert.equal((await a.next((m) => m.t === 'role')).role, 'follower');
+    b.send({ t: 'in', ev: { type: 'click', target: 'x' } });
+    assert.equal((await c.next((m) => m.t === 'in')).ev.target, 'x');
+    c.close();
+    assert.equal((await a.next((m) => m.t === 'role')).role, 'leader');
     a.close();
     const role = await b.next((m) => m.t === 'role');
     assert.equal(role.role, 'leader');

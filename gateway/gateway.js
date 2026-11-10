@@ -69,10 +69,12 @@ class ChannelRuntime {
 
   // ---------------- overlay ----------------
   // passive: overlay "chỉ widget" (không chạy game, không làm leader) nhưng vẫn giữ kết nối TikTok như overlay thật
-  addOverlay(ws, { preview, since, passive = false }) {
+  // play: "cửa sổ chơi" (streamer gõ phím / bấm chuột vào game) → giành vai leader từ overlay đang chạy, mang theo trạng thái mới nhất
+  addOverlay(ws, { preview, since, passive = false, play = false }) {
     ws.rt = this;
     ws.preview = preview;
     ws.passive = passive && !preview;
+    ws.play = play && !preview && !ws.passive;
     this.overlays.add(ws);
     const role = !preview && !ws.passive && !this.leader ? 'leader' : 'follower';
     if (role === 'leader') this.leader = ws;
@@ -84,11 +86,32 @@ class ChannelRuntime {
     ws.on('close', () => this.removeOverlay(ws));
     clearTimeout(this.idleTimer); this.idleTimer = null;
     if (!preview) this.ensureTiktok();
+    if (ws.play && role === 'follower' && this.leader && !this.leader.play) this.handoff(ws);
     this.notify({ t: 'overlays', ...this.counts() });
+  }
+
+  /** Xin overlay chính gửi trạng thái mới nhất rồi chuyển vai leader cho cửa sổ chơi (chờ tối đa 1,5 giây). */
+  handoff(to) {
+    if (this.handoffTo) return;
+    this.handoffTo = to;
+    send(this.leader, { t: 'handoff' });
+    this.handoffTimer = setTimeout(() => this.finishHandoff(null), 1500);
+    this.handoffTimer.unref?.();
+  }
+  finishHandoff(saved) {
+    clearTimeout(this.handoffTimer); this.handoffTimer = null;
+    const to = this.handoffTo; this.handoffTo = null;
+    if (!to || !this.overlays.has(to)) return;
+    if (saved) { this.pendingSave = saved; this.flushSave(); }
+    const old = this.leader;
+    this.leader = to;
+    send(to, { t: 'role', role: 'leader', channel: this.view(), seq: this.seq });
+    if (old && old !== to && this.overlays.has(old)) send(old, { t: 'role', role: 'follower', channel: this.view(), seq: this.seq });
   }
 
   removeOverlay(ws) {
     if (!this.overlays.delete(ws)) return;
+    if (this.handoffTo === ws) { clearTimeout(this.handoffTimer); this.handoffTo = null; }
     if (this.leader === ws) {
       this.leader = [...this.overlays].find((w) => !w.preview && !w.passive) || null;
       if (this.leader) send(this.leader, { t: 'role', role: 'leader', channel: this.view(), seq: this.seq });
@@ -117,7 +140,18 @@ class ChannelRuntime {
         if (!isLeader || !Array.isArray(m.fx)) break;
         { const s = JSON.stringify({ t: 'fx', fx: m.fx.slice(0, 50) }); for (const w of this.overlays) if (w !== ws) send(w, s); }
         break;
-      case 'save': if (isLeader && m.game === this.cfg.active_game) { this.pendingSave = { game: m.game, state: m.state }; this.scheduleSave(); } break;
+      case 'save':
+        if (isLeader && m.handoff && this.handoffTo) { this.finishHandoff(m.game === this.cfg.active_game && m.state !== undefined ? { game: m.game, state: m.state } : null); break; }
+        if (isLeader && m.game === this.cfg.active_game) { this.pendingSave = { game: m.game, state: m.state }; this.scheduleSave(); } break;
+      case 'in': { // đầu vào tại chỗ từ overlay phụ → overlay chính (giới hạn 30 tin / giây)
+        if (isLeader || !this.leader || !m.ev || typeof m.ev !== 'object') break;
+        const t = Date.now();
+        if (!ws.inWin || t - ws.inWin.t > 1000) ws.inWin = { t, n: 0 };
+        if (++ws.inWin.n > 30) break;
+        const ev = JSON.stringify(m.ev);
+        if (ev.length <= 1000) send(this.leader, `{"t":"in","ev":${ev}}`);
+        break;
+      }
       case 'round': if (isLeader) this.gw.store.recordRound(this.id, this.cfg.active_game, m.r ?? null).catch((e) => this.gw.log.warn?.(`[gateway] ghi ván lỗi: ${e.message}`)); break;
       case 'pts': if (isLeader && m.user?.id) this.gw.store.addPoints(this.id, this.cfg.active_game, { id: str(m.user.id, 64), name: str(m.user.name, 60), avatar: m.user.avatar ? str(m.user.avatar, 500) : null }, num(m.n, -1e6, 1e6), !!m.win); break;
       case 'lat': if (isLeader) { this.lat = { ...m.lat, tiktok: this.tkStats() }; this.notify({ t: 'lat', lat: this.lat }); } break;
@@ -311,7 +345,7 @@ export class Gateway {
     if (key) {
       const ch = await this.store.getChannelByKey(str(key, 80));
       if (!ch) return ws.close(4004, 'Link overlay không đúng hoặc đã đổi');
-      return this.runtime(ch).addOverlay(ws, { preview: u.searchParams.get('preview') === '1', passive: u.searchParams.get('passive') === '1', since: Number(u.searchParams.get('since')) || 0 });
+      return this.runtime(ch).addOverlay(ws, { preview: u.searchParams.get('preview') === '1', passive: u.searchParams.get('passive') === '1', play: u.searchParams.get('play') === '1', since: Number(u.searchParams.get('since')) || 0 });
     }
     if (u.searchParams.get('role') === 'dashboard') return this.onDashboard(ws);
     ws.close(4001, 'unauthorized');
