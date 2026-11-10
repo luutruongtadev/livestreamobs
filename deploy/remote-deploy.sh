@@ -56,13 +56,17 @@ else
   [[ -f .env ]] || cp .env.example .env
 fi
 chmod 600 .env
-# SIGN_API_KEY từ secret riêng trên GitHub (sign.deploy) → ghi vào .env
-if [[ -s sign.deploy ]]; then
-  KEY="$(cat sign.deploy)"
-  { grep -v '^SIGN_API_KEY=' .env || true; printf 'SIGN_API_KEY=%s\n' "$KEY"; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
-  echo "    Đã cập nhật SIGN_API_KEY từ GitHub secret"
+# Secret riêng trên GitHub (SIGN_API_KEY, SUPABASE_*…) → secrets.deploy (mỗi dòng TÊN=giá trị) → ghi vào .env, đè dòng cũ cùng tên
+if [[ -s secrets.deploy ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    NAME="${line%%=*}"
+    [[ "$NAME" =~ ^[A-Z][A-Z0-9_]*$ ]] || continue
+    { grep -v "^${NAME}=" .env || true; printf '%s\n' "$line"; } > .env.tmp && mv .env.tmp .env
+    echo "    Đã cập nhật $NAME từ GitHub secret"
+  done < secrets.deploy
+  chmod 600 .env
 fi
-rm -f sign.deploy
+rm -f secrets.deploy sign.deploy
 set_env() { if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi; }
 get_env() { grep -E "^$1=" .env | head -1 | cut -d= -f2- || true; }
 TOKEN="$(get_env ADMIN_TOKEN)"

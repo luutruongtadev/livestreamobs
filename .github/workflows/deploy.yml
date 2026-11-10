@@ -3,7 +3,8 @@
 # nên VPS tắt / mở lại thì app tự chạy lại.
 #
 # Cần tạo trong GitHub repo → Settings → Secrets and variables → Actions:
-#   Secrets:   VPS_HOST, VPS_USER, VPS_PASSWORD, (tuỳ chọn) VPS_PORT, VPS_ENV_FILE
+#   Secrets:   VPS_HOST, VPS_USER, VPS_PASSWORD, (tuỳ chọn) VPS_PORT, VPS_ENV_FILE,
+#              (tuỳ chọn, ghi vào .env trên VPS) SIGN_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY
 #   Variables: (tuỳ chọn) DEPLOY_MODE = phone | server | stream (mặc định phone), VPS_DIR (mặc định /opt/chua-online)
 name: Deploy lên VPS
 
@@ -71,16 +72,29 @@ jobs:
           docker build --target streamer -t chua-online:streamer .
           docker save chua-online:streamer | gzip > image-streamer.tar.gz
 
-      - name: Chuẩn bị file .env (từ secret VPS_ENV_FILE nếu có) + SIGN_API_KEY (secret riêng)
+      # Mỗi secret riêng dưới đây (nếu có giá trị) được VPS ghi vào .env, đè dòng cũ cùng tên.
+      # Secret trống → giữ nguyên giá trị đang có trong .env trên VPS. Thêm secret mới: thêm vào env + danh sách KEYS.
+      - name: Chuẩn bị file .env (từ secret VPS_ENV_FILE nếu có) + các secret riêng (SIGN_API_KEY, SUPABASE_*)
         env:
           VPS_ENV_FILE: ${{ secrets.VPS_ENV_FILE }}
           SIGN_API_KEY: ${{ secrets.SIGN_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: |
+          set -euo pipefail
+          KEYS="SIGN_API_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY"
           printf '%s' "$VPS_ENV_FILE" > env.deploy
-          # SIGN_API_KEY lấy từ secret riêng trên GitHub, VPS tự ghi vào .env (đè giá trị cũ nếu có)
-          printf '%s' "$SIGN_API_KEY" > sign.deploy
-          chmod 600 env.deploy sign.deploy
-          if [ -n "$SIGN_API_KEY" ]; then echo "✓ SIGN_API_KEY có giá trị"; else echo "SIGN_API_KEY trống → giữ giá trị trong .env trên VPS (nếu có)"; fi
+          : > secrets.deploy
+          chmod 600 env.deploy secrets.deploy
+          for n in $KEYS; do
+            v="${!n}"
+            v="${v%$'\r'}"; v="${v%$'\n'}"   # bỏ xuống dòng thừa khi dán
+            if [ -z "$v" ]; then echo "· $n trống → giữ giá trị trong .env trên VPS (nếu có)"; continue; fi
+            case "$v" in *$'\n'*) echo "::error::Secret $n chứa xuống dòng — dán lại đúng 1 dòng"; exit 1 ;; esac
+            printf '%s=%s\n' "$n" "$v" >> secrets.deploy
+            echo "✓ $n có giá trị"
+          done
           ls -lh image-*.tar.gz
 
       # ssh / scp có sẵn trên runner + sshpass từ apt — không dùng appleboy/scp-action, appleboy/ssh-action
@@ -104,7 +118,7 @@ jobs:
           # tuỳ chọn chung; cổng truyền riêng: ssh dùng -p, scp dùng -P (với scp, -p nghĩa là giữ thời gian file)
           OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ConnectTimeout=30 -o LogLevel=ERROR"
           # đóng gói giữ nguyên đường dẫn (deploy/Caddyfile → $VPS_DIR/deploy/Caddyfile), ghi đè file cũ
-          tar czf bundle.tar.gz image-*.tar.gz env.deploy sign.deploy docker-compose.yml .env.example config.json deploy/Caddyfile deploy/remote-deploy.sh public/assets
+          tar czf bundle.tar.gz image-*.tar.gz env.deploy secrets.deploy docker-compose.yml .env.example config.json deploy/Caddyfile deploy/remote-deploy.sh public/assets
           ls -lh bundle.tar.gz
           for i in 1 2 3; do
             if timeout 15m sshpass -e scp -P "$VPS_PORT" $OPTS bundle.tar.gz "$VPS_USER@$VPS_HOST:/tmp/chua-bundle.tar.gz" \
