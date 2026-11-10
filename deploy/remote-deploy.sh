@@ -82,6 +82,8 @@ case "$MODE" in
     if [[ -z "$D" ]]; then D="$(curl -fsS4 https://api.ipify.org | tr . -).sslip.io"; set_env DOMAIN "$D"; fi
     PD="$(get_env PLAY_DOMAIN)"
     if [[ -z "$PD" ]]; then PD="play.$D"; set_env PLAY_DOMAIN "$PD"; fi
+    # tên đăng nhập dashboard = <tên>@AUTH_USERNAME_DOMAIN trong Supabase Auth — đặt MỘT lần, không đổi theo tên miền sau này
+    [[ -n "$(get_env AUTH_USERNAME_DOMAIN)" ]] || set_env AUTH_USERNAME_DOMAIN "$PD"
     PROFILES=(--profile https) ;;
   stream) PROFILES=(--profile stream) ;;
   server) ;;

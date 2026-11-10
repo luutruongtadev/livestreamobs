@@ -38,20 +38,61 @@ async function getToken() {
   try { return localStorage.getItem('devToken'); } catch { return null; }
 }
 
+// Đăng nhập bằng TÊN ĐĂNG NHẬP + MẬT KHẨU. Supabase Auth cần email → tên đăng nhập đổi thành email nội bộ
+// <tên>@<usernameDomain> (không gửi thư; cần tắt "Confirm email" trong Supabase). Gõ email thật thì dùng luôn email đó.
+const USERNAME = /^[a-z0-9._-]{3,30}$/;
+const domain = () => String(P.usernameDomain || location.hostname).toLowerCase();
+function toEmail(login) {
+  const v = String(login || '').trim().toLowerCase();
+  if (v.includes('@')) return v;
+  if (!USERNAME.test(v)) throw new Error('Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang');
+  return `${v}@${domain()}`;
+}
+const displayName = (email) => (email && email.endsWith(`@${domain()}`) ? email.slice(0, -domain().length - 1) : email);
+const AUTH_ERR = { 'Invalid login credentials': 'Sai tên đăng nhập hoặc mật khẩu', 'User already registered': 'Tên đăng nhập này đã có người dùng', 'Signups not allowed for this instance': 'Máy chủ đang tắt đăng ký tài khoản mới' };
+const authErr = (e) => AUTH_ERR[e?.message] || e?.message || String(e);
+
 function renderLogin(msg = '') {
-  const box = h('div', { class: 'card login' }, h('h2', {}, 'Đăng nhập'), msg && h('p', { class: 'muted' }, msg));
+  const box = h('div', { class: 'card login' }, msg && h('p', { class: 'muted' }, msg));
   if (P.supabaseUrl && P.supabaseKey) {
-    const email = h('input', { type: 'email', placeholder: 'email@cua-ban.com', class: 'grow', required: true });
-    box.append(
-      h('button', { onclick: () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } }) }, 'Đăng nhập bằng Google'),
-      h('h3', {}, 'Hoặc nhận link đăng nhập qua email'),
-      h('form', { class: 'row', onsubmit: async (e) => {
-        e.preventDefault();
-        const { error } = await supabase.auth.signInWithOtp({ email: email.value.trim(), options: { emailRedirectTo: location.href } });
-        toast(error ? error.message : 'Đã gửi link đăng nhập, kiểm tra hộp thư.', !!error);
-      } }, email, h('button', { type: 'submit' }, 'Gửi link')),
-    );
+    let mode = 'login';
+    const user = h('input', { placeholder: 'Tên đăng nhập', autocomplete: 'username', required: true, autocapitalize: 'none', spellcheck: false });
+    const pass = h('input', { type: 'password', placeholder: 'Mật khẩu (tối thiểu 8 ký tự)', autocomplete: 'current-password', required: true, minLength: 8 });
+    const pass2 = h('input', { type: 'password', placeholder: 'Nhập lại mật khẩu', autocomplete: 'new-password', minLength: 8 });
+    const title = h('h2', {});
+    const submit = h('button', { type: 'submit' });
+    const switcher = h('button', { type: 'button', class: 'ghost' });
+    const paint = () => {
+      title.textContent = mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+      submit.textContent = mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản';
+      switcher.textContent = mode === 'login' ? 'Chưa có tài khoản? Tạo mới' : 'Đã có tài khoản? Đăng nhập';
+      pass2.hidden = mode === 'login'; pass2.required = mode !== 'login';
+      pass.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    };
+    switcher.onclick = () => { mode = mode === 'login' ? 'signup' : 'login'; paint(); };
+    const form = h('form', { style: 'display:grid; gap:10px', onsubmit: async (e) => {
+      e.preventDefault();
+      submit.disabled = true;
+      try {
+        const email = toEmail(user.value);
+        if (mode === 'signup') {
+          if (pass.value.length < 8) throw new Error('Mật khẩu tối thiểu 8 ký tự');
+          if (pass.value !== pass2.value) throw new Error('Hai mật khẩu không khớp');
+          const { data, error } = await supabase.auth.signUp({ email, password: pass.value, options: { data: { full_name: user.value.trim() } } });
+          if (error) throw error;
+          if (!data.session) throw new Error('Máy chủ đang bật xác nhận email: quản trị cần tắt "Confirm email" trong Supabase → Authentication.');
+        } else {
+          const { error } = await supabase.auth.signInWithPassword({ email, password: pass.value });
+          if (error) throw error;
+        }
+        start();
+      } catch (err) { toast(authErr(err), true); } finally { submit.disabled = false; }
+    } }, user, pass, pass2, submit);
+    paint();
+    box.prepend(title);
+    box.append(form, h('div', { style: 'margin-top:10px' }, switcher), h('p', { class: 'small muted' }, 'Quên mật khẩu: liên hệ quản trị để đặt lại.'));
   } else {
+    box.prepend(h('h2', {}, 'Đăng nhập'));
     const tok = h('input', { type: 'password', placeholder: 'GATEWAY_DEV_TOKEN / ADMIN_TOKEN', class: 'grow' });
     box.append(
       h('p', { class: 'small muted' }, 'Máy chủ chưa cấu hình Supabase → chế độ chạy thử, đăng nhập bằng DEV token.'),
@@ -102,7 +143,7 @@ async function start() {
 }
 
 async function onAuthed() {
-  who.textContent = S.user.email || S.user.id; logoutBtn.hidden = false;
+  who.textContent = displayName(S.user.email) || S.user.id; logoutBtn.hidden = false;
   S.channels = await req('channels');
   const saved = (() => { try { return localStorage.getItem('curChannel'); } catch { return null; } })();
   const pick = S.channels.find((c) => c.id === saved) || S.channels[0];
