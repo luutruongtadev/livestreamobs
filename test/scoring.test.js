@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { LayeredScorer, scoreOf, levenshtein, cleanPack, packIndex, dictLookup, fuzzyLookup, SCORE_BANDS } from '../server/scoring.js';
+import { LayeredScorer, scoreOf, cleanPack, packIndex, dictLookup, SCORE_BANDS } from '../server/scoring.js';
 import { WordGame } from '../server/wordgame.js';
 
 const PACK = {
@@ -35,14 +35,12 @@ function fakeClient({ pack = PACK, judge = {}, fail = false } = {}) {
 
 const inBand = (score, cat) => score >= SCORE_BANDS[cat][0] && score <= SCORE_BANDS[cat][1];
 
-test('Score Engine + Levenshtein: loại → khoảng điểm, Node quyết định điểm', () => {
+test('Score Engine: loại → khoảng điểm, Node quyết định điểm', () => {
   assert.equal(scoreOf('VERY_CLOSE', 1), 97);
   assert.equal(scoreOf('VERY_CLOSE', 0), 90);
   assert.equal(scoreOf('UNRELATED', 0), 1);
   assert.equal(scoreOf('RELATED', 2), 72, 'kẹp trong khoảng');
   assert.equal(scoreOf('XYZ'), null);
-  assert.equal(levenshtein('daihoc', 'daihocc'), 1);
-  assert.equal(levenshtein('daihoc', 'dhaioc'), 2);
 });
 
 test('Lớp 1 — Knowledge Pack: có dấu so đúng chữ, không dấu / dính liền so bản bỏ dấu; bỏ chính từ bí mật & trùng', () => {
@@ -58,18 +56,29 @@ test('Lớp 1 — Knowledge Pack: có dấu so đúng chữ, không dấu / dín
   assert.equal(dictLookup(idx, 'bầu trời'), null);
 });
 
-test('Lớp 2 — Fuzzy: gõ sai đáp án → rất gần; gõ sai từ trong pack → nhóm của từ đó; từ quá ngắn / mơ hồ thì bỏ qua', () => {
-  const idx = packIndex(cleanPack('đại học', PACK));
-  const typo = fuzzyLookup('đại họcc', { secret: 'đại học', index: idx });
-  assert.equal(typo.category, 'VERY_CLOSE');
-  assert.equal(scoreOf(typo.category, typo.strength), 97);
-  assert.equal(fuzzyLookup('đạihọc', { secret: 'đại học', index: idx }), null, 'trùng khít (bỏ dấu) là đoán trúng, WordGame tự xử lý');
-  assert.equal(fuzzyLookup('giảng đươngg', { secret: 'đại học', index: idx }).category, 'STRONG_RELATED');
-  assert.equal(fuzzyLookup('sáh', { secret: 'đại học', index: idx }), null, 'từ ≤ 3 ký tự không đoán là gõ sai');
-  assert.equal(fuzzyLookup('hà nội', { secret: 'đại học', aliases: ['hanoi university'], index: idx }), null);
+test('Lớp 1 không chấm theo mặt chữ: tiếng có gõ dấu thì dấu phải khớp; gõ không dấu mà trùng nhiều nhóm thì bỏ qua', () => {
+  const idx = packIndex(cleanPack('mặt trời', { synonyms: ['sun'], strongRelated: ['nắng', 'mặt trăng'], related: [], weakRelated: [], unrelated: ['mắt', 'mặt nạ'] }));
+  assert.equal(dictLookup(idx, 'nang').category, 'STRONG_RELATED', 'gõ không dấu vẫn nhận');
+  assert.equal(dictLookup(idx, 'mặt trang').category, 'STRONG_RELATED', 'tiếng không dấu trong cụm có dấu vẫn nhận');
+  assert.equal(dictLookup(idx, 'nàng'), null, '"nàng" khác nghĩa "nắng" → không ăn theo');
+  assert.equal(dictLookup(idx, 'mắt').category, 'UNRELATED');
+  assert.equal(dictLookup(idx, 'mặt'), null, '"mặt" không ăn theo "mắt" trong pack');
+  const amb = packIndex({ synonyms: [], strongRelated: ['mắt'], related: [], weakRelated: [], unrelated: ['mát'] });
+  assert.equal(dictLookup(amb, 'mat'), null, '"mat" có thể là "mắt" hoặc "mát" (khác nhóm) → để lớp hiểu nghĩa xử lý');
 });
 
-test('LayeredScorer: soạn pack 1 lần đầu vòng; từ trong pack / gõ sai có điểm ngay, không gọi Claude', async () => {
+test('LayeredScorer: gõ sai chính tả / giống chữ KHÔNG được điểm theo mặt chữ — chuyển Claude chấm theo nghĩa', async () => {
+  const client = fakeClient({ judge: { 'đại họcc': { category: 'VERY_CLOSE', confidence: 0.8 } } });
+  const s = new LayeredScorer({ client, batchMs: 5, log: {} });
+  await s.prepare('đại học');
+  const r = await s.score('đại học', 'giảng đươngg');
+  assert.equal(r.source, 'claude', 'không có lớp Levenshtein');
+  assert.ok(inBand(r.score, 'UNRELATED'), 'Claude giả xếp UNRELATED → không được điểm vì giống chữ "giảng đường"');
+  assert.equal((await s.score('đại học', 'đại họcc')).source, 'claude');
+  assert.equal(s.stats().fuzzy, undefined);
+});
+
+test('LayeredScorer: soạn pack 1 lần đầu vòng; từ trong pack có điểm ngay, không gọi Claude', async () => {
   const client = fakeClient();
   const s = new LayeredScorer({ client, batchMs: 5, log: {} });
   await Promise.all([s.prepare('đại học'), s.prepare('Đại Học')]);
@@ -78,13 +87,11 @@ test('LayeredScorer: soạn pack 1 lần đầu vòng; từ trong pack / gõ sai
   assert.equal(r1.source, 'dict'); assert.ok(inBand(r1.score, 'STRONG_RELATED'));
   const r2 = await s.score('đại học', 'truong dai hoc');
   assert.equal(r2.source, 'dict'); assert.ok(inBand(r2.score, 'VERY_CLOSE'));
-  const r3 = await s.score('đại học', 'đại họcc');
-  assert.equal(r3.source, 'fuzzy'); assert.equal(r3.score, 97);
   const r4 = await s.score('đại học', 'do an');
   assert.equal(r4.source, 'dict'); assert.ok(inBand(r4.score, 'UNRELATED'));
   assert.ok((await s.score('đại học', 'học sinh')).score > (await s.score('đại học', 'con người')).score);
   assert.equal(client.calls.judge, 0, 'chưa phải gọi Claude chấm');
-  assert.deepEqual([s.stats().dict, s.stats().fuzzy, s.stats().claude], [5, 1, 0]);
+  assert.deepEqual([s.stats().dict, s.stats().claude], [5, 0]);
   assert.ok(client.calls.opts.every((o) => o?.timeout > 0), 'có timeout');
 });
 
@@ -102,7 +109,7 @@ test('LayeredScorer Lớp 4: từ chưa rõ gom 1 lô gửi Claude PHÂN LOẠI,
   assert.equal(client.calls.judge, 1);
 });
 
-test('LayeredScorer: điểm của bộ chấm cũ trong cache vẫn dùng; lưu / nạp pack + cache; Claude lỗi thì chấm đơn giản', async () => {
+test('LayeredScorer: điểm của bộ chấm cũ trong cache vẫn dùng; lưu / nạp pack + cache; Claude lỗi / không có Claude thì coi là chưa rõ nghĩa (không chấm theo chữ)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scoring-'));
   const cachePath = path.join(dir, 'cache.json'), packPath = path.join(dir, 'packs.json');
   fs.writeFileSync(cachePath, JSON.stringify({ 'mặt trời|nắng|v3-rel': 85 }));
@@ -117,9 +124,20 @@ test('LayeredScorer: điểm của bộ chấm cũ trong cache vẫn dùng; lưu
   assert.equal((await s2.score('đại học', 'giáo sư')).source, 'dict');
   const bad = new LayeredScorer({ client: fakeClient({ fail: true }), batchMs: 5, log: {} });
   assert.equal(await bad.prepare('mặt trời'), null);
-  const r = await bad.score('mặt trời', 'trời');
-  assert.equal(r.source, 'simple');
-  assert.ok(r.score >= 1 && r.score <= 99);
+  const r = await bad.score('mặt trời', 'mặt trăn');
+  assert.equal(r.source, 'none');
+  assert.ok(inBand(r.score, 'UNRELATED'), 'giống chữ không được điểm');
+  // không có API key: chỉ pack soạn sẵn; từ ngoài pack → chưa rõ nghĩa ngay, không xếp hàng chờ
+  const seed = path.join(dir, 'seed.json');
+  fs.writeFileSync(seed, JSON.stringify({ packs: { 'mặt trời': { synonyms: ['sun'], strongRelated: ['nắng'], related: [], weakRelated: [], unrelated: [] } } }));
+  fs.writeFileSync(cachePath, JSON.stringify({ 'mặt trời|bãi biển|v4-cat': 40, 'mặt trời|ánh sáng|v5-sem': 70 }));
+  const off = new LayeredScorer({ client: false, seedPackPath: seed, cachePath, batchMs: 5, log: {} });
+  assert.equal((await off.score('mặt trời', 'nang')).source, 'dict');
+  assert.equal((await off.score('mặt trời', 'mặt nạ')).source, 'none');
+  assert.equal((await off.score('mặt trời', 'bãi biển')).score, 40, 'không có Claude: dùng lại kết quả phân loại bản trước');
+  assert.equal((await off.score('mặt trời', 'ánh sáng')).score, 70);
+  const on = new LayeredScorer({ client: fakeClient(), cachePath, batchMs: 5, log: {} });
+  assert.equal((await on.score('mặt trời', 'bãi biển')).source, 'claude', 'có Claude: chấm lại theo tiêu chí mới');
 });
 
 test('LayeredScorer: giới hạn số request Claude cùng lúc, lô quá lớn tách nhỏ', async () => {

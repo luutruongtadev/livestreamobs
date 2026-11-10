@@ -1,17 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
-import { canon, compact, simpleScore } from './scorer.js';
+import { canon, compact, sameWord } from './scorer.js';
 import { EMBED_DEFAULTS, calibrate, cosine, embedClassify } from './embeddings.js';
 
 /**
- * Chấm độ gần nghĩa theo lớp — lớp trước xử lý được thì dừng, chỉ trường hợp chưa rõ mới đi tiếp:
+ * Chấm độ gần nghĩa theo lớp — CHỈ theo nghĩa / liên quan / liên tưởng, KHÔNG theo mặt chữ hay phát âm
+ * (giống chữ, giống âm, chung một tiếng mà khác nghĩa thì không được điểm). Lớp trước xử lý được thì dừng:
  *   (cache)  từ đã chấm rồi (cùng từ bí mật) → trả ngay
  *   Lớp 1    Knowledge Pack: bộ từ đồng nghĩa / liên quan mạnh / liên quan / liên quan yếu / không liên quan
  *            Claude soạn MỘT lần cho mỗi từ bí mật (đầu vòng, lưu data/knowledge-packs.json)
- *   Lớp 2    Fuzzy: gõ sai chính tả, thiếu / thừa ký tự, sai khoảng trắng (Levenshtein) so với đáp án và các từ trong pack
  *   Lớp 3    Embedding (Voyage / OpenAI, tuỳ chọn): so với các nhóm tham chiếu trong pack (xem server/embeddings.js); chỉ nhận trường hợp rõ ràng
  *   Lớp 4    Claude: chỉ PHÂN LOẠI các từ còn lại (gom lô); Score Engine bên dưới mới quyết định điểm
+ *   (none)   không có lớp nào hiểu nghĩa (không có API key / Claude lỗi) → điểm "không liên quan", không cache
+ * (Lớp 2 cũ — chấm theo gõ sai chính tả / Levenshtein — đã bỏ vì là chấm theo mặt chữ.)
  * Đoán trúng (100) do WordGame tự xử lý trước khi gọi bộ chấm.
  */
 
@@ -19,7 +21,7 @@ export const CATEGORIES = ['VERY_CLOSE', 'STRONG_RELATED', 'RELATED', 'WEAKLY_RE
 
 /** Score Engine: loại → khoảng điểm; vị trí trong khoảng theo độ mạnh 0..1 (thứ tự trong pack / độ tin cậy của Claude). */
 export const SCORE_BANDS = {
-  VERY_CLOSE: [90, 97], // đồng nghĩa, cách gọi khác, bản dịch, gõ sai chính tả của đáp án
+  VERY_CLOSE: [90, 97], // đồng nghĩa, cách gọi khác, bản dịch
   STRONG_RELATED: [75, 88], // nhắc cái này là nghĩ ngay tới cái kia, cùng loại hẹp
   RELATED: [55, 72], // liên quan rõ, hay đi cùng nhau
   WEAKLY_RELATED: [25, 45], // cùng chủ đề rộng, liên tưởng xa
@@ -34,23 +36,6 @@ export function scoreOf(category, strength = 0.5, bands = SCORE_BANDS) {
   if (!b) return null;
   return Math.round(b[0] + (b[1] - b[0]) * clamp(Number(strength) || 0, 0, 1));
 }
-
-/** Khoảng cách Levenshtein (số lần thêm / bớt / thay 1 ký tự). */
-export function levenshtein(a, b) {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
-/** Số ký tự được phép sai theo độ dài (tính trên chuỗi bỏ dấu, bỏ khoảng trắng). Từ quá ngắn thì không đoán là gõ sai. */
-export const typoLimit = (len) => (len >= 9 ? 2 : len >= 4 ? 1 : 0);
 
 /** Làm sạch pack: bỏ chính từ bí mật, bỏ trùng (giữ ở nhóm mạnh hơn), tối đa 40 từ / nhóm. */
 export function cleanPack(secret, raw = {}) {
@@ -70,7 +55,7 @@ export function cleanPack(secret, raw = {}) {
   return out;
 }
 
-/** Chỉ mục tra cứu Lớp 1 / Lớp 2 của một pack: theo chữ có dấu (chính xác) và theo chữ bỏ dấu liền nhau. */
+/** Chỉ mục tra cứu Lớp 1 của một pack: theo chữ có dấu (chính xác) và theo chữ bỏ dấu liền nhau (để nhận cách gõ không dấu). */
 export function packIndex(pack) {
   const exact = new Map(), loose = new Map(), list = [];
   for (const [field, category] of PACK_FIELDS) {
@@ -80,47 +65,32 @@ export function packIndex(pack) {
       const hit = { category, strength: words.length > 1 ? 1 - i / (words.length - 1) : 1, ref: w };
       exact.set(canon(w), hit);
       const k = compact(w);
-      const old = loose.get(k);
-      loose.set(k, old && old.category !== category ? 'ambiguous' : old || hit);
+      if (!loose.has(k)) loose.set(k, []);
+      loose.get(k).push(hit);
       list.push({ key: k, ...hit });
     });
   }
   return { exact, loose, list };
 }
 
-/** Lớp 1: tra pack. Có dấu thì so đúng chữ; gõ không dấu / dính liền thì so bản bỏ dấu (bỏ qua nếu trùng nhiều nhóm). */
+/**
+ * Lớp 1: tra pack. Có dấu thì so đúng chữ; gõ không dấu / dính liền thì so bản bỏ dấu, nhưng tiếng nào CÓ gõ dấu thì dấu
+ * phải khớp ("mặt" không ăn theo "mắt" trong pack — khác nghĩa). Khớp nhiều từ khác nhóm (mơ hồ) → null.
+ */
 export function dictLookup(index, word) {
   if (!index) return null;
   const hit = index.exact.get(canon(word));
   if (hit) return hit;
-  const l = index.loose.get(compact(word));
-  return l && l !== 'ambiguous' ? l : null;
-}
-
-/** Lớp 2: gõ sai so với đáp án (→ rất gần) hoặc so với một từ trong pack (→ nhóm của từ đó). Mơ hồ (khớp nhiều nhóm) → null. */
-export function fuzzyLookup(word, { secret, aliases = [], index = null }) {
-  const g = compact(word);
-  const lim = typoLimit(g.length);
-  if (!lim) return null;
-  for (const ans of [secret, ...aliases]) {
-    const d = levenshtein(g, compact(ans));
-    if (d > 0 && d <= lim) return { category: 'VERY_CLOSE', strength: 1, ref: ans, typo: true };
-  }
-  if (!index) return null;
-  let best = null, bestD = Infinity, cats = new Set();
-  for (const e of index.list) {
-    if (Math.abs(e.key.length - g.length) > lim) continue;
-    const d = levenshtein(g, e.key);
-    if (d > lim || d === 0) continue;
-    if (d < bestD) { bestD = d; best = e; cats = new Set([e.category]); } else if (d === bestD) cats.add(e.category);
-  }
-  return best && cats.size === 1 ? { category: best.category, strength: best.strength, ref: best.ref, typo: true } : null;
+  const cands = (index.loose.get(compact(word)) || []).filter((h) => sameWord(word, h.ref));
+  if (!cands.length || new Set(cands.map((h) => h.category)).size > 1) return null;
+  return cands.reduce((a, b) => (b.strength > a.strength ? b : a));
 }
 
 // ---------------- Claude ----------------
-const JUDGE_V = 'v4-cat'; // đổi khi sửa tiêu chí phân loại → kết quả cũ trong cache không dùng lại
+const JUDGE_V = 'v5-sem'; // đổi khi sửa tiêu chí phân loại → kết quả cũ trong cache không dùng lại
 const EMBED_V = 'v1-emb'; // kết quả của Lớp 3 (embedding)
 const LEGACY_KEYS = ['v3-rel']; // điểm 1–99 của bộ chấm cũ vẫn dùng lại được (không tốn token)
+const NO_CLIENT_KEYS = ['v4-cat']; // phân loại bản trước (còn nhận "sai chính tả" là rất gần): chỉ dùng khi không có Claude
 
 const PACK_SYSTEM = `Bạn soạn "bộ từ tham chiếu" cho trò chơi đoán từ tiếng Việt trên livestream: người xem bình luận một từ, hệ thống chấm mức gần nghĩa / liên quan với TỪ BÍ MẬT.
 Hãy liệt kê những từ người xem HAY ĐOÁN NHẤT cho từ bí mật này, chia nhóm (mỗi nhóm 10–30 từ, chữ thường, có dấu, 1–4 tiếng, xếp từ mạnh đến yếu):
@@ -128,7 +98,8 @@ Hãy liệt kê những từ người xem HAY ĐOÁN NHẤT cho từ bí mật n
 - strongRelated: nhắc cái này là nghĩ ngay tới cái kia; cùng loại hẹp; bộ phận – tổng thể; đặc điểm nổi bật nhất.
 - related: liên quan rõ ràng, hay đi cùng nhau (nơi chốn, công dụng, người – nghề – dụng cụ, nguyên nhân – kết quả, dịp lễ).
 - weakRelated: cùng chủ đề rộng, phải nghĩ vòng mới thấy.
-- unrelated: từ phổ biến người xem hay đoán bừa nhưng KHÔNG liên quan.
+- unrelated: từ phổ biến người xem hay đoán bừa nhưng KHÔNG liên quan; nhất là từ GIỐNG CHỮ / GIỐNG ÂM / cùng vần / chung một tiếng với từ bí mật mà khác nghĩa (vd "mặt trời" → "mặt nạ", "mặt bàn", "mắt").
+Chỉ xét NGHĨA và LIÊN TƯỞNG, tuyệt đối không xếp nhóm theo mặt chữ hay cách phát âm.
 Có thể thêm vài từ tiếng Anh người xem hay gõ. Không đưa chính từ bí mật. Không lặp một từ ở hai nhóm.`;
 
 const PACK_SCHEMA = {
@@ -139,13 +110,14 @@ const PACK_SCHEMA = {
 };
 
 const JUDGE_SYSTEM = `Bạn là giám khảo PHÂN LOẠI của trò chơi đoán từ tiếng Việt trên livestream. Mỗi lần bạn nhận một TỪ BÍ MẬT và danh sách TỪ ĐOÁN. Với mỗi từ đoán, xếp vào ĐÚNG MỘT nhóm theo mức gần nghĩa HOẶC liên quan (lấy mức cao hơn) với từ bí mật:
-- VERY_CLOSE: đồng nghĩa, gần như cùng một thứ, khác cách gọi, bản dịch tiếng Anh, sai chính tả của đáp án. (mặt trời ↔ "ông mặt trời", "sun")
+- VERY_CLOSE: đồng nghĩa, gần như cùng một thứ, khác cách gọi, bản dịch tiếng Anh. (mặt trời ↔ "ông mặt trời", "sun")
 - STRONG_RELATED: nhắc cái này là nghĩ ngay tới cái kia; cùng loại hẹp; bộ phận – tổng thể. (mặt trời ↔ nắng, mặt trăng; đại học ↔ sinh viên, cao đẳng)
 - RELATED: liên quan rõ ràng, hay đi cùng nhau: nơi chốn, công dụng, đi kèm, người – nghề – dụng cụ, nguyên nhân – kết quả, dịp lễ. (mặt trời ↔ kem chống nắng; đại học ↔ học sinh, giáo dục)
 - WEAKLY_RELATED: cùng chủ đề rộng, liên tưởng xa, phải nghĩ vòng. (mặt trời ↔ bãi biển; đại học ↔ con người)
 - UNRELATED: không liên quan, vô nghĩa, câu chào hỏi, nội dung thô tục.
+CHỈ CHẤM THEO NGHĨA VÀ LIÊN TƯỞNG, KHÔNG theo mặt chữ hay phát âm: từ giống chữ, giống âm, cùng vần, chung một tiếng hoặc chỉ khác dấu với từ bí mật nhưng khác nghĩa thì xếp theo nghĩa thật của nó (thường là UNRELATED). (mặt trời ↔ "mặt nạ", "mặt bàn", "mắt" → UNRELATED; con chó ↔ "chợ", "cho" → UNRELATED)
 "confidence": 0–1, bạn chắc chắn bao nhiêu với nhóm đã chọn; trong cùng nhóm, từ càng sát nghĩa thì confidence càng cao.
-Người xem hay gõ không dấu hoặc sai chính tả: hiểu theo nghĩa tiếng Việt hợp lý nhất. Phân loại nhất quán: cùng một từ luôn cùng nhóm. Trả về đủ mọi từ đoán, giữ nguyên chuỗi "guess" như đã nhận.`;
+Người xem hay gõ không dấu: hiểu theo nghĩa tiếng Việt hợp lý nhất, rồi chấm theo nghĩa đó — không cộng điểm vì trông giống đáp án. Phân loại nhất quán: cùng một từ luôn cùng nhóm. Trả về đủ mọi từ đoán, giữ nguyên chuỗi "guess" như đã nhận.`;
 
 const JUDGE_SCHEMA = {
   type: 'object',
@@ -166,7 +138,7 @@ const JUDGE_SCHEMA = {
 
 /**
  * Bộ chấm nhiều lớp, cùng giao diện với ClaudeScorer: score(secret, word, ctx, { aliases }) → Promise<{ score, source, category }>.
- * source: cache | dict (Lớp 1) | fuzzy (Lớp 2) | embed (Lớp 3) | claude (Lớp 4) | simple (Claude lỗi).
+ * source: cache | dict (Lớp 1) | embed (Lớp 3) | claude (Lớp 4) | none (không lớp nào hiểu nghĩa: không có key / Claude lỗi).
  * prepare(secret, ctx): soạn Knowledge Pack trước khi người xem đoán (gọi ở đầu vòng).
  */
 export class LayeredScorer {
@@ -184,7 +156,7 @@ export class LayeredScorer {
     this.seedCount = 0;
     this.bands = { ...SCORE_BANDS, ...bands };
     this.log = log;
-    // client = false: không có API key Claude → vẫn chấm bằng pack soạn sẵn (Lớp 1 / 2), từ ngoài pack chấm đơn giản theo chữ
+    // client = false: không có API key Claude → vẫn chấm bằng pack soạn sẵn (Lớp 1) / embedding; từ ngoài pack = "không rõ nghĩa" (điểm thấp)
     this.client = client === false ? null : client || new Anthropic();
     this.cache = new Map(); // `${secretKey}|${word}|${JUDGE_V}` → score
     this.packs = new Map(); // secretKey → pack
@@ -201,7 +173,7 @@ export class LayeredScorer {
     this.vecCache = new Map(); // từ đoán → vector (LRU)
     this.embedQueue = new Map(); // secretKey → Map(word → [resolve])
     this.embedTimer = null;
-    this.counts = { cache: 0, dict: 0, fuzzy: 0, embed: 0, claude: 0, simple: 0, judgeCalls: 0, packCalls: 0, embedCalls: 0 };
+    this.counts = { cache: 0, dict: 0, embed: 0, claude: 0, none: 0, judgeCalls: 0, packCalls: 0, embedCalls: 0 };
     this.load();
   }
 
@@ -325,12 +297,15 @@ export class LayeredScorer {
     }
   }
 
-  score(secret, word, ctx = null, { aliases = [] } = {}) {
+  /** Không lớp nào hiểu được nghĩa của từ đoán → coi như không liên quan (KHÔNG đoán theo mặt chữ), không cache để lần sau chấm lại. */
+  unknown() { return { score: scoreOf('UNRELATED', 0.5, this.bands), source: 'none', category: null }; }
+
+  score(secret, word, ctx = null) {
     const key = this.keyOf(secret, ctx);
     const w = canon(word);
     const done = (score, source, category = null) => { this.counts[source] = (this.counts[source] || 0) + 1; return Promise.resolve({ score, source, category }); };
-    // cache: kết quả mới, hoặc điểm của bộ chấm cũ
-    for (const v of [JUDGE_V, EMBED_V, ...LEGACY_KEYS]) {
+    // cache: kết quả mới, hoặc điểm của bộ chấm cũ (kết quả Claude bản trước chỉ dùng khi không gọi được Claude để chấm lại)
+    for (const v of [JUDGE_V, EMBED_V, ...LEGACY_KEYS, ...(this.client ? [] : NO_CLIENT_KEYS)]) {
       const c = this.cache.get(`${key}|${w}|${v}`);
       if (Number.isFinite(c)) return done(c, 'cache');
     }
@@ -338,12 +313,10 @@ export class LayeredScorer {
     // Lớp 1: Knowledge Pack
     const hit = dictLookup(index, w);
     if (hit) return done(scoreOf(hit.category, hit.strength, this.bands), 'dict', hit.category);
-    // Lớp 2: gõ sai chính tả
-    const fz = fuzzyLookup(w, { secret: this.secretOf(key), aliases, index });
-    if (fz) return done(scoreOf(fz.category, fz.strength, this.bands), 'fuzzy', fz.category);
     if (ctx?.prompt) this.contexts.set(key, ctx.prompt);
     // Lớp 3 (embedding, nếu có và đã hiệu chỉnh xong cho từ bí mật này) → không chắc thì Lớp 4: Claude phân loại (gom lô)
     const useEmbed = this.embedder && this.embedState.get(key)?.calib;
+    if (!useEmbed && !this.client) { const u = this.unknown(); return done(u.score, u.source); }
     return new Promise((resolve) => this.enqueue(useEmbed ? this.embedQueue : this.queue, key, w, [resolve]));
   }
 
@@ -362,7 +335,7 @@ export class LayeredScorer {
     this.inflight++;
     let results = {};
     try { if (this.client) results = await this.callJudge(this.secretOf(key), words, this.contexts.get(key)); } catch (e) {
-      this.log.warn?.(`[scoring] Claude phân loại lỗi (${e?.status || ''} ${e?.message || e}) — dùng chấm đơn giản`);
+      this.log.warn?.(`[scoring] Claude phân loại lỗi (${e?.status || ''} ${e?.message || e}) — tạm coi là không rõ nghĩa`);
     } finally { this.inflight--; }
     for (const [w, resolvers] of chunk) {
       const r = results[w];
@@ -372,7 +345,7 @@ export class LayeredScorer {
         this.cache.set(`${key}|${w}|${JUDGE_V}`, score);
         this.cacheDirty = true;
         out = { score, source: 'claude', category: r.category };
-      } else out = { score: simpleScore(this.secretOf(key), w), source: 'simple', category: null };
+      } else out = this.unknown();
       this.counts[out.source]++;
       for (const res of resolvers) res(out);
     }

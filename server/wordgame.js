@@ -883,7 +883,7 @@ export class WordGame extends EventEmitter {
 
   /** Ghi thời gian chấm điểm (chỉ từ phải chấm mới — lấy từ cache thì gần như tức thì). */
   noteScoreDelay(entry, source) {
-    if (['cache', 'dict', 'fuzzy', 'limit'].includes(source)) return; // có điểm ngay, không tính vào độ trễ chấm
+    if (['cache', 'dict', 'none', 'limit'].includes(source)) return; // có điểm ngay, không tính vào độ trễ chấm
     this.scoreDelays.push(Math.max(0, this.clock() - entry.at));
     if (this.scoreDelays.length > 30) this.scoreDelays.shift();
   }

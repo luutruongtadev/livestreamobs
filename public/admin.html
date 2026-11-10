@@ -341,7 +341,7 @@
     const d = s.lastDrop;
     const sec = (ms) => (ms / 1000).toFixed(1) + 's';
     const ly = s.delay?.layers;
-    const layers = ly && (ly.cache + ly.dict + ly.fuzzy + (ly.embed || 0) + ly.claude + ly.simple) ? `chấm: cache ${ly.cache} · từ điển ${ly.dict} · gõ sai ${ly.fuzzy}${ly.embedding ? ` · embedding ${ly.embed} (${ly.embedCalls} lần gọi)` : ''} · Claude ${ly.claude} (${ly.judgeCalls} lần gọi, ${ly.packCalls} pack)${ly.simple ? ` · dự phòng ${ly.simple}` : ''}` : '';
+    const layers = ly && (ly.cache + ly.dict + (ly.embed || 0) + ly.claude + (ly.none || 0)) ? `chấm: cache ${ly.cache} · từ điển ${ly.dict}${ly.embedding ? ` · embedding ${ly.embed} (${ly.embedCalls} lần gọi)` : ''} · Claude ${ly.claude} (${ly.judgeCalls} lần gọi, ${ly.packCalls} pack)${ly.none ? ` · chưa rõ nghĩa ${ly.none}` : ''}` : '';
     const lat = s.delay ? [s.delay.tiktok && `bình luận về trễ ~${sec(s.delay.tiktok.avg)} (lâu nhất ${sec(s.delay.tiktok.max)})`, s.delay.score && `chấm điểm ~${sec(s.delay.score.avg)} (lâu nhất ${sec(s.delay.score.max)})`, layers].filter(Boolean).join(' · ') : '';
     $('statusText').textContent = s.message + (s.drops ? ` · đã rớt ${s.drops} lần, gần nhất ${new Date(d.at).toLocaleTimeString('vi-VN')}: ${d.reason}${d.code ? ` (mã ${d.code}${d.why ? ', ' + d.why : ''})` : ''}` : '') + (lat ? ` · ⏱ ${lat}` : '') + (s.replayed ? ` · bỏ ${s.replayed} tin cũ TikTok gửi bù` : '');
     $('viewers').textContent = fmt.format(s.viewers || 0);

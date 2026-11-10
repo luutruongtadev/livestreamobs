@@ -100,6 +100,13 @@ test('ClaudeScorer: gom lô, cache, kẹp điểm 1..99, lỗi API thì chấm �
 
 test('simpleScore / isExact', () => {
   assert.ok(isExact('Mat Troi', 'mặt trời'));
+  assert.ok(isExact('mặttrời', 'mặt trời'));
+  assert.ok(isExact('mặt troi', 'mặt trời'), 'tiếng gõ không dấu vẫn nhận');
+  assert.ok(isExact('hoà bình', 'hòa bình'), 'vị trí đặt dấu kiểu cũ / mới như nhau');
+  assert.ok(!isExact('mắt trời', 'mặt trời'), 'sai dấu = từ khác nghĩa → không trúng');
+  assert.ok(!isExact('chợ', 'con chó'));
+  assert.ok(isExact('cho', 'con chó'));
+  assert.ok(isExact('dai hoc', 'đại học'));
   assert.ok(simpleScore('mặt trời', 'ông mặt trời') > simpleScore('mặt trời', 'con mèo'));
 });
 
@@ -341,6 +348,9 @@ test('bình luận có chứa đáp án vẫn tính trúng ("… ạ", "đáp á
   assert.ok(containsAnswer('ô ạ', 'ô'));
   assert.ok(!containsAnswer('ô hay quá ta ơi', 'ô'), 'đáp án 1 chữ ngắn: câu dài không tính');
   assert.ok(containsAnswer('hột vịt lộn nha', 'trứng vịt lộn', ['hột vịt lộn']), 'biệt danh');
+  assert.ok(!containsAnswer('chứng vịt lộn ạ', 'trứng vịt lộn'));
+  assert.ok(!containsAnswer('trùng vịt lộn ạ', 'trứng vịt lộn'), 'sai dấu không tính trúng');
+  assert.ok(containsAnswer('trung vịt lộn ạ', 'trứng vịt lộn'), 'thiếu dấu một tiếng vẫn tính');
   const clock = { t: 1_000_000 };
   const g = new WordGame({ words: [{ word: 'trứng vịt lộn' }], roundSeconds: 300, cooldownSec: 2 }, { scorer: { score: async () => 10 }, now: () => clock.t });
   g.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: 'vịt lộn' });

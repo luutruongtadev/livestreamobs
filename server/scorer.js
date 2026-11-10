@@ -11,33 +11,81 @@ export function canon(text) {
 /** Gọn để so khớp: bỏ dấu, hoa thường, khoảng trắng, dấu câu ("Kai'Sa" = "kaisa"). */
 export const compact = (s) => normalize(s).replace(/ /g, '');
 
-/** Trùng từ bí mật hoặc một biệt danh (không phân biệt dấu, hoa thường, khoảng trắng) → đoán đúng. */
+// Dấu tiếng Việt phân biệt nghĩa ("mặt" ≠ "mắt", "chợ" ≠ "chó"): chỉ bỏ qua dấu ở tiếng người xem gõ KHÔNG dấu.
+const TONE_MARKS = new Set(['̀', '́', '̃', '̉', '̣']); // huyền, sắc, ngã, hỏi, nặng
+const SHAPE_MARKS = new Set(['̂', '̆', '̛']); // â ê ô, ă, ơ ư
+
+/** Tách thành chữ cái { base, shape, tone, syl } — syl: số thứ tự tiếng (khoảng trắng / dấu câu ngăn tiếng). */
+function letters(text) {
+  const out = [];
+  let syl = 0, gap = true;
+  for (const ch of canon(text).normalize('NFD')) {
+    const last = gap ? null : out[out.length - 1];
+    if (TONE_MARKS.has(ch)) { if (last) last.tone = ch; continue; }
+    if (SHAPE_MARKS.has(ch)) { if (last) last.shape += ch; continue; }
+    if (/\p{M}/u.test(ch)) continue;
+    if (/[a-z0-9đ]/.test(ch)) {
+      if (gap) { syl++; gap = false; }
+      out.push(ch === 'đ' ? { base: 'd', shape: 'đ', tone: '', syl } : { base: ch, shape: '', tone: '', syl });
+    } else gap = true; // khoảng trắng, dấu câu, ký tự khác (normalize() cũng bỏ) → hết tiếng
+  }
+  return out;
+}
+
+/**
+ * Hai cách viết là CÙNG MỘT TỪ: cùng chữ cái (bỏ dấu, hoa thường, khoảng trắng, dấu câu) và mỗi tiếng người xem
+ * CÓ gõ dấu thì dấu phải đúng (thanh điệu + â/ă/ê/ô/ơ/ư/đ). Tiếng gõ không dấu thì chấp nhận (không biết người xem định gõ gì).
+ * "mat troi" / "Mặt Trời" / "mặttrời" = "mặt trời"; "mắt trời" ≠ "mặt trời"; "chợ" ≠ "chó".
+ */
+export function sameWord(guess, ref) {
+  const g = letters(guess), r = letters(ref);
+  if (!g.length || g.length !== r.length || g.some((l, i) => l.base !== r[i].base)) return false;
+  // so theo từng tiếng của ref (người xem có thể gõ dính liền / tách khác); thanh điệu tính cho cả tiếng, không theo chữ mang dấu
+  for (let i = 0; i < r.length;) {
+    let j = i;
+    while (j < r.length && r[j].syl === r[i].syl) j++;
+    const part = g.slice(i, j);
+    const tones = new Set(part.map((l) => l.tone).filter(Boolean));
+    if (tones.size || part.some((l) => l.shape)) {
+      if (part.some((l, k) => l.shape !== r[i + k].shape)) return false;
+      if (tones.size > 1 || ([...tones][0] || '') !== (r.slice(i, j).find((l) => l.tone)?.tone || '')) return false;
+    }
+    i = j;
+  }
+  return true;
+}
+
+/** Trùng từ bí mật hoặc một biệt danh (không phân biệt hoa thường, khoảng trắng; gõ không dấu vẫn nhận, gõ sai dấu thì không) → đoán đúng. */
 // Từ chỉ loại đứng đầu: đoán "chó" vẫn trúng "con chó", "xương rồng" trúng "cây xương rồng"
 const CLASSIFIERS = new Set(['con', 'cai', 'qua', 'trai', 'chiec', 'cay']);
 function core(s) {
-  const parts = normalize(s).split(' ').filter(Boolean);
-  if (parts.length > 1 && CLASSIFIERS.has(parts[0])) parts.shift();
-  return parts.join('');
+  const parts = canon(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (parts.length > 1 && CLASSIFIERS.has(normalize(parts[0]))) parts.shift();
+  return parts.join(' ');
 }
 
 export function isExact(guess, secret, aliases = []) {
-  const g = compact(guess);
-  if (!g) return false;
-  if (g === compact(secret) || aliases.some((a) => compact(a) === g)) return true;
+  if (!compact(guess)) return false;
+  const answers = [secret, ...aliases];
+  if (answers.some((a) => sameWord(guess, a))) return true;
   const c = core(guess);
-  return c.length >= 1 && (c === core(secret) || aliases.some((a) => core(a) === c));
+  return !!compact(c) && answers.some((a) => sameWord(c, core(a)));
 }
 
 // Chữ phủ định đứng trước đáp án → không tính là đoán trúng
 const NEGATION = /(^| )(khong|ko|k|hok|hong|cha|chang|chu|dau|deo)( phai| la)?( |$)|(^| )(sai|nham)( |$)/;
 /**
  * Bình luận CÓ CHỨA đáp án (hoặc biệt danh) như một cụm nguyên vẹn: "trứng vịt lộn ạ", "đáp án là trứng vịt lộn nha".
- * Không phân biệt dấu / hoa thường. Bỏ qua câu quá dài (> đáp án + 5 tiếng) và câu phủ định ("không phải trứng vịt lộn").
+ * Không phân biệt hoa thường, gõ không dấu vẫn nhận (gõ sai dấu thì không — xem sameWord).
+ * Bỏ qua câu quá dài (> đáp án + 5 tiếng) và câu phủ định ("không phải trứng vịt lộn").
  */
 export function containsAnswer(text, secret, aliases = []) {
-  const t = normalize(String(text || '').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, ' '));
-  if (!t) return false;
-  const words = t.split(' ');
+  // mỗi tiếng giữ cả bản bỏ dấu (so khớp) lẫn chữ gốc (so dấu)
+  const tokens = canon(String(text || '').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, ' '))
+    .split(/[^\p{L}\p{N}]+/u)
+    .flatMap((raw) => { const n = normalize(raw).split(' ').filter(Boolean); return n.map((x) => ({ n: x, raw: n.length === 1 ? raw : x })); });
+  if (!tokens.length) return false;
+  const words = tokens.map((t) => t.n);
   for (const ans of [secret, ...aliases]) {
     const a = normalize(ans).split(' ').filter(Boolean);
     if (!a.length || words.length > a.length + 5) continue;
@@ -45,15 +93,16 @@ export function containsAnswer(text, secret, aliases = []) {
     if (a.length === 1 && a[0].length <= 3 && words.length > 3) continue;
     for (let i = 0; i + a.length <= words.length; i++) {
       // phủ định đứng TRƯỚC đáp án ("không phải trứng vịt lộn") thì không tính; "trứng vịt lộn đúng hông" vẫn tính
-      if (a.every((w, k) => words[i + k] === w) && !NEGATION.test(words.slice(0, i).join(' '))) return true;
+      if (a.every((w, k) => words[i + k] === w) && !NEGATION.test(words.slice(0, i).join(' '))
+        && sameWord(tokens.slice(i, i + a.length).map((t) => t.raw).join(' '), ans)) return true;
     }
   }
   return false;
 }
 
 /**
- * Bộ chấm dự phòng khi không có API key: so trùng âm tiết / chữ cái.
- * Không hiểu nghĩa, chỉ để game vẫn chạy được.
+ * Chấm theo chữ: so trùng âm tiết / chữ cái — KHÔNG hiểu nghĩa. Chỉ dùng khi bật rõ `wordgame.scorer = "simple"` (để test);
+ * bộ chấm thật (LayeredScorer) không chấm theo mặt chữ / phát âm.
  */
 export function simpleScore(secret, guess) {
   if (isExact(guess, secret)) return 100;

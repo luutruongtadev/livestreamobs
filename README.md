@@ -12,20 +12,22 @@ TikTok Live ──(tiktok-live-connector)──► Node.js server ──(WebSock
 
 ## 🔤 Game Đoán từ (`/doantu`)
 
-Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng tiếng: `_ _ _  _ _ _ _`). Người xem bình luận một từ (tối đa 4 tiếng), từ đó hiện lên kèm **điểm gần nghĩa 1–100** so với từ bí mật; bảng **GẦN NGHĨA NHẤT** xếp 8 từ điểm cao nhất (thanh màu đỏ → vàng → xanh). Đoán trúng (không phân biệt dấu, hoa thường) = **100 điểm, thắng vòng**.
+Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng tiếng: `_ _ _  _ _ _ _`). Người xem bình luận một từ (tối đa 4 tiếng), từ đó hiện lên kèm **điểm gần nghĩa 1–100** so với từ bí mật; bảng **GẦN NGHĨA NHẤT** xếp 8 từ điểm cao nhất (thanh màu đỏ → vàng → xanh). Đoán trúng (không phân biệt hoa thường; gõ không dấu vẫn nhận, nhưng tiếng nào có gõ dấu thì dấu phải đúng: "chợ" không trúng "con chó") = **100 điểm, thắng vòng**.
+
+**Điểm chỉ chấm theo NGHĨA / LIÊN QUAN / LIÊN TƯỞNG**, không theo mặt chữ hay phát âm: từ giống chữ, giống âm, cùng vần, chung một tiếng hoặc chỉ khác dấu mà khác nghĩa ("mặt trời" ↔ "mặt nạ", "mắt") không được điểm.
 
 - **Chấm điểm bằng Claude** (hiểu nghĩa tiếng Việt, kể cả gõ không dấu). Đặt `ANTHROPIC_API_KEY` trong `.env` (lấy ở console.anthropic.com). Model mặc định `claude-opus-5-5`, đổi bằng `WORDGAME_MODEL` hoặc `config.json` → `wordgame.model`.
 - **Chấm nhiều lớp** (lớp trước xử lý được thì dừng, chỉ từ chưa rõ mới tốn token):
   1. **Cache**: mỗi cặp (từ bí mật, từ đoán) chỉ chấm **một lần** (`data/wordscore-cache.json`, điểm của bộ chấm cũ vẫn dùng lại).
   2. **Lớp 1 — Knowledge Pack**: đầu mỗi vòng Claude soạn **một lần** bộ từ cho từ bí mật: đồng nghĩa / liên quan mạnh / liên quan / liên quan yếu / không liên quan (`data/knowledge-packs.json`, gặp lại từ cũ không soạn lại). Từ đoán nằm trong bộ (có dấu, không dấu hay viết liền đều nhận) → có điểm ngay.
-  3. **Lớp 2 — Gõ sai chính tả**: thừa / thiếu / sai 1–2 ký tự so với đáp án (→ 97 điểm, "suýt trúng") hoặc so với một từ trong pack (→ điểm nhóm của từ đó). Dùng khoảng cách Levenshtein, không gọi API.
+  3. ~~Lớp 2 — Gõ sai chính tả~~: **đã bỏ** (chấm theo khoảng cách ký tự là chấm theo mặt chữ, không theo nghĩa). Gõ không dấu / dính liền vẫn tra được pack ở Lớp 1; tiếng có gõ dấu thì phải đúng dấu.
   3b. **Lớp 3 — Embedding** (tuỳ chọn, cần key riêng vì Anthropic không có API embedding): đặt `VOYAGE_API_KEY` (Voyage AI, mặc định model `voyage-3.5`) hoặc `OPENAI_API_KEY` (`text-embedding-3-small`) trong `.env`; muốn chỉ định thì `EMBEDDING_PROVIDER=voyage|openai`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`. Đầu vòng embed từ bí mật + mọi từ trong Knowledge Pack (1 lần gọi), **không lấy cosine × 100 làm điểm** mà hiệu chỉnh theo nhóm tham chiếu: trung vị độ tương đồng của mỗi nhóm trong pack làm mốc, ngưỡng giữa 2 nhóm là điểm giữa 2 mốc. Từ đoán chỉ được chấm ở lớp này khi rơi rõ vào một khoảng **và** các từ trong pack giống nó nhất cũng thuộc nhóm đó (hoặc gần như trùng nghĩa một từ trong pack); còn lại vẫn chuyển Claude. Embedding không tách được các nhóm của một từ bí mật thì tự bỏ lớp này cho từ đó. Chỉnh ở `wordgame.embedding` (`neighborHi` 0.92, `margin` 0.02, `k` 5, `enabled: false` để tắt).
-  4. **Lớp 4 — Claude phân loại**: từ còn lại gom lô ~0,4 giây/lần gửi Claude, Claude chỉ **xếp nhóm** (rất gần / liên quan mạnh / liên quan / liên quan yếu / không liên quan + độ tin cậy); tối đa 2 request cùng lúc, timeout 20 giây; lỗi thì chấm đơn giản theo chữ.
+  4. **Lớp 4 — Claude phân loại**: từ còn lại gom lô ~0,4 giây/lần gửi Claude, Claude chỉ **xếp nhóm** (rất gần / liên quan mạnh / liên quan / liên quan yếu / không liên quan + độ tin cậy); tối đa 2 request cùng lúc, timeout 20 giây; lỗi thì tạm coi là chưa rõ nghĩa (điểm không liên quan, không lưu cache).
   - **Node quyết định điểm** theo nhóm: rất gần 90–97 · liên quan mạnh 75–88 · liên quan 55–72 · liên quan yếu 25–45 · không liên quan 1–9 (vị trí trong khoảng theo thứ tự trong pack / độ tin cậy). Đổi khoảng điểm ở `wordgame.scoreBands` trong `config.json`; model soạn pack: `wordgame.packModel` / `WORDGAME_PACK_MODEL` (mặc định như model chấm).
   - **Pack soạn sẵn trong repo** (`modewords/knowledge-packs.json`, không tốn token trên VPS): server nạp khi khởi động, pack do Claude soạn lúc chơi lưu ở `data/` đè lên nếu trùng. Xem bao nhiêu từ chưa chơi đã có pack: admin → 🔤 Đoán từ → 📦 Knowledge Pack (nút 📋 copy danh sách từ còn thiếu để soạn thêm), hoặc GitHub Actions → **Dữ liệu VPS** → Run workflow (chỉ đọc; repo công khai nên mặc định không in tên từ).
-  - Admin (mục Kết nối TikTok Live) hiện số từ chấm ở mỗi lớp: cache / từ điển / gõ sai / Claude, số lần gọi Claude — dựa vào đó để quyết định có cần thêm lớp embedding hay không.
+  - Admin (mục Kết nối TikTok Live) hiện số từ chấm ở mỗi lớp: cache / từ điển / embedding / Claude / chưa rõ nghĩa, số lần gọi Claude — dựa vào đó để quyết định có cần thêm lớp embedding hay không.
   - Tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
-- **Không có API key** → tự chuyển sang chấm đơn giản theo chữ (không hiểu nghĩa, chỉ để test).
+- **Không có API key** → chỉ chấm được từ có trong Knowledge Pack soạn sẵn (và embedding nếu có key riêng); từ ngoài pack coi là chưa rõ nghĩa → điểm thấp, **không** đoán theo mặt chữ. (`wordgame.scorer = "simple"` vẫn bật được bộ chấm theo chữ, chỉ để test.)
 - **Gợi ý**: tự mở sau 60 / 150 / 230 giây (chủ đề → chữ đầu mỗi tiếng → lộ một tiếng).
 - **Quà mở khoá** (hiện thành dòng chip dưới ô chữ, kèm tiến độ gom quà):
 
@@ -398,7 +400,7 @@ server/
   index.js      HTTP + WebSocket hub, API admin, lưu state
   tiktok.js     Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
   wordgame.js   Luật game Đoán từ (vòng, gợi ý, quà, thắng / thua)
-  scorer.js     Nhận đáp án, chấm đơn giản dự phòng · scoring.js chấm gần nghĩa nhiều lớp (pack → gõ sai → Claude)
+  scorer.js     Nhận đáp án (sameWord: so dấu), chấm theo chữ chỉ để test · scoring.js chấm gần nghĩa nhiều lớp (pack → embedding → Claude)
   wordbank.js   Kho từ: sinh từ bằng Claude, từ có sẵn, đánh dấu từ đã chơi, chống trùng
   wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
   weekly.js     Bảng xếp hạng tuần · teams.js đấu đội

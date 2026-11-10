@@ -70,14 +70,14 @@ const wgCfg = config.wordgame || {};
 const hasClaudeCreds = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
 const wgScorer = wgCfg.scorer === 'simple'
   ? new SimpleScorer()
-  // chấm nhiều lớp: cache → Knowledge Pack (Lớp 1) → gõ sai chính tả (Lớp 2) → Claude phân loại (Lớp 4); chỉ từ chưa rõ mới tốn token
+  // chấm nhiều lớp, chỉ theo nghĩa: cache → Knowledge Pack (Lớp 1) → embedding (Lớp 3) → Claude phân loại (Lớp 4); chỉ từ chưa rõ mới tốn token
   : new LayeredScorer({
     model: process.env.WORDGAME_MODEL || wgCfg.model || 'claude-opus-5-5',
     packModel: process.env.WORDGAME_PACK_MODEL || wgCfg.packModel || null,
     bands: wgCfg.scoreBands || {},
     cachePath: path.join(ROOT, 'data', 'wordscore-cache.json'),
     packPath: path.join(ROOT, 'data', 'knowledge-packs.json'),
-    client: hasClaudeCreds ? undefined : false, // không có key: chỉ dùng pack soạn sẵn + chấm đơn giản, không gọi Claude
+    client: hasClaudeCreds ? undefined : false, // không có key: chỉ dùng pack soạn sẵn (+ embedding), không gọi Claude
     seedPackPath: path.join(ROOT, 'modewords', 'knowledge-packs.json'), // pack soạn sẵn trong repo (không tốn token)
     // Lớp 3 embedding: có VOYAGE_API_KEY (hoặc OPENAI_API_KEY / EMBEDDING_PROVIDER + EMBEDDING_API_KEY) thì bật
     embedder: Embedder.fromEnv(process.env, wgCfg.embedding || {}),
@@ -85,7 +85,7 @@ const wgScorer = wgCfg.scorer === 'simple'
   });
 if (wgScorer.embedder) console.log(`[wordgame] Lớp 3 embedding: ${wgScorer.embedder.provider} · ${wgScorer.embedder.model}`);
 if (wgScorer instanceof SimpleScorer) console.warn('[wordgame] wordgame.scorer = "simple" → chấm điểm đơn giản theo chữ (không hiểu nghĩa).');
-else if (!hasClaudeCreds) console.warn(`[wordgame] Chưa có ANTHROPIC_API_KEY → chấm bằng ${wgScorer.seedCount} pack soạn sẵn (Lớp 1 / 2); từ ngoài pack chấm đơn giản theo chữ.`);
+else if (!hasClaudeCreds) console.warn(`[wordgame] Chưa có ANTHROPIC_API_KEY → chấm bằng ${wgScorer.seedCount} pack soạn sẵn (Lớp 1); từ ngoài pack chưa rõ nghĩa → điểm thấp (không chấm theo chữ).`);
 const wordBank = new WordBank({
   filePath: path.join(ROOT, 'data', 'wordbank.json'),
   fallbackWords: wgCfg.words || [],
