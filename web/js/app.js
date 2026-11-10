@@ -251,13 +251,17 @@ function feedRow(e) {
   return h('div', { class: e.type === 'error' ? 'pill err' : '' }, `${e.sim ? '[giả lập] ' : ''}${text}`);
 }
 
+// giá xu của quà TikTok phổ biến (ô Giả lập tự điền)
+const GIFT_COINS = { rose: 1, tiktok: 1, 'ice cream cone': 1, 'heart me': 1, gg: 1, 'finger heart': 5, perfume: 20, doughnut: 30, cap: 99, 'hat and mustache': 99, 'hand hearts': 100, sunglasses: 199, corgi: 299, 'money gun': 500, galaxy: 1000, lion: 29999 };
+
 // ---- tab Điều khiển: xem trước, lệnh, giả lập, nhật ký ----
 function liveTab(c, g) {
   const cmd = async (id, args) => { try { await req('cmd', { channel: c.id, id, args }); } catch (e) { toast(e.message, true); } };
   const sim = async (e, repeat = 1) => { try { await req('sim', { channel: c.id, e, repeat }); } catch (err) { toast(err.message, true); } };
   const text = h('input', { placeholder: 'Bình luận thử…', class: 'grow' });
-  const giftName = h('input', { value: 'Rose', style: 'width:130px' });
   const diamonds = h('input', { type: 'number', value: 1, min: 0, style: 'width:90px' });
+  // gõ tên quà quen thuộc → tự điền đúng số xu (để thử hiệu ứng theo xu, vd meme quà lớn)
+  const giftName = h('input', { value: 'Rose', style: 'width:130px', list: 'gift-names', oninput: (e) => { const v = GIFT_COINS[e.target.value.trim().toLowerCase()]; if (v) diamonds.value = v; } });
   const count = h('input', { type: 'number', value: 1, min: 1, style: 'width:80px' });
   const likes = h('input', { type: 'number', value: 100, min: 1, style: 'width:100px' });
   let n = 0; const user = () => ({ id: `sim${++n % 7}`, name: `Khán giả ${n % 7 + 1}` });
@@ -273,6 +277,7 @@ function liveTab(c, g) {
       soundboard(c),
       h('div', { class: 'card' }, h('h2', {}, 'Giả lập người xem'), h('p', { class: 'small muted' }, 'Thử game mà không cần live: sự kiện đi đúng đường như bình luận / quà thật.'),
         h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); if (text.value.trim()) { sim({ type: 'comment', user: user(), text: text.value }); text.value = ''; } } }, text, h('button', { type: 'submit' }, 'Gửi')),
+        h('datalist', { id: 'gift-names' }, Object.keys(GIFT_COINS).map((n) => h('option', { value: n.replace(/(^| )\w/g, (ch) => ch.toUpperCase()) }))),
         h('div', { class: 'row', style: 'margin-top:8px' }, '🎁', giftName, 'xu', diamonds, 'x', count, h('button', { onclick: () => sim({ type: 'gift', user: user(), giftName: giftName.value, diamonds: Number(diamonds.value), count: Number(count.value) }) }, 'Tặng quà')),
         h('div', { class: 'row', style: 'margin-top:8px' }, '❤️', likes, h('button', { onclick: () => sim({ type: 'like', user: user(), count: Number(likes.value) }) }, 'Thả tim'),
           h('button', { class: 'ghost', onclick: () => sim({ type: 'follow', user: user() }) }, '➕ Follow'), h('button', { class: 'ghost', onclick: () => sim({ type: 'share', user: user() }) }, '↗ Share'),

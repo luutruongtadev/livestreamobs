@@ -238,7 +238,9 @@ export class Deadline extends Emitter {
     const by = pub(ev.user);
     const coins = ev.type === 'gift' ? Math.max(0, Number(ev.diamonds) || 0) : 0;
     const fx = [];
-    const memeOk = this.s.memes && ev.type === 'gift' && coins >= this.s.memeMinCoins && this.phase !== 'result';
+    // quà đã có link video meme riêng → luôn phát; meme hoạt hình có sẵn chỉ cho quà từ memeMinCoins xu
+    const hasClip = /^https?:\/\/\S+$/i.test(String(this.s[`memeClip_${id}`] || '').trim());
+    const memeOk = this.s.memes && ev.type === 'gift' && (hasClip || coins >= this.s.memeMinCoins) && this.phase !== 'result';
     if (this.phase === 'brief') fx.push(...this.startWork()); // quà tới lúc đang giao việc → vào ca luôn, không phí quà
     const t = this.clock();
     const work = this.phase === 'work';

@@ -50,9 +50,9 @@ Game văn phòng: streamer phải xong việc trước deadline. Người xem t�
 Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pause` / `resume` do nền tảng cung cấp.
 
 ## Meme khi quà lớn
-- Quà từ `memeMinCoins` xu trở lên (mặc định 5) phát meme ngay sau chữ lớn. Tối đa 3 meme xếp hàng chờ.
+- Meme hoạt hình có sẵn: quà từ `memeMinCoins` xu trở lên (mặc định 5) phát ngay sau chữ lớn. Tối đa 3 meme xếp hàng chờ.
 - **Meme có sẵn:** hoạt hình tự vẽ, gồm biểu cảm, câu meme tiếng Việt và âm thanh theo từng loại quà.
-- **Video meme của bạn:** dán link vào ô `memeClip_<id>` trong Cài đặt game (mp4 / webm / gif, phát tối đa 6 giây).
+- **Video meme của bạn:** dán link vào ô `memeClip_<id>` trong Cài đặt game (mp4 / webm / gif, phát tối đa 6 giây). Quà đã có link thì **luôn phát**, không cần đủ `memeMinCoins` xu.
   - Repo công khai nên game không kèm clip có bản quyền.
   - Cách lấy link: mở [Tenor](https://tenor.com/vi) hoặc [Giphy](https://giphy.com), tìm clip, chuột phải chọn **Sao chép địa chỉ video** sẽ được link `media.tenor.com/….mp4`.
   - Gợi ý từ khoá:
