@@ -15,7 +15,8 @@ if (fs.existsSync(dest)) { console.error(`games/${id} đã tồn tại`); proces
 function copy(src, dst) {
   fs.mkdirSync(dst, { recursive: true });
   for (const e of fs.readdirSync(src, { withFileTypes: true })) {
-    const s = path.join(src, e.name), d = path.join(dst, e.name);
+    // file .tmpl: tránh để `npm test` chạy nhầm test của template (còn __ID__); bỏ đuôi khi sao chép
+    const s = path.join(src, e.name), d = path.join(dst, e.name.replace(/\.tmpl$/, ''));
     if (e.isDirectory()) copy(s, d);
     else fs.writeFileSync(d, fs.readFileSync(s, 'utf8').replaceAll('__ID__', id).replaceAll('__NAME__', name));
   }
