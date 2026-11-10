@@ -34,6 +34,22 @@ export function buildCatalog(gamesDir) {
   });
 }
 
+/** Danh mục widget của Studio: widgets/<id>/widget.json (bỏ thư mục bắt đầu bằng "_" — thư viện dùng chung). */
+export function buildWidgetCatalog(widgetsDir, log = console) {
+  let dirs = [];
+  try { dirs = fs.readdirSync(widgetsDir, { withFileTypes: true }).filter((d) => d.isDirectory() && /^[a-z][a-z0-9-]{1,31}$/.test(d.name)); } catch { return []; }
+  const out = [];
+  for (const d of dirs) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(widgetsDir, d.name, 'widget.json'), 'utf8'));
+      if (meta.id !== d.name) throw new Error(`id "${meta.id}" khác tên thư mục`);
+      if (!fs.existsSync(path.join(widgetsDir, d.name, 'index.js'))) throw new Error('thiếu index.js');
+      out.push(meta);
+    } catch (e) { log.warn?.(`[gateway] bỏ qua widget "${d.name}": ${e.message}`); }
+  }
+  return out;
+}
+
 /** Nạp phần server của game có manifest.server (mỗi game chỉ nhận secret khai báo trong manifest.secrets). */
 export async function loadGameServers(gamesDir, { env = process.env, dataDir, log = console } = {}) {
   const out = {};
@@ -68,13 +84,16 @@ export function resolveStatic(urlPath, root = ROOT) {
     if (/^(node|testing)(\/|$)/.test(rel)) return null; // chỉ phần chạy được trên trình duyệt
     return safeJoin(path.join(root, 'packages', 'sdk', 'src'), rel);
   }
+  const wm = /^\/widgets\/(_lib|[a-z][a-z0-9-]{1,31})\/(.+)$/.exec(p);
+  if (wm) return /^(index\.js|widget\.json|ui\.js|assets\/.+)$/.test(wm[2]) ? safeJoin(path.join(root, 'widgets', wm[1]), wm[2]) : null;
   const m = /^\/games\/([a-z][a-z0-9-]{1,31})\/(.+)$/.exec(p);
   if (m && GAME_PUBLIC.has(m[2].split('/')[0])) return safeJoin(path.join(root, 'games', m[1]), m[2]);
   return null;
 }
 
-export function createHttpHandler({ root = ROOT, catalog, publicConfig }) {
+export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig }) {
   const catalogJson = JSON.stringify(catalog);
+  const widgetsJson = JSON.stringify(widgets);
   const configJs = `window.PLATFORM = ${JSON.stringify(publicConfig)};\n`;
   return (req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -82,6 +101,7 @@ export function createHttpHandler({ root = ROOT, catalog, publicConfig }) {
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, head); return res.end(); }
     if (url.pathname === '/health') { res.writeHead(200, { ...head, 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
     if (url.pathname === '/api/games') { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'], 'Cache-Control': 'no-cache' }); return res.end(catalogJson); }
+    if (url.pathname === '/api/widgets') { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'], 'Cache-Control': 'no-cache' }); return res.end(widgetsJson); }
     if (url.pathname === '/config.js') { res.writeHead(200, { ...head, 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-cache' }); return res.end(configJs); }
     const file = resolveStatic(url.pathname, root);
     if (!file) { res.writeHead(404, head); return res.end('Không tìm thấy'); }
@@ -103,17 +123,18 @@ async function main() {
   const gamesDir = path.join(ROOT, 'games');
   const store = storeFromEnv(env, { dataDir });
   const catalog = buildCatalog(gamesDir);
+  const widgets = buildWidgetCatalog(path.join(ROOT, 'widgets'));
   const gameServers = await loadGameServers(gamesDir, { env, dataDir });
   const { TikTokBridge } = await import('../server/tiktok.js');
-  const gw = new Gateway({ store, catalog, gameServers, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
+  const gw = new Gateway({ store, catalog, widgets, gameServers, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
   // tên đăng nhập → email nội bộ <tên>@<usernameDomain>; cố định sau lần deploy đầu (đổi là mất đăng nhập của tài khoản cũ)
   const usernameDomain = String(env.AUTH_USERNAME_DOMAIN || env.PLAY_DOMAIN || 'localhost').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
   const publicConfig = { supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain };
-  const server = http.createServer(createHttpHandler({ catalog, publicConfig }));
+  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);
   server.listen(port, env.HOST || '0.0.0.0', () => {
-    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  lưu trữ: ${store.kind}`);
+    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  ${widgets.length} widget  ·  lưu trữ: ${store.kind}`);
   });
   const stop = async () => { await gw.close(); server.close(); process.exit(0); };
   process.on('SIGINT', stop);

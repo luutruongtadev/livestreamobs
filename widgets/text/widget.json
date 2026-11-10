@@ -1,0 +1,20 @@
+{
+  "id": "text",
+  "name": "Chữ / banner",
+  "icon": "🔤",
+  "description": "Dòng chữ tuỳ ý: lời chào, kêu gọi follow, lịch live, tên kênh… có thể chạy chữ.",
+  "size": { "w": 900, "h": 120 },
+  "minSize": { "w": 200, "h": 60 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "title": "Nội dung", "maxLength": 200, "default": "Follow kênh để chơi cùng mỗi tối nhé! 💖" },
+      "size": { "type": "integer", "title": "Cỡ chữ (px)", "minimum": 16, "maximum": 160, "default": 44 },
+      "style": { "type": "string", "title": "Kiểu nền", "enum": ["glass", "solid", "none"], "enumNames": ["Kính mờ", "Nền màu", "Không nền (viền chữ)"], "default": "glass" },
+      "align": { "type": "string", "title": "Canh lề", "enum": ["center", "left", "right"], "enumNames": ["Giữa", "Trái", "Phải"], "default": "center" },
+      "marquee": { "type": "boolean", "title": "Chạy chữ", "default": false },
+      "color": { "type": "string", "title": "Màu chữ", "format": "color", "maxLength": 9, "default": "#ffffff" },
+      "bg": { "type": "string", "title": "Màu nền (kiểu Nền màu)", "format": "color", "maxLength": 9, "default": "#7c3aed" }
+    }
+  }
+}

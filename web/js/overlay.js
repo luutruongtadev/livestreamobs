@@ -1,12 +1,18 @@
 // Overlay shell của nền tảng: nối WebSocket gateway, nạp game theo manifest, chạy engine NGAY TRONG TRÌNH DUYỆT.
 // Đường đi nóng: sự kiện TikTok → host.handle() (đồng bộ) → vẽ ở frame kế tiếp. Không chờ server.
 //   ?preview=1  chỉ hiển thị lại trạng thái của overlay chính (dashboard)   ?mute=1  ?debug=1  ?tts=0
-import { createHost, memoryStorage } from '#sdk';
+//   ?layer=game     chỉ game (không widget)      ?layer=widgets  chỉ widget Studio, nền trong suốt (đặt chồng lên camera)
+//   ?widgets=0      ẩn widget (trình chỉnh Studio dùng)   ?sound=1  cho overlay "chỉ widget" phát luật âm thanh
+import { createHost, memoryStorage, defaultBindings, triggerText, triggerIcon } from '#sdk';
+import { createStudioLayer } from './studio-layer.js';
 
 const qs = new URLSearchParams(location.search);
 const key = location.pathname.split('/').filter(Boolean)[1] || '';
 const preview = qs.get('preview') === '1';
 const options = { mute: qs.get('mute') === '1' || preview, debug: qs.get('debug') === '1', tts: qs.get('tts') !== '0' && !preview };
+const layer = ['game', 'widgets'].includes(qs.get('layer')) ? qs.get('layer') : 'all';
+const gameOn = layer !== 'widgets';
+const widgetsOn = layer !== 'game' && qs.get('widgets') !== '0';
 const $ = (id) => document.getElementById(id);
 const stage = $('stage'), badge = $('badge'), notice = $('notice'), soundBtn = $('sound');
 
@@ -20,6 +26,26 @@ const send = (m) => { if (ws?.readyState === 1) ws.send(JSON.stringify(m)); };
 const cfgKeyOf = (ch) => JSON.stringify([ch.game, ch.settings, ch.bindings]);
 const serverNow = () => Date.now() + offset;
 
+// lớp widget Studio (đè lên canvas game); âm thanh Studio chỉ phát ở overlay chính (hoặc overlay chỉ-widget có ?sound=1)
+const studio = widgetsOn ? createStudioLayer({ muted: options.mute, canSound: () => !preview && !options.mute && (role === 'leader' || (layer === 'widgets' && qs.get('sound') === '1')) }) : null;
+if (studio) stage.append(studio.el);
+let legendFor = '';
+/** Bảng quà cho widget: bindings của game đang chơi (hoặc mặc định trong manifest) → { icon, text, label }. */
+async function updateLegend(ch) {
+  if (!studio) return;
+  const key = JSON.stringify([ch.game, ch.bindings]);
+  if (key === legendFor) return;
+  legendFor = key;
+  try {
+    const manifest = game?.id === ch.game ? game.manifest : await fetchJson(`/games/${ch.game}/manifest.json`);
+    const label = (id) => manifest.actions?.find((a) => a.id === id)?.label || id;
+    studio.setLegend((ch.bindings ?? defaultBindings(manifest)).map((b) => ({ icon: triggerIcon(b.trigger), text: triggerText(b.trigger), label: b.label || label(b.action) })));
+  } catch { legendFor = ''; }
+}
+let studioKey = '';
+function setStudio(st) { const k = JSON.stringify(st || {}); if (k === studioKey) return; studioKey = k; studio.setStudio(st); } // không đổi → giữ widget (khỏi mất lịch sử bình luận)
+function onChannel(ch) { if (!studio) return; setStudio(ch.studio); updateLegend(ch); }
+
 // ---------------- lớp UI chung ----------------
 function showBadge(text, cls = '') { badge.textContent = text; badge.className = `ui ${cls}`; badge.style.display = text ? 'block' : 'none'; }
 function showNotice(text) { notice.textContent = text; notice.style.display = text ? 'flex' : 'none'; }
@@ -31,17 +57,21 @@ function refreshBadge() {
   showBadge(`⚠️ ${tk.message || 'TikTok chưa kết nối'}`, 'warn');
 }
 function fit() {
-  const c = game?.canvas; if (!c) return;
-  const s = Math.min(innerWidth / c.width, innerHeight / c.height);
-  c.style.width = `${c.width * s}px`; c.style.height = `${c.height * s}px`;
+  const c = game?.canvas;
+  const w = c?.width || 1080, h = c?.height || 1920;
+  const s = Math.min(innerWidth / w, innerHeight / h);
+  if (c) { c.style.width = `${w * s}px`; c.style.height = `${h * s}px`; }
+  stage.style.width = `${w * s}px`; stage.style.height = `${h * s}px`;
+  studio?.fit(s * (w / 1080));
 }
 addEventListener('resize', fit);
-soundBtn.onclick = () => { game?.view?.resumeAudio?.(); soundBtn.style.display = 'none'; };
+soundBtn.onclick = () => { game?.view?.resumeAudio?.(); studio?.resumeAudio(); soundBtn.style.display = 'none'; };
+fit();
 
 // ---------------- kết nối ----------------
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws?overlay=${encodeURIComponent(key)}${preview ? '&preview=1' : ''}${seq ? `&since=${seq}` : ''}`);
+  ws = new WebSocket(`${proto}://${location.host}/ws?overlay=${encodeURIComponent(key)}${preview ? '&preview=1' : ''}${gameOn ? '' : '&passive=1'}${seq ? `&since=${seq}` : ''}`);
   ws.onopen = () => { wsOk = true; retry = 500; refreshBadge(); ping(); };
   ws.onclose = (e) => {
     wsOk = false; refreshBadge();
@@ -71,14 +101,20 @@ async function onMsg(m) {
     case 'hello':
       tk = m.tk; showNotice('');
       if (m.now) offset = m.now - Date.now();
+      onChannel(m.channel);
+      if (!gameOn) { role = m.role; refreshBadge(); break; }
       // nối lại sau khi rớt mạng: cấu hình không đổi → giữ nguyên game đang chạy (chỉ nhận bù sự kiện theo seq)
       if (game && game.cfgKey === cfgKeyOf(m.channel) && (m.role === 'leader') === !!game.host) { role = m.role; refreshBadge(); break; }
       role = m.role;
       await loadGame(m.channel);
       break;
-    case 'role': role = m.role; await loadGame(m.channel); break;
-    case 'cfg': await loadGame(m.channel); break;
+    case 'role': role = m.role; onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
+    case 'cfg': onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
+    case 'studio': if (studio) setStudio(m.studio); break;
+    case 'st': studio?.setStats(m.st); break;
+    case 'sx': if (role !== 'leader') studio?.event(m.e); break;
     case 'ev':
+      if (role === 'leader' && m.e.seq > seq && !m.replay) studio?.event(m.e);
       if (role !== 'leader' || !game?.host || m.e.seq <= seq) return;
       seq = m.e.seq;
       onEvent(m.e, !!m.replay);
@@ -124,11 +160,12 @@ async function loadGame(ch) {
     unloadGame();
     const canvas = document.createElement('canvas');
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
-    stage.replaceChildren(canvas);
+    stage.replaceChildren(canvas, ...(studio ? [studio.el] : []));
     const view = render.mount(stage, { canvas, options, sound: null });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     fit();
     if (role === 'leader') startHost({ ...ch, state: carry ?? ch.state }, { manifest, schema, createGame: engine.createGame }, data);
+    updateLegend(ch);
     if (!preview && !options.mute) { soundBtn.style.display = 'block'; setTimeout(() => { soundBtn.style.display = 'none'; }, 10_000); }
     refreshBadge();
   } catch (e) {
@@ -197,5 +234,6 @@ setInterval(() => {
 
 addEventListener('pagehide', () => { if (role === 'leader' && game?.host) send({ t: 'save', game: game.id, state: game.host.serialize() }); });
 
+if (layer === 'widgets') document.documentElement.style.background = 'transparent';
 if (!key) showNotice('Thiếu mã overlay trong link.');
 else connect();

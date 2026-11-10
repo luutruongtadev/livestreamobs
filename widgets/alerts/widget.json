@@ -1,0 +1,20 @@
+{
+  "id": "alerts",
+  "name": "Thông báo quà",
+  "icon": "🔔",
+  "description": "Thẻ thông báo nổi lên khi có quà, follow, share hoặc người vào live — xếp hàng lần lượt, không chồng nhau.",
+  "size": { "w": 820, "h": 200 },
+  "minSize": { "w": 420, "h": 140 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "gifts": { "type": "boolean", "title": "Quà", "default": true },
+      "minDiamonds": { "type": "integer", "title": "Chỉ báo quà từ bao nhiêu xu (tổng lần tặng)", "minimum": 1, "maximum": 100000, "default": 1 },
+      "follows": { "type": "boolean", "title": "Follow", "default": true },
+      "shares": { "type": "boolean", "title": "Share", "default": true },
+      "members": { "type": "boolean", "title": "Người vào live", "default": false },
+      "seconds": { "type": "integer", "title": "Mỗi thẻ hiện (giây)", "minimum": 2, "maximum": 15, "default": 4 },
+      "color": { "type": "string", "title": "Màu nhấn", "format": "color", "maxLength": 9, "default": "#f472b6" }
+    }
+  }
+}

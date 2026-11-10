@@ -1,0 +1,16 @@
+{
+  "id": "giftlegend",
+  "name": "Bảng quà",
+  "icon": "🎁",
+  "description": "Quà / tim / follow nào làm gì trong game đang chơi — tự lấy từ tab Quà & tương tác, đổi game là đổi theo.",
+  "size": { "w": 520, "h": 420 },
+  "minSize": { "w": 300, "h": 180 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "title": "Tiêu đề", "maxLength": 40, "default": "Tặng quà để…" },
+      "rows": { "type": "integer", "title": "Số dòng tối đa", "minimum": 2, "maximum": 10, "default": 5 },
+      "color": { "type": "string", "title": "Màu nhấn", "format": "color", "maxLength": 9, "default": "#a78bfa" }
+    }
+  }
+}

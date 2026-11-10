@@ -1,0 +1,16 @@
+{
+  "id": "chat",
+  "name": "Bình luận",
+  "icon": "💬",
+  "description": "Bình luận mới nhất của người xem (dòng mới hiện dưới cùng).",
+  "size": { "w": 560, "h": 480 },
+  "minSize": { "w": 300, "h": 160 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "rows": { "type": "integer", "title": "Số dòng", "minimum": 3, "maximum": 15, "default": 6 },
+      "gifts": { "type": "boolean", "title": "Hiện cả quà trong khung", "default": true },
+      "panel": { "type": "boolean", "title": "Có nền", "default": true }
+    }
+  }
+}

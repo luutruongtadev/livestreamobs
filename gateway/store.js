@@ -60,7 +60,7 @@ export class FileStore {
   async getChannel(id) { return this.db.channels[id] || null; }
   async listChannels(owner) { return Object.values(this.db.channels).filter((c) => c.owner_id === owner); }
   async createChannel(owner, username, game = 'doantu') {
-    const c = { id: crypto.randomUUID(), owner_id: owner, platform: 'tiktok', username: checkUsername(username), overlay_key: newKey(), active_game: game, games: {}, created_at: new Date().toISOString() };
+    const c = { id: crypto.randomUUID(), owner_id: owner, platform: 'tiktok', username: checkUsername(username), overlay_key: newKey(), active_game: game, games: {}, studio: {}, created_at: new Date().toISOString() };
     this.db.channels[c.id] = c; this.save(); return c;
   }
   async updateChannel(id, patch) {
@@ -68,6 +68,7 @@ export class FileStore {
     if (patch.username != null) c.username = checkUsername(patch.username);
     if (patch.active_game != null) c.active_game = String(patch.active_game);
     if (patch.overlay_key != null) c.overlay_key = patch.overlay_key;
+    if (patch.studio != null) c.studio = patch.studio;
     this.save(); return c;
   }
   async deleteChannel(id) { delete this.db.channels[id]; this.save(); }
@@ -157,6 +158,7 @@ export class SupabaseStore {
     if (patch.username != null) body.username = checkUsername(patch.username);
     if (patch.active_game != null) body.active_game = String(patch.active_game);
     if (patch.overlay_key != null) body.overlay_key = patch.overlay_key;
+    if (patch.studio != null) body.studio = patch.studio;
     await this.rest('PATCH', 'channels', `id=eq.${id}`, body);
     return this.getChannel(id);
   }

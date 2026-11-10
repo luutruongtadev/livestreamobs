@@ -136,7 +136,7 @@ logoutBtn.onclick = async () => { if (supabase) await supabase.auth.signOut(); e
 // ---------------- WebSocket tới gateway ----------------
 let ws = null, reqId = 0;
 const waits = new Map();
-const S = { user: null, games: [], channels: [], cur: null, tk: null, counts: {}, lat: null, feed: [], tab: 'live' };
+const S = { user: null, games: [], channels: [], cur: null, tk: null, counts: {}, lat: null, feed: [], tab: (() => { try { return localStorage.getItem('tab') || 'live'; } catch { return 'live'; } })() };
 
 function req(op, p = {}) {
   return new Promise((resolve, reject) => {
@@ -160,13 +160,14 @@ async function start() {
   };
   ws.onmessage = (m) => {
     const msg = JSON.parse(m.data);
-    if (msg.t === 'authed') { S.user = msg.user; S.games = msg.games; S.storeKind = msg.store; onAuthed(); return; }
+    if (msg.t === 'authed') { S.user = msg.user; S.games = msg.games; S.widgets = msg.widgets || []; S.storeKind = msg.store; onAuthed(); return; }
     if (msg.t === 'res') { const w = waits.get(msg.id); if (w) { waits.delete(msg.id); msg.err ? w.reject(new Error(msg.err)) : w.resolve(msg.r); } return; }
     if (msg.channel && msg.channel !== S.cur?.id) return;
     if (msg.t === 'tk') { S.tk = msg.tk; paintStatus(); }
     else if (msg.t === 'overlays') { S.counts = msg; paintStatus(); }
     else if (msg.t === 'lat') { S.lat = msg.lat; paintStatus(); }
     else if (msg.t === 'ev') pushFeed(msg.e);
+    else if (msg.t === 'st') S.st = msg.st;
     else if (msg.t === 'err') { pushFeed({ type: 'error', text: `${msg.err.where}: ${msg.err.message}${msg.err.crashed ? ' (game đã dừng, đang chạy lại)' : ''}` }); }
   };
 }
@@ -185,7 +186,7 @@ async function select(id) {
   S.cur = channel; S.feed = []; S.lat = null;
   try { localStorage.setItem('curChannel', id); } catch { /* bỏ qua */ }
   const w = await req('watch', { channel: id });
-  S.tk = w.tk; S.counts = w; S.lat = w.lat;
+  S.tk = w.tk; S.counts = w; S.lat = w.lat; S.st = w.st;
   render();
 }
 
@@ -216,13 +217,14 @@ function addChannelForm() {
 function channelView() {
   const c = S.cur;
   const g = gameOf(c.active_game);
-  const tabs = [['live', '🎛 Điều khiển'], ['settings', '⚙️ Cài đặt game'], ['bindings', '🎁 Quà & tương tác'], ['board', '🏆 Bảng xếp hạng'], ['channel', '🔗 Kênh']];
-  const body = { live: liveTab, settings: settingsTab, bindings: bindingsTab, board: boardTab, channel: channelTab }[S.tab](c, g);
+  const tabs = [['live', '🎛 Điều khiển'], ['studio', '🎬 Studio'], ['sounds', '🔊 Âm thanh'], ['settings', '⚙️ Cài đặt game'], ['bindings', '🎁 Quà & tương tác'], ['board', '🏆 Bảng xếp hạng'], ['channel', '🔗 Kênh']];
+  if (!tabs.some(([k]) => k === S.tab)) S.tab = 'live';
+  const body = { live: liveTab, studio: studioTab, sounds: soundsTab, settings: settingsTab, bindings: bindingsTab, board: boardTab, channel: channelTab }[S.tab](c, g);
   return h('div', {},
     h('div', { class: 'card' },
       h('div', { class: 'row' }, h('h2', { class: 'grow' }, `@${c.username} · ${g?.name || c.active_game}`), h('span', { id: 'status' })),
       h('div', { class: 'row small', id: 'latency' }),
-      h('div', { class: 'row', style: 'margin-top:10px' }, tabs.map(([k, label]) => h('button', { class: S.tab === k ? '' : 'ghost', onclick: () => { S.tab = k; render(); } }, label)))),
+      h('div', { class: 'row', style: 'margin-top:10px' }, tabs.map(([k, label]) => h('button', { class: S.tab === k ? '' : 'ghost', onclick: () => { S.tab = k; try { localStorage.setItem('tab', k); } catch { /* bỏ qua */ } render(); } }, label)))),
     body);
 }
 
@@ -278,12 +280,15 @@ function liveTab(c, g) {
 // ---- tab Cài đặt: form sinh từ JSON Schema ----
 function fieldFor(key, sch, value, onChange) {
   let input;
+  const nameOf = (list, names, o) => names?.[list.indexOf(o)] ?? o; // enumNames: nhãn hiển thị cho từng giá trị
   if (sch.type === 'boolean') input = h('input', { type: 'checkbox', checked: !!value, onchange: (e) => onChange(e.target.checked) });
   else if (sch.type === 'integer' || sch.type === 'number') input = h('input', { type: 'number', value: value ?? '', min: sch.minimum, max: sch.maximum, step: sch.type === 'integer' ? 1 : 'any', onchange: (e) => onChange(e.target.value === '' ? undefined : Number(e.target.value)) });
-  else if (sch.type === 'string' && sch.enum) input = h('select', { onchange: (e) => onChange(e.target.value) }, sch.enum.map((o) => h('option', { value: o, selected: o === value }, o)));
+  else if (sch.type === 'string' && sch.enum) input = h('select', { onchange: (e) => onChange(e.target.value) }, sch.enum.map((o) => h('option', { value: o, selected: o === value }, nameOf(sch.enum, sch.enumNames, o))));
+  else if (sch.type === 'string' && sch.format === 'color') input = h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#ffffff', oninput: (e) => onChange(e.target.value) });
   else if (sch.type === 'array' && sch.items?.enum) {
     const cur = new Set(value || []);
-    input = h('div', { class: 'checks' }, sch.items.enum.map((o) => h('label', {}, h('input', { type: 'checkbox', checked: cur.has(o), onchange: (e) => { e.target.checked ? cur.add(o) : cur.delete(o); onChange(sch.items.enum.filter((x) => cur.has(x))); } }), ` ${o}`)));
+    const names = sch.enumNames || sch.items.enumNames;
+    input = h('div', { class: 'checks' }, sch.items.enum.map((o) => h('label', {}, h('input', { type: 'checkbox', checked: cur.has(o), onchange: (e) => { e.target.checked ? cur.add(o) : cur.delete(o); onChange(sch.items.enum.filter((x) => cur.has(x))); } }), ` ${nameOf(sch.items.enum, names, o)}`)));
   } else if (sch.type === 'array') input = h('input', { value: (value || []).join(', '), onchange: (e) => onChange(e.target.value.split(',').map((x) => x.trim()).filter(Boolean).map((x) => (sch.items?.type === 'integer' || sch.items?.type === 'number' ? Number(x) : x))) });
   else input = h('input', { value: value ?? '', maxLength: sch.maxLength, onchange: (e) => onChange(e.target.value) });
   return h('div', { class: 'field' }, h('label', {}, sch.title || key, sch.minimum != null || sch.maximum != null ? h('span', { class: 'small muted' }, ` (${sch.minimum ?? ''}–${sch.maximum ?? ''})`) : ''), input);
@@ -323,16 +328,23 @@ function bindingsTab(c, g) {
       h('button', { class: 'ghost', onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, bindings: null }); toast('Đã về mặc định của game'); render(); } catch (e) { toast(e.message, true); } } }, 'Về mặc định')));
 }
 
-function trigRow(b, remove, c) {
-  const t = b.trigger;
-  const type = h('select', { onchange: (e) => { b.trigger = { type: e.target.value, ...(e.target.value === 'like' ? { every: 100 } : e.target.value === 'gift' ? { minDiamonds: 1 } : e.target.value === 'keyword' ? { text: '' } : {}) }; row.replaceWith(trigRow(b, remove, c)); } },
-    Object.entries(TRIG_LABEL).map(([k, v]) => h('option', { value: k, selected: k === t.type }, v)));
+/** Trigger mới khi đổi loại (giá trị mặc định hợp lý). */
+const freshTrigger = (type) => ({ type, ...(type === 'like' ? { every: 100 } : type === 'gift' ? { minDiamonds: 1 } : type === 'keyword' ? { text: '' } : {}) });
+/** Các ô nhập của một trigger (sửa trực tiếp object t). Dùng cho gán quà của game và luật âm thanh Studio. */
+function trigFields(t) {
   const num = (k, ph) => h('input', { type: 'number', min: k === 'every' ? 1 : 0, placeholder: ph, value: t[k] ?? '', onchange: (e) => { if (e.target.value === '') delete t[k]; else t[k] = Number(e.target.value); } });
   const names = h('input', { class: 'wide', placeholder: 'Tên quà (cách nhau dấu phẩy) — bỏ trống = theo xu', value: [t.giftName, ...(t.gifts || [])].filter(Boolean).join(', '), onchange: (e) => { const v = e.target.value.split(',').map((x) => x.trim()).filter(Boolean); delete t.giftName; delete t.gifts; if (v.length === 1) t.giftName = v[0]; else if (v.length) t.gifts = v; } });
-  const fields = t.type === 'gift' ? [names, 'hoặc ≥', num('minDiamonds', 'xu'), 'gom', num('every', 'N món')]
+  return t.type === 'gift' ? [names, 'hoặc ≥', num('minDiamonds', 'xu'), 'gom', num('every', 'N món')]
     : t.type === 'like' ? ['mỗi', num('every', 'N tim'), 'tim']
     : t.type === 'keyword' ? [h('input', { placeholder: 'cụm từ', value: t.text || '', onchange: (e) => { t.text = e.target.value; } }), 'chờ', num('cooldownSec', 'giây'), 'giây / người']
     : ['gom', num('every', 'N lần')];
+}
+
+function trigRow(b, remove, c) {
+  const t = b.trigger;
+  const type = h('select', { onchange: (e) => { b.trigger = freshTrigger(e.target.value); row.replaceWith(trigRow(b, remove, c)); } },
+    Object.entries(TRIG_LABEL).map(([k, v]) => h('option', { value: k, selected: k === t.type }, v)));
+  const fields = trigFields(t);
   const test = h('button', { class: 'ghost small', title: 'Bắn một sự kiện giả khớp dòng này', onclick: () => {
     const user = { id: 'test', name: 'Người thử' };
     const e = t.type === 'gift' ? { type: 'gift', user, giftName: t.giftName || t.gifts?.[0] || 'Quà thử', diamonds: t.minDiamonds ?? 1, count: t.every || 1 }
@@ -370,6 +382,161 @@ function channelTab(c) {
     h('div', { class: 'card' }, h('h2', {}, 'Username TikTok'), h('div', { class: 'row' }, user,
       h('button', { onclick: async () => { try { S.cur = await req('update', { channel: c.id, username: user.value }); refreshList(); toast('Đã lưu'); } catch (e) { toast(e.message, true); } } }, 'Lưu')),
       h('h3', {}, 'Xoá kênh'), h('button', { class: 'danger', onclick: async () => { if (!confirm(`Xoá kênh @${c.username}? Không hoàn tác được.`)) return; await req('delete', { channel: c.id }); S.channels = S.channels.filter((x) => x.id !== c.id); S.cur = null; render(); } }, 'Xoá kênh')));
+}
+
+// ---- tab Studio: kéo thả widget lên khung 9:16 (dùng chung mọi game) ----
+const STAGE_W = 405, SCALE = STAGE_W / 1080, SNAP = 10;
+const widgetMod = new Map();
+const loadWidget = (type) => { if (!widgetMod.has(type)) widgetMod.set(type, import(`/widgets/${type}/index.js`)); return widgetMod.get(type); };
+const metaOf = (type) => (S.widgets || []).find((w) => w.id === type);
+const defaultsOf = (meta) => Object.fromEntries(Object.entries(meta?.schema?.properties || {}).map(([k, s]) => [k, s.default]));
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const studioOf = (c) => JSON.parse(JSON.stringify({ widgets: [], sounds: [], ...(c.studio || {}) }));
+const overlayLinks = (c) => [
+  ['Đầy đủ (game + widget)', overlayUrl(c)],
+  ['Chỉ game', `${overlayUrl(c)}?layer=game`],
+  ['Chỉ widget (nền trong suốt, đặt chồng lên camera)', `${overlayUrl(c)}?layer=widgets`],
+];
+
+function studioTab(c) {
+  const draft = studioOf(c);
+  let sel = draft.widgets[0]?.id || null;
+  let dirty = false;
+  const views = new Map(); // id → { box, inst }
+  const editLayer = h('div', { class: 'st-edit', style: `width:1080px;height:1920px;transform:scale(${SCALE})` });
+  const inspector = h('div', {});
+  const saveBtn = h('button', {}, 'Lưu & áp dụng');
+  const markDirty = () => { dirty = true; saveBtn.textContent = '● Lưu & áp dụng'; };
+
+  function place(w, box) { Object.assign(box.style, { left: `${w.x}px`, top: `${w.y}px`, width: `${w.w}px`, height: `${w.h}px` }); }
+  function mountView(w) {
+    const old = views.get(w.id);
+    try { old?.inst?.destroy(); } catch { /* bỏ qua */ }
+    const box = old?.box || h('div', { class: 'st-box' });
+    box.replaceChildren();
+    const body = h('div', { class: 'st-body' });
+    const handle = h('div', { class: 'st-handle', title: 'Kéo để đổi kích thước' });
+    box.append(body, handle, h('div', { class: 'st-tag' }, `${metaOf(w.type)?.icon || ''} ${metaOf(w.type)?.name || w.type}`));
+    place(w, box);
+    box.classList.toggle('on', w.id === sel);
+    const v = { box, inst: null };
+    views.set(w.id, v);
+    if (!box.isConnected) editLayer.append(box);
+    loadWidget(w.type).then((mod) => { v.inst = mod.mount(body, { config: w.config, editing: true }); }).catch((e) => body.append(`Lỗi widget: ${e.message}`));
+    // kéo để di chuyển / kéo góc để đổi kích thước (toạ độ theo khung 1080×1920)
+    box.onpointerdown = (e) => {
+      e.preventDefault();
+      select(w.id);
+      const resize = e.target === handle;
+      const sx = e.clientX, sy = e.clientY, ox = w.x, oy = w.y, ow = w.w, oh = w.h;
+      const min = metaOf(w.type)?.minSize || { w: 120, h: 60 };
+      box.setPointerCapture(e.pointerId);
+      box.onpointermove = (m) => {
+        const dx = (m.clientX - sx) / SCALE, dy = (m.clientY - sy) / SCALE;
+        const snap = (v) => Math.round(v / SNAP) * SNAP;
+        if (resize) { w.w = clampN(snap(ow + dx), min.w, 1080 - w.x); w.h = clampN(snap(oh + dy), min.h, 1920 - w.y); }
+        else { w.x = clampN(snap(ox + dx), 0, 1080 - w.w); w.y = clampN(snap(oy + dy), 0, 1920 - w.h); }
+        place(w, box); markDirty();
+      };
+      box.onpointerup = () => { box.onpointermove = null; box.onpointerup = null; if (w.x !== ox || w.y !== oy || w.w !== ow || w.h !== oh) { if (resize) mountView(w); paintInspector(); } };
+    };
+  }
+  function paintStage() {
+    for (const v of views.values()) { try { v.inst?.destroy(); } catch { /* bỏ qua */ } v.box.remove(); }
+    views.clear();
+    draft.widgets.forEach(mountView); // thứ tự trong mảng = thứ tự lớp (sau đè trước)
+  }
+  function select(id) {
+    sel = id;
+    for (const [k, v] of views) v.box.classList.toggle('on', k === id);
+    paintInspector();
+  }
+  function add(meta) {
+    const size = meta.size || { w: 500, h: 200 };
+    const n = draft.widgets.length;
+    const w = { id: `${meta.id}-${Date.now().toString(36)}`, type: meta.id, x: Math.round((1080 - size.w) / 2 / SNAP) * SNAP, y: clampN(320 + n * 60, 0, 1920 - size.h), w: size.w, h: size.h, config: defaultsOf(meta) };
+    draft.widgets.push(w); markDirty(); mountView(w); select(w.id);
+  }
+  function paintInspector() {
+    const w = draft.widgets.find((x) => x.id === sel);
+    if (!w) return inspector.replaceChildren(h('p', { class: 'muted small' }, 'Bấm vào một widget trên khung để chỉnh, hoặc thêm widget từ thư viện bên trái.'));
+    const meta = metaOf(w.type);
+    const props = meta?.schema?.properties || {};
+    const numIn = (k, max) => h('input', { type: 'number', value: w[k], min: 0, max, step: SNAP, style: 'width:80px', onchange: (e) => { w[k] = clampN(Math.round(Number(e.target.value) || 0), 0, max); markDirty(); mountView(w); } });
+    const i = draft.widgets.indexOf(w);
+    inspector.replaceChildren(
+      h('h3', {}, `${meta?.icon || ''} ${meta?.name || w.type}`), h('p', { class: 'small muted' }, meta?.description || ''),
+      ...Object.entries(props).map(([k, s]) => fieldFor(k, s, w.config[k], (v) => { w.config[k] = v; markDirty(); mountView(w); })),
+      h('div', { class: 'row small', style: 'margin-top:10px' }, 'x', numIn('x', 1080), 'y', numIn('y', 1920), 'rộng', numIn('w', 1080), 'cao', numIn('h', 1920)),
+      h('div', { class: 'row', style: 'margin-top:10px' },
+        h('button', { class: 'ghost small', disabled: i === draft.widgets.length - 1, onclick: () => { draft.widgets.splice(i, 1); draft.widgets.splice(i + 1, 0, w); markDirty(); paintStage(); select(w.id); } }, '⬆ Lên trên'),
+        h('button', { class: 'ghost small', disabled: i === 0, onclick: () => { draft.widgets.splice(i, 1); draft.widgets.splice(i - 1, 0, w); markDirty(); paintStage(); select(w.id); } }, '⬇ Xuống dưới'),
+        h('button', { class: 'ghost small', onclick: () => { const cp = { ...JSON.parse(JSON.stringify(w)), id: `${w.type}-${Date.now().toString(36)}`, y: clampN(w.y + 40, 0, 1920 - w.h) }; draft.widgets.push(cp); markDirty(); mountView(cp); select(cp.id); } }, '⧉ Nhân bản'),
+        h('button', { class: 'danger small', onclick: () => { draft.widgets.splice(i, 1); const v = views.get(w.id); try { v?.inst?.destroy(); } catch { /* bỏ qua */ } v?.box.remove(); views.delete(w.id); markDirty(); select(draft.widgets.at(-1)?.id || null); } }, '✕ Xoá')));
+  }
+  saveBtn.onclick = async () => {
+    try { S.cur = await req('studio', { channel: c.id, studio: draft }); dirty = false; toast('Đã lưu — overlay cập nhật ngay, không cần tải lại'); render(); } catch (e) { toast(e.message, true); }
+  };
+  window.onbeforeunload = (e) => { if (dirty && S.tab === 'studio') e.preventDefault(); };
+
+  const stage = h('div', { class: 'st-stage', style: `width:${STAGE_W}px;height:${STAGE_W * 16 / 9}px` },
+    h('iframe', { class: 'st-frame', src: `/o/${c.overlay_key}?preview=1&widgets=0`, title: 'Game (xem trước)', style: `transform:scale(${SCALE})` }),
+    editLayer);
+  paintStage(); paintInspector();
+  const lib = h('div', { class: 'st-lib' }, (S.widgets || []).map((m) => h('button', { class: 'ghost', title: m.description, onclick: () => add(m) }, h('span', { class: 'st-ico' }, m.icon), h('span', {}, m.name))));
+  return h('div', {},
+    h('div', { class: 'card' },
+      h('div', { class: 'row' }, h('h2', { class: 'grow' }, '🎬 Studio — bố cục widget trên khung 9:16'), saveBtn,
+        h('button', { class: 'ghost', onclick: () => { if (!dirty || confirm('Bỏ các thay đổi chưa lưu?')) render(); } }, 'Hoàn tác'),
+        h('button', { class: 'ghost', title: 'Đếm lại xu / tim / follow / top tặng quà từ 0', onclick: async () => { if (!confirm('Đặt lại số liệu phiên (xu, tim, follow, top tặng quà) về 0?')) return; try { await req('stats-reset', { channel: c.id }); toast('Đã đặt lại số liệu phiên'); } catch (e) { toast(e.message, true); } } }, '↺ Đặt lại số liệu')),
+      h('p', { class: 'small muted' }, 'Kéo widget để di chuyển, kéo góc dưới phải để đổi kích thước (bước 10px). Widget dùng chung cho mọi game; đổi game không mất bố cục. Nền là game đang chạy (cần mở overlay chính).'),
+      h('div', { class: 'st-grid' }, h('div', {}, h('h3', {}, 'Thư viện'), lib), stage, h('div', {}, h('h3', {}, 'Cài đặt widget'), inspector))),
+    h('div', { class: 'card' }, h('h2', {}, 'Link overlay theo lớp'),
+      overlayLinks(c).map(([label, url]) => h('div', { class: 'row', style: 'margin-bottom:6px' }, h('span', { style: 'min-width:260px' }, label), h('input', { value: url, readOnly: true, class: 'grow', onclick: (e) => e.target.select() }),
+        h('button', { class: 'ghost', onclick: () => navigator.clipboard.writeText(url).then(() => toast('Đã copy')) }, 'Copy'))),
+      h('p', { class: 'small muted' }, 'Dùng một link "Đầy đủ" là đủ. Muốn đặt widget chồng lên camera / game khác thì thêm link "Chỉ widget" thành một Browser source riêng (1080×1920) — âm thanh Studio phát ở overlay chính; overlay chỉ-widget thêm &sound=1 nếu muốn nó phát.')));
+}
+
+// ---- tab Âm thanh: luật "khi … thì phát …" (Studio, dùng chung mọi game) ----
+let soundLib = null, soundPlayer = null;
+async function sounds() {
+  if (!soundLib) { soundLib = await import('/web/js/sounds.js'); soundPlayer = soundLib.createSoundPlayer(); }
+  return soundLib;
+}
+const WHEN_LABEL = { ...TRIG_LABEL, goal: '🎯 Đạt mục tiêu' };
+
+function soundsTab(c) {
+  const draft = studioOf(c);
+  const box = h('div', {}, h('p', { class: 'muted' }, 'Đang tải thư viện âm thanh…'));
+  sounds().then(({ SOUNDS }) => {
+    const goals = draft.widgets.filter((w) => w.type === 'goal');
+    const row = (r) => {
+      const t = r.when;
+      const type = h('select', { onchange: (e) => { r.when = e.target.value === 'goal' ? { type: 'goal' } : freshTrigger(e.target.value); el.replaceWith(row(r)); } },
+        Object.entries(WHEN_LABEL).map(([k, v]) => h('option', { value: k, selected: k === t.type }, v)));
+      const fields = t.type === 'goal'
+        ? [h('select', { onchange: (e) => { if (e.target.value) t.goal = e.target.value; else delete t.goal; } }, h('option', { value: '' }, 'mục tiêu bất kỳ'), goals.map((g) => h('option', { value: g.id, selected: g.id === t.goal }, g.config?.title || g.id)))]
+        : trigFields(t);
+      const url = h('input', { class: 'wide', placeholder: 'https://…/am-thanh.mp3', value: r.url || '', hidden: r.sound !== 'url', onchange: (e) => { r.url = e.target.value.trim(); } });
+      const snd = h('select', { onchange: (e) => { r.sound = e.target.value; url.hidden = r.sound !== 'url'; } },
+        SOUNDS.map((x) => h('option', { value: x.id, selected: x.id === r.sound }, x.name)), h('option', { value: 'url', selected: r.sound === 'url' }, '🔗 Link riêng (https)'));
+      const vol = h('input', { type: 'range', min: 0, max: 1, step: 0.05, value: r.volume ?? 0.8, style: 'width:90px', title: 'Âm lượng', oninput: (e) => { r.volume = Number(e.target.value); } });
+      const el = h('div', { class: 'trig' }, 'Khi', type, fields, '→ phát', snd, url, vol,
+        h('button', { class: 'ghost small', title: 'Nghe thử', onclick: () => { soundPlayer.resume(); soundPlayer.play(r.sound, { volume: r.volume ?? 0.8, url: r.url }); } }, '▶'),
+        h('button', { class: 'ghost small', onclick: () => { draft.sounds.splice(draft.sounds.indexOf(r), 1); el.remove(); } }, '✕'));
+      return el;
+    };
+    const list = h('div', {}, draft.sounds.map(row));
+    box.replaceChildren(list,
+      h('div', { class: 'row', style: 'margin-top:10px' },
+        h('button', { class: 'ghost', onclick: () => { const r = { id: `s${Date.now().toString(36)}`, when: { type: 'gift', minDiamonds: 1 }, sound: 'coin', volume: 0.8 }; draft.sounds.push(r); list.append(row(r)); } }, '+ Thêm luật'),
+        h('button', { onclick: async () => { try { S.cur = await req('studio', { channel: c.id, studio: draft }); toast('Đã lưu luật âm thanh'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu')),
+      h('h3', {}, 'Thư viện (bấm để nghe)'),
+      h('div', { class: 'row' }, SOUNDS.map((x) => h('button', { class: 'ghost small', onclick: () => { soundPlayer.resume(); soundPlayer.play(x.id); } }, x.name))));
+  });
+  return h('div', { class: 'card' }, h('h2', {}, '🔊 Âm thanh — khi … thì phát …'),
+    h('p', { class: 'small muted' }, 'Âm thanh phát trên overlay chính (thứ OBS / LIVE Studio thu), không phát ở dashboard. Một món quà khớp tối đa một luật quà (theo tên trước, rồi theo xu). Tối đa 4 âm / giây để không ồn.'),
+    box);
 }
 
 async function refreshList() { S.channels = await req('channels'); render(); }

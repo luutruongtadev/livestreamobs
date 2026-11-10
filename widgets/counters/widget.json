@@ -1,0 +1,14 @@
+{
+  "id": "counters",
+  "name": "Bộ đếm",
+  "icon": "🔢",
+  "description": "Các con số của buổi live: tim, follow, share, xu, bình luận.",
+  "size": { "w": 900, "h": 130 },
+  "minSize": { "w": 240, "h": 90 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "metrics": { "type": "array", "title": "Hiện", "items": { "type": "string", "enum": ["likes", "follows", "shares", "diamonds", "comments", "gifts"] }, "enumNames": ["Tim", "Follow", "Share", "Xu", "Bình luận", "Quà"], "uniqueItems": true, "maxItems": 6, "default": ["likes", "follows", "shares", "diamonds"] }
+    }
+  }
+}

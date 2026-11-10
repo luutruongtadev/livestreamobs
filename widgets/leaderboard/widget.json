@@ -1,0 +1,17 @@
+{
+  "id": "leaderboard",
+  "name": "Bảng xếp hạng",
+  "icon": "🏆",
+  "description": "Top người tặng quà buổi live này, hoặc top điểm tuần (cộng từ mọi game) của kênh.",
+  "size": { "w": 520, "h": 520 },
+  "minSize": { "w": 320, "h": 220 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "source": { "type": "string", "title": "Xếp theo", "enum": ["gifters", "week"], "enumNames": ["Xu quà buổi live này", "Điểm game tuần này"], "default": "gifters" },
+      "title": { "type": "string", "title": "Tiêu đề", "maxLength": 40, "default": "Top tặng quà" },
+      "rows": { "type": "integer", "title": "Số dòng", "minimum": 3, "maximum": 10, "default": 5 },
+      "color": { "type": "string", "title": "Màu nhấn", "format": "color", "maxLength": 9, "default": "#fde047" }
+    }
+  }
+}

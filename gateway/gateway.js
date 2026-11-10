@@ -2,8 +2,9 @@
 // Mỗi kênh một ChannelRuntime: kết nối TikTok (đếm số overlay), seq + bộ đệm gửi bù, leader / follower,
 // định tuyến { t:'g' } tới phần server của game (timeout + giới hạn tần suất), lệnh / giả lập từ dashboard.
 import { WebSocketServer } from 'ws';
-import { EVENT_TYPES, resolveSettings, triggerErrors, TRIGGER_TYPES } from '#sdk';
+import { EVENT_TYPES, resolveSettings } from '#sdk';
 import { newKey } from './store.js';
+import { checkStudio, cleanTrigger, SessionStats } from './studio.js';
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
 const str = (v, max) => String(v ?? '').slice(0, max);
@@ -27,16 +28,7 @@ export function checkBindings(bindings, manifest) {
   const actions = new Set((manifest.actions || []).map((a) => a.id));
   return bindings.map((b, i) => {
     if (!actions.has(b?.action)) throw new Error(`bindings[${i}]: action "${b?.action}" không có trong game`);
-    const t = b.trigger || {};
-    const trigger = { type: t.type };
-    if (t.giftName) trigger.giftName = str(t.giftName, 40);
-    if (Array.isArray(t.gifts)) trigger.gifts = t.gifts.slice(0, 20).map((g) => str(g, 40)).filter(Boolean);
-    if (t.minDiamonds != null) trigger.minDiamonds = num(t.minDiamonds, 0, 100000);
-    if (t.every != null) trigger.every = Math.round(num(t.every, 1, 1_000_000, 1));
-    if (t.text) trigger.text = str(t.text, 40);
-    if (t.cooldownSec != null) trigger.cooldownSec = num(t.cooldownSec, 0, 3600);
-    const errs = TRIGGER_TYPES.includes(trigger.type) ? triggerErrors(trigger, `bindings[${i}]`) : [`bindings[${i}]: trigger không hợp lệ`];
-    if (errs.length) throw new Error(errs[0]);
+    const trigger = cleanTrigger(b.trigger || {}, `bindings[${i}]`);
     const a = manifest.actions.find((x) => x.id === b.action);
     return { id: str(b.id || `${b.action}.${i}`, 40), action: b.action, trigger, label: str(b.label || a.label, 60), icon: b.icon ? str(b.icon, 8) : a.icon || null, params: a.params || {} };
   });
@@ -64,25 +56,30 @@ class ChannelRuntime {
     this.saveTimer = null;
     this.session = null;
     this.tkDelays = [];
+    this.stats = new SessionStats(); // số liệu phiên live cho widget Studio (xu, tim, top tặng quà…)
+    this.lb = null; this.lbAt = 0; // BXH tuần cho widget bảng xếp hạng (nạp định kỳ)
   }
 
   view() {
     const g = this.cfg.games?.[this.cfg.active_game] || {};
-    return { id: this.id, username: this.cfg.username, game: this.cfg.active_game, settings: g.settings || {}, bindings: g.bindings ?? null, state: g.state ?? null };
+    return { id: this.id, username: this.cfg.username, game: this.cfg.active_game, settings: g.settings || {}, bindings: g.bindings ?? null, state: g.state ?? null, studio: this.cfg.studio || {} };
   }
   counts() { const o = [...this.overlays]; return { overlays: o.filter((w) => !w.preview).length, previews: o.filter((w) => w.preview).length, leader: !!this.leader }; }
   notify(msg) { const s = JSON.stringify({ ...msg, channel: this.id }); for (const w of this.watchers) send(w, s); }
 
   // ---------------- overlay ----------------
-  addOverlay(ws, { preview, since }) {
+  // passive: overlay "chỉ widget" (không chạy game, không làm leader) nhưng vẫn giữ kết nối TikTok như overlay thật
+  addOverlay(ws, { preview, since, passive = false }) {
     ws.rt = this;
     ws.preview = preview;
+    ws.passive = passive && !preview;
     this.overlays.add(ws);
-    const role = !preview && !this.leader ? 'leader' : 'follower';
+    const role = !preview && !ws.passive && !this.leader ? 'leader' : 'follower';
     if (role === 'leader') this.leader = ws;
     send(ws, { t: 'hello', role, channel: this.view(), seq: this.seq, now: Date.now(), tk: this.tk });
     if (role === 'leader' && since > 0) for (const e of this.buffer) if (e.seq > since) send(ws, { t: 'ev', e, replay: true });
     if (role === 'follower' && this.lastSnap) send(ws, { t: 'snap', s: this.lastSnap });
+    send(ws, { t: 'st', st: this.studioData() });
     ws.on('message', (d) => this.onOverlayMsg(ws, d));
     ws.on('close', () => this.removeOverlay(ws));
     clearTimeout(this.idleTimer); this.idleTimer = null;
@@ -93,7 +90,7 @@ class ChannelRuntime {
   removeOverlay(ws) {
     if (!this.overlays.delete(ws)) return;
     if (this.leader === ws) {
-      this.leader = [...this.overlays].find((w) => !w.preview) || null;
+      this.leader = [...this.overlays].find((w) => !w.preview && !w.passive) || null;
       if (this.leader) send(this.leader, { t: 'role', role: 'leader', channel: this.view(), seq: this.seq });
     }
     this.flushSave();
@@ -224,12 +221,47 @@ class ChannelRuntime {
 
   emitEvent(e, sim) {
     const ev = { ...e, seq: ++this.seq, gwAt: Date.now(), ...(sim ? { sim: true } : {}) };
+    this.stats.add(ev);
     this.buffer.push(ev);
     const cut = ev.gwAt - this.gw.replayMs;
     while (this.buffer.length && (this.buffer[0].gwAt < cut || this.buffer.length > 2000)) this.buffer.shift();
     const msg = JSON.stringify({ t: 'ev', e: ev });
     send(this.leader, msg);
     if (this.watchers.size && ev.type !== 'like') for (const w of this.watchers) send(w, msg);
+    // overlay khác (xem trước, chỉ widget, overlay phụ) không nhận 'ev' → bản rút gọn cho widget thông báo / bình luận
+    if (ev.type !== 'like' && this.overlays.size > (this.leader ? 1 : 0)) {
+      const sx = JSON.stringify({ t: 'sx', e: { type: ev.type, user: ev.user, giftName: ev.giftName, diamonds: ev.diamonds, count: ev.count ?? ev.repeatCount, text: ev.text, seq: ev.seq } });
+      for (const w of this.overlays) if (w !== this.leader) send(w, sx);
+    }
+  }
+
+  /** Dữ liệu cho widget Studio: số liệu phiên + BXH tuần. */
+  studioData() { return { ...this.stats.view(), lb: this.lb }; }
+  needsWeekBoard() { return (this.cfg.studio?.widgets || []).some((w) => w.type === 'leaderboard' && w.config?.source === 'week'); }
+  /** Gọi định kỳ (~2 lần / giây): phát số liệu khi đổi; nạp BXH tuần mỗi 30 giây nếu có widget cần. */
+  async studioTick(now = Date.now()) {
+    if (!this.overlays.size && !this.watchers.size) return;
+    if (this.needsWeekBoard() && now - this.lbAt > 30_000) {
+      this.lbAt = now;
+      try {
+        const rows = await this.gw.store.leaderboard(this.id, null);
+        this.lb = (rows || []).slice(0, 10).map((r) => ({ name: r.name || r.viewer || r.viewer_id, avatar: r.avatar || null, points: r.points }));
+        this.stats.dirty = true;
+      } catch (e) { this.gw.log.warn?.(`[gateway] BXH tuần lỗi: ${e.message}`); }
+    }
+    if (!this.stats.dirty) return;
+    this.stats.dirty = false;
+    const msg = JSON.stringify({ t: 'st', st: this.studioData() });
+    for (const w of this.overlays) send(w, msg);
+    if (this.watchers.size) this.notify({ t: 'st', st: this.studioData() });
+  }
+
+  /** Studio đổi (dashboard lưu) → overlay vẽ lại widget / luật âm thanh, KHÔNG nạp lại game. */
+  setStudio(studio) {
+    this.cfg = { ...this.cfg, studio };
+    this.lbAt = 0;
+    const msg = JSON.stringify({ t: 'studio', studio });
+    for (const w of this.overlays) send(w, msg);
   }
 
   /** Cấu hình kênh đổi (game / cài đặt / username) → báo overlay nạp lại. */
@@ -246,8 +278,10 @@ class ChannelRuntime {
 }
 
 export class Gateway {
-  constructor({ store, catalog = [], gameServers = {}, bridgeFactory = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000 } = {}) {
-    Object.assign(this, { store, catalog, gameServers, bridgeFactory, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
+  constructor({ store, catalog = [], widgets = [], gameServers = {}, bridgeFactory = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000, studioMs = 500 } = {}) {
+    Object.assign(this, { store, catalog, widgets, gameServers, bridgeFactory, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
+    this.studioTimer = setInterval(() => { for (const rt of this.runtimes.values()) rt.studioTick().catch(() => {}); }, studioMs);
+    this.studioTimer.unref?.();
     this.runtimes = new Map(); // channel id → ChannelRuntime
     this.byId = new Map(catalog.map((g) => [g.id, g]));
   }
@@ -277,7 +311,7 @@ export class Gateway {
     if (key) {
       const ch = await this.store.getChannelByKey(str(key, 80));
       if (!ch) return ws.close(4004, 'Link overlay không đúng hoặc đã đổi');
-      return this.runtime(ch).addOverlay(ws, { preview: u.searchParams.get('preview') === '1', since: Number(u.searchParams.get('since')) || 0 });
+      return this.runtime(ch).addOverlay(ws, { preview: u.searchParams.get('preview') === '1', passive: u.searchParams.get('passive') === '1', since: Number(u.searchParams.get('since')) || 0 });
     }
     if (u.searchParams.get('role') === 'dashboard') return this.onDashboard(ws);
     ws.close(4001, 'unauthorized');
@@ -296,7 +330,7 @@ export class Gateway {
         if (!user) return ws.close(4001, 'Phiên đăng nhập không hợp lệ');
         clearTimeout(authTimer);
         ws.user = user;
-        return send(ws, { t: 'authed', user, store: this.store.kind, games: this.catalog });
+        return send(ws, { t: 'authed', user, store: this.store.kind, games: this.catalog, widgets: this.widgets });
       }
       if (m.t === 'ping') return send(ws, { t: 'pong', ts: m.ts, now: Date.now() });
       if (m.t !== 'req') return;
@@ -347,7 +381,7 @@ export class Gateway {
       case 'watch': {
         const r = rt();
         r.watchers.add(ws); ws.watching.add(ch.id);
-        return { tk: r.tk, ...r.counts(), snap: r.lastSnap, lat: r.lat };
+        return { tk: r.tk, ...r.counts(), snap: r.lastSnap, lat: r.lat, st: r.studioData() };
       }
       case 'unwatch': { const r = this.runtimes.get(ch.id); r?.watchers.delete(ws); ws.watching.delete(ch.id); if (r) this.maybeDrop(r); return { ok: true }; }
       case 'cmd': {
@@ -370,12 +404,20 @@ export class Gateway {
         return { tk: r.tk };
       }
       case 'leaderboard': return this.store.leaderboard(ch.id, p.game || null);
+      case 'studio': {
+        const studio = checkStudio(p.studio, this.widgets);
+        const c = await this.store.updateChannel(ch.id, { studio });
+        this.runtimes.get(ch.id)?.setStudio(studio);
+        return c;
+      }
+      case 'stats-reset': { const r = rt(); r.stats.reset(); return { ok: true, st: r.studioData() }; }
       default: throw new Error(`Không có thao tác "${op}"`);
     }
   }
 
   async close() {
     clearInterval(this.heartbeat);
+    clearInterval(this.studioTimer);
     for (const rt of this.runtimes.values()) rt.close(1001, 'gateway dừng');
     this.wss?.close();
     for (const s of Object.values(this.gameServers)) { try { s.save?.(); } catch { /* bỏ qua */ } }

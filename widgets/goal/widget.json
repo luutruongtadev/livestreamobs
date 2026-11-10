@@ -1,0 +1,19 @@
+{
+  "id": "goal",
+  "name": "Mục tiêu",
+  "icon": "🎯",
+  "description": "Thanh mục tiêu cả phòng cùng góp: xu quà, tim, follow, share… Đạt mục tiêu thì nháy sáng (và phát âm thanh nếu có luật 'Đạt mục tiêu').",
+  "size": { "w": 760, "h": 170 },
+  "minSize": { "w": 320, "h": 120 },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "title": "Tiêu đề", "maxLength": 40, "default": "Mục tiêu quà hôm nay" },
+      "icon": { "type": "string", "title": "Biểu tượng (emoji)", "maxLength": 8, "default": "🎁" },
+      "metric": { "type": "string", "title": "Đếm theo", "enum": ["diamonds", "likes", "follows", "shares", "gifts", "comments"], "enumNames": ["Xu quà", "Tim", "Follow", "Share", "Số món quà", "Bình luận"], "default": "diamonds" },
+      "target": { "type": "integer", "title": "Mục tiêu", "minimum": 1, "maximum": 100000000, "default": 1000 },
+      "repeat": { "type": "boolean", "title": "Đạt rồi thì bắt đầu lại (đếm số lần đạt)", "default": true },
+      "color": { "type": "string", "title": "Màu thanh", "format": "color", "maxLength": 9, "default": "#f5c542" }
+    }
+  }
+}
