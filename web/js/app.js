@@ -52,6 +52,25 @@ const displayName = (email) => (email && email.endsWith(`@${domain()}`) ? email.
 const AUTH_ERR = { 'Invalid login credentials': 'Sai tên đăng nhập hoặc mật khẩu', 'User already registered': 'Tên đăng nhập này đã có người dùng', 'Signups not allowed for this instance': 'Máy chủ đang tắt đăng ký tài khoản mới' };
 const authErr = (e) => AUTH_ERR[e?.message] || e?.message || String(e);
 
+/** Provider đăng nhập ngoài đang bật trên Supabase (endpoint công khai) — chỉ hiện nút Google khi đã cấu hình. */
+let providers = null;
+async function authProviders() {
+  if (providers) return providers;
+  try {
+    const r = await fetch(`${P.supabaseUrl}/auth/v1/settings`, { headers: { apikey: P.supabaseKey } });
+    providers = r.ok ? (await r.json()).external || {} : {};
+  } catch { providers = {}; }
+  return providers;
+}
+
+// quay về từ Google mà có lỗi (vd chưa khai báo redirect) → báo rõ thay vì màn hình trắng
+const oauthError = (() => {
+  const q = new URLSearchParams(location.search + '&' + location.hash.slice(1));
+  const e = q.get('error_description') || q.get('error');
+  if (e) history.replaceState(null, '', location.pathname);
+  return e;
+})();
+
 function renderLogin(msg = '') {
   const box = h('div', { class: 'card login' }, msg && h('p', { class: 'muted' }, msg));
   if (P.supabaseUrl && P.supabaseKey) {
@@ -91,6 +110,16 @@ function renderLogin(msg = '') {
     paint();
     box.prepend(title);
     box.append(form, h('div', { style: 'margin-top:10px' }, switcher), h('p', { class: 'small muted' }, 'Quên mật khẩu: liên hệ quản trị để đặt lại.'));
+    const google = h('div', {});
+    box.append(google);
+    authProviders().then((pv) => {
+      if (!pv.google) return;
+      google.append(h('h3', { class: 'center' }, 'hoặc'), h('button', { type: 'button', class: 'ghost', style: 'width:100%', onclick: async () => {
+        const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/app` } });
+        if (error) toast(authErr(error), true);
+      } }, 'Đăng nhập bằng Google'));
+    });
+    if (oauthError) toast(`Đăng nhập Google lỗi: ${oauthError}`, true);
   } else {
     box.prepend(h('h2', {}, 'Đăng nhập'));
     const tok = h('input', { type: 'password', placeholder: 'GATEWAY_DEV_TOKEN / ADMIN_TOKEN', class: 'grow' });
