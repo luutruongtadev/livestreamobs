@@ -484,6 +484,7 @@ export function mount(el, { canvas, options = {} } = {}) {
         case 'ft_correct': addOk(`${fx.rank <= 3 ? ['🥇', '🥈', '🥉'][fx.rank - 1] + ' ' : ''}${fx.by.name} +${fx.points}${fx.zoomBonus > 1.05 ? ` (🔍×${String(fx.zoomBonus).replace('.', ',')})` : ''}`); sound.play('correct', fx.rank); break;
         case 'ft_zoom': floaters.push({ text: `🔍 ${by}thu nhỏ cờ`, x: W - 300, y: 1180, color: '#fde68a', size: 34, life: 1.6, age: 0 }); sound.play('whoosh'); break;
         case 'ft_lastcall': sound.play('tick'); break;
+        case 'ft_wrong': if (fx.left === 0) floaters.push({ text: `🚫 ${fx.by.name}: hết lượt đoán cờ này`, x: W / 2, y: 1350, color: '#fca5a5', size: 28, life: 1.8, age: 0 }); break;
         case 'ft_reveal': if (fx.solved) { burst(fx.solvers?.length > 2 ? 180 : 110); sound.play('stamp'); } break;
         case 'ft_silent': anim.banner = { text: '🤫 Phòng im quá — đoán thử một nước đi!', color: C.sky, age: 0, life: 3 }; break;
         case 'ft_rescue': anim.shake = 1; sound.play('alarm'); break;

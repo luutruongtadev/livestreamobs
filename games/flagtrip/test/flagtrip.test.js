@@ -30,6 +30,10 @@ test('chuyến bay: đúng → chốt sổ → lộ đáp án, tiến chặng; s
   // cờ phóng to vào 1 góc / giữa; đoán sớm (còn phóng to) được thưởng
   const z0 = host.snapshot().zoom;
   assert.ok(['tl', 'tr', 'bl', 'br', 'c'].includes(z0.focus) && z0.scale0 > 1 && z0.k === 0);
+  // giới hạn đoán: e đoán sai 3 lần (mặc định) → hết lượt, đoán đúng sau đó cũng không tính
+  const others = C.filter((c) => c.iso2 !== host.snapshot().flag && c.tier === 1 && c.name.split(' ').length <= 3).slice(0, 3);
+  assert.deepEqual(others.map((c) => host.handle({ type: 'comment', user: u('e'), text: c.name })[0].left), [2, 1, 0]);
+  assert.deepEqual(host.handle({ type: 'comment', user: u('e'), text: answer().name }), [], 'hết lượt đoán cờ này');
   // chặng 1: người a đúng (không dấu), b đúng sau → ít điểm hơn
   assert.equal(host.snapshot().mask.every((ch) => ch === null || !/\p{L}/u.test(ch)), true, 'chưa lộ chữ nào');
   const name = normalize(answer().name);

@@ -12,7 +12,8 @@
     "landedSeconds": { "type": "integer", "title": "Thời gian ăn mừng hạ cánh (giây)", "minimum": 5, "maximum": 30, "default": 12 },
     "zoom": { "type": "boolean", "title": "Phóng to lá cờ lúc đầu rồi thu nhỏ dần (khó hơn)", "default": true },
     "zoomStart": { "type": "number", "title": "Độ phóng to lúc đầu (×)", "minimum": 1.5, "maximum": 8, "default": 3.5 },
-    "zoomFullAt": { "type": "integer", "title": "Hiện đủ lá cờ sau bao nhiêu % thời gian đoán", "minimum": 30, "maximum": 100, "default": 75 },
+    "zoomFullAt": { "type": "integer", "title": "Tốc độ thu nhỏ cờ: hiện đủ sau bao nhiêu % thời gian đoán (thấp = nhanh)", "minimum": 30, "maximum": 100, "default": 75 },
+    "maxGuesses": { "type": "integer", "title": "Số lần đoán sai tối đa mỗi người mỗi cờ (0 = không giới hạn)", "minimum": 0, "maximum": 20, "default": 3 },
     "letterLimit": { "type": "integer", "title": "Tối đa chữ cái lộ mỗi cờ", "minimum": 0, "maximum": 8, "default": 3 },
     "basePoints": { "type": "integer", "title": "Điểm cho người đúng đầu tiên", "minimum": 10, "maximum": 1000, "default": 100 },
     "showLeaderboard": { "type": "boolean", "title": "Hiện bảng phi hành đoàn", "default": true }

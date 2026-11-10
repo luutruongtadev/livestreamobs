@@ -7,6 +7,7 @@ Cả phòng lái chung một chiếc máy bay. Mỗi chặng hiện một lá c�
    - Có dấu hay không dấu đều được; gõ sai 1–2 chữ ở tên dài vẫn nhận.
    - Câu dài hơn 5 từ coi là nói chuyện, không tính.
    - Mỗi người được tính 1 lần mỗi cờ.
+   - Mỗi người đoán sai tối đa `maxGuesses` lần mỗi cờ (mặc định 3, 0 = không giới hạn). Hết lượt thì chờ cờ sau. Chỉ tính những lần gõ ra một tên nước; nói chuyện không bị trừ lượt.
 2. **Phóng to lá cờ:**
    - Mỗi cờ bắt đầu phóng to (mặc định `zoomStart` ×3,5) vào 1 trong 5 điểm: 4 góc hoặc chính giữa. Cờ sau luôn phóng vào điểm khác cờ trước.
    - Cờ thu nhỏ dần và hiện đủ sau `zoomFullAt`% thời gian đoán (mặc định 75%).

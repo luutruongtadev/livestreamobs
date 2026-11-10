@@ -164,9 +164,14 @@ export class FlagTrip extends Emitter {
     const f = this.flag;
     if (f.solvers.some((x) => x.id === id)) return [];
     const iso = this.match(text);
-    if (!iso) return [];
+    if (!iso) return []; // không phải tên nước (nói chuyện) → không tính lượt
+    const max = this.s.maxGuesses;
+    if (max && (f.tried[id] || 0) >= max) return []; // hết lượt đoán cờ này → chờ cờ sau
     f.tries++;
-    if (iso !== f.iso2) { f.tried[id] = (f.tried[id] || 0) + 1; return [{ type: 'ft_wrong', by: pub(ev.user), guess: this.byIso.get(iso)?.name || text }]; }
+    if (iso !== f.iso2) {
+      f.tried[id] = (f.tried[id] || 0) + 1;
+      return [{ type: 'ft_wrong', by: pub(ev.user), guess: this.byIso.get(iso)?.name || text, left: max ? max - f.tried[id] : null }];
+    }
     const by = pub(ev.user);
     const t = this.clock();
     const rank = f.solvers.length + 1;
