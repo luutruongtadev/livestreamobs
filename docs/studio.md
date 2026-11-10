@@ -14,6 +14,7 @@ TikTok → gateway ─┬─ ev (overlay chính) ──► game + widget + luậ
 dashboard ── studio (lưu) ──► gateway kiểm tra (checkStudio) ──► channels.studio ──► {t:'studio'} tới overlay (game KHÔNG nạp lại)
 ```
 - **Ai đếm:** gateway đếm số liệu phiên (`SessionStats`), nên mọi overlay thấy cùng một con số. Nút "Đặt lại số liệu" (`stats-reset`) đưa về 0.
+- **Bảng âm thanh (soundboard):** nút trên tab Điều khiển gọi thao tác `sfx` → gateway gửi `{t:'sfx'}` → overlay chính phát ngay. Giới hạn 5 âm mỗi giây mỗi kênh. Thư viện có 46 âm chia 6 nhóm (`SOUND_GROUPS` trong `web/js/sounds.js`).
 - **Nơi phát âm thanh:** chỉ overlay chính, tức thứ OBS / LIVE Studio thu. Overlay "chỉ widget" phát âm thanh khi thêm `&sound=1`. Giới hạn tối đa 4 âm mỗi giây.
 - **Luật âm thanh dùng lại trigger của SDK** (`createTriggers`): một món quà khớp tối đa một luật quà, theo tên trước rồi theo số xu. Riêng `{ type: 'goal', goal? }` kích hoạt khi một widget Mục tiêu đạt.
 

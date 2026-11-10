@@ -1,6 +1,7 @@
 // Dashboard của streamer. Không có code riêng cho từng game: form cài đặt sinh từ settings.schema.json,
 // trình gán quà / tim sinh từ manifest.actions, nút lệnh từ manifest.commands.
 const P = window.PLATFORM || {};
+document.querySelectorAll('[data-brand]').forEach((el) => { el.textContent = P.brand || 'Game Live'; });
 const root = document.getElementById('root');
 const who = document.getElementById('who');
 const logoutBtn = document.getElementById('logout');
@@ -266,6 +267,7 @@ function liveTab(c, g) {
         h('button', { class: 'ghost', onclick: () => cmd('pause') }, '⏸ Tạm dừng'), h('button', { class: 'ghost', onclick: () => cmd('resume') }, '▶ Tiếp tục'),
         (g?.commands || []).map((x) => h('button', { onclick: () => cmd(x.id) }, x.label)),
         h('button', { class: 'ghost', onclick: async () => { S.tk = (await req('tiktok', { channel: c.id, op: 'connect' })).tk; paintStatus(); } }, '🔌 Kết nối lại TikTok'))),
+      soundboard(c),
       h('div', { class: 'card' }, h('h2', {}, 'Giả lập người xem'), h('p', { class: 'small muted' }, 'Thử game mà không cần live: sự kiện đi đúng đường như bình luận / quà thật.'),
         h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); if (text.value.trim()) { sim({ type: 'comment', user: user(), text: text.value }); text.value = ''; } } }, text, h('button', { type: 'submit' }, 'Gửi')),
         h('div', { class: 'row', style: 'margin-top:8px' }, '🎁', giftName, 'xu', diamonds, 'x', count, h('button', { onclick: () => sim({ type: 'gift', user: user(), giftName: giftName.value, diamonds: Number(diamonds.value), count: Number(count.value) }) }, 'Tặng quà')),
@@ -505,6 +507,21 @@ async function sounds() {
 }
 const WHEN_LABEL = { ...TRIG_LABEL, goal: '🎯 Đạt mục tiêu' };
 
+/** Thư viện âm thanh chia nhóm; onPick(id) khi bấm. */
+function soundGroups(onPick) {
+  const { SOUNDS, SOUND_GROUPS } = soundLib;
+  return h('div', { class: 'sfx-groups' }, SOUND_GROUPS.map((g) => h('div', { class: 'sfx-group' }, h('div', { class: 'sfx-label' }, g),
+    h('div', { class: 'row' }, SOUNDS.filter((x) => x.group === g).map((x) => h('button', { class: 'ghost small', onclick: () => onPick(x.id) }, x.name))))));
+}
+
+/** Soundboard: bấm là overlay đang mở phát ngay trên live. */
+function soundboard(c) {
+  const box = h('div', { class: 'card' }, h('h2', {}, 'Bảng âm thanh'), h('p', { class: 'muted small' }, 'Đang tải…'));
+  sounds().then(() => box.replaceChildren(h('h2', {}, 'Bảng âm thanh'), h('p', { class: 'small muted' }, 'Bấm là phát ngay trên live (overlay chính). Dùng để chọc cười, hô hào, tạo kịch tính.'),
+    soundGroups((id) => req('sfx', { channel: c.id, sound: id }).catch((e) => toast(e.message, true)))));
+  return box;
+}
+
 function soundsTab(c) {
   const draft = studioOf(c);
   const box = h('div', {}, h('p', { class: 'muted' }, 'Đang tải thư viện âm thanh…'));
@@ -531,8 +548,8 @@ function soundsTab(c) {
       h('div', { class: 'row', style: 'margin-top:10px' },
         h('button', { class: 'ghost', onclick: () => { const r = { id: `s${Date.now().toString(36)}`, when: { type: 'gift', minDiamonds: 1 }, sound: 'coin', volume: 0.8 }; draft.sounds.push(r); list.append(row(r)); } }, '+ Thêm luật'),
         h('button', { onclick: async () => { try { S.cur = await req('studio', { channel: c.id, studio: draft }); toast('Đã lưu luật âm thanh'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu')),
-      h('h3', {}, 'Thư viện (bấm để nghe)'),
-      h('div', { class: 'row' }, SOUNDS.map((x) => h('button', { class: 'ghost small', onclick: () => { soundPlayer.resume(); soundPlayer.play(x.id); } }, x.name))));
+      h('h3', {}, `Thư viện ${SOUNDS.length} âm (bấm để nghe thử trên máy bạn)`),
+      soundGroups((id) => { soundPlayer.resume(); soundPlayer.play(id); }));
   });
   return h('div', { class: 'card' }, h('h2', {}, '🔊 Âm thanh — khi … thì phát …'),
     h('p', { class: 'small muted' }, 'Âm thanh phát trên overlay chính (thứ OBS / LIVE Studio thu), không phát ở dashboard. Một món quà khớp tối đa một luật quà (theo tên trước, rồi theo xu). Tối đa 4 âm / giây để không ồn.'),

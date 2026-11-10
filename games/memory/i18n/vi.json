@@ -2,5 +2,7 @@
   "title": "Nhớ số",
   "howTo": "Dãy số hiện lên vài giây rồi biến mất. Gõ lại đúng dãy số vào bình luận — nhanh hơn nhiều điểm hơn.",
   "actions.flash": "Hiện lại dãy số (1 lần / vòng)",
-  "actions.time": "+3 giây trả lời (tối đa +9 giây / vòng)"
+  "actions.time": "+3 giây trả lời (tối đa +9 giây / vòng)",
+  "actions.digit": "Lộ 1 chữ số ngẫu nhiên (tối đa 1/3 dãy, người đúng nhận ít điểm hơn)",
+  "actions.shield": "Khiên: lần thua tiếp theo không bị giảm cấp (tích tối đa 3)"
 }

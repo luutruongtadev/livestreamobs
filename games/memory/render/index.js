@@ -16,7 +16,7 @@ const C = {
   text: '#f1f5ff', dim: 'rgba(203,213,255,.70)', faint: 'rgba(203,213,255,.38)',
   amber: '#fbbf24', amberLo: '#f59e0b', sky: '#38bdf8', mint: '#34d399', mintLo: '#059669', rose: '#fb7185', violet: '#a78bfa', gold: '#fde047',
 };
-const ACTION_TEXT = { flash: 'hiện lại dãy số', time: 'thêm giờ trả lời' };
+const ACTION_TEXT = { flash: 'hiện lại dãy số', time: 'thêm giờ trả lời', digit: 'lộ 1 chữ số', shield: 'khiên giữ cấp' };
 
 /**
  * mount(el, { canvas, options }) → { update(snapshot), effect(fx), resumeAudio(), resize(), destroy() }
@@ -194,7 +194,8 @@ export function mount(el, { canvas, options = {} } = {}) {
       let tx = (W - total) / 2;
       const ty = y + 64 + ri * (th + rowGap);
       for (let i = 0; i < n; i++, idx++) {
-        drawTile(tx, ty, size, th, idx, visible ? S.number[idx] : null, now);
+        const peeked = !visible && S.partial && S.partial[idx] !== '?' ? S.partial[idx] : null;
+        drawTile(tx, ty, size, th, idx, visible ? S.number[idx] : peeked, now, !!peeked);
         tx += size + gap + (g && (i + 1) % 3 === 0 && i < n - 1 ? groupGap : 0);
       }
     });
@@ -202,7 +203,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     return y + h;
   }
 
-  function drawTile(x, y, w, h, i, ch, now) {
+  function drawTile(x, y, w, h, i, ch, now, peeked = false) {
     // vào vòng mới: rơi xuống lần lượt; đổi hiện ↔ ẩn: lật dọc lần lượt
     const drop = S.phase === 'show' && !reduced ? back((now - anim.phaseAt - i * 55) / 420) : 1;
     const flipK = reduced ? 1 : Math.min(1, (now - anim.flipAt - i * 45) / 300);
@@ -214,7 +215,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.globalAlpha = Math.max(0, Math.min(1, drop * 1.4));
     ctx.translate(cx, cy - (1 - drop) * 120); ctx.scale(1, Math.max(0.02, sy)); ctx.translate(-cx, -cy);
     if (face && ch != null) {
-      const [a, b, ink] = S.flashing ? ['#ddd6fe', C.violet, '#2e1065'] : S.phase === 'reveal' ? ['#a7f3d0', C.mint, '#022c22'] : ['#fef3c7', C.amber, '#3b2300'];
+      const [a, b, ink] = peeked ? ['#e0f2fe', C.sky, '#082f49'] : S.flashing ? ['#ddd6fe', C.violet, '#2e1065'] : S.phase === 'reveal' ? ['#a7f3d0', C.mint, '#022c22'] : ['#fef3c7', C.amber, '#3b2300'];
       const g = ctx.createLinearGradient(x, y, x, y + h);
       g.addColorStop(0, a); g.addColorStop(1, b);
       ctx.shadowColor = hexA(b, 0.7); ctx.shadowBlur = 26;
@@ -277,6 +278,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     const right = [];
     if (hasFlash) right.push([S.flashUsed ? '👀 đã hiện lại' : '👀 còn 1 lần xem', C.violet, !S.flashUsed && S.phase === 'answer']);
     if (hasTime && S.extra > 0) right.push([`⏱️ +${S.extra}s`, C.sky, true]);
+    if (S.shields > 0) right.push([`🛡️ ×${S.shields}`, C.amber, true]);
     let x = 40;
     for (const [l, c, a, sh] of left) x += chip(x, y, l, c, { active: a, shake: sh }) + 10;
     let rx = W - 40;
@@ -316,7 +318,7 @@ export function mount(el, { canvas, options = {} } = {}) {
       text(medals[i] || `${i + 1}`, x + 52, yy + rh / 2, i < 3 ? 30 : 24, C.dim, 900);
       avatar(r, x + 104, yy + rh / 2, 20, i === 0 ? C.gold : 'rgba(255,255,255,.7)');
       text(r.name, x + 138, yy + rh / 2 + 1, 28, C.text, 800, 'left', w - 420);
-      text(`${secs(r.ms)}s`, x + w - 170, yy + rh / 2 + 1, 24, C.dim, 700, 'right');
+      text(`${r.streak >= 2 ? `🔥${r.streak}  ` : ''}${secs(r.ms)}s`, x + w - 170, yy + rh / 2 + 1, 24, r.streak >= 2 ? C.amber : C.dim, 700, 'right');
       text(`+${r.points}`, x + w - 36, yy + rh / 2 + 1, 32, C.mint, 900, 'right');
       ctx.restore();
     });
@@ -428,7 +430,7 @@ export function mount(el, { canvas, options = {} } = {}) {
       text(String(i + 1), x + 44, yy + rh / 2 + 1, 18, badge ? '#1e1b4b' : C.dim, 900);
       avatar(r, x + 88, yy + rh / 2, 19);
       text(r.name, x + 118, yy + rh / 2 + 1, 25, C.text, 800, 'left', w - 300);
-      text(`✓${r.correct}`, x + w - 126, yy + rh / 2 + 1, 20, C.mint, 800, 'right');
+      text(r.streak >= 2 ? `🔥${r.streak}` : `✓${r.correct}`, x + w - 126, yy + rh / 2 + 1, 20, r.streak >= 2 ? C.amber : C.mint, 800, 'right');
       text(fmtN(r.points), x + w - 28, yy + rh / 2 + 1, 27, C.gold, 900, 'right');
     });
   }
@@ -491,16 +493,17 @@ export function mount(el, { canvas, options = {} } = {}) {
     const k = (now - anim.levelAt) / 2200;
     if (k >= 1) return;
     const up = anim.levelChange > 0;
+    const record = anim.record, shield = anim.shieldBanner;
     const a = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.75) / 0.25);
     const s = back(Math.min(1, k / 0.18));
     ctx.save(); ctx.globalAlpha = a;
     // đè lên nhãn pha (không che đáp án / bục vinh danh)
     const cy = 436;
     ctx.translate(W / 2, cy); ctx.scale(s, s); ctx.translate(-W / 2, -cy);
-    const col = up ? C.amber : C.rose;
-    panel(W / 2 - 300, cy - 56, 600, 112, 36, { fill: 'rgba(10,14,34,.96)', stroke: col, lw: 4, glow: col });
-    text(up ? `⬆ LÊN CẤP ${S.level}` : `⬇ XUỐNG CẤP ${S.level}`, W / 2, cy - 14, 50, col, 900);
-    text(up ? 'Cả phòng nhớ giỏi — dãy số sẽ khó dần!' : 'Chưa ai nhớ được — giảm độ khó một chút', W / 2, cy + 30, 22, C.dim, 700);
+    const col = shield ? C.sky : record ? C.gold : up ? C.amber : C.rose;
+    panel(W / 2 - 320, cy - 56, 640, 112, 36, { fill: 'rgba(10,14,34,.96)', stroke: col, lw: 4, glow: col });
+    text(shield ? '🛡️ KHIÊN GIỮ CẤP!' : record ? `🏆 KỶ LỤC MỚI: CẤP ${S.level}` : up ? `⬆ LÊN CẤP ${S.level}` : `⬇ XUỐNG CẤP ${S.level}`, W / 2, cy - 14, 48, col, 900);
+    text(shield ? `Không ai nhớ được nhưng vẫn giữ cấp ${S.level}` : record ? 'Cao nhất từ đầu buổi live — giữ vững nhé!' : up ? 'Cả phòng nhớ giỏi — dãy số sẽ khó dần!' : 'Chưa ai nhớ được — giảm độ khó một chút', W / 2, cy + 30, 22, C.dim, 700);
     ctx.restore();
   }
   function drawPaused() {
@@ -572,8 +575,11 @@ export function mount(el, { canvas, options = {} } = {}) {
         case 'mm_time': anim.timeAt = now; floaters.push({ text: `⏱️ +${fx.seconds} giây`, x: W - 220, y: 860, color: '#bae6fd', size: 44, life: 1.4, age: 0 }); sound.play('time'); break;
         case 'mm_reveal':
           if (fx.correct) { burst(fx.correct > 3 ? 220 : 140); sound.play('win'); } else sound.play('fail');
-          if (fx.levelChange) { anim.levelAt = now; anim.levelChange = fx.levelChange; }
+          anim.record = !!fx.record; anim.shieldBanner = !!fx.shielded;
+          if (fx.levelChange || fx.shielded) { anim.levelAt = now; anim.levelChange = fx.levelChange; }
           break;
+        case 'mm_digit': anim.ringAt = now; anim.ringColor = C.sky; floaters.push({ text: '🔍 Lộ 1 chữ số!', x: W / 2, y: 720, color: '#bae6fd', size: 48, life: 1.4, age: 0 }); sound.play('flash'); break;
+        case 'mm_shield': floaters.push({ text: `🛡️ Khiên ×${fx.shields}`, x: W - 220, y: 860, color: '#fde68a', size: 44, life: 1.4, age: 0 }); sound.play('time'); break;
         case 'mm_board_cleared': floaters.push({ text: 'Đã xoá bảng điểm', x: W / 2, y: 1300, color: C.dim, size: 34, life: 1.4, age: 0 }); break;
       }
     },

@@ -15,7 +15,11 @@ Header (logo · **cấp** · **số chữ số** · **vòng**) → nhãn pha (�
 | id | Tác dụng | Mặc định |
 |---|---|---|
 | `flash` | Hiện lại dãy số một lần trong lúc trả lời (1 lần / vòng) | quà Rose |
+| `digit` | Lộ 1 chữ số ngẫu nhiên (tối đa 1/3 dãy; mỗi chữ lộ làm người đúng nhận ít hơn 15% điểm) | quà Finger Heart |
 | `time` | +3 giây trả lời (tối đa +9 giây / vòng) | mỗi 300 tim |
+| `shield` | Khiên: lần thua tiếp theo không bị giảm cấp (tích tối đa 3) | quà Doughnut |
+
+Chuỗi đúng: ai đúng nhiều vòng liền được cộng thêm 10% điểm mỗi vòng (tối đa +100%), hiện 🔥 trên bảng điểm. Phá kỷ lục cấp trong buổi live thì có banner 🏆.
 
 ## Lệnh
 `next` (bước tiếp), `restart` (về cấp bắt đầu), `clear-board` (xoá bảng điểm). `pause` / `resume` do nền tảng cung cấp.

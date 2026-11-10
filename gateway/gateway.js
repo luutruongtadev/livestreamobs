@@ -4,7 +4,7 @@
 import { WebSocketServer } from 'ws';
 import { EVENT_TYPES, resolveSettings } from '#sdk';
 import { newKey } from './store.js';
-import { checkStudio, cleanTrigger, SessionStats } from './studio.js';
+import { checkStudio, checkSfx, cleanTrigger, SessionStats } from './studio.js';
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
 const str = (v, max) => String(v ?? '').slice(0, max);
@@ -409,6 +409,18 @@ export class Gateway {
         const c = await this.store.updateChannel(ch.id, { studio });
         this.runtimes.get(ch.id)?.setStudio(studio);
         return c;
+      }
+      case 'sfx': { // soundboard: overlay đang mở phát ngay (tối đa 5 âm / giây / kênh)
+        const s = checkSfx(p);
+        const r = this.runtimes.get(ch.id);
+        if (!r?.overlays.size) throw new Error('Chưa mở overlay của kênh (OBS / LIVE Studio)');
+        const now = Date.now();
+        r.sfxAt = (r.sfxAt || []).filter((t) => now - t < 1000);
+        if (r.sfxAt.length >= 5) throw new Error('Bấm chậm lại một chút');
+        r.sfxAt.push(now);
+        const msg = JSON.stringify({ t: 'sfx', ...s });
+        for (const w of r.overlays) send(w, msg);
+        return { ok: true };
       }
       case 'stats-reset': { const r = rt(); r.stats.reset(); return { ok: true, st: r.studioData() }; }
       default: throw new Error(`Không có thao tác "${op}"`);

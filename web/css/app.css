@@ -1,26 +1,31 @@
 :root {
-  --bg: #0b1020; --panel: #121933; --panel2: #18214a; --line: #26315f; --text: #e8ecff; --muted: #94a0c8;
-  --accent: #f5c542; --ok: #22c55e; --warn: #f59e0b; --err: #ef4444; --link: #93c5fd;
+  /* cùng bộ nhận diện với trang chủ: mực ấm, giấy kem, một màu nhấn cam đỏ */
+  --bg: #13110e; --panel: #1c1a16; --panel2: #26231e; --line: #383329; --text: #f3eee3; --muted: #a59e90;
+  --accent: #ff4b1f; --accent-ink: #fff; --ok: #3ecf8e; --warn: #f5b041; --err: #ff5d5d; --link: #ffb199;
+  --display: 'Bricolage Grotesque', 'Be Vietnam Pro', sans-serif;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 'Be Vietnam Pro', system-ui, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 'Be Vietnam Pro', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 a { color: var(--link); }
 .top { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
-.brand { font-weight: 800; color: var(--text); text-decoration: none; margin-right: auto; }
+.brand { display: flex; align-items: center; gap: 10px; font: 800 20px/1 var(--display); letter-spacing: -.02em; color: var(--text); text-decoration: none; margin-right: auto; }
+.brand i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(255,75,31,.25); }
 main { max-width: 1280px; margin: 0 auto; padding: 20px; }
 .muted { color: var(--muted); } .center { text-align: center; } .small { font-size: 13px; }
 .grid { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; }
 .cols { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
 @media (max-width: 960px) { .grid, .cols { grid-template-columns: 1fr; } }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
-.card h2 { margin: 0 0 12px; font-size: 16px; } .card h3 { margin: 14px 0 8px; font-size: 14px; color: var(--muted); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.card h2 { margin: 0 0 12px; font: 800 19px/1.2 var(--display); letter-spacing: -.01em; } .card h3 { margin: 14px 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > .grow { flex: 1; min-width: 160px; }
 input, select, button, textarea { font: inherit; color: var(--text); }
 input, select, textarea { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
 input[type=checkbox] { width: 18px; height: 18px; }
-button { background: var(--accent); color: #1b1300; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+button { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 700; cursor: pointer; transition: filter .12s; }
+button:hover { filter: brightness(1.08); }
 button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+button.ghost:hover { border-color: var(--muted); filter: none; }
 button.danger { background: var(--err); color: #fff; }
 button:disabled { opacity: .5; cursor: default; }
 .list button { display: block; width: 100%; text-align: left; margin-bottom: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
@@ -34,8 +39,8 @@ button:disabled { opacity: .5; cursor: default; }
 .preview { width: 100%; aspect-ratio: 9 / 16; border: 1px solid var(--line); border-radius: 12px; background: #000; display: block; }
 .feed { max-height: 260px; overflow: auto; font-size: 13px; }
 .feed div { padding: 3px 0; border-bottom: 1px solid var(--line); }
-.toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; z-index: 20; }
-.toast.err { border-color: var(--err); }
+.toast { position: fixed; right: 20px; bottom: 20px; background: var(--text); color: var(--bg); font-weight: 700; padding: 11px 16px; border-radius: 10px; z-index: 20; box-shadow: 4px 4px 0 #000; }
+.toast.err { background: var(--err); color: #fff; }
 .login { max-width: 420px; margin: 60px auto; }
 code { background: var(--panel2); padding: 2px 6px; border-radius: 6px; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { padding: 6px; border-bottom: 1px solid var(--line); text-align: left; }
@@ -53,6 +58,8 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { padd
 .st-body { width: 100%; height: 100%; pointer-events: none; }
 .st-handle { position: absolute; right: -14px; bottom: -14px; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); cursor: nwse-resize; display: none; }
 .st-box.on .st-handle { display: block; }
-.st-tag { position: absolute; left: 0; top: -44px; font: 700 26px 'Be Vietnam Pro', sans-serif; color: #1b1300; background: var(--accent); padding: 2px 12px; border-radius: 8px; display: none; white-space: nowrap; }
+.st-tag { position: absolute; left: 0; top: -44px; font: 700 26px 'Be Vietnam Pro', sans-serif; color: #fff; background: var(--accent); padding: 2px 12px; border-radius: 8px; display: none; white-space: nowrap; }
 .st-box.on .st-tag { display: block; }
 button.small { padding: 5px 10px; font-size: 13px; }
+.sfx-groups { display: grid; gap: 10px; }
+.sfx-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }

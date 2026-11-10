@@ -85,3 +85,36 @@ test('sai liên tiếp → xuống cấp; restart về cấp 1; cài đặt sai 
   host.command('restart');
   assert.equal(host.snapshot().level, 5, 'restart về cấp bắt đầu trong cài đặt');
 });
+
+test('quà lộ chữ số (tối đa 1/3 dãy, điểm giảm), khiên giữ cấp khi thua, chuỗi đúng liên tiếp cộng thêm điểm', () => {
+  const { host, clock } = mk({ startLevel: 9, failsToLevelDown: 1, answerSeconds: 10 }); // cấp 9 → 6 chữ số
+  const num = host.snapshot().number;
+  assert.equal(num.length, 6);
+  toAnswer(host, clock);
+  const d1 = host.handle({ type: 'gift', user: u('g'), giftName: 'Finger Heart', diamonds: 5, count: 1 });
+  assert.equal(d1[0].type, 'mm_digit');
+  const p = host.snapshot().partial;
+  assert.equal(p.replace(/\?/g, '').length, 1, 'lộ đúng 1 chữ số');
+  assert.equal(p[d1[0].pos], num[d1[0].pos]);
+  host.handle({ type: 'gift', user: u('g'), giftName: 'Finger Heart', diamonds: 5, count: 1 });
+  assert.deepEqual(host.handle({ type: 'gift', user: u('g'), giftName: 'Finger Heart', diamonds: 5, count: 1 }), [], 'quá 1/3 dãy thì trả lượt');
+  // khiên: thua vòng này không giảm cấp
+  assert.equal(host.handle({ type: 'gift', user: u('s'), giftName: 'Doughnut', diamonds: 30, count: 1 })[0].type, 'mm_shield');
+  assert.equal(host.snapshot().shields, 1);
+  clock.advance(11_000);
+  const rev = host.tick();
+  assert.ok(rev.some((e) => e.type === 'mm_shield_used'));
+  assert.equal(host.snapshot().level, 9, 'khiên giữ cấp');
+  assert.equal(host.snapshot().shields, 0);
+  // chuỗi: đúng 2 vòng liền → điểm vòng 2 cao hơn khi cùng tốc độ
+  const pts = [];
+  for (let r = 0; r < 2; r++) {
+    clock.advance(10_000); host.tick(); // sang vòng mới (show)
+    const n = host.snapshot().number;
+    clock.advance(20_000); host.tick(); // ẩn số
+    pts.push(host.handle({ type: 'comment', user: u('a'), text: n })[0]);
+    clock.advance(11_000); host.tick(); // lộ đáp án
+  }
+  assert.equal(pts[1].streak, 2);
+  assert.ok(pts[1].points > pts[0].points, 'chuỗi đúng liên tiếp được thưởng');
+});

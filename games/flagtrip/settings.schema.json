@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "tripLength": { "type": "integer", "title": "Số chặng mỗi chuyến bay", "minimum": 5, "maximum": 60, "default": 20 },
+    "checkpointEvery": { "type": "integer", "title": "Điểm mốc an toàn mỗi bao nhiêu chặng", "minimum": 2, "maximum": 20, "default": 5 },
+    "difficulty": { "type": "string", "title": "Độ khó", "enum": ["tang-dan", "de", "vua", "kho", "tron"], "enumNames": ["Tăng dần theo chặng", "Dễ (cờ quen thuộc)", "Vừa", "Khó", "Trộn đều"], "default": "tang-dan" },
+    "region": { "type": "string", "title": "Khu vực", "enum": ["all", "chau-a", "chau-au", "chau-phi", "bac-my", "nam-my", "chau-dai-duong"], "enumNames": ["Cả thế giới", "Châu Á", "Châu Âu", "Châu Phi", "Bắc & Trung Mỹ", "Nam Mỹ", "Châu Đại Dương"], "default": "all" },
+    "flagSeconds": { "type": "integer", "title": "Thời gian đoán mỗi cờ (giây)", "minimum": 10, "maximum": 120, "default": 30 },
+    "lastCallSeconds": { "type": "integer", "title": "Chốt sổ sau người đúng đầu tiên (giây)", "minimum": 2, "maximum": 15, "default": 5 },
+    "revealSeconds": { "type": "integer", "title": "Thời gian xem thẻ du lịch (giây)", "minimum": 4, "maximum": 30, "default": 8 },
+    "rescueSeconds": { "type": "integer", "title": "Thời gian cứu máy bay (giây)", "minimum": 5, "maximum": 30, "default": 10 },
+    "landedSeconds": { "type": "integer", "title": "Thời gian ăn mừng hạ cánh (giây)", "minimum": 5, "maximum": 30, "default": 12 },
+    "letterLimit": { "type": "integer", "title": "Tối đa chữ cái lộ mỗi cờ", "minimum": 0, "maximum": 8, "default": 3 },
+    "basePoints": { "type": "integer", "title": "Điểm cho người đúng đầu tiên", "minimum": 10, "maximum": 1000, "default": 100 },
+    "showLeaderboard": { "type": "boolean", "title": "Hiện bảng phi hành đoàn", "default": true }
+  }
+}

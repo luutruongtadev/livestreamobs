@@ -80,6 +80,8 @@ export function createStudioLayer({ canSound = () => false, muted = false, editi
     },
     /** Đặt lớp khớp với vùng vẽ: left/top (px) + tỉ lệ so với 1080×1920. */
     fit(scale) { el.style.transform = `scale(${scale})`; },
+    /** Soundboard: phát ngay (vẫn qua giới hạn 4 âm / giây và chỉ ở overlay được phép phát). */
+    playNow(s) { play(s); },
     resumeAudio() { player.resume(); },
     destroy() { token++; for (const it of items) { try { it.inst?.destroy(); } catch { /* bỏ qua */ } } items = []; player.close(); el.remove(); },
   };

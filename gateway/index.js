@@ -13,7 +13,7 @@ import { storeFromEnv } from './store.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.woff2': 'font/woff2' };
 // phần của game được phục vụ cho trình duyệt — KHÔNG BAO GIỜ server/, test/, supabase/
-const GAME_PUBLIC = new Set(['manifest.json', 'settings.schema.json', 'README.md', 'engine', 'render', 'data', 'assets', 'i18n']);
+const GAME_PUBLIC = new Set(['manifest.json', 'settings.schema.json', 'README.md', 'engine', 'render', 'data', 'assets', 'i18n', 'demo']);
 
 /** Đọc .env ở thư mục gốc (nếu có) — giá trị đã có trong môi trường được ưu tiên. */
 export function loadDotEnv(file, env = process.env) {
@@ -77,6 +77,7 @@ export function resolveStatic(urlPath, root = ROOT) {
   if (p.includes('\0')) return null;
   if (p === '/' || p === '/index.html') return path.join(root, 'web', 'index.html');
   if (p === '/app' || p === '/app/') return path.join(root, 'web', 'app.html');
+  if (p === '/demo' || p === '/demo/') return path.join(root, 'web', 'demo.html');
   if (/^\/o\/[A-Za-z0-9]{8,80}\/?$/.test(p)) return path.join(root, 'web', 'overlay.html');
   if (p.startsWith('/web/')) return safeJoin(path.join(root, 'web'), p.slice(5));
   if (p.startsWith('/sdk/')) {
@@ -129,7 +130,7 @@ async function main() {
   const gw = new Gateway({ store, catalog, widgets, gameServers, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
   // tên đăng nhập → email nội bộ <tên>@<usernameDomain>; cố định sau lần deploy đầu (đổi là mất đăng nhập của tài khoản cũ)
   const usernameDomain = String(env.AUTH_USERNAME_DOMAIN || env.PLAY_DOMAIN || 'localhost').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
-  const publicConfig = { supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain };
+  const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain };
   const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);

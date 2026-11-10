@@ -69,6 +69,18 @@ export function checkStudio(input, widgets = []) {
   return out;
 }
 
+/** Âm thanh bấm tay từ soundboard của dashboard → lệnh sạch cho overlay (ném lỗi nếu sai). */
+export function checkSfx(p = {}) {
+  const sound = String(p.sound || '');
+  if (sound === 'url') {
+    const url = str(p.url, 500).trim();
+    if (!/^https:\/\/[^\s"'<>]+$/i.test(url)) throw new Error('Link âm thanh phải bắt đầu bằng https://');
+    return { sound, url, volume: num(p.volume, 0, 1, 0.8) };
+  }
+  if (!SOUNDS.some((x) => x.id === sound)) throw new Error(`Không có âm thanh "${sound}"`);
+  return { sound, volume: num(p.volume, 0, 1, 0.8) };
+}
+
 /** Số liệu phiên live của kênh: đếm từ lúc bắt đầu (hoặc lúc streamer bấm "đặt lại"). */
 export class SessionStats {
   constructor(now = () => Date.now()) { this.now = now; this.reset(); }

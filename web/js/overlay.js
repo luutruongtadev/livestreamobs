@@ -27,7 +27,7 @@ const cfgKeyOf = (ch) => JSON.stringify([ch.game, ch.settings, ch.bindings]);
 const serverNow = () => Date.now() + offset;
 
 // lớp widget Studio (đè lên canvas game); âm thanh Studio chỉ phát ở overlay chính (hoặc overlay chỉ-widget có ?sound=1)
-const studio = widgetsOn ? createStudioLayer({ muted: options.mute, canSound: () => !preview && !options.mute && (role === 'leader' || (layer === 'widgets' && qs.get('sound') === '1')) }) : null;
+const studio = createStudioLayer({ muted: options.mute, canSound: () => !preview && !options.mute && (role === 'leader' || (layer === 'widgets' && qs.get('sound') === '1')) });
 if (studio) stage.append(studio.el);
 let legendFor = '';
 /** Bảng quà cho widget: bindings của game đang chơi (hoặc mặc định trong manifest) → { icon, text, label }. */
@@ -44,7 +44,9 @@ async function updateLegend(ch) {
 }
 let studioKey = '';
 function setStudio(st) { const k = JSON.stringify(st || {}); if (k === studioKey) return; studioKey = k; studio.setStudio(st); } // không đổi → giữ widget (khỏi mất lịch sử bình luận)
-function onChannel(ch) { if (!studio) return; setStudio(ch.studio); updateLegend(ch); }
+// ?layer=game / ?widgets=0: vẫn giữ luật âm thanh, chỉ bỏ widget
+const studioOf = (st) => (widgetsOn ? st : { ...(st || {}), widgets: [] });
+function onChannel(ch) { if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
 
 // ---------------- lớp UI chung ----------------
 function showBadge(text, cls = '') { badge.textContent = text; badge.className = `ui ${cls}`; badge.style.display = text ? 'block' : 'none'; }
@@ -110,7 +112,8 @@ async function onMsg(m) {
       break;
     case 'role': role = m.role; onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
     case 'cfg': onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
-    case 'studio': if (studio) setStudio(m.studio); break;
+    case 'studio': if (studio) setStudio(studioOf(m.studio)); break;
+    case 'sfx': studio?.playNow(m); break;
     case 'st': studio?.setStats(m.st); break;
     case 'sx': if (role !== 'leader') studio?.event(m.e); break;
     case 'ev':

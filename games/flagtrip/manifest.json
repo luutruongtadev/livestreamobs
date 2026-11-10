@@ -1,0 +1,31 @@
+{
+  "id": "flagtrip",
+  "name": "Đoán cờ vòng quanh thế giới",
+  "description": "Cả phòng lái chung một chiếc máy bay: nhìn lá cờ, gõ tên nước vào bình luận để bay tới chặng tiếp theo. Mỗi nước đến được đóng dấu hộ chiếu, thắp sáng trên bản đồ, kèm thẻ du lịch: thủ đô, danh thắng, món ngon.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "trivia",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment"],
+  "restore": "full",
+  "server": false,
+  "data": { "countries": "data/countries.json" },
+  "actions": [
+    { "id": "letter", "label": "Lộ 1 chữ cái", "icon": "🔤", "defaultTriggers": [{ "type": "gift", "giftName": "Rose" }, { "type": "like", "every": 300 }] },
+    { "id": "time", "label": "+10 giây", "icon": "⏱️", "defaultTriggers": [{ "type": "gift", "giftName": "Finger Heart" }, { "type": "follow" }] },
+    { "id": "region", "label": "Chỉ châu lục", "icon": "🧭", "defaultTriggers": [{ "type": "gift", "giftName": "Doughnut" }] },
+    { "id": "skip", "label": "Đổi cờ khác", "icon": "🔄", "defaultTriggers": [{ "type": "gift", "giftName": "Perfume" }] },
+    { "id": "shield", "label": "Khiên / cứu máy bay", "icon": "🛡️", "defaultTriggers": [{ "type": "gift", "giftName": "Hand Hearts" }] },
+    { "id": "tailwind", "label": "Gió xuôi: tiến 1 chặng", "icon": "🌬️", "defaultTriggers": [{ "type": "gift", "giftName": "Cap" }] },
+    { "id": "storm", "label": "Bão: lùi 1 chặng", "icon": "⛈️", "defaultTriggers": [{ "type": "gift", "giftName": "Hat and Mustache" }] },
+    { "id": "jet", "label": "Phản lực: tiến 5 chặng", "icon": "🚀", "defaultTriggers": [{ "type": "gift", "giftName": "Money Gun" }] }
+  ],
+  "commands": [
+    { "id": "next", "label": "Bước tiếp" },
+    { "id": "skip", "label": "Đổi cờ" },
+    { "id": "new-trip", "label": "Chuyến bay mới" },
+    { "id": "clear-board", "label": "Xoá bảng điểm" }
+  ]
+}

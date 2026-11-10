@@ -56,6 +56,8 @@ Tạo nhanh: `npm run new-game <id> "Tên hiển thị"`.
 ```
 Một món quà khớp tối đa một trigger: theo tên trước, sau đó theo số xu.
 
+**Tuỳ chọn:** `demo/index.js` khai báo người xem mô phỏng cho trang demo / trang chủ, dạng `export function bot(snapshot, rand, data) → sự kiện | null`. Nền tảng gọi khoảng 1,4 lần mỗi giây.
+
 ## 3. Engine — `createGame(ctx)`
 
 ```js
