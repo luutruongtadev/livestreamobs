@@ -67,6 +67,7 @@ ctx = {
   storage: { get(k), set(k, v) },               // khoá–giá trị theo (kênh, game)
   report: { round(result), points(user, n) },   // kết quả ván / điểm cho BXH chung
   bindings: { view(), reset() },                // trạng thái trigger (vẽ chip quà); reset() đầu vòng
+                                                // tiến độ gom được nền tảng lưu kèm serialize() dưới khoá $triggers (game không thấy)
   log,
 }
 // game trả về:
@@ -86,6 +87,7 @@ ctx = {
 ```
 - **Game không tự đọc quà / tim.** Nền tảng so trigger rồi gọi `action()`; quà vẫn được chuyển vào `handle()` nếu game khai báo `gift` trong `inputs` (vd để cảm ơn).
 - Đường đi nóng: `handle()` phải đồng bộ và nhanh (p95 < 1 ms). Việc chậm (gọi API) → `ctx.server.request()` rồi `emit('effects')`.
+- Vẽ bảng "quà → tác dụng": dùng `triggerText(trigger)` / `triggerIcon(trigger)` của SDK ("5 Hoa hồng", "300 tim", "Quà ≥ 10 xu" · 🌹 ❤️ 🎁) trên kết quả `ctx.bindings.view()`.
 - Sự kiện chuẩn hoá: `{ type, user: { id, name, avatar }, text?, giftName?, giftId?, diamonds?, count?, streakTotal?, seq, sentAt, gwAt }`.
 
 ## 4. Renderer — `mount(el, ctx)`

@@ -2,7 +2,7 @@
 // Mọi thứ trong file này chạy được cả trình duyệt lẫn Node (không dùng fs / network).
 export { SDK_VERSION, EVENT_TYPES, TRIGGER_TYPES, GAME_STATUS, PLATFORM_COMMANDS, validateManifest, defaultBindings, satisfies, parseSemver, triggerErrors } from './manifest.js';
 export { validate, withDefaults, resolveSettings, missingDefaults } from './schema.js';
-export { createTriggers } from './triggers.js';
+export { createTriggers, triggerText, triggerIcon, giftLabel } from './triggers.js';
 export { createHost, memoryStorage } from './host.js';
 export { Emitter } from './emitter.js';
 export { PausableMixin, makePausable } from './pause.js';

@@ -13,6 +13,8 @@
     "likeBonusEvery": { "type": "integer", "title": "Thưởng tim: mỗi người thả đủ N tim trong vòng", "minimum": 0, "maximum": 100000, "default": 1000 },
     "likeBonusPoints": { "type": "integer", "title": "Thưởng tim: điểm cộng khi đoán trúng", "minimum": 0, "maximum": 1000, "default": 50 },
     "teams": { "type": "boolean", "title": "Bật đấu đội ngay khi vào game", "default": false },
-    "teamRounds": { "type": "integer", "title": "Số vòng mỗi trận đấu đội", "minimum": 1, "maximum": 50, "default": 10 }
+    "teamRounds": { "type": "integer", "title": "Số vòng mỗi trận đấu đội", "minimum": 1, "maximum": 50, "default": 10 },
+    "bandHot": { "type": "integer", "title": "Thanh màu xanh (gần) từ bao nhiêu điểm", "minimum": 50, "maximum": 99, "default": 75 },
+    "bandWarm": { "type": "integer", "title": "Thanh màu cam (ấm) từ bao nhiêu điểm — thấp hơn là đỏ (xa)", "minimum": 10, "maximum": 90, "default": 50 }
   }
 }

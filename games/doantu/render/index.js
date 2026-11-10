@@ -999,79 +999,162 @@ export function mount(el, mctx = {}) {
     ctx.restore();
   }
 
+  // ---------------- bảng gần nghĩa: thanh màu theo dải (xanh gần · cam ấm · đỏ xa) ----------------
+  const BAND = { hot: ['#4ade80', '#16a34a'], warm: ['#fbbf24', '#ea580c'], cold: ['#f87171', '#b91c1c'], win: ['#fde047', '#22c55e'] };
+  function bandOf(score) {
+    const b = G?.bands || { hot: 75, warm: 50 };
+    if (score >= 100) return 'win';
+    return score >= b.hot ? 'hot' : score >= b.warm ? 'warm' : 'cold';
+  }
+  const bandColor = (score) => BAND[bandOf(score)][0];
+  /** Một dòng của bảng: số hạng · thanh màu dài theo điểm · từ · người đoán · điểm. */
+  function drawBoardRow(x, y, w, h, r, rank, { hl = 0, pinned = false } = {}) {
+    const pending = r.pending || r.score == null;
+    const sc = pending ? 0 : r.score;
+    const [c0, c1] = BAND[bandOf(sc)];
+    const rx = x + 70, rw = w - 70; // phần thanh (bên phải ô số hạng)
+    // ô số hạng
+    rr(x, y, 60, h, 14);
+    ctx.fillStyle = rank === 1 && !pinned ? 'rgba(250,204,21,.9)' : 'rgba(255,255,255,.08)'; ctx.fill();
+    ctx.textAlign = 'center'; ctx.font = font(900, rank != null && rank > 99 ? 18 : 24);
+    ctx.fillStyle = rank === 1 && !pinned ? '#1c1300' : 'rgba(255,255,255,.85)';
+    ctx.fillText(rank == null ? '…' : (pinned ? '#' : '') + rank, x + 30, y + h / 2 + 1);
+    // rãnh + thanh màu
+    rr(rx, y, rw, h, 14); ctx.fillStyle = 'rgba(255,255,255,.06)'; ctx.fill();
+    if (!pending) {
+      const fw = Math.max(h, rw * Math.max(0.04, Math.min(1, sc / 100)));
+      const g = ctx.createLinearGradient(rx, 0, rx + fw, 0);
+      g.addColorStop(0, c1); g.addColorStop(1, c0);
+      ctx.save();
+      if (hl > 0) { ctx.shadowColor = c0; ctx.shadowBlur = 30 * hl; }
+      rr(rx, y, fw, h, 14); ctx.fillStyle = g; ctx.globalAlpha = 0.92; ctx.fill();
+      ctx.restore();
+      rr(rx, y, fw, h * 0.45, 14); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fill();
+    } else {
+      // đang chấm: vệt sáng chạy
+      const k = (performance.now() / 900) % 1;
+      const g = ctx.createLinearGradient(rx + rw * (k - 0.3), 0, rx + rw * k, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,.18)');
+      rr(rx, y, rw, h, 14); ctx.fillStyle = g; ctx.fill();
+    }
+    if (hl > 0) { rr(rx, y, rw, h, 14); ctx.strokeStyle = `rgba(255,255,255,${0.35 + hl * 0.5})`; ctx.lineWidth = 2 + hl * 2; ctx.stroke(); }
+    // chữ
+    ctx.textAlign = 'left'; ctx.font = font(900, 30);
+    outlined(fitText(r.word, 330), rx + 22, y + h / 2 + 1, '#fff', 'rgba(0,0,0,.55)', 5);
+    avatar(r.by, rx + 400, y + h / 2, 16, 'rgba(255,255,255,.85)');
+    ctx.font = font(700, 19);
+    outlined(fitText(r.by?.name, 170) + (r.count > 1 ? ` +${r.count - 1}` : ''), rx + 424, y + h / 2 + 1, 'rgba(255,255,255,.95)', 'rgba(0,0,0,.5)', 4);
+    // điểm trong ô tối bên phải
+    const label = pending ? 'chấm…' : String(sc);
+    ctx.font = font(900, pending ? 22 : 32);
+    const pw = Math.max(76, ctx.measureText(label).width + 28);
+    rr(x + w - pw - 8, y + 7, pw, h - 14, 12); ctx.fillStyle = 'rgba(8,10,30,.72)'; ctx.fill();
+    ctx.textAlign = 'center'; ctx.fillStyle = pending ? 'rgba(255,255,255,.7)' : c0;
+    ctx.fillText(label, x + w - pw / 2 - 8, y + h / 2 + 1);
+  }
+
+  /** Ô trống của bảng (chưa có từ ở hạng này). */
+  function ghostRow(x, y, w, h, label) {
+    rr(x, y, 60, h, 14); ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fill();
+    ctx.textAlign = 'center'; ctx.font = font(800, 22); ctx.fillStyle = 'rgba(255,255,255,.25)';
+    ctx.fillText(label, x + 30, y + h / 2 + 1);
+    ctx.save(); ctx.setLineDash([8, 8]);
+    rr(x + 70, y, w - 70, h, 14); ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+  }
+
   function drawRanking(t) {
     if (G.mode === 'attr') return drawAttrBoard(t);
     if (G.mode === 'giaima' && G.gm) return drawGmClues(t);
-    const top = L.secretBottom + 26, rowH = 60, x = 40, w = W - 80;
-    const list = (G.ranked || []).slice(0, L.secretBottom > 800 ? 6 : L.secretBottom > 740 ? 7 : 8);
+    const top = L.secretBottom + 26, x = 40, w = W - 80;
+    const rowH = 56, gap = 8, head = 60, pinH = rowH + 44, legendH = 44; // chiều cao cố định → bố cục không giật khi có từ mới
+    // số dòng: lấp đầy tới ~1356px (chừa chỗ cho hàng hướng dẫn + "trước đó" phía dưới)
+    const fit = Math.floor((1356 - top - head - pinH - legendH - 16) / (rowH + gap));
+    const slots = Math.max(4, Math.min(10, fit));
+    const list = (G.ranked || []).slice(0, slots);
+    const bodyH = slots * (rowH + gap);
+    const h = head + pinH + bodyH + legendH + 8;
     L.rankTop = top;
-    L.rankBottom = top + 56 + Math.max(1, list.length) * rowH + 14;
+    L.rankBottom = top + h;
     ctx.save();
-    rr(x, top, w, 56 + Math.max(1, list.length) * rowH + 14, 24);
-    ctx.fillStyle = 'rgba(15,18,60,.86)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(129,140,248,.6)'; ctx.lineWidth = 2; ctx.stroke();
+    rr(x, top, w, h, 26);
+    ctx.fillStyle = 'rgba(12,14,46,.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(129,140,248,.55)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left'; ctx.font = font(800, 24); ctx.fillStyle = '#c7d2fe';
-    ctx.fillText('🎯 GẦN NGHĨA NHẤT', x + 26, top + 30);
-    ctx.textAlign = 'right'; ctx.font = font(600, 19); ctx.fillStyle = 'rgba(199,210,254,.8)';
-    ctx.fillText(`${G.totalGuesses || 0} từ đã đoán`, x + w - 26, top + 30);
-    if (!list.length) {
-      ctx.textAlign = 'center'; ctx.font = font(600, 24); ctx.fillStyle = 'rgba(255,255,255,.75)';
-      ctx.fillText('Chưa có ai đoán — bình luận một từ bất kỳ!', W / 2, top + 56 + rowH / 2);
-    }
+    ctx.textAlign = 'left'; ctx.font = font(900, 26); ctx.fillStyle = '#e0e7ff';
+    ctx.fillText('🎯 BẢNG GẦN NGHĨA', x + 26, top + 32);
+    ctx.textAlign = 'right'; ctx.font = font(700, 20); ctx.fillStyle = 'rgba(199,210,254,.85)';
+    ctx.fillText(`${fmtN(G.totalGuesses || 0)} từ đã đoán`, x + w - 26, top + 32);
     const now = performance.now();
+    const ix = x + 18, iw = w - 36;
+    // từ vừa đoán: ghim trên cùng kèm hạng của nó trong cả vòng
+    const py = top + head;
+    ctx.textAlign = 'left'; ctx.font = font(800, 18); ctx.fillStyle = '#a5b4fc';
+    ctx.fillText('VỪA ĐOÁN', ix + 2, py + 12);
+    if (G.latest) {
+      const hl = fx.highlight.get(G.latest.word);
+      drawBoardRow(ix, py + 28, iw, rowH, { ...G.latest, count: 1 }, G.latest.rank, { hl: hl ? Math.max(0, 1 - (now - hl) / 1500) : 0, pinned: true });
+    } else {
+      ghostRow(ix, py + 28, iw, rowH, '#');
+      ctx.textAlign = 'center'; ctx.font = font(700, 24); ctx.fillStyle = 'rgba(255,255,255,.7)';
+      ctx.fillText('💬 Bình luận một từ bất kỳ để bắt đầu!', W / 2 + 35, py + 28 + rowH / 2 + 1);
+    }
+    ctx.fillStyle = 'rgba(129,140,248,.25)'; ctx.fillRect(ix, py + pinH - 6, iw, 2);
+    const y0 = top + head + pinH;
+    for (let i = list.length; i < slots; i++) ghostRow(ix, y0 + i * (rowH + gap), iw, rowH, String(i + 1));
     list.forEach((r, i) => {
-      const target = top + 56 + i * rowH;
-      const cur = fx.rowY.has(r.word) ? lerp(fx.rowY.get(r.word), target, 0.18) : target + 30;
+      const target = y0 + i * (rowH + gap);
+      const cur = fx.rowY.has(r.word) ? lerp(fx.rowY.get(r.word), target, 0.2) : target + 30;
       fx.rowY.set(r.word, cur);
       const hl = fx.highlight.get(r.word);
-      const hk = hl ? Math.max(0, 1 - (now - hl) / 1500) : 0;
-      const y = cur;
-      // nền dòng + thanh điểm
-      rr(x + 16, y + 4, w - 32, rowH - 8, 14);
-      ctx.fillStyle = hk > 0 ? `rgba(250,204,21,${0.15 + hk * 0.25})` : 'rgba(255,255,255,.05)'; ctx.fill();
-      const barW = (w - 32) * Math.max(0.03, r.score / 100);
-      rr(x + 16, y + 4, barW, rowH - 8, 14);
-      ctx.fillStyle = scoreColor(r.score); ctx.globalAlpha = 0.28; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.textAlign = 'center'; ctx.font = font(800, 20); ctx.fillStyle = 'rgba(255,255,255,.7)';
-      ctx.fillText(String(i + 1), x + 44, y + rowH / 2);
-      ctx.textAlign = 'left'; ctx.font = font(800, 30); ctx.fillStyle = '#fff';
-      ctx.fillText(fitText(r.word, 360), x + 74, y + rowH / 2 + 1);
-      avatar(r.by, x + 470, y + rowH / 2, 15, 'rgba(255,255,255,.7)');
-      ctx.font = font(600, 18); ctx.fillStyle = 'rgba(255,255,255,.75)';
-      ctx.fillText(fitText(r.by?.name, 190) + (r.count > 1 ? ` +${r.count - 1}` : ''), x + 492, y + rowH / 2 + 1);
-      ctx.textAlign = 'right'; ctx.font = font(900, 34); ctx.fillStyle = scoreColor(r.score);
-      outlined(String(r.score), x + w - 30, y + rowH / 2 + 1, scoreColor(r.score), 'rgba(0,0,0,.6)', 4);
+      drawBoardRow(ix, cur, iw, rowH, r, i + 1, { hl: hl ? Math.max(0, 1 - (now - hl) / 1500) : 0 });
+    });
+    // chú thích dải màu
+    const b = G.bands || { hot: 75, warm: 50 };
+    const items = [[BAND.hot[0], `Gần ≥ ${b.hot}`], [BAND.warm[0], `Ấm ${b.warm}–${b.hot - 1}`], [BAND.cold[0], `Xa < ${b.warm}`]];
+    ctx.font = font(700, 19);
+    const ws = items.map(([, s]) => ctx.measureText(s).width + 34);
+    let lx = W / 2 - (ws.reduce((a, c) => a + c, 0) + 24 * (items.length - 1)) / 2;
+    const ly = top + h - legendH / 2 - 4;
+    items.forEach(([c, s], i) => {
+      rr(lx, ly - 9, 18, 18, 5); ctx.fillStyle = c; ctx.fill();
+      ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(224,231,255,.85)'; ctx.fillText(s, lx + 26, ly + 1);
+      lx += ws[i] + 24;
     });
     ctx.restore();
   }
 
+  /** "Trước đó": bong bóng chat nhỏ, viền theo dải màu của điểm (từ mới nhất đã ghim trên bảng). */
   function drawFeed() {
-    const list = (G.feed || []).slice(0, 4);
+    const pinned = (G.mode === 'meaning' || G.mode === 'english') && G.latest;
+    const src = (G.feed || []).slice(pinned ? 1 : 0, pinned ? 5 : 4);
     const y0 = L.feedY;
     ctx.save();
     ctx.textBaseline = 'middle';
     ctx.font = font(700, 20); ctx.fillStyle = 'rgba(199,210,254,.8)'; ctx.textAlign = 'left';
-    if (list.length) ctx.fillText('VỪA ĐOÁN', 60, y0 - 44);
-    list.forEach((f, i) => {
+    if (src.length) ctx.fillText(pinned ? '💬 ĐOÁN TRƯỚC ĐÓ' : '💬 VỪA ĐOÁN', 60, y0 - 44);
+    src.forEach((f, i) => {
       const y = y0 + i * 58;
-      ctx.globalAlpha = 1 - i * 0.18;
-      ctx.font = font(700, 24);
-      const label = `${clip(f.by?.name, 14)}: ${clip(f.word, 18)}`;
+      ctx.globalAlpha = 1 - i * 0.16;
       const attrMode = !!f.cells;
       const sc = f.gm ? '✗' : f.pending ? '…' : attrMode ? `${f.score}/6` : String(f.score);
-      const tw = ctx.measureText(label).width;
-      const w = tw + 150;
-      rr(40, y - 24, w, 48, 24);
-      ctx.fillStyle = 'rgba(15,18,60,.85)'; ctx.fill();
-      const col = f.gm ? '#94a3b8' : attrMode ? scoreColor(Math.round((f.score / 6) * 100)) : scoreColor(f.score);
-      ctx.strokeStyle = f.pending ? 'rgba(255,255,255,.3)' : col; ctx.lineWidth = 2; ctx.stroke();
-      avatar(f.by, 66, y, 16, teamColor(teamOfUser(f.by?.id)) || 'rgba(255,255,255,.7)');
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
-      ctx.fillText(label, 92, y + 1);
-      ctx.textAlign = 'right'; ctx.font = font(900, 26);
-      ctx.fillStyle = f.pending ? 'rgba(255,255,255,.6)' : col;
-      ctx.fillText(sc, 40 + w - 18, y + 1);
+      const col = f.gm ? '#94a3b8' : f.pending ? 'rgba(255,255,255,.4)' : attrMode ? bandColor(Math.round((f.score / 6) * 100)) : bandColor(f.score);
+      const word = clip(f.word, 16), name = clip(f.by?.name, 12);
+      ctx.font = font(800, 24); const ww = ctx.measureText(word).width;
+      ctx.font = font(600, 18); const nw = ctx.measureText(name).width;
+      ctx.font = font(900, 24); const sw = ctx.measureText(sc).width;
+      const w = 52 + ww + 14 + nw + 22 + sw + 24;
+      // bong bóng + đuôi
+      ctx.fillStyle = 'rgba(15,18,60,.9)';
+      ctx.beginPath(); ctx.moveTo(56, y + 16); ctx.lineTo(40, y + 30); ctx.lineTo(76, y + 20); ctx.closePath(); ctx.fill();
+      rr(44, y - 24, w, 48, 24); ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+      avatar(f.by, 70, y, 16, teamColor(teamOfUser(f.by?.id)) || 'rgba(255,255,255,.7)');
+      ctx.textAlign = 'left';
+      ctx.font = font(800, 24); ctx.fillStyle = '#fff'; ctx.fillText(word, 96, y + 1);
+      ctx.font = font(600, 18); ctx.fillStyle = 'rgba(199,210,254,.75)'; ctx.fillText(name, 96 + ww + 14, y + 2);
+      ctx.textAlign = 'right'; ctx.font = font(900, 24); ctx.fillStyle = col;
+      ctx.fillText(sc, 44 + w - 20, y + 1);
     });
     ctx.restore();
   }

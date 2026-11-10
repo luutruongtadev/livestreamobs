@@ -1,4 +1,4 @@
-import { Emitter, makePausable, digitsOf } from '#sdk';
+import { Emitter, makePausable, digitsOf, triggerText, triggerIcon } from '#sdk';
 
 /**
  * Nhớ số: dãy số hiện trong thời gian ngắn rồi ẩn → người xem gõ lại vào bình luận.
@@ -20,6 +20,8 @@ export class MemoryGame extends Emitter {
     this.round = 0;
     this.fails = 0;
     this.board = {}; // id → { id, name, avatar, points, correct }
+    this.bestLevel = this.level;
+    this.last = null; // kết quả vòng trước { round, number, correct, level, levelChange }
     this.startRound();
   }
 
@@ -42,6 +44,7 @@ export class MemoryGame extends Emitter {
     this.answered = {}; // id → true
     this.correct = []; // [{ id, name, avatar, points, ms }]
     this.wrong = 0;
+    this.recent = []; // hoạt động gần nhất (không lộ số đã gõ): [{ name, avatar, ok }]
     return [{ type: 'mm_show', round: this.round, level: this.level, digits: n }];
   }
 
@@ -60,6 +63,8 @@ export class MemoryGame extends Emitter {
       const ok = this.correct.length > 0;
       const from = this.level;
       if (ok) { this.level++; this.fails = 0; } else if (++this.fails >= this.s.failsToLevelDown) { this.level = Math.max(1, this.level - 1); this.fails = 0; }
+      this.bestLevel = Math.max(this.bestLevel, this.level);
+      this.last = { round: this.round, number: this.number, correct: this.correct.length, level: from, levelChange: Math.sign(this.level - from) };
       this.ctx.report?.round?.({ round: this.round, level: from, number: this.number, correct: this.correct.length, wrong: this.wrong, winners: this.correct.slice(0, 3).map((c) => c.id) });
       return [{ type: 'mm_reveal', round: this.round, number: this.number, correct: this.correct.length, wrong: this.wrong, level: this.level, levelChange: Math.sign(this.level - from) }];
     }
@@ -81,7 +86,10 @@ export class MemoryGame extends Emitter {
     if (this.answered[id]) return [];
     this.answered[id] = true;
     const by = pub(ev.user);
-    if (d !== this.number) { this.wrong++; return [{ type: 'mm_wrong', by }]; }
+    const ok = d === this.number;
+    this.recent.unshift({ name: by.name, avatar: by.avatar, ok });
+    if (this.recent.length > 6) this.recent.length = 6;
+    if (!ok) { this.wrong++; return [{ type: 'mm_wrong', by }]; }
     const t = this.clock();
     const total = Math.max(1, this.endsAt - this.answerFrom);
     const left = Math.max(0, this.endsAt - t) / total;
@@ -142,6 +150,13 @@ export class MemoryGame extends Emitter {
       correct: this.correct.slice(0, 10),
       wrong: this.wrong,
       board: this.s.showLeaderboard ? Object.values(this.board).sort((a, b) => b.points - a.points || b.correct - a.correct).slice(0, 5) : [],
+      recent: this.recent,
+      last: this.last,
+      bestLevel: this.bestLevel,
+      fails: this.fails,
+      failsToLevelDown: this.s.failsToLevelDown,
+      // bảng "quà → tác dụng" lấy từ trigger streamer gán trên dashboard
+      powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), every: b.every, count: b.every ? Math.min(b.count, b.every) : 0 })),
     };
   }
 
@@ -150,6 +165,7 @@ export class MemoryGame extends Emitter {
       level: this.level, round: this.round, fails: this.fails, board: this.board, number: this.number, phase: this.phase,
       startedAt: this.startedAt, endsAt: this.endsAt, answerFrom: this.answerFrom, flashUntil: this.flashUntil, flashUsed: this.flashUsed,
       extra: this.extra, answered: this.answered, correct: this.correct, wrong: this.wrong,
+      recent: this.recent, last: this.last, bestLevel: this.bestLevel,
     };
   }
 

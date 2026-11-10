@@ -98,8 +98,24 @@ export function createHost(module, {
     /** Trạng thái để renderer vẽ (có thể ẩn bí mật, vd đáp án). */
     snapshot() { return guard('snapshot', () => game.snapshot(), null); },
     /** Trạng thái đầy đủ để lưu (ctx.storage / game_state) và khôi phục khi reload overlay. */
-    serialize() { return guard('serialize', () => (game.serialize ? game.serialize() : null), null); },
-    restore(s) { return guard('restore', () => game.restore?.(s), undefined); },
+    // tiến độ gom quà / tim do nền tảng giữ → lưu kèm dưới khoá dành riêng $triggers (game không thấy khoá này)
+    serialize() {
+      return guard('serialize', () => {
+        const s = game.serialize ? game.serialize() : null;
+        const tr = triggers.dump();
+        return s && typeof s === 'object' && !Array.isArray(s) && Object.keys(tr).length ? { ...s, $triggers: tr } : s;
+      }, null);
+    },
+    restore(s) {
+      return guard('restore', () => {
+        if (s && typeof s === 'object' && !Array.isArray(s) && '$triggers' in s) {
+          const { $triggers, ...rest } = s;
+          triggers.load($triggers);
+          s = rest;
+        }
+        return game.restore?.(s);
+      }, undefined);
+    },
     /** Chạy lại game sau khi bị dừng vì lỗi (giữ cài đặt, bindings). */
     recover() { try { game?.destroy?.(); } catch { /* bỏ qua */ } create(); return state; },
     destroy() { try { game?.destroy?.(); } catch { /* bỏ qua */ } state = 'destroyed'; game = null; },

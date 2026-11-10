@@ -2,7 +2,7 @@
   "id": "doantu",
   "name": "Đoán từ",
   "description": "Người xem bình luận để đoán từ bí mật; mỗi từ đoán được chấm độ gần nghĩa 1–100 theo nghĩa và liên tưởng. Gợi ý mở dần, quà mở chữ, đấu đội, nhiều kiểu chơi (gần nghĩa, thuộc tính, gợi ý tiếng Anh, giải mã).",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "sdk": "^1.0.0",
   "status": "live",
   "category": "word",

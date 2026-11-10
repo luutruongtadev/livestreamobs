@@ -8,6 +8,9 @@ Game mẫu thứ hai của nền tảng, dùng để kiểm chứng chuẩn modu
 3. **Đáp án**: lộ dãy số và danh sách người đúng. Điểm = 50–100% `basePoints`, trả lời càng sớm càng nhiều.
 4. Có người đúng → **lên cấp** (cứ `levelsPerDigit` cấp thêm 1 chữ số). Sai liên tiếp `failsToLevelDown` vòng → xuống 1 cấp.
 
+## Màn hình
+Header (logo · **cấp** · **số chữ số** · **vòng**) → nhãn pha (👀 ghi nhớ / ⌨️ gõ lại / ✅ đáp án) → **màn số**: ô chữ số lớn (rơi xuống khi vào vòng, lật úp khi ẩn, xanh khi lộ đáp án; dãy dài chia 2 hàng, nhóm 3) + thanh thời gian có vạch từng giây → chip trạng thái (đã trả lời · đúng · sai · còn lượt hiện lại · thêm giờ) → khu giữa theo pha: **ai nhớ đúng nhanh nhất** (thời gian + điểm), lời nhắc + avatar người vừa trả lời (không lộ số / đúng sai), **bục vinh danh** top 3, hoặc **vòng trước** + kỷ lục cấp → **bảng điểm** + **bảng tương tác** (quà → tác dụng, lấy từ trigger streamer gán, có thanh tiến độ gom tim). Âm thanh tổng hợp bằng WebAudio (tắt bằng `?mute=1`).
+
 ## Actions (streamer gán quà / tim trong dashboard)
 | id | Tác dụng | Mặc định |
 |---|---|---|

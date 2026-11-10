@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTriggers, createHost, resolveSettings, validateManifest, satisfies, sameWord, digitsOf, fakeClock } from '#sdk';
+import { createTriggers, createHost, resolveSettings, validateManifest, satisfies, sameWord, digitsOf, fakeClock, triggerText, triggerIcon } from '#sdk';
 import { importsOf } from '#sdk/testing';
 
 const b = (id, action, trigger) => ({ id, action, trigger, label: id });
@@ -101,4 +101,25 @@ test('chữ: sameWord theo dấu, digitsOf nhận chữ số mọi hệ', () => 
 
 test('importsOf đọc được import / export-from / import()', () => {
   assert.deepEqual(importsOf("import a from './a.js';\nimport { b } from \"#sdk\";\nexport * from '../x.js';\nimport 'side';\nconst m = await import('./lazy.js');"), ['./a.js', '#sdk', '../x.js', 'side', './lazy.js']);
+});
+
+test('host: tiến độ gom tim lưu kèm trạng thái ($triggers), game không thấy khoá này; triggerText / triggerIcon', () => {
+  const seen = [];
+  const mk = () => createHost({ ...GAME, createGame: () => ({
+    handle: () => [], action: () => [], command: () => [], tick: () => [], snapshot: () => ({}),
+    serialize: () => ({ a: 1 }), restore: (s) => seen.push(s),
+  }) }, { bindings: [{ id: 'likes', action: 'boom', trigger: { type: 'like', every: 100 } }], log: {} });
+  const a = mk();
+  a.handle({ type: 'like', count: 42 });
+  const saved = JSON.parse(JSON.stringify(a.serialize()));
+  assert.deepEqual(saved, { a: 1, $triggers: { likes: 42 } });
+  const b = mk();
+  b.restore(saved);
+  assert.deepEqual(seen, [{ a: 1 }], 'game nhận trạng thái không có $triggers');
+  assert.equal(b.status().bindings[0].count, 42);
+  assert.deepEqual(mk().serialize(), { a: 1 }, 'chưa gom gì thì không thêm khoá');
+  assert.equal(triggerText({ type: 'gift', giftName: 'Rose', every: 5 }), '5 Hoa hồng');
+  assert.equal(triggerText({ type: 'like', every: 1000 }), '1.000 tim');
+  assert.equal(triggerText({ type: 'gift', minDiamonds: 30 }), 'Quà ≥ 30 xu');
+  assert.equal(triggerIcon({ type: 'gift', giftName: 'Rose' }), '🌹');
 });

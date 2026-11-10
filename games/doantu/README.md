@@ -12,6 +12,12 @@ Game đầu tiên của nền tảng (chuyển từ server đơn cũ). Người 
 | `server/index.js` | Chạy trong gateway: `LayeredScorer` (cache RAM dùng chung mọi kênh → pack → embedding → Claude), `AttrStore`, `EnglishHintStore`. Ops: `score`, `pack`, `attr`, `english`, `caps` |
 | `data/` | Kho soạn sẵn: 449 từ gần nghĩa, 285 từ thuộc tính (+ cache), 464 từ tiếng Anh, 292 câu giải mã, 674 Knowledge Pack |
 
+## Màn hình (kiểu gần nghĩa)
+- **Bảng gần nghĩa** là trung tâm: mỗi từ là một thanh dài theo điểm, màu theo dải — **xanh = gần** (≥ `bandHot`, mặc định 75), **cam = ấm** (≥ `bandWarm`, mặc định 50), **đỏ = xa**. Hạng 1 có ô vàng. Bảng luôn cao cố định (ô trống có nét đứt) nên bố cục không giật.
+- **Vừa đoán** ghim trên đầu bảng: từ mới nhất + hạng của nó trong mọi từ đã đoán vòng này (vd `#23`), kể cả khi không lọt top; đang chấm thì có vệt sáng chạy.
+- Dưới bảng: hàng hướng dẫn, bong bóng **đoán trước đó** (viền theo màu dải), **điểm tuần** bên phải.
+- Kiểu thuộc tính / giải mã giữ bảng riêng như cũ.
+
 ## Actions (nền tảng ánh xạ quà / tim → action; streamer đổi trong dashboard)
 | id | Tác dụng | Mặc định |
 |---|---|---|

@@ -208,7 +208,19 @@ export function createGame(ctx) {
     tick: () => out(wg.tick()),
     pause: (reason) => wg.pause(reason || 'manual'),
     resume: () => wg.resume(),
-    snapshot: () => wg.snapshot(),
+    snapshot() {
+      const s = wg.snapshot();
+      // dải màu của bảng xếp hạng (xanh = gần, cam = ấm, đỏ = xa) — streamer chỉnh trong cài đặt
+      const hot = ctx.settings.bandHot ?? 75;
+      s.bands = { hot, warm: Math.min(ctx.settings.bandWarm ?? 50, hot - 1) };
+      // từ vừa đoán (ghim trên bảng) kèm hạng của nó trong mọi từ đã đoán vòng này
+      const f = (s.feed || [])[0];
+      s.latest = f && !f.gm ? {
+        word: f.word, score: f.score ?? null, pending: !!f.pending, by: f.by,
+        rank: f.pending || f.score == null ? null : 1 + [...wg.guesses.values()].filter((g) => !g.pending && g.score > f.score).length,
+      } : null;
+      return s;
+    },
     // Ván đang chơi không lưu (restore "partial"): reload overlay thì giữ người thắng, từ đã chơi, chuỗi, đội — vòng mới bắt đầu lại.
     serialize: () => ({ state: wg.state(), used: ctx.storage.get('used') || [] }),
     restore(saved) {

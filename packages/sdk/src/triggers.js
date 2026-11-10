@@ -92,5 +92,52 @@ export function createTriggers(bindings = [], { now = () => Date.now() } = {}) {
     return list.map((b) => ({ id: b.id, action: b.action, type: b.trigger.type, label: b.label || b.action, icon: b.icon || null, every: b.trigger.every || null, count: counters.get(b.id) || 0, trigger: b.trigger }));
   }
 
-  return { feed, refund, reset, view, bindings: list };
+  /** Tiến độ gom (để nền tảng lưu kèm trạng thái game, reload overlay không mất). */
+  function dump() { return Object.fromEntries([...counters].filter(([, v]) => v > 0)); }
+  function load(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    for (const b of list) {
+      const v = Number(obj[b.id]);
+      if (b.trigger.every && Number.isFinite(v) && v > 0) counters.set(b.id, Math.min(Math.floor(v), b.trigger.every - 1));
+    }
+  }
+
+  return { feed, refund, reset, view, dump, load, bindings: list };
+}
+
+// ---- mô tả trigger cho màn hình (vd bảng "quà → tác dụng" của game) ----
+const GIFT_VI = { rose: 'Hoa hồng', 'finger heart': 'Tim tay', tiktok: 'TikTok', 'heart me': 'Heart Me', 'ice cream cone': 'Kem ốc quế', doughnut: 'Bánh donut', galaxy: 'Thiên hà', lion: 'Sư tử', perfume: 'Nước hoa', 'hand hearts': 'Tim tay đôi', 'love you': 'Love you', gg: 'GG' };
+const GIFT_ICON = { rose: '🌹', 'finger heart': '🫰', 'ice cream cone': '🍦', doughnut: '🍩', galaxy: '🌌', lion: '🦁', perfume: '🧴', 'hand hearts': '🫶', 'heart me': '💗', 'love you': '💕', gg: '🎮', tiktok: '🎵' };
+const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(Number(n) || 0);
+
+/** Tên quà tiếng Việt (nếu biết), không thì giữ tên gốc. */
+export function giftLabel(name) { return GIFT_VI[String(name || '').toLowerCase()] || String(name || ''); }
+
+/** Biểu tượng cho trigger: emoji quà quen thuộc, ❤️ tim, ➕ follow… (fallback 🎁). */
+export function triggerIcon(trigger = {}) {
+  const t = trigger || {};
+  if (t.type === 'like') return '❤️';
+  if (t.type === 'follow') return '➕';
+  if (t.type === 'share') return '↗️';
+  if (t.type === 'member') return '👋';
+  if (t.type === 'keyword') return '💬';
+  const first = [t.giftName, ...(t.gifts || [])].find(Boolean);
+  return (first && GIFT_ICON[String(first).toLowerCase()]) || '🎁';
+}
+
+/** Mô tả ngắn của trigger: "Hoa hồng", "5 Hoa hồng", "300 tim", "quà ≥ 10 xu", "Follow", '"vào đội"'. */
+export function triggerText(trigger = {}) {
+  const t = trigger || {};
+  const n = t.every && t.every > 1 ? `${fmtN(t.every)} ` : '';
+  if (t.type === 'like') return `${fmtN(t.every || 1)} tim`;
+  if (t.type === 'gift') {
+    const names = [t.giftName, ...(t.gifts || [])].filter(Boolean);
+    if (names.length) return `${n}${giftLabel(names[0])}${names.length > 1 ? '…' : ''}`;
+    return `${n}${n ? 'quà ≥ ' : 'Quà ≥ '}${fmtN(t.minDiamonds ?? 1)} xu`;
+  }
+  if (t.type === 'follow') return n ? `${n}follow` : 'Follow';
+  if (t.type === 'share') return n ? `${n}share` : 'Share';
+  if (t.type === 'member') return `${n || ''}người vào live`.trim();
+  if (t.type === 'keyword') return `"${t.text || ''}"`;
+  return '';
 }
