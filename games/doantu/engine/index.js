@@ -5,6 +5,42 @@ import { packIndex, dictLookup, scoreOf } from './pack.js';
 
 const MODES = ['meaning', 'attr', 'english', 'giaima'];
 
+// ---- nhãn chip quà trên màn hình (sinh từ trigger mà streamer gán) ----
+const GIFT_VI = { rose: 'Hoa hồng', 'finger heart': 'Tim tay', tiktok: 'TikTok', 'heart me': 'Heart Me', 'ice cream cone': 'Kem', doughnut: 'Bánh donut', galaxy: 'Thiên hà', lion: 'Sư tử' };
+const GIFT_ICON = { rose: '🌹', 'finger heart': '🫰', doughnut: '🍩', galaxy: '🌌', lion: '🦁' };
+const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(n);
+const giftNames = (t) => [t.giftName, ...(t.gifts || [])].filter(Boolean);
+
+function chipIcon(b) {
+  const t = b.trigger || {};
+  if (t.type === 'like') return '❤️';
+  if (t.type === 'follow') return '➕';
+  if (t.type === 'share') return '↗️';
+  if (t.type === 'keyword') return '💬';
+  const first = giftNames(t)[0];
+  return (first && GIFT_ICON[first.toLowerCase()]) || b.icon || '🎁';
+}
+
+/** "5 Hoa hồng = 1 chữ", "1.000 tim = 1 chữ", "30 xu = +60 giây"… (vòng Giải mã đổi nghĩa như luật cũ). */
+export function chipLabel(b, wg) {
+  const t = b.trigger || {};
+  const gm = wg?.mode === 'giaima' && wg?.gm;
+  const secs = b.params?.seconds || 60;
+  const what = { letter: '1 chữ', hint: gm ? 'giải 1 gợi ý' : 'gợi ý', time: `+${secs} giây`, syllable: gm ? 'lộ 3 chữ' : 'lộ 1 tiếng' }[b.action] || b.label;
+  const n = t.every && t.every > 1 ? `${fmtN(t.every)} ` : '';
+  let who;
+  if (t.type === 'like') who = `${fmtN(t.every || 1)} tim`;
+  else if (t.type === 'gift') {
+    const names = giftNames(t);
+    who = names.length ? `${n}${GIFT_VI[names[0].toLowerCase()] || names[0]}${names.length > 1 ? '…' : ''}` : `${n}${n ? 'quà ≥ ' : ''}${fmtN(t.minDiamonds ?? 1)} xu`;
+  } else if (t.type === 'follow') who = `${n}follow`;
+  else if (t.type === 'share') who = `${n}share`;
+  else if (t.type === 'member') who = `${n}người vào`;
+  else if (t.type === 'keyword') who = `"${t.text}"`;
+  else return b.label;
+  return `${who} = ${what}`;
+}
+
 /**
  * Chấm điểm phía overlay: tra Knowledge Pack tại chỗ (0 ms); từ ngoài pack mới hỏi phần server qua WebSocket.
  * Không có server / lỗi → "chưa rõ nghĩa" (điểm không liên quan) — không bao giờ chấm theo mặt chữ.
@@ -117,8 +153,8 @@ export function createGame(ctx) {
     log: ctx.log,
   });
   if (s.teams) wg.teams.setOn(true);
-  // chip quà / tiến độ gom trên màn hình lấy từ bindings của nền tảng
-  wg.externalUnlocks = () => ctx.bindings.view().map((b) => ({ id: b.id, icon: b.icon || '🎁', label: b.label, every: b.every, count: Math.min(b.count, b.every || 0) }));
+  // chip quà / tiến độ gom trên màn hình lấy từ bindings của nền tảng, nhãn ngắn kiểu cũ ("5 Hoa hồng = 1 chữ")
+  wg.externalUnlocks = () => ctx.bindings.view().map((b) => ({ id: b.id, icon: chipIcon(b), label: chipLabel(b, wg), every: b.every, count: Math.min(b.count, b.every || 0) }));
   ctx.server.request('caps', {}).then((c) => { if (c) serverCaps = c; }).catch(() => {});
 
   // sang vòng mới → bộ đếm gom quà / tim của nền tảng đếm lại từ đầu (như bản cũ)

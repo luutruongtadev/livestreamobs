@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="google" content="notranslate">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Live — game tương tác cho TikTok Live</title>
+  <meta name="description" content="Game tương tác cho TikTok Live chạy ngay trên web: người xem bình luận, tặng quà, thả tim để chơi. Không cần cài app.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/web/css/app.css">
+  <style>
+    .hero { text-align: center; padding: 40px 0 20px; } .hero h1 { font-size: clamp(28px, 5vw, 44px); margin: 0 0 10px; }
+    .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .game img { width: 64px; height: 64px; border-radius: 14px; }
+    .steps { counter-reset: s; list-style: none; padding: 0; } .steps li { counter-increment: s; padding: 8px 0 8px 40px; position: relative; }
+    .steps li::before { content: counter(s); position: absolute; left: 0; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #1b1300; display: grid; place-items: center; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <header class="top"><a class="brand" href="/">🎮 Game Live</a><a href="/app"><button>Vào bảng điều khiển</button></a></header>
+  <main>
+    <section class="hero">
+      <h1>Game tương tác cho TikTok Live</h1>
+      <p class="muted">Người xem bình luận, tặng quà, thả tim để chơi. Chạy ngay trên web, không cần cài app.</p>
+      <a href="/app"><button>Bắt đầu miễn phí</button></a>
+    </section>
+    <section class="card"><h2>Danh mục game</h2><div class="games" id="games"><p class="muted">Đang tải…</p></div></section>
+    <section class="card">
+      <h2>Lên live trong 3 bước</h2>
+      <ol class="steps">
+        <li>Đăng nhập, thêm kênh bằng <b>@username TikTok</b>, chọn game.</li>
+        <li>Copy <b>link overlay</b>, dán vào <b>OBS</b> hoặc <b>TikTok LIVE Studio</b> → nguồn <i>Browser</i> (1080×1920). Dùng link trực tiếp, không dùng nguồn "Link" vì bị trễ.</li>
+        <li>Bắt đầu LIVE. Người xem bình luận / tặng quà là game chạy. Chỉnh cài đặt, gán quà, đổi game ngay trong lúc live trên bảng điều khiển.</li>
+      </ol>
+      <p class="small muted">Phát live bằng app TikTok trên điện thoại thì không gắn được overlay. Không liên kết với TikTok; nền tảng đọc luồng LIVE công khai.</p>
+    </section>
+  </main>
+  <script type="module">
+    const el = document.getElementById('games');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    fetch('/api/games').then((r) => r.json()).then((games) => {
+      el.innerHTML = games.filter((g) => g.status !== 'dev').map((g) => `
+        <div class="card game">
+          ${g.thumbnail ? `<img src="/games/${esc(g.id)}/${esc(g.thumbnail)}" alt="">` : ''}
+          <h2>${esc(g.name)} ${g.status === 'beta' ? '<span class="pill warn">beta</span>' : ''}</h2>
+          <p class="muted small">${esc(g.description || '')}</p>
+          <p class="small">${(g.actions || []).map((a) => `<span class="pill">${esc(a.icon || '')} ${esc(a.label)}</span>`).join(' ')}</p>
+        </div>`).join('') || '<p class="muted">Chưa có game.</p>';
+    }).catch(() => { el.textContent = 'Không tải được danh mục game.'; });
+  </script>
+</body>
+</html>

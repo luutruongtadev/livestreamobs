@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi" translate="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="google" content="notranslate">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overlay — Game Live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;700;800;900&family=Noto+Serif:wght@700;900&display=swap" rel="stylesheet">
+  <script type="importmap">{ "imports": { "#sdk": "/sdk/index.js" } }</script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+    body { display: flex; align-items: center; justify-content: center; font: 600 15px 'Be Vietnam Pro', system-ui, sans-serif; color: #fff; }
+    #stage { position: relative; }
+    #stage canvas { display: block; }
+    .ui { position: fixed; z-index: 10; pointer-events: none; }
+    #badge { left: 12px; top: 12px; padding: 8px 14px; border-radius: 999px; background: rgba(15, 18, 40, .85); border: 1px solid rgba(255,255,255,.2); display: none; }
+    #badge.warn { border-color: #f59e0b; } #badge.err { border-color: #ef4444; }
+    #notice { inset: 0; display: none; align-items: center; justify-content: center; text-align: center; background: rgba(5, 8, 25, .7); font-size: 22px; padding: 24px; }
+    #sound { left: 50%; bottom: 20px; transform: translateX(-50%); pointer-events: auto; cursor: pointer; padding: 10px 18px; border-radius: 999px; border: 2px solid #f5c542; background: rgba(120, 20, 10, .85); color: #fff; font: inherit; display: none; }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="badge" class="ui"></div>
+  <div id="notice" class="ui"></div>
+  <button id="sound" class="ui" type="button">🔔 Bấm để bật âm thanh</button>
+  <script type="module" src="/web/js/overlay.js"></script>
+</body>
+</html>

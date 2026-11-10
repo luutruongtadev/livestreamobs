@@ -80,6 +80,8 @@ case "$MODE" in
   phone)
     D="$(get_env DOMAIN)"
     if [[ -z "$D" ]]; then D="$(curl -fsS4 https://api.ipify.org | tr . -).sslip.io"; set_env DOMAIN "$D"; fi
+    PD="$(get_env PLAY_DOMAIN)"
+    if [[ -z "$PD" ]]; then PD="play.$D"; set_env PLAY_DOMAIN "$PD"; fi
     PROFILES=(--profile https) ;;
   stream) PROFILES=(--profile stream) ;;
   server) ;;
@@ -116,6 +118,7 @@ echo
 if [[ "$MODE" == "phone" ]]; then
   echo "Điện thoại:  https://$D/doantu?phone=1"
   echo "Admin:       https://$D/admin?token=<ADMIN_TOKEN trong $DIR/.env>"
+  echo "Nền tảng:    https://$PD  (dashboard https://$PD/app)"
 else
   echo "Admin qua SSH tunnel: ssh -L 8686:127.0.0.1:8686 <user>@<VPS>  →  http://localhost:8686/admin?token=..."
 fi

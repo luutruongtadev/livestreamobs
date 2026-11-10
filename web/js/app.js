@@ -1,0 +1,307 @@
+// Dashboard của streamer. Không có code riêng cho từng game: form cài đặt sinh từ settings.schema.json,
+// trình gán quà / tim sinh từ manifest.actions, nút lệnh từ manifest.commands.
+const P = window.PLATFORM || {};
+const root = document.getElementById('root');
+const who = document.getElementById('who');
+const logoutBtn = document.getElementById('logout');
+
+// ---------------- tiện ích DOM ----------------
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k in el && k !== 'list') el[k] = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+function toast(text, err = false) {
+  const t = h('div', { class: `toast${err ? ' err' : ''}` }, text);
+  document.body.append(t); setTimeout(() => t.remove(), err ? 6000 : 2500);
+}
+
+// ---------------- đăng nhập ----------------
+let supabase = null;
+async function getToken() {
+  if (P.supabaseUrl && P.supabaseKey) {
+    if (!supabase) {
+      const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
+      supabase = createClient(P.supabaseUrl, P.supabaseKey);
+      supabase.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
+    }
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  }
+  try { return localStorage.getItem('devToken'); } catch { return null; }
+}
+
+function renderLogin(msg = '') {
+  const box = h('div', { class: 'card login' }, h('h2', {}, 'Đăng nhập'), msg && h('p', { class: 'muted' }, msg));
+  if (P.supabaseUrl && P.supabaseKey) {
+    const email = h('input', { type: 'email', placeholder: 'email@cua-ban.com', class: 'grow', required: true });
+    box.append(
+      h('button', { onclick: () => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href } }) }, 'Đăng nhập bằng Google'),
+      h('h3', {}, 'Hoặc nhận link đăng nhập qua email'),
+      h('form', { class: 'row', onsubmit: async (e) => {
+        e.preventDefault();
+        const { error } = await supabase.auth.signInWithOtp({ email: email.value.trim(), options: { emailRedirectTo: location.href } });
+        toast(error ? error.message : 'Đã gửi link đăng nhập, kiểm tra hộp thư.', !!error);
+      } }, email, h('button', { type: 'submit' }, 'Gửi link')),
+    );
+  } else {
+    const tok = h('input', { type: 'password', placeholder: 'GATEWAY_DEV_TOKEN / ADMIN_TOKEN', class: 'grow' });
+    box.append(
+      h('p', { class: 'small muted' }, 'Máy chủ chưa cấu hình Supabase → chế độ chạy thử, đăng nhập bằng DEV token.'),
+      h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); try { localStorage.setItem('devToken', tok.value); } catch { /* bỏ qua */ } start(); } }, tok, h('button', { type: 'submit' }, 'Vào')),
+    );
+  }
+  root.replaceChildren(box);
+}
+
+logoutBtn.onclick = async () => { if (supabase) await supabase.auth.signOut(); else { try { localStorage.removeItem('devToken'); } catch { /* bỏ qua */ } location.reload(); } };
+
+// ---------------- WebSocket tới gateway ----------------
+let ws = null, reqId = 0;
+const waits = new Map();
+const S = { user: null, games: [], channels: [], cur: null, tk: null, counts: {}, lat: null, feed: [], tab: 'live' };
+
+function req(op, p = {}) {
+  return new Promise((resolve, reject) => {
+    if (ws?.readyState !== 1) return reject(new Error('Chưa kết nối máy chủ'));
+    const id = ++reqId;
+    waits.set(id, { resolve, reject });
+    ws.send(JSON.stringify({ t: 'req', id, op, p }));
+    setTimeout(() => { if (waits.delete(id)) reject(new Error('Quá thời gian')); }, 20_000);
+  });
+}
+
+async function start() {
+  const token = await getToken();
+  if (!token) return renderLogin();
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws?role=dashboard`);
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'auth', token }));
+  ws.onclose = (e) => {
+    if (e.code === 4001) { try { localStorage.removeItem('devToken'); } catch { /* bỏ qua */ } return renderLogin(e.reason || 'Phiên đăng nhập hết hạn.'); }
+    toast('Mất kết nối máy chủ, đang nối lại…', true); setTimeout(start, 2000);
+  };
+  ws.onmessage = (m) => {
+    const msg = JSON.parse(m.data);
+    if (msg.t === 'authed') { S.user = msg.user; S.games = msg.games; S.storeKind = msg.store; onAuthed(); return; }
+    if (msg.t === 'res') { const w = waits.get(msg.id); if (w) { waits.delete(msg.id); msg.err ? w.reject(new Error(msg.err)) : w.resolve(msg.r); } return; }
+    if (msg.channel && msg.channel !== S.cur?.id) return;
+    if (msg.t === 'tk') { S.tk = msg.tk; paintStatus(); }
+    else if (msg.t === 'overlays') { S.counts = msg; paintStatus(); }
+    else if (msg.t === 'lat') { S.lat = msg.lat; paintStatus(); }
+    else if (msg.t === 'ev') pushFeed(msg.e);
+    else if (msg.t === 'err') { pushFeed({ type: 'error', text: `${msg.err.where}: ${msg.err.message}${msg.err.crashed ? ' (game đã dừng, đang chạy lại)' : ''}` }); }
+  };
+}
+
+async function onAuthed() {
+  who.textContent = S.user.email || S.user.id; logoutBtn.hidden = false;
+  S.channels = await req('channels');
+  const saved = (() => { try { return localStorage.getItem('curChannel'); } catch { return null; } })();
+  const pick = S.channels.find((c) => c.id === saved) || S.channels[0];
+  if (pick) await select(pick.id); else render();
+}
+
+async function select(id) {
+  if (S.cur) req('unwatch', { channel: S.cur.id }).catch(() => {});
+  const { channel } = await req('get', { channel: id });
+  S.cur = channel; S.feed = []; S.lat = null;
+  try { localStorage.setItem('curChannel', id); } catch { /* bỏ qua */ }
+  const w = await req('watch', { channel: id });
+  S.tk = w.tk; S.counts = w; S.lat = w.lat;
+  render();
+}
+
+const gameOf = (id) => S.games.find((g) => g.id === id);
+const overlayUrl = (c) => `${location.origin}/o/${c.overlay_key}`;
+
+// ---------------- giao diện ----------------
+function render() {
+  const list = h('div', { class: 'card list' }, h('h2', {}, 'Kênh của bạn'),
+    S.channels.map((c) => h('button', { class: S.cur?.id === c.id ? 'on' : '', onclick: () => select(c.id) }, `@${c.username}`, h('div', { class: 'small muted' }, gameOf(c.active_game)?.name || c.active_game))),
+    addChannelForm());
+  root.replaceChildren(h('div', { class: 'grid' }, h('div', {}, list, storeNote()), S.cur ? channelView() : h('div', { class: 'card' }, h('h2', {}, 'Bắt đầu'), h('p', {}, 'Thêm kênh TikTok của bạn (nhập @username) để nhận link overlay.'))));
+  paintStatus();
+}
+
+function storeNote() {
+  return S.storeKind === 'file' ? h('p', { class: 'small muted' }, '⚠️ Chạy thử: dữ liệu lưu trong file trên máy chủ (chưa có Supabase).') : null;
+}
+
+function addChannelForm() {
+  const u = h('input', { placeholder: '@username TikTok', class: 'grow' });
+  return h('form', { class: 'row', onsubmit: async (e) => {
+    e.preventDefault();
+    try { const c = await req('create', { username: u.value }); S.channels.push(c); await select(c.id); toast('Đã thêm kênh'); } catch (err) { toast(err.message, true); }
+  } }, u, h('button', { type: 'submit' }, '+ Thêm'));
+}
+
+function channelView() {
+  const c = S.cur;
+  const g = gameOf(c.active_game);
+  const tabs = [['live', '🎛 Điều khiển'], ['settings', '⚙️ Cài đặt game'], ['bindings', '🎁 Quà & tương tác'], ['board', '🏆 Bảng xếp hạng'], ['channel', '🔗 Kênh']];
+  const body = { live: liveTab, settings: settingsTab, bindings: bindingsTab, board: boardTab, channel: channelTab }[S.tab](c, g);
+  return h('div', {},
+    h('div', { class: 'card' },
+      h('div', { class: 'row' }, h('h2', { class: 'grow' }, `@${c.username} · ${g?.name || c.active_game}`), h('span', { id: 'status' })),
+      h('div', { class: 'row small', id: 'latency' }),
+      h('div', { class: 'row', style: 'margin-top:10px' }, tabs.map(([k, label]) => h('button', { class: S.tab === k ? '' : 'ghost', onclick: () => { S.tab = k; render(); } }, label)))),
+    body);
+}
+
+function paintStatus() {
+  const el = document.getElementById('status'); const lat = document.getElementById('latency');
+  if (!el) return;
+  const tk = S.tk || {};
+  const cls = tk.state === 'connected' ? 'ok' : tk.state === 'error' ? 'err' : 'warn';
+  el.replaceChildren(h('span', { class: `pill ${cls}` }, tk.state === 'connected' ? `TikTok: đã kết nối${tk.viewers ? ` · ${tk.viewers} người xem` : ''}` : `TikTok: ${tk.message || tk.state || 'chưa kết nối'}`), ' ',
+    h('span', { class: `pill ${S.counts?.overlays ? 'ok' : 'warn'}` }, S.counts?.overlays ? `Overlay đang mở: ${S.counts.overlays}` : 'Chưa mở overlay'));
+  const L = S.lat;
+  lat?.replaceChildren(L ? `Độ trễ — gateway → màn hình: p50 ${L.p50} ms · p95 ${L.p95} ms${L.rtt != null ? ` · RTT ${L.rtt} ms` : ''}${L.tiktok ? ` · TikTok → gateway: p50 ${L.tiktok.p50} ms · p95 ${L.tiktok.p95} ms` : ''}` : h('span', { class: 'muted' }, 'Độ trễ: chưa có số liệu (mở overlay và có bình luận)'));
+}
+
+function pushFeed(e) {
+  S.feed.unshift(e); S.feed = S.feed.slice(0, 40);
+  const f = document.getElementById('feed'); if (!f) return;
+  f.prepend(feedRow(e)); while (f.children.length > 40) f.lastChild.remove();
+}
+function feedRow(e) {
+  const who2 = e.user?.name ? `${e.user.name}: ` : '';
+  const text = e.type === 'comment' ? `💬 ${who2}${e.text}` : e.type === 'gift' ? `🎁 ${who2}${e.giftName} x${e.count || e.repeatCount || 1} (${e.diamonds} xu)` : e.type === 'error' ? `❗ ${e.text}` : `• ${who2}${e.type}${e.count ? ` x${e.count}` : ''}`;
+  return h('div', { class: e.type === 'error' ? 'pill err' : '' }, `${e.sim ? '[giả lập] ' : ''}${text}`);
+}
+
+// ---- tab Điều khiển: xem trước, lệnh, giả lập, nhật ký ----
+function liveTab(c, g) {
+  const cmd = async (id, args) => { try { await req('cmd', { channel: c.id, id, args }); } catch (e) { toast(e.message, true); } };
+  const sim = async (e, repeat = 1) => { try { await req('sim', { channel: c.id, e, repeat }); } catch (err) { toast(err.message, true); } };
+  const text = h('input', { placeholder: 'Bình luận thử…', class: 'grow' });
+  const giftName = h('input', { value: 'Rose', style: 'width:130px' });
+  const diamonds = h('input', { type: 'number', value: 1, min: 0, style: 'width:90px' });
+  const count = h('input', { type: 'number', value: 1, min: 1, style: 'width:80px' });
+  const likes = h('input', { type: 'number', value: 100, min: 1, style: 'width:100px' });
+  let n = 0; const user = () => ({ id: `sim${++n % 7}`, name: `Khán giả ${n % 7 + 1}` });
+  return h('div', { class: 'cols' },
+    h('div', {},
+      h('div', { class: 'card' }, h('h2', {}, 'Lệnh'), h('div', { class: 'row' },
+        h('button', { class: 'ghost', onclick: () => cmd('pause') }, '⏸ Tạm dừng'), h('button', { class: 'ghost', onclick: () => cmd('resume') }, '▶ Tiếp tục'),
+        (g?.commands || []).map((x) => h('button', { onclick: () => cmd(x.id) }, x.label)),
+        h('button', { class: 'ghost', onclick: async () => { S.tk = (await req('tiktok', { channel: c.id, op: 'connect' })).tk; paintStatus(); } }, '🔌 Kết nối lại TikTok'))),
+      h('div', { class: 'card' }, h('h2', {}, 'Giả lập người xem'), h('p', { class: 'small muted' }, 'Thử game mà không cần live: sự kiện đi đúng đường như bình luận / quà thật.'),
+        h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); if (text.value.trim()) { sim({ type: 'comment', user: user(), text: text.value }); text.value = ''; } } }, text, h('button', { type: 'submit' }, 'Gửi')),
+        h('div', { class: 'row', style: 'margin-top:8px' }, '🎁', giftName, 'xu', diamonds, 'x', count, h('button', { onclick: () => sim({ type: 'gift', user: user(), giftName: giftName.value, diamonds: Number(diamonds.value), count: Number(count.value) }) }, 'Tặng quà')),
+        h('div', { class: 'row', style: 'margin-top:8px' }, '❤️', likes, h('button', { onclick: () => sim({ type: 'like', user: user(), count: Number(likes.value) }) }, 'Thả tim'),
+          h('button', { class: 'ghost', onclick: () => sim({ type: 'follow', user: user() }) }, '➕ Follow'), h('button', { class: 'ghost', onclick: () => sim({ type: 'share', user: user() }) }, '↗ Share'),
+          h('button', { class: 'ghost', onclick: () => text.value.trim() && sim({ type: 'comment', user: { id: 'crowd', name: 'Khán giả' }, text: text.value }, 20) }, '×20 người cùng bình luận'))),
+      h('div', { class: 'card' }, h('h2', {}, 'Nhật ký trực tiếp'), h('div', { class: 'feed', id: 'feed' }, S.feed.map(feedRow)))),
+    h('div', {}, h('div', { class: 'card' }, h('h2', {}, 'Xem trước 9:16'), h('iframe', { class: 'preview', src: `/o/${c.overlay_key}?preview=1`, title: 'Xem trước overlay' }),
+      h('p', { class: 'small muted' }, 'Xem trước chỉ hiển thị lại trạng thái của overlay chính (OBS / LIVE Studio). Chưa mở overlay chính thì xem trước sẽ trống.'))));
+}
+
+// ---- tab Cài đặt: form sinh từ JSON Schema ----
+function fieldFor(key, sch, value, onChange) {
+  let input;
+  if (sch.type === 'boolean') input = h('input', { type: 'checkbox', checked: !!value, onchange: (e) => onChange(e.target.checked) });
+  else if (sch.type === 'integer' || sch.type === 'number') input = h('input', { type: 'number', value: value ?? '', min: sch.minimum, max: sch.maximum, step: sch.type === 'integer' ? 1 : 'any', onchange: (e) => onChange(e.target.value === '' ? undefined : Number(e.target.value)) });
+  else if (sch.type === 'string' && sch.enum) input = h('select', { onchange: (e) => onChange(e.target.value) }, sch.enum.map((o) => h('option', { value: o, selected: o === value }, o)));
+  else if (sch.type === 'array' && sch.items?.enum) {
+    const cur = new Set(value || []);
+    input = h('div', { class: 'checks' }, sch.items.enum.map((o) => h('label', {}, h('input', { type: 'checkbox', checked: cur.has(o), onchange: (e) => { e.target.checked ? cur.add(o) : cur.delete(o); onChange(sch.items.enum.filter((x) => cur.has(x))); } }), ` ${o}`)));
+  } else if (sch.type === 'array') input = h('input', { value: (value || []).join(', '), onchange: (e) => onChange(e.target.value.split(',').map((x) => x.trim()).filter(Boolean).map((x) => (sch.items?.type === 'integer' || sch.items?.type === 'number' ? Number(x) : x))) });
+  else input = h('input', { value: value ?? '', maxLength: sch.maxLength, onchange: (e) => onChange(e.target.value) });
+  return h('div', { class: 'field' }, h('label', {}, sch.title || key, sch.minimum != null || sch.maximum != null ? h('span', { class: 'small muted' }, ` (${sch.minimum ?? ''}–${sch.maximum ?? ''})`) : ''), input);
+}
+
+function settingsTab(c, g) {
+  if (!g) return h('div', { class: 'card' }, 'Game không còn trong danh mục.');
+  const props = g.schema?.properties || {};
+  const cur = c.games?.[g.id]?.settings || {};
+  const draft = Object.fromEntries(Object.entries(props).map(([k, s]) => [k, cur[k] ?? s.default]));
+  return h('div', { class: 'card' }, h('h2', {}, `Cài đặt: ${g.name}`), h('p', { class: 'small muted' }, 'Lưu là áp dụng ngay cho overlay đang chạy.'),
+    Object.entries(props).map(([k, s]) => fieldFor(k, s, draft[k], (v) => { draft[k] = v; })),
+    h('div', { class: 'row', style: 'margin-top:12px' },
+      h('button', { onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, settings: draft }); toast('Đã lưu cài đặt'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu cài đặt'),
+      h('button', { class: 'ghost', onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, settings: {} }); toast('Đã về mặc định'); render(); } catch (e) { toast(e.message, true); } } }, 'Về mặc định')));
+}
+
+// ---- tab Quà & tương tác: trigger → action ----
+const TRIG_LABEL = { gift: '🎁 Quà', like: '❤️ Tim', follow: '➕ Follow', share: '↗ Share', member: '👋 Vào live', keyword: '💬 Từ khoá' };
+function defaultBindingsOf(g) { return (g.actions || []).flatMap((a) => (a.defaultTriggers || []).map((t, i) => ({ id: `${a.id}.${i}`, action: a.id, trigger: { ...t } }))); }
+
+function bindingsTab(c, g) {
+  if (!g?.actions?.length) return h('div', { class: 'card' }, 'Game này không có hành động gán quà.');
+  const saved = c.games?.[g.id]?.bindings;
+  const list = JSON.parse(JSON.stringify(saved || defaultBindingsOf(g)));
+  const box = h('div', {});
+  const paint = () => box.replaceChildren(...g.actions.map((a) => h('div', {},
+    h('h3', {}, `${a.icon || ''} ${a.label}`),
+    list.filter((b) => b.action === a.id).map((b) => trigRow(b, () => { list.splice(list.indexOf(b), 1); paint(); }, c)),
+    h('button', { class: 'ghost small', onclick: () => { list.push({ id: `${a.id}.${Date.now() % 100000}`, action: a.id, trigger: { type: 'gift', minDiamonds: 1 } }); paint(); } }, '+ Thêm cách kích hoạt'))));
+  paint();
+  return h('div', { class: 'card' }, h('h2', {}, 'Quà & tương tác → hành động trong game'),
+    h('p', { class: 'small muted' }, 'Một món quà khớp tối đa một dòng: theo tên quà trước, không khớp tên thì theo số xu (ngưỡng cao nhất đạt được). "Gom" = cả phòng cộng dồn đủ N mới kích hoạt.'),
+    box,
+    h('div', { class: 'row', style: 'margin-top:12px' },
+      h('button', { onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, bindings: list }); toast('Đã lưu'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu'),
+      h('button', { class: 'ghost', onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, bindings: null }); toast('Đã về mặc định của game'); render(); } catch (e) { toast(e.message, true); } } }, 'Về mặc định')));
+}
+
+function trigRow(b, remove, c) {
+  const t = b.trigger;
+  const type = h('select', { onchange: (e) => { b.trigger = { type: e.target.value, ...(e.target.value === 'like' ? { every: 100 } : e.target.value === 'gift' ? { minDiamonds: 1 } : e.target.value === 'keyword' ? { text: '' } : {}) }; row.replaceWith(trigRow(b, remove, c)); } },
+    Object.entries(TRIG_LABEL).map(([k, v]) => h('option', { value: k, selected: k === t.type }, v)));
+  const num = (k, ph) => h('input', { type: 'number', min: k === 'every' ? 1 : 0, placeholder: ph, value: t[k] ?? '', onchange: (e) => { if (e.target.value === '') delete t[k]; else t[k] = Number(e.target.value); } });
+  const names = h('input', { class: 'wide', placeholder: 'Tên quà (cách nhau dấu phẩy) — bỏ trống = theo xu', value: [t.giftName, ...(t.gifts || [])].filter(Boolean).join(', '), onchange: (e) => { const v = e.target.value.split(',').map((x) => x.trim()).filter(Boolean); delete t.giftName; delete t.gifts; if (v.length === 1) t.giftName = v[0]; else if (v.length) t.gifts = v; } });
+  const fields = t.type === 'gift' ? [names, 'hoặc ≥', num('minDiamonds', 'xu'), 'gom', num('every', 'N món')]
+    : t.type === 'like' ? ['mỗi', num('every', 'N tim'), 'tim']
+    : t.type === 'keyword' ? [h('input', { placeholder: 'cụm từ', value: t.text || '', onchange: (e) => { t.text = e.target.value; } }), 'chờ', num('cooldownSec', 'giây'), 'giây / người']
+    : ['gom', num('every', 'N lần')];
+  const test = h('button', { class: 'ghost small', title: 'Bắn một sự kiện giả khớp dòng này', onclick: () => {
+    const user = { id: 'test', name: 'Người thử' };
+    const e = t.type === 'gift' ? { type: 'gift', user, giftName: t.giftName || t.gifts?.[0] || 'Quà thử', diamonds: t.minDiamonds ?? 1, count: t.every || 1 }
+      : t.type === 'like' ? { type: 'like', user, count: t.every || 1 } : t.type === 'keyword' ? { type: 'comment', user, text: t.text } : { type: t.type, user };
+    req('sim', { channel: c.id, e, repeat: t.type !== 'gift' && t.type !== 'like' && t.every ? Math.min(t.every, 50) : 1 }).catch((err) => toast(err.message, true));
+  } }, 'Thử');
+  const row = h('div', { class: 'trig' }, type, fields, test, h('button', { class: 'ghost small', onclick: remove }, '✕'));
+  return row;
+}
+
+// ---- tab Bảng xếp hạng ----
+function boardTab(c) {
+  const box = h('div', { class: 'card' }, h('h2', {}, 'Bảng xếp hạng tuần (giờ VN)'), h('p', { class: 'muted' }, 'Đang tải…'));
+  req('leaderboard', { channel: c.id }).then((rows) => {
+    box.replaceChildren(h('h2', {}, 'Bảng xếp hạng tuần (giờ VN)'), rows.length ? h('table', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'Người xem'), h('th', {}, 'Game'), h('th', {}, 'Điểm'), h('th', {}, 'Thắng')),
+      rows.map((r, i) => h('tr', {}, h('td', {}, i + 1), h('td', {}, r.name || r.viewer || r.viewer_id), h('td', {}, gameOf(r.game_id || r.gameId)?.name || r.game_id || r.gameId), h('td', {}, r.points), h('td', {}, r.wins)))) : h('p', { class: 'muted' }, 'Chưa có điểm tuần này.'));
+  }).catch((e) => toast(e.message, true));
+  return box;
+}
+
+// ---- tab Kênh: link overlay, đổi game, username ----
+function channelTab(c) {
+  const url = overlayUrl(c);
+  const gameSel = h('select', {}, S.games.map((g) => h('option', { value: g.id, selected: g.id === c.active_game }, `${g.name}${g.status !== 'live' ? ` (${g.status})` : ''}`)));
+  const user = h('input', { value: c.username, class: 'grow' });
+  return h('div', {},
+    h('div', { class: 'card' }, h('h2', {}, 'Link overlay (dán vào OBS / TikTok LIVE Studio → Browser source, 1080×1920)'),
+      h('div', { class: 'row' }, h('input', { value: url, readOnly: true, class: 'grow', onclick: (e) => e.target.select() }),
+        h('button', { onclick: () => navigator.clipboard.writeText(url).then(() => toast('Đã copy')) }, 'Copy'),
+        h('button', { class: 'ghost', onclick: () => window.open(url, '_blank') }, 'Mở')),
+      h('p', { class: 'small muted' }, 'Link là bí mật của kênh: ai có link đều mở được overlay. Lộ link thì bấm "Đổi link" (link cũ ngừng hoạt động).'),
+      h('button', { class: 'ghost', onclick: async () => { if (!confirm('Đổi link overlay? Link cũ trong OBS sẽ ngừng hoạt động.')) return; S.cur = await req('rotate', { channel: c.id }); render(); toast('Đã đổi link — cập nhật lại trong OBS'); } }, 'Đổi link')),
+    h('div', { class: 'card' }, h('h2', {}, 'Game đang chơi'), h('div', { class: 'row' }, gameSel,
+      h('button', { onclick: async () => { try { S.cur = await req('update', { channel: c.id, game: gameSel.value }); refreshList(); toast('Đã đổi game — overlay tự nạp lại'); } catch (e) { toast(e.message, true); } } }, 'Đổi game'))),
+    h('div', { class: 'card' }, h('h2', {}, 'Username TikTok'), h('div', { class: 'row' }, user,
+      h('button', { onclick: async () => { try { S.cur = await req('update', { channel: c.id, username: user.value }); refreshList(); toast('Đã lưu'); } catch (e) { toast(e.message, true); } } }, 'Lưu')),
+      h('h3', {}, 'Xoá kênh'), h('button', { class: 'danger', onclick: async () => { if (!confirm(`Xoá kênh @${c.username}? Không hoàn tác được.`)) return; await req('delete', { channel: c.id }); S.channels = S.channels.filter((x) => x.id !== c.id); S.cur = null; render(); } }, 'Xoá kênh')));
+}
+
+async function refreshList() { S.channels = await req('channels'); render(); }
+
+start().catch((e) => { root.replaceChildren(h('div', { class: 'card' }, `Lỗi: ${e.message}`)); });

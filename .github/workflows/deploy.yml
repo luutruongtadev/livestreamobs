@@ -5,6 +5,7 @@
 # Cần tạo trong GitHub repo → Settings → Secrets and variables → Actions:
 #   Secrets:   VPS_HOST, VPS_USER, VPS_PASSWORD, (tuỳ chọn) VPS_PORT, VPS_ENV_FILE,
 #              (tuỳ chọn, ghi vào .env trên VPS) SIGN_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY
+#              (tuỳ chọn, chỉ dùng trên GitHub để chạy migration) SUPABASE_DB_URL
 #   Variables: (tuỳ chọn) DEPLOY_MODE = phone | server | stream (mặc định phone), VPS_DIR (mặc định /opt/chua-online)
 name: Deploy lên VPS
 
@@ -60,6 +61,16 @@ jobs:
           fi
 
       - uses: actions/checkout@v7
+
+      # Bảng của nền tảng + bảng g_<id>_ của game. Cần secret SUPABASE_DB_URL = chuỗi kết nối "Session pooler"
+      # (Supabase → Connect → Session pooler, dạng postgresql://postgres.<ref>:<mật khẩu>@aws-…pooler.supabase.com:5432/postgres)
+      - name: Supabase migration (nếu có secret SUPABASE_DB_URL)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "SUPABASE_DB_URL trống → bỏ qua migration"; exit 0; fi
+          command -v psql >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y -qq postgresql-client; }
+          bash deploy/migrate.sh
 
       - name: Build image app
         run: |

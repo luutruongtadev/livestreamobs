@@ -58,8 +58,11 @@ test('quà / tim đi qua trigger của nền tảng: 5 hoa hồng = 1 chữ (có
   assert.ok(p.some((e) => e.type === 'wg_thanks'), 'vẫn cảm ơn người tặng');
   const r = rose(2);
   assert.equal(r.filter((e) => e.type === 'wg_unlock' && e.action === 'letter').length, 1);
-  const chip = host.snapshot().unlocks.find((c) => c.label === 'Lộ 1 chữ cái' && c.every === 5);
+  const chips = host.snapshot().unlocks;
+  const chip = chips.find((c) => c.every === 5);
   assert.equal(chip.count, 0, 'chip trên màn hình lấy từ bindings, đã gom đủ thì về 0');
+  assert.deepEqual([chip.label, chip.icon], ['5 Hoa hồng… = 1 chữ', '🌹'], 'nhãn ngắn sinh từ trigger như bản cũ');
+  assert.deepEqual(chips.map((c) => c.label).slice(1), ['Tim tay = 1 chữ', '1.000 tim = 1 chữ', '10 xu = gợi ý', '30 xu = +60 giây', '99 xu = lộ 1 tiếng']);
   const likes = host.handle({ type: 'like', user: u('l'), count: 1000 });
   assert.ok(likes.some((e) => e.type === 'wg_unlock' && e.likes), 'tim mở chữ');
   clock.advance(100_000); // đầu vòng đồng hồ đã ở mức tối đa, thêm giờ không vượt quá roundSeconds

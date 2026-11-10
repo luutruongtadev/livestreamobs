@@ -27,14 +27,36 @@ services:
       - ./config.json:/app/config.json:ro         # sửa config.json rồi: docker compose restart app
       - ./public/assets:/app/public/assets:ro     # ảnh nền, âm thanh riêng
 
+  # Gateway nền tảng nhiều game: TikTok đa kênh → WebSocket → overlay /o/<key>, dashboard /app, trang chủ
+  # (cùng image với app, chỉ khác lệnh chạy). Ra internet qua Caddy ở PLAY_DOMAIN (mặc định play.<DOMAIN>).
+  gateway:
+    <<: *env
+    image: chua-online:app
+    restart: unless-stopped
+    command: ["node", "gateway/index.js"]
+    environment:
+      HOST: 0.0.0.0
+      GATEWAY_PORT: "8787"
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
   # HTTPS tự động (Let's Encrypt). DOMAIN: tên miền riêng hoặc <ip-gạch-ngang>.sslip.io
   caddy:
     image: caddy:2.8.4-alpine
     profiles: [https]
     restart: unless-stopped
-    depends_on: [app]
+    depends_on: [app, gateway]
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      PLAY_DOMAIN: ${PLAY_DOMAIN:-play.localhost}
     ports:
       - "80:80"
       - "443:443"

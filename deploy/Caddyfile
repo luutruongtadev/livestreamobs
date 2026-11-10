@@ -2,3 +2,9 @@
 	encode gzip
 	reverse_proxy app:8686
 }
+
+# Nền tảng nhiều game (gateway): trang chủ, /app, /o/<key>, WebSocket /ws
+{$PLAY_DOMAIN} {
+	encode gzip
+	reverse_proxy gateway:8787
+}

@@ -10,6 +10,30 @@ TikTok Live ──(tiktok-live-connector)──► Node.js server ──(WebSock
                                              └── /admin: kết nối, đặt / thêm từ, giả lập, hẹn giờ kết thúc live
 ```
 
+## 🎮 Nền tảng nhiều game (đang xây — chạy song song server đơn)
+
+Streamer đăng nhập, thêm kênh bằng **@username TikTok**, copy **link overlay** dán vào OBS / TikTok LIVE Studio (Browser source 1080×1920), chọn game và chỉnh cài đặt ngay trong lúc live. Người xem chơi bằng bình luận / quà / tim.
+
+```
+TikTok ─WebSocket─► gateway/ (Node, đa kênh) ─WebSocket─► /o/<key> overlay: engine game chạy NGAY TRONG TRÌNH DUYỆT → vẽ frame kế tiếp
+                       │  ▲ ctx.server.request (chấm điểm Claude…)        ▲
+                       │  └─ games/<id>/server                            └─ /app dashboard (lệnh, giả lập, cài đặt, gán quà)
+                       └─ Supabase (ngoài đường đi nóng): kênh, cấu hình, trạng thái game, ván, BXH tuần
+```
+
+| Đường dẫn (trên `PLAY_DOMAIN`, mặc định `play.<DOMAIN>`) | |
+|---|---|
+| `/` | Trang chủ + danh mục game (sinh từ manifest) |
+| `/app` | Dashboard: kênh, link overlay, đổi game, cài đặt (form sinh từ `settings.schema.json`), gán quà / tim → hành động, lệnh, giả lập người xem, xem trước 9:16, độ trễ p50 / p95, BXH tuần |
+| `/o/<overlay_key>` | Overlay cho OBS / LIVE Studio (`?mute=1`, `?debug=1`, `?preview=1`) |
+
+- **Độ trễ thấp**: sự kiện đi thẳng WebSocket, gateway gửi ngay từng sự kiện (chỉ gộp tim ~200 ms), engine xử lý đồng bộ trong overlay; từ có trong Knowledge Pack chấm tại chỗ (0 ms). Overlay rớt mạng → tự nối lại và nhận bù theo `seq` (gateway giữ 10 giây sự kiện). Dashboard hiện độ trễ TikTok → gateway và gateway → màn hình.
+- **Mỗi game một module** (`games/<id>`, chuẩn: [`docs/game-module-standard.md`](docs/game-module-standard.md)): `npm run new-game <id> "Tên"`.
+- **Nhiều overlay cùng mở**: overlay đầu tiên là *leader* (chạy engine), các overlay sau / xem trước chỉ hiển thị lại; leader đóng → overlay khác lên thay.
+- **Lưu trữ**: có `SUPABASE_URL` + `SUPABASE_SECRET_KEY` → Supabase; chưa có → file `data/platform.json`, đăng nhập dashboard bằng `GATEWAY_DEV_TOKEN` (hoặc `ADMIN_TOKEN`).
+- **Supabase**: tạo repo secret `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (deploy tự ghi vào `.env` trên VPS) và `SUPABASE_DB_URL` (chuỗi *Session pooler*, deploy tự chạy `supabase/migrations`). Bật đăng nhập Google / email ở Supabase → Authentication; thêm `https://<PLAY_DOMAIN>/app` vào *Redirect URLs*.
+- Chạy thử trên máy: `GATEWAY_DEV_TOKEN=... node gateway/index.js` → http://localhost:8787.
+
 ## 🔤 Game Đoán từ (`/doantu`)
 
 Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng tiếng: `_ _ _  _ _ _ _`). Người xem bình luận một từ (tối đa 4 tiếng), từ đó hiện lên kèm **điểm gần nghĩa 1–100** so với từ bí mật; bảng **GẦN NGHĨA NHẤT** xếp 8 từ điểm cao nhất (thanh màu đỏ → vàng → xanh). Đoán trúng (không phân biệt hoa thường; gõ không dấu vẫn nhận, nhưng tiếng nào có gõ dấu thì dấu phải đúng: "chợ" không trúng "con chó") = **100 điểm, thắng vòng**.
@@ -404,6 +428,9 @@ games/doantu/                   Game Đoán từ theo chuẩn module: engine/ (W
                                 render/ (canvas 1080×1920), server/ (chấm gần nghĩa nhiều lớp, thuộc tính, gợi ý tiếng Anh), data/ (kho soạn sẵn)
 games/memory/                   Game Nhớ số (mẫu thứ 2, không có server)
 scripts/new-game.mjs            npm run new-game <id> "Tên" — tạo game mới từ template
+gateway/                        Gateway đa kênh: TikTok → WebSocket → overlay, định tuyến op tới games/<id>/server, lưu trữ Supabase / file
+web/                            Trang chủ, dashboard /app, overlay shell /o/<key> (ES module chạy thẳng, import map '#sdk')
+supabase/migrations/            Bảng nền tảng + RLS + RPC (deploy/migrate.sh, chạy khi có SUPABASE_DB_URL)
 server/
   index.js      HTTP + WebSocket hub, API admin, lưu state (server đơn)
   tiktok.js     Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
