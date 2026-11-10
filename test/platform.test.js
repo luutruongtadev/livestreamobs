@@ -5,8 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { listGames, loadGame } from '#sdk/node';
-import { createHost, fakeClock, seededRandom } from '#sdk';
+import { listGames, loadGame, readGame } from '#sdk/node';
+import { createHost, fakeClock, seededRandom, validateManifest, missingDefaults } from '#sdk';
+import { isolationErrors, engineGlobalsErrors } from '#sdk/testing';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GAMES = path.join(ROOT, 'games');
@@ -38,15 +39,26 @@ test('hai game chạy song song trên cùng nền tảng không ảnh hưởng n
   assert.equal(JSON.stringify(b.snapshot()), before, 'sự kiện của game này không đổi state game kia');
 });
 
-test('template new-game sinh ra game qua được bộ test chuẩn', () => {
+test('template new-game sinh ra game đúng chuẩn (manifest, cách ly, chạy được)', async () => {
   const id = `zz-tmpl-${process.pid}`;
   const dir = path.join(GAMES, id);
   try {
     execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'new-game.mjs'), id, 'Game thử'], { cwd: ROOT, stdio: 'pipe' });
-    assert.ok(fs.existsSync(path.join(dir, 'manifest.json')));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).id, id);
-    const out = execFileSync(process.execPath, [...process.execArgv, '--test', path.join(dir, 'test', 'conformance.test.js')], { cwd: ROOT, stdio: 'pipe' }).toString();
-    assert.match(out, /# fail 0/);
+    // kiểm tra ngay trong tiến trình này (không lồng `node --test`: Node 22 dùng reporter nội bộ cho tiến trình con)
+    const { manifest, schema } = readGame(dir);
+    assert.equal(manifest.id, id);
+    assert.deepEqual(validateManifest(manifest), []);
+    assert.deepEqual(missingDefaults(schema), []);
+    assert.deepEqual(isolationErrors(dir), []);
+    assert.deepEqual(engineGlobalsErrors(dir), []);
+    assert.ok(fs.existsSync(path.join(dir, 'test', 'conformance.test.js')), 'đã bỏ đuôi .tmpl');
+    const game = await loadGame(dir);
+    const errors = [];
+    const host = createHost(game, { log: {}, onError: (e) => errors.push(e) });
+    host.handle({ type: 'comment', user: { id: 'a', name: 'A' }, text: 'hi' });
+    assert.ok(host.handle({ type: 'gift', user: { id: 'a', name: 'A' }, giftName: 'Rose', diamonds: 1, count: 1 }).some((e) => e.type === 'boost'));
+    assert.equal(host.snapshot().top[0].points, 11);
+    assert.deepEqual(errors, []);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
