@@ -7,23 +7,31 @@ Cả phòng lái chung một chiếc máy bay. Mỗi chặng hiện một lá c�
    - Có dấu hay không dấu đều được; gõ sai 1–2 chữ ở tên dài vẫn nhận.
    - Câu dài hơn 5 từ coi là nói chuyện, không tính.
    - Mỗi người được tính 1 lần mỗi cờ.
-2. **Đúng:** người đầu tiên đúng thì đồng hồ còn `lastCallSeconds` giây chốt sổ cho người khác.
+2. **Phóng to lá cờ:**
+   - Mỗi cờ bắt đầu phóng to (mặc định `zoomStart` ×3,5) vào 1 trong 5 điểm: 4 góc hoặc chính giữa. Cờ sau luôn phóng vào điểm khác cờ trước.
+   - Cờ thu nhỏ dần và hiện đủ sau `zoomFullAt`% thời gian đoán (mặc định 75%).
+   - Càng về cuối chuyến, độ phóng ban đầu càng lớn, tối đa +50%.
+   - Đoán đúng lúc cờ còn phóng to được thưởng điểm tới ×1,5.
+   - Quà **Thu nhỏ cờ** tua nhanh 1/3 quá trình; cờ đã hiện đủ thì +5 giây.
+   - Tắt bằng cài đặt `zoom`.
+3. **Đúng:** người đầu tiên đúng thì đồng hồ còn `lastCallSeconds` giây chốt sổ cho người khác.
    - Điểm: người đầu nhận `basePoints`, mỗi người sau ít hơn 20%.
    - Đã lộ chữ cái hoặc châu lục thì điểm giảm.
-3. **Lộ đáp án:** hiện thẻ du lịch gồm thủ đô, 2 danh thắng, món ngon và một điều thú vị.
+4. **Lộ đáp án:** hiện thẻ du lịch gồm thủ đô, 2 danh thắng, món ngon và một điều thú vị.
    - Máy bay bay tới nước đó, đóng dấu hộ chiếu.
    - Nước đó được thắp sáng trên bản đồ suốt buổi live.
-4. **Không ai đúng:**
+5. **Không ai đúng:**
    - Phòng im, không ai đoán: chờ thêm. Im 2 lần thì đổi cờ, không phạt.
    - Có người đoán nhưng sai: máy bay sắp rơi về điểm mốc gần nhất (mỗi `checkpointEvery` chặng). Ai tặng quà **Khiên / cứu** trong `rescueSeconds` giây thì cứu được. Đã tích khiên thì tự đỡ.
    - Đang đứng đúng điểm mốc thì không mất gì.
-5. **Hạ cánh:** đủ `tripLength` chặng thì hạ cánh về Hà Nội, tổng kết chuyến (số tem, top phi hành đoàn), rồi bắt đầu chuyến mới.
+6. **Hạ cánh:** đủ `tripLength` chặng thì hạ cánh về Hà Nội, tổng kết chuyến (số tem, top phi hành đoàn), rồi bắt đầu chuyến mới.
 
 ## Actions (gán trong dashboard)
 | id | Tác dụng | Mặc định |
 |---|---|---|
 | `letter` | Lộ 1 chữ cái, luôn chừa ≥ 1 chữ. Hết lượt thì +3 giây | Rose, 300 tim |
 | `time` | +10 giây. Đoán xong sớm thì giây dư để dành cho cờ sau | Finger Heart, follow |
+| `zoom` | Thu nhỏ cờ thêm 1/3 quá trình. Cờ đã hiện đủ thì +5 giây | Ice Cream Cone |
 | `region` | Chỉ châu lục trên bản đồ. Đã chỉ rồi thì +5 giây | Doughnut |
 | `skip` | Đổi cờ khác, giữ nguyên chặng | Perfume |
 | `shield` | Đang cứu máy bay thì cứu ngay; lúc khác thì tích khiên (tối đa 3) | Hand Hearts |

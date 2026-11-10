@@ -11,7 +11,7 @@ const REGION_BOX = { // khung gần đúng (kinh độ, vĩ độ) để chỉ c
   'chau-a': [25, -11, 150, 55], 'chau-au': [-25, 35, 45, 71], 'chau-phi': [-18, -35, 52, 37],
   'bac-my': [-168, 7, -52, 72], 'nam-my': [-82, -56, -34, 13], 'chau-dai-duong': [110, -48, 180, 0],
 };
-const ACTION_TEXT = { letter: 'lộ 1 chữ cái', time: '+10 giây', region: 'chỉ châu lục', skip: 'đổi cờ khác', shield: 'khiên / cứu máy bay', tailwind: 'tiến 1 chặng', storm: 'lùi 1 chặng', jet: 'tiến 5 chặng' };
+const ACTION_TEXT = { zoom: 'thu nhỏ cờ', letter: 'lộ 1 chữ cái', time: '+10 giây', region: 'chỉ châu lục', skip: 'đổi cờ khác', shield: 'khiên / cứu máy bay', tailwind: 'tiến 1 chặng', storm: 'lùi 1 chặng', jet: 'tiến 5 chặng' };
 const LAT_TOP = 83, LAT_BOT = -58;
 
 /** TopoJSON (world-atlas) → [{ id, polys: [[ring[[lon,lat]…]]…] }]. */
@@ -162,6 +162,20 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.restore();
   }
 
+  // ---------------- phóng to lá cờ ----------------
+  const ANCHOR = { tl: [0, 0], tr: [1, 0], bl: [0, 1], br: [1, 1], c: [0.5, 0.5] };
+  /** Độ phóng hiện tại: nội suy mượt giữa các snapshot; hết pha hỏi thì thu về ×1 trong 0,6 giây. */
+  function zoomScale(now) {
+    const z = S.zoom;
+    if (!z || z.scale0 <= 1) return 1;
+    const k = z.running ? Math.min(1, z.k + (now - recvAt) / z.dur) : z.k;
+    const target = Math.pow(z.scale0, 1 - k); // giảm đều theo thang log: cảm giác thu nhỏ đều tay
+    if (S.phase === 'ask') { anim.zoomShown = target; return target; }
+    const from = anim.zoomShown || 1;
+    const t = reduced ? 1 : ease((now - anim.phaseAt) / 600);
+    return from + (1 - from) * t;
+  }
+
   // ---------------- header + dải chặng ----------------
   function drawHeader() {
     const t = S.trip, y = 268;
@@ -224,8 +238,21 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
     rr(fx, fy, fw, fh, 14); ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowColor = 'transparent';
     const im = flagImg(S.flag);
-    if (im) { ctx.save(); rr(fx, fy, fw, fh, 14); ctx.clip(); ctx.drawImage(im, fx, fy, fw, fh); ctx.restore(); }
-    else text('🏳️', fx + fw / 2, fy + fh / 2, 120);
+    const zs = zoomScale(now);
+    if (im) {
+      // phóng to bám vào 1 góc / chính giữa: phần cờ lộ ra luôn chứa điểm neo đó
+      const [ax, ay] = ANCHOR[S.zoom?.focus] || ANCHOR.c;
+      const dw = fw * zs, dh = fh * zs;
+      ctx.save(); rr(fx, fy, fw, fh, 14); ctx.clip();
+      ctx.drawImage(im, fx - ax * (dw - fw), fy - ay * (dh - fh), dw, dh);
+      ctx.restore();
+    } else text('🏳️', fx + fw / 2, fy + fh / 2, 120);
+    if (zs > 1.05) {
+      const label = `🔍 ×${zs.toFixed(1).replace('.', ',')}`;
+      const lw = measure(label, 22, 900) + 28;
+      rr(fx + 12, fy + fh - 50, lw, 38, 19); ctx.fillStyle = 'rgba(28,26,23,.82)'; ctx.fill();
+      text(label, fx + 12 + lw / 2, fy + fh - 30, 22, C.paper, 900);
+    }
     rr(fx, fy, fw, fh, 14); ctx.strokeStyle = 'rgba(0,0,0,.15)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.restore();
     // cột phải
@@ -454,7 +481,8 @@ export function mount(el, { canvas, options = {} } = {}) {
       const by = fx.by?.name ? `${fx.by.name}: ` : '';
       switch (fx.type) {
         case 'ft_flag': sound.play('flag'); break;
-        case 'ft_correct': addOk(`${fx.rank <= 3 ? ['🥇', '🥈', '🥉'][fx.rank - 1] + ' ' : ''}${fx.by.name} +${fx.points}`); sound.play('correct', fx.rank); break;
+        case 'ft_correct': addOk(`${fx.rank <= 3 ? ['🥇', '🥈', '🥉'][fx.rank - 1] + ' ' : ''}${fx.by.name} +${fx.points}${fx.zoomBonus > 1.05 ? ` (🔍×${String(fx.zoomBonus).replace('.', ',')})` : ''}`); sound.play('correct', fx.rank); break;
+        case 'ft_zoom': floaters.push({ text: `🔍 ${by}thu nhỏ cờ`, x: W - 300, y: 1180, color: '#fde68a', size: 34, life: 1.6, age: 0 }); sound.play('whoosh'); break;
         case 'ft_lastcall': sound.play('tick'); break;
         case 'ft_reveal': if (fx.solved) { burst(fx.solvers?.length > 2 ? 180 : 110); sound.play('stamp'); } break;
         case 'ft_silent': anim.banner = { text: '🤫 Phòng im quá — đoán thử một nước đi!', color: C.sky, age: 0, life: 3 }; break;

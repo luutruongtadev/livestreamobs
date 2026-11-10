@@ -10,6 +10,9 @@
     "revealSeconds": { "type": "integer", "title": "Thời gian xem thẻ du lịch (giây)", "minimum": 4, "maximum": 30, "default": 8 },
     "rescueSeconds": { "type": "integer", "title": "Thời gian cứu máy bay (giây)", "minimum": 5, "maximum": 30, "default": 10 },
     "landedSeconds": { "type": "integer", "title": "Thời gian ăn mừng hạ cánh (giây)", "minimum": 5, "maximum": 30, "default": 12 },
+    "zoom": { "type": "boolean", "title": "Phóng to lá cờ lúc đầu rồi thu nhỏ dần (khó hơn)", "default": true },
+    "zoomStart": { "type": "number", "title": "Độ phóng to lúc đầu (×)", "minimum": 1.5, "maximum": 8, "default": 3.5 },
+    "zoomFullAt": { "type": "integer", "title": "Hiện đủ lá cờ sau bao nhiêu % thời gian đoán", "minimum": 30, "maximum": 100, "default": 75 },
     "letterLimit": { "type": "integer", "title": "Tối đa chữ cái lộ mỗi cờ", "minimum": 0, "maximum": 8, "default": 3 },
     "basePoints": { "type": "integer", "title": "Điểm cho người đúng đầu tiên", "minimum": 10, "maximum": 1000, "default": 100 },
     "showLeaderboard": { "type": "boolean", "title": "Hiện bảng phi hành đoàn", "default": true }

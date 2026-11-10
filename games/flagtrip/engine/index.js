@@ -15,6 +15,8 @@ export function createGame(ctx) { return new FlagTrip(ctx); }
 const HOME = { name: 'Hà Nội', lat: 21.03, lon: 105.85 };
 export const REGIONS = { 'chau-a': 'Châu Á', 'chau-au': 'Châu Âu', 'chau-phi': 'Châu Phi', 'bac-my': 'Bắc & Trung Mỹ', 'nam-my': 'Nam Mỹ', 'chau-dai-duong': 'Châu Đại Dương' };
 const MAX_SHIELDS = 3;
+// cờ phóng to vào 1 trong 5 điểm rồi thu nhỏ dần; mỗi cờ một điểm khác cờ trước
+export const ZOOM_FOCUS = ['tl', 'tr', 'bl', 'br', 'c'];
 const pub = (u) => ({ id: String(u.id), name: String(u.name || 'Ẩn danh').slice(0, 40), avatar: u.avatar || null });
 
 /** Khoảng cách sửa chữ (Levenshtein), dừng sớm khi vượt max. */
@@ -120,9 +122,15 @@ export class FlagTrip extends Emitter {
     const c = this.pickCountry();
     this.used.push(c.iso2);
     const t = this.clock();
+    const prevFocus = this.flag?.focus;
+    const focusList = ZOOM_FOCUS.filter((f) => f !== prevFocus);
     this.flag = {
       iso2: c.iso2, startedAt: t, letters: [], regionShown: false, extraBank: this.flag?.extraBank || 0,
       solvers: [], tried: {}, tries: 0, silent: keepSilent ? (this.flag?.silent || 0) : 0,
+      focus: focusList[Math.floor(this.ctx.random() * focusList.length)],
+      // càng về cuối chuyến càng phóng to hơn (tối đa +50%)
+      zoom0: this.s.zoom ? +(this.s.zoomStart * (1 + 0.5 * Math.min(1, this.pos / Math.max(1, this.s.tripLength)))).toFixed(2) : 1,
+      zoomSkip: 0, // quà "thu nhỏ cờ" tua nhanh quá trình
     };
     this.phase = 'ask';
     this.endsAt = t + this.s.flagSeconds * 1000 + this.flag.extraBank * 1000; // giây thêm còn thừa từ cờ trước
@@ -132,6 +140,13 @@ export class FlagTrip extends Emitter {
   }
 
   country() { return this.byIso.get(this.flag.iso2); }
+  /** Thời gian thu nhỏ từ phóng to → hiện đủ cờ (ms). */
+  zoomDur() { return Math.max(1000, this.s.flagSeconds * 1000 * (this.s.zoomFullAt / 100)); }
+  /** Tiến độ thu nhỏ 0 (phóng to nhất) → 1 (hiện đủ). */
+  zoomK() {
+    if (!this.s.zoom || this.flag.zoom0 <= 1) return 1;
+    return Math.max(0, Math.min(1, (this.clock() - this.flag.startedAt + this.flag.zoomSkip) / this.zoomDur()));
+  }
   addPoints(by, n, first) {
     const b = (this.board[by.id] ||= { ...by, points: 0, flags: 0, firsts: 0 });
     Object.assign(b, by, { points: b.points + n, flags: b.flags + 1, firsts: b.firsts + (first ? 1 : 0) });
@@ -156,10 +171,11 @@ export class FlagTrip extends Emitter {
     const t = this.clock();
     const rank = f.solvers.length + 1;
     const hintPenalty = Math.max(0.4, 1 - 0.15 * f.letters.length - (f.regionShown ? 0.1 : 0));
-    const points = Math.round(this.s.basePoints * Math.max(0.3, 1 - 0.2 * (rank - 1)) * hintPenalty);
+    const zoomBonus = this.s.zoom ? +(1 + 0.5 * (1 - this.zoomK())).toFixed(2) : 1; // đoán khi cờ còn phóng to: tới ×1,5
+    const points = Math.round(this.s.basePoints * Math.max(0.3, 1 - 0.2 * (rank - 1)) * hintPenalty * zoomBonus);
     f.solvers.push({ ...by, points, ms: t - f.startedAt });
     this.addPoints(by, points, rank === 1);
-    const out = [{ type: 'ft_correct', by, points, rank }];
+    const out = [{ type: 'ft_correct', by, points, rank, zoomBonus }];
     if (rank === 1 && this.phase === 'ask') {
       // người đầu tiên đúng → chốt sổ sau vài giây; giây thêm còn thừa để dành cho cờ sau
       const left = this.endsAt - t;
@@ -281,6 +297,12 @@ export class FlagTrip extends Emitter {
         if (f.regionShown) { this.endsAt += 5000; return [{ type: 'ft_time', seconds: 5, by }]; }
         f.regionShown = true;
         return [{ type: 'ft_region', region: this.country().region, by }];
+      case 'zoom': { // thu nhỏ cờ thêm ~1/3 chặng đường; hiện đủ rồi thì +5 giây
+        if (this.phase !== 'ask') return false;
+        if (this.zoomK() >= 1) { this.endsAt += 5000; return [{ type: 'ft_time', seconds: 5, by }]; }
+        f.zoomSkip += this.zoomDur() / 3;
+        return [{ type: 'ft_zoom', by }];
+      }
       case 'skip':
         if (!asking || f.solvers.length) return false;
         return [{ type: 'ft_skip', by }, ...this.newFlag()];
@@ -326,6 +348,8 @@ export class FlagTrip extends Emitter {
       remainingMs: Math.max(0, this.endsAt - t),
       phaseMs: Math.max(1, this.phaseMs || 1),
       flag: this.flag.iso2, // ảnh cờ (overlay); tên nước chỉ có khi lộ đáp án
+      // phóng to: renderer nội suy mượt theo el (đã trôi) / dur; hết pha hỏi thì hiện đủ
+      zoom: { focus: this.flag.focus || 'c', scale0: this.flag.zoom0 || 1, k: this.phase === 'ask' ? this.zoomK() : 1, dur: this.zoomDur(), running: this.phase === 'ask' && !this.paused },
       mask: this.mask(c.name, open),
       region: this.flag.regionShown || open ? c.region : null,
       regionName: this.flag.regionShown || open ? REGIONS[c.region] || '' : null,

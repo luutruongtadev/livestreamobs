@@ -27,6 +27,9 @@ test('chuyến bay: đúng → chốt sổ → lộ đáp án, tiến chặng; s
   const answer = () => byIso.get(host.snapshot().flag);
   const step = (ms) => { clock.advance(ms); return host.tick(); };
 
+  // cờ phóng to vào 1 góc / giữa; đoán sớm (còn phóng to) được thưởng
+  const z0 = host.snapshot().zoom;
+  assert.ok(['tl', 'tr', 'bl', 'br', 'c'].includes(z0.focus) && z0.scale0 > 1 && z0.k === 0);
   // chặng 1: người a đúng (không dấu), b đúng sau → ít điểm hơn
   assert.equal(host.snapshot().mask.every((ch) => ch === null || !/\p{L}/u.test(ch)), true, 'chưa lộ chữ nào');
   const name = normalize(answer().name);
@@ -35,12 +38,14 @@ test('chuyến bay: đúng → chốt sổ → lộ đáp án, tiến chặng; s
   assert.equal(ca[1].type, 'ft_lastcall');
   const cb = host.handle({ type: 'comment', user: u('b'), text: answer().name });
   assert.ok(cb[0].points < ca[0].points);
+  assert.ok(ca[0].zoomBonus > 1.4, 'đoán ngay khi cờ còn phóng to tối đa → thưởng gần ×1,5');
   assert.deepEqual(host.handle({ type: 'comment', user: u('a'), text: name }), [], 'mỗi người 1 lần / cờ');
   const rev = step(4000);
   assert.equal(rev.at(-1).type, 'ft_reveal');
   assert.equal(host.snapshot().trip.pos, 1);
   assert.equal(host.snapshot().answer.capital, answer().capital, 'thẻ du lịch có thủ đô');
   step(9000); // sang cờ 2
+  assert.notEqual(host.snapshot().zoom.focus, z0.focus, 'cờ sau phóng vào điểm khác cờ trước');
 
   // phòng im: không phạt, chờ thêm
   assert.equal(step(21_000)[0].type, 'ft_silent');
