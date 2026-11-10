@@ -224,8 +224,8 @@ test('chế độ tiếng Anh: hệ thống chỉ tự mở 3 từ; đủ 2000 t
 
 test('kho từ soạn sẵn: vòng thuộc tính / tiếng Anh lấy từ kho của chế độ, có sẵn thuộc tính / gợi ý, không gọi Claude cho từ bí mật; hết kho thì về kho thường', async () => {
   const fs = await import('node:fs');
-  const attrWords = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
-  const enWords = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
+  const attrWords = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/attr.json', import.meta.url))).words;
+  const enWords = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/english.json', import.meta.url))).words;
   assert.ok(attrWords.length >= 200 && enWords.length >= 200);
   for (const w of attrWords) for (const a of ATTRS.filter((x) => !x.text)) { const v = w.attrs[a.id]; assert.ok(v === null || (a.multi ? v.every((x) => a.values.includes(x)) : a.values.includes(v)), `${w.word}.${a.id}`); }
   for (const w of enWords) assert.ok(w.en.length >= 4, w.word);
@@ -268,13 +268,13 @@ test('cờ quốc gia trong gợi ý (Windows hiện thành chữ VN / KR) đư�
   const g = new WordGame({ words: [{ word: 'kpop', hint: 'Âm nhạc', desc: ['a', 'nhạc Hàn'], emoji: '🇰🇷 🎤 💃' }], modes: ['meaning'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) } });
   g.revealHint();
   assert.equal(g.snapshot().hints[0], '🌏 🎤 💃');
-  assert.ok(!/[\u{1F1E6}-\u{1F1FF}]/u.test(JSON.stringify(JSON.parse((await import('node:fs')).readFileSync(new URL('../modewords/attr.json', import.meta.url))))));
+  assert.ok(!/[\u{1F1E6}-\u{1F1FF}]/u.test(JSON.stringify(JSON.parse((await import('node:fs')).readFileSync(new URL('../games/doantu/data/attr.json', import.meta.url))))));
 });
 
 test('kho chủ đề soạn sẵn (Gần nghĩa): trộn với kho chung, không lặp từ, dùng hết kho soạn sẵn rồi mới nhờ Claude sinh thêm', async () => {
   const fs = await import('node:fs');
   const { WordBank } = await import('../server/wordbank.js');
-  const meaning = JSON.parse(fs.readFileSync(new URL('../modewords/meaning.json', import.meta.url))).words;
+  const meaning = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/meaning.json', import.meta.url))).words;
   assert.ok(meaning.length >= 170);
   assert.ok(meaning.some((w) => w.word === 'messi' && w.hint === 'Cầu thủ bóng đá'));
   const bank = new WordBank({ fallbackWords: [{ word: 'con mèo', hint: 'Động vật' }, { word: 'cái bàn', hint: 'Đồ vật' }], client: {}, minRemaining: 0, random: () => 0 });
@@ -299,7 +299,7 @@ test('kho chủ đề soạn sẵn (Gần nghĩa): trộn với kho chung, khôn
 
 test('chế độ tiếng Anh: gợi ý 1 là mô tả, gợi ý 2 là dịch từng chữ (kẹo cao su → candy high coin); kho soạn sẵn có đủ', async () => {
   const fs = await import('node:fs');
-  const words = JSON.parse(fs.readFileSync(new URL('../modewords/english.json', import.meta.url))).words;
+  const words = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/english.json', import.meta.url))).words;
   assert.ok(words.length >= 260);
   for (const w of words) assert.ok(w.en.length >= 4 && w.en.length <= 5, w.word);
   const wbw = (name) => words.find((w) => w.word === name).en[0].startsWith('WBW:');
@@ -309,7 +309,7 @@ test('chế độ tiếng Anh: gợi ý 1 là mô tả, gợi ý 2 là dịch t�
   const g = new WordGame({ words: [], modes: ['english'], cooldownSec: 0 }, { scorer: { score: async () => ({ score: 1 }) }, englishStore: { available: true, get: async () => null }, modeWords: { english: [keo] } });
   g.revealHint(); g.revealHint();
   assert.deepEqual(g.snapshot().hints, [keo.en[1], 'Dịch từng chữ: candy high coin'], 'mô tả trước, dịch từng chữ là gợi ý số 2');
-  const attr = JSON.parse(fs.readFileSync(new URL('../modewords/attr.json', import.meta.url))).words;
+  const attr = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/attr.json', import.meta.url))).words;
   assert.ok(attr.length >= 280 && attr.some((w) => w.word === 'trống đồng'));
 });
 
@@ -335,7 +335,7 @@ test('vòng thuộc tính: chỉ tối đa N từ MỚI mỗi vòng được g�
 
 test('cache thuộc tính soạn sẵn trong repo: đủ 24 thuộc tính, giá trị hợp lệ, nạp vào AttrStore thì không gọi Claude', async () => {
   const fs = await import('node:fs');
-  const pre = JSON.parse(fs.readFileSync(new URL('../modewords/attr-cache.json', import.meta.url))).words;
+  const pre = JSON.parse(fs.readFileSync(new URL('../games/doantu/data/attr-cache.json', import.meta.url))).words;
   const entries = Object.entries(pre);
   assert.ok(entries.length >= 600);
   for (const [w, a] of entries) for (const at of ATTRS.filter((x) => !x.text)) {

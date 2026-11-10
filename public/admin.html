@@ -379,7 +379,7 @@
   fetch('/api/announce').then((r) => r.json()).then(renderAnnounce).catch(() => {});
 
   // ---- Knowledge Pack soạn sẵn (từ chưa chơi có pack → chấm ở Lớp 1 / 2, không chờ Claude) ----
-  // Không soạn trên VPS: copy danh sách từ còn thiếu gửi để soạn rồi đưa vào modewords/knowledge-packs.json
+  // Không soạn trên VPS: copy danh sách từ còn thiếu gửi để soạn rồi đưa vào games/doantu/data/knowledge-packs.json
   function renderPacks(p) {
     if (!p || p.error) { $('pkText').textContent = p?.error || 'không lấy được trạng thái'; return; }
     $('pkText').textContent = p.layered ? `${p.withPack}/${p.unplayed} từ chưa chơi đã có pack · còn thiếu ${p.missing} · tổng ${p.totalPacks} pack (${p.seedPacks} soạn sẵn trong repo)` : 'Chưa có ANTHROPIC_API_KEY → không dùng bộ chấm nhiều lớp';

@@ -1,0 +1,38 @@
+{
+  "id": "doantu",
+  "name": "Đoán từ",
+  "description": "Người xem bình luận để đoán từ bí mật; mỗi từ đoán được chấm độ gần nghĩa 1–100 theo nghĩa và liên tưởng. Gợi ý mở dần, quà mở chữ, đấu đội, nhiều kiểu chơi (gần nghĩa, thuộc tính, gợi ý tiếng Anh, giải mã).",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "live",
+  "category": "word",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment", "gift", "like", "share"],
+  "restore": "partial",
+  "server": true,
+  "secrets": ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "VOYAGE_API_KEY", "OPENAI_API_KEY", "EMBEDDING_PROVIDER", "EMBEDDING_API_KEY", "EMBEDDING_MODEL"],
+  "data": {
+    "meaning": "data/meaning.json",
+    "attr": "data/attr.json",
+    "attrCache": "data/attr-cache.json",
+    "english": "data/english.json",
+    "giaima": "data/giaima.json"
+  },
+  "actions": [
+    { "id": "letter", "label": "Lộ 1 chữ cái", "icon": "🔤", "defaultTriggers": [
+      { "type": "gift", "gifts": ["Rose", "TikTok", "Heart Me", "Ice Cream Cone"], "every": 5 },
+      { "type": "gift", "giftName": "Finger Heart" },
+      { "type": "like", "every": 1000 }
+    ] },
+    { "id": "hint", "label": "Mở gợi ý tiếp theo", "icon": "🎁", "defaultTriggers": [{ "type": "gift", "minDiamonds": 10 }] },
+    { "id": "time", "label": "+60 giây cho vòng", "icon": "🍩", "params": { "seconds": 60 }, "defaultTriggers": [{ "type": "gift", "minDiamonds": 30 }] },
+    { "id": "syllable", "label": "Lộ cả 1 tiếng", "icon": "💎", "defaultTriggers": [{ "type": "gift", "minDiamonds": 99 }] }
+  ],
+  "commands": [
+    { "id": "next", "label": "Kết thúc vòng / vòng tiếp" },
+    { "id": "hint", "label": "Mở gợi ý" },
+    { "id": "team", "label": "Bật / tắt đấu đội" },
+    { "id": "reset", "label": "Xoá thành tích, chơi lại" }
+  ]
+}

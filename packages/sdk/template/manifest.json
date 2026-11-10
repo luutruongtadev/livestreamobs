@@ -1,0 +1,20 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "description": "Mô tả ngắn luật chơi.",
+  "version": "0.1.0",
+  "sdk": "^1.0.0",
+  "status": "dev",
+  "category": "party",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment"],
+  "restore": "full",
+  "server": false,
+  "actions": [
+    { "id": "boost", "label": "+10 điểm cho người tặng", "icon": "🚀", "defaultTriggers": [{ "type": "gift", "giftName": "Rose" }] }
+  ],
+  "commands": [
+    { "id": "reset", "label": "Chơi lại" }
+  ]
+}

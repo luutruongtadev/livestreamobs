@@ -1,0 +1,23 @@
+{
+  "id": "memory",
+  "name": "Nhớ số",
+  "description": "Một dãy số hiện lên rồi biến mất — người xem gõ lại đúng dãy số vào bình luận. Trả lời càng nhanh càng nhiều điểm, mỗi cấp dãy số dài thêm.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "puzzle",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment"],
+  "restore": "full",
+  "server": false,
+  "actions": [
+    { "id": "flash", "label": "Hiện lại dãy số", "icon": "👀", "defaultTriggers": [{ "type": "gift", "giftName": "Rose" }] },
+    { "id": "time", "label": "+3 giây trả lời", "icon": "⏱️", "defaultTriggers": [{ "type": "like", "every": 300 }] }
+  ],
+  "commands": [
+    { "id": "next", "label": "Bước tiếp" },
+    { "id": "restart", "label": "Chơi lại từ cấp 1" },
+    { "id": "clear-board", "label": "Xoá bảng điểm" }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "roundSeconds": { "type": "integer", "title": "Thời gian mỗi vòng (giây)", "minimum": 60, "maximum": 900, "default": 300 },
+    "breakSeconds": { "type": "integer", "title": "Nghỉ giữa hai vòng (giây)", "minimum": 3, "maximum": 60, "default": 12 },
+    "hintAtSeconds": { "type": "array", "title": "Tự mở gợi ý ở các mốc (giây)", "items": { "type": "integer", "minimum": 5, "maximum": 900 }, "maxItems": 5, "default": [60, 150, 230] },
+    "modes": { "type": "array", "title": "Kiểu chơi (luân phiên)", "items": { "type": "string", "enum": ["meaning", "attr", "english", "giaima"] }, "minItems": 1, "uniqueItems": true, "default": ["meaning", "attr", "english", "giaima"] },
+    "alternateEvery": { "type": "integer", "title": "Mấy vòng thì đổi kiểu chơi", "minimum": 1, "maximum": 20, "default": 2 },
+    "cooldownSec": { "type": "integer", "title": "Mỗi người đoán tối đa 1 từ / N giây", "minimum": 0, "maximum": 30, "default": 2 },
+    "maxScoredPerRound": { "type": "integer", "title": "Tối đa số từ khác nhau được chấm mỗi vòng", "minimum": 50, "maximum": 2000, "default": 500 },
+    "comboMax": { "type": "integer", "title": "Combo thắng liên tiếp tối đa (xN)", "minimum": 1, "maximum": 10, "default": 5 },
+    "timeBonusSeconds": { "type": "integer", "title": "Quà thêm giờ: số giây (mặc định)", "minimum": 10, "maximum": 300, "default": 60 },
+    "likeBonusEvery": { "type": "integer", "title": "Thưởng tim: mỗi người thả đủ N tim trong vòng", "minimum": 0, "maximum": 100000, "default": 1000 },
+    "likeBonusPoints": { "type": "integer", "title": "Thưởng tim: điểm cộng khi đoán trúng", "minimum": 0, "maximum": 1000, "default": 50 },
+    "teams": { "type": "boolean", "title": "Bật đấu đội ngay khi vào game", "default": false },
+    "teamRounds": { "type": "integer", "title": "Số vòng mỗi trận đấu đội", "minimum": 1, "maximum": 50, "default": 10 }
+  }
+}

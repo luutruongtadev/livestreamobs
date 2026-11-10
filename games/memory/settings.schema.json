@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "startLevel": { "type": "integer", "title": "Cấp bắt đầu", "minimum": 1, "maximum": 30, "default": 1 },
+    "startDigits": { "type": "integer", "title": "Số chữ số ở cấp 1", "minimum": 1, "maximum": 10, "default": 2 },
+    "levelsPerDigit": { "type": "integer", "title": "Mấy cấp thì thêm 1 chữ số", "minimum": 1, "maximum": 5, "default": 2 },
+    "maxDigits": { "type": "integer", "title": "Tối đa số chữ số", "minimum": 2, "maximum": 20, "default": 14 },
+    "memoryMsPer4Digits": { "type": "integer", "title": "Thời gian nhớ cho 4 chữ số (ms)", "minimum": 700, "maximum": 4000, "default": 2000 },
+    "answerSeconds": { "type": "integer", "title": "Thời gian trả lời (giây)", "minimum": 5, "maximum": 60, "default": 15 },
+    "revealSeconds": { "type": "integer", "title": "Thời gian xem đáp án (giây)", "minimum": 2, "maximum": 20, "default": 5 },
+    "extraSeconds": { "type": "integer", "title": "Mỗi lần thêm giờ (giây)", "minimum": 1, "maximum": 10, "default": 3 },
+    "maxExtraSeconds": { "type": "integer", "title": "Tổng thêm giờ tối đa mỗi vòng (giây)", "minimum": 0, "maximum": 30, "default": 9 },
+    "basePoints": { "type": "integer", "title": "Điểm tối đa mỗi câu", "minimum": 10, "maximum": 1000, "default": 100 },
+    "failsToLevelDown": { "type": "integer", "title": "Sai liên tiếp bao nhiêu vòng thì giảm cấp", "minimum": 1, "maximum": 10, "default": 2 },
+    "showLeaderboard": { "type": "boolean", "title": "Hiện bảng điểm", "default": true }
+  }
+}

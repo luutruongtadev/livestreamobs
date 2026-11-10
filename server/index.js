@@ -78,7 +78,7 @@ const wgScorer = wgCfg.scorer === 'simple'
     cachePath: path.join(ROOT, 'data', 'wordscore-cache.json'),
     packPath: path.join(ROOT, 'data', 'knowledge-packs.json'),
     client: hasClaudeCreds ? undefined : false, // không có key: chỉ dùng pack soạn sẵn (+ embedding), không gọi Claude
-    seedPackPath: path.join(ROOT, 'modewords', 'knowledge-packs.json'), // pack soạn sẵn trong repo (không tốn token)
+    seedPackPath: path.join(ROOT, 'games', 'doantu', 'data', 'knowledge-packs.json'), // pack soạn sẵn trong repo (không tốn token)
     // Lớp 3 embedding: có VOYAGE_API_KEY (hoặc OPENAI_API_KEY / EMBEDDING_PROVIDER + EMBEDDING_API_KEY) thì bật
     embedder: Embedder.fromEnv(process.env, wgCfg.embedding || {}),
     embed: wgCfg.embedding || {},
@@ -108,22 +108,22 @@ const weekly = new WeeklyBoard(wgCfg.weekly || {}, { statePath: path.join(ROOT, 
 const attrStore = new AttrStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_ATTR_MODEL || wgCfg.attrModel || 'claude-haiku-5-5', filePath: path.join(ROOT, 'data', 'attributes.json') });
 // Chế độ "Gợi ý tiếng Anh": Claude soạn 5 gợi ý tiếng Anh cho mỗi từ (một lần, lưu data/english-hints.json)
 const englishStore = new EnglishHintStore({ client: claudeClientFromEnv(), model: process.env.WORDGAME_GEN_MODEL || wgCfg.generatorModel || 'claude-opus-5-5', filePath: path.join(ROOT, 'data', 'english-hints.json') });
-// kho từ soạn sẵn cho chế độ thuộc tính / tiếng Anh (modewords/*.json): thuộc tính & gợi ý có sẵn, không tốn Claude
+// kho từ soạn sẵn cho chế độ thuộc tính / tiếng Anh (games/doantu/data/*.json): thuộc tính & gợi ý có sẵn, không tốn Claude
 const modeWords = {};
 for (const [mode, file] of [['meaning', 'meaning.json'], ['attr', 'attr.json'], ['english', 'english.json']]) {
-  try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được modewords/${file}:`, e.message); }
+  try { modeWords[mode] = JSON.parse(fs.readFileSync(path.join(ROOT, 'games', 'doantu', 'data', file), 'utf8')).words || []; } catch (e) { console.warn(`[wordgame] không đọc được games/doantu/data/${file}:`, e.message); }
 }
 // kiểu Giải mã: câu bí ẩn + gợi ý (câu hỏi tiếng Việt, đáp án Việt / Anh) soạn sẵn — không tốn token
 try {
-  const gm = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', 'giaima.json'), 'utf8'));
+  const gm = JSON.parse(fs.readFileSync(path.join(ROOT, 'games', 'doantu', 'data', 'giaima.json'), 'utf8'));
   modeWords.giaima = { phrases: gm.phrases || [], clues: gm.clues || [] };
-} catch (e) { console.warn('[wordgame] không đọc được modewords/giaima.json:', e.message); }
+} catch (e) { console.warn('[wordgame] không đọc được games/doantu/data/giaima.json:', e.message); }
 attrStore.seed(modeWords.attr || []);
 // thuộc tính soạn sẵn cho ~670 từ có trong hệ thống (người xem hay đoán) → không tốn token khi gặp lại
 try {
-  const pre = JSON.parse(fs.readFileSync(path.join(ROOT, 'modewords', 'attr-cache.json'), 'utf8')).words || {};
+  const pre = JSON.parse(fs.readFileSync(path.join(ROOT, 'games', 'doantu', 'data', 'attr-cache.json'), 'utf8')).words || {};
   attrStore.seed(Object.entries(pre).map(([word, attrs]) => ({ word, attrs })));
-} catch (e) { console.warn('[wordgame] không đọc được modewords/attr-cache.json:', e.message); }
+} catch (e) { console.warn('[wordgame] không đọc được games/doantu/data/attr-cache.json:', e.message); }
 englishStore.seed(modeWords.english || []);
 const wg = new WordGame(wgCfg, { scorer: wgScorer, wordBank, wordSets, weekly, attrStore, englishStore, modeWords, statePath: path.join(ROOT, 'data', 'wordgame.json') });
 const tiktok = new TikTokBridge({ signApiKey: config.signApiKey });
@@ -358,7 +358,7 @@ function unplayedSecrets() {
   }
   return out;
 }
-// Chỉ đọc: pack soạn sẵn nằm trong repo (modewords/knowledge-packs.json), KHÔNG dùng API key trên VPS để soạn
+// Chỉ đọc: pack soạn sẵn nằm trong repo (games/doantu/data/knowledge-packs.json), KHÔNG dùng API key trên VPS để soạn
 function packStatus({ words = false } = {}) {
   const all = unplayedSecrets();
   const has = (s) => !!wgScorer.hasPack?.(s);

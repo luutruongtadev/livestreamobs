@@ -24,7 +24,7 @@ Mỗi vòng có một **từ bí mật** (chỉ hiện số chữ của từng t
   3b. **Lớp 3 — Embedding** (tuỳ chọn, cần key riêng vì Anthropic không có API embedding): đặt `VOYAGE_API_KEY` (Voyage AI, mặc định model `voyage-3.5`) hoặc `OPENAI_API_KEY` (`text-embedding-3-small`) trong `.env`; muốn chỉ định thì `EMBEDDING_PROVIDER=voyage|openai`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL`. Đầu vòng embed từ bí mật + mọi từ trong Knowledge Pack (1 lần gọi), **không lấy cosine × 100 làm điểm** mà hiệu chỉnh theo nhóm tham chiếu: trung vị độ tương đồng của mỗi nhóm trong pack làm mốc, ngưỡng giữa 2 nhóm là điểm giữa 2 mốc. Từ đoán chỉ được chấm ở lớp này khi rơi rõ vào một khoảng **và** các từ trong pack giống nó nhất cũng thuộc nhóm đó (hoặc gần như trùng nghĩa một từ trong pack); còn lại vẫn chuyển Claude. Embedding không tách được các nhóm của một từ bí mật thì tự bỏ lớp này cho từ đó. Chỉnh ở `wordgame.embedding` (`neighborHi` 0.92, `margin` 0.02, `k` 5, `enabled: false` để tắt).
   4. **Lớp 4 — Claude phân loại**: từ còn lại gom lô ~0,4 giây/lần gửi Claude, Claude chỉ **xếp nhóm** (rất gần / liên quan mạnh / liên quan / liên quan yếu / không liên quan + độ tin cậy); tối đa 2 request cùng lúc, timeout 20 giây; lỗi thì tạm coi là chưa rõ nghĩa (điểm không liên quan, không lưu cache).
   - **Node quyết định điểm** theo nhóm: rất gần 90–97 · liên quan mạnh 75–88 · liên quan 55–72 · liên quan yếu 25–45 · không liên quan 1–9 (vị trí trong khoảng theo thứ tự trong pack / độ tin cậy). Đổi khoảng điểm ở `wordgame.scoreBands` trong `config.json`; model soạn pack: `wordgame.packModel` / `WORDGAME_PACK_MODEL` (mặc định như model chấm).
-  - **Pack soạn sẵn trong repo** (`modewords/knowledge-packs.json`, không tốn token trên VPS): server nạp khi khởi động, pack do Claude soạn lúc chơi lưu ở `data/` đè lên nếu trùng. Xem bao nhiêu từ chưa chơi đã có pack: admin → 🔤 Đoán từ → 📦 Knowledge Pack (nút 📋 copy danh sách từ còn thiếu để soạn thêm), hoặc GitHub Actions → **Dữ liệu VPS** → Run workflow (chỉ đọc; repo công khai nên mặc định không in tên từ).
+  - **Pack soạn sẵn trong repo** (`games/doantu/data/knowledge-packs.json`, không tốn token trên VPS): server nạp khi khởi động, pack do Claude soạn lúc chơi lưu ở `data/` đè lên nếu trùng. Xem bao nhiêu từ chưa chơi đã có pack: admin → 🔤 Đoán từ → 📦 Knowledge Pack (nút 📋 copy danh sách từ còn thiếu để soạn thêm), hoặc GitHub Actions → **Dữ liệu VPS** → Run workflow (chỉ đọc; repo công khai nên mặc định không in tên từ).
   - Admin (mục Kết nối TikTok Live) hiện số từ chấm ở mỗi lớp: cache / từ điển / embedding / Claude / chưa rõ nghĩa, số lần gọi Claude — dựa vào đó để quyết định có cần thêm lớp embedding hay không.
   - Tối đa `maxScoredPerRound` (500) từ khác nhau mỗi vòng.
 - **Không có API key** → chỉ chấm được từ có trong Knowledge Pack soạn sẵn (và embedding nếu có key riêng); từ ngoài pack coi là chưa rõ nghĩa → điểm thấp, **không** đoán theo mặt chữ. (`wordgame.scorer = "simple"` vẫn bật được bộ chấm theo chữ, chỉ để test.)
@@ -84,11 +84,11 @@ Game xoay vòng giữa các kiểu chơi, mặc định **mỗi kiểu 2 vòng**
   - Mỗi vòng tự chọn gợi ý trong kho sao cho chữ của gợi ý đều nằm trong câu, che gần hết câu và chừa lại vài chữ không có trong gợi ý nào để tự suy (**câu từ 9 chữ cái trở lên chừa 2–3 chữ**, câu ngắn chừa 1–2), trộn tiếng Việt + tiếng Anh, không lặp gợi ý vừa dùng, không lặp câu tới khi hết kho.
   - Hệ thống tự lộ 1 chữ ở giây 120 / 180 / 240 (`wordgame.giaimaRevealAt`). Quà / tim theo luật chung: 🌹 / 🫰 / ❤️ = lộ 1 chữ · 🎁 10 xu = **giải hộ 1 gợi ý** · 💎 99 xu = **lộ 3 chữ** · 🍩 +60 giây. Luôn chừa ít nhất 1 chữ.
   - Chỉ chơi ở bộ **từ vựng chung** (đang chơi bộ riêng như LMHT thì bỏ qua). Admin đặt từ riêng đúng lượt Giải mã thì vòng đó chơi gần nghĩa.
-  - Kho `modewords/giaima.json` (96 câu, ~470 gợi ý): `phrases: [{ text, kind, meaning }]`, `clues: [{ q, a, e, lang: "vi" | "en", alt? }]`. Thêm câu / gợi ý rồi chạy `npm test` (test kiểm tra mọi câu đều đủ gợi ý). Chỉnh cách chọn gợi ý ở `wordgame.giaima` (`minClues`, `maxClues`, `leaveHidden`).
+  - Kho `games/doantu/data/giaima.json` (96 câu, ~470 gợi ý): `phrases: [{ text, kind, meaning }]`, `clues: [{ q, a, e, lang: "vi" | "en", alt? }]`. Thêm câu / gợi ý rồi chạy `npm test` (test kiểm tra mọi câu đều đủ gợi ý). Chỉnh cách chọn gợi ý ở `wordgame.giaima` (`minClues`, `maxClues`, `leaveHidden`).
   - Server đang chạy có lưu sẵn danh sách kiểu chơi cũ → vào admin → 🔤 Đoán từ → **Kiểu chơi** tích **🔐 Giải mã** rồi 💾 Lưu.
-- **Kho chủ đề soạn sẵn cho kiểu Gần nghĩa** (`modewords/meaning.json`, 178 từ): cầu thủ bóng đá, hãng xe, hãng thời trang, trà sữa / cà phê, chương trình truyền hình, đơn vị tiền tệ, nghề nghiệp, trường đại học (Hà Nội / Sài Gòn), anh hùng dân tộc, người nổi tiếng, thuật ngữ ai cũng hiểu, ngày lễ Việt Nam. Mỗi từ có 3 emoji + chủ đề + 1 dòng mô tả, kèm cách gọi khác (vd "cr7" = ronaldo). Vòng Gần nghĩa có 50% lấy từ kho này (`wordgame.curatedRatio`); kho chung hết thì lấy hết kho này trước.
+- **Kho chủ đề soạn sẵn cho kiểu Gần nghĩa** (`games/doantu/data/meaning.json`, 178 từ): cầu thủ bóng đá, hãng xe, hãng thời trang, trà sữa / cà phê, chương trình truyền hình, đơn vị tiền tệ, nghề nghiệp, trường đại học (Hà Nội / Sài Gòn), anh hùng dân tộc, người nổi tiếng, thuật ngữ ai cũng hiểu, ngày lễ Việt Nam. Mỗi từ có 3 emoji + chủ đề + 1 dòng mô tả, kèm cách gọi khác (vd "cr7" = ronaldo). Vòng Gần nghĩa có 50% lấy từ kho này (`wordgame.curatedRatio`); kho chung hết thì lấy hết kho này trước.
 - **Không lặp từ, dùng hết kho có sẵn trước**: mọi kho (kho Claude, từ có sẵn, 3 kho soạn sẵn) dùng chung một danh sách "đã chơi" nên không bao giờ ra lại từ đã chơi. Claude chỉ sinh lô từ mới khi kho chung, từ có sẵn và kho chủ đề soạn sẵn đều sắp hết.
-- **Kho từ soạn sẵn** (`modewords/`): 285 từ cho chế độ Thuộc tính (đủ 24 thuộc tính nghĩa + emoji + gợi ý) và 266 từ cho chế độ Tiếng Anh (dịch từng chữ + 4 gợi ý A2), có cả các chủ đề mới (bóng đá, xe, thời trang, cà phê, TV, tiền tệ, nghề, đại học, anh hùng, người nổi tiếng, thuật ngữ, ngày lễ). Vòng của chế độ nào thì lấy từ chưa chơi trong kho của chế độ đó trước, nên không tốn Claude cho từ bí mật. Admin hiện số từ còn lại; hết kho thì lấy từ kho chung và Claude soạn thuộc tính / gợi ý. Thêm từ bằng tay: sửa file JSON cùng định dạng.
+- **Kho từ soạn sẵn** (`games/doantu/data/`): 285 từ cho chế độ Thuộc tính (đủ 24 thuộc tính nghĩa + emoji + gợi ý) và 266 từ cho chế độ Tiếng Anh (dịch từng chữ + 4 gợi ý A2), có cả các chủ đề mới (bóng đá, xe, thời trang, cà phê, TV, tiền tệ, nghề, đại học, anh hùng, người nổi tiếng, thuật ngữ, ngày lễ). Vòng của chế độ nào thì lấy từ chưa chơi trong kho của chế độ đó trước, nên không tốn Claude cho từ bí mật. Admin hiện số từ còn lại; hết kho thì lấy từ kho chung và Claude soạn thuộc tính / gợi ý. Thêm từ bằng tay: sửa file JSON cùng định dạng.
 - **❤️ Thả tim mở chữ**: cả phòng thả đủ **1000 tim** (đổi ở admin hoặc `wordgame.likeEvery`) thì lộ 1 chữ cái. Tiến độ hiện thành chip đầu tiên dưới ô chữ, và luôn chừa lại ít nhất 1 chữ.
 
 ### 🎙️ Giọng MC trêu đùa (ElevenLabs)
@@ -395,24 +395,31 @@ Biến môi trường cũng được hỗ trợ: `TIKTOK_USERNAME`, `SIGN_API_KE
 
 ## Cấu trúc mã
 
+> **Đang chuyển sang nền tảng nhiều game** (kế hoạch: nền tảng đa streamer, mỗi game một module). Chuẩn module: [`docs/game-module-standard.md`](docs/game-module-standard.md). Server đơn (`server/`, `public/`) vẫn chạy như cũ trong lúc chuyển — các file đã chuyển đi được giữ lại dưới dạng re-export.
+
 ```
+packages/sdk/                   Hợp đồng game ↔ nền tảng (import '#sdk'): manifest, schema cài đặt, trigger quà/tim → action,
+                                host cách ly lỗi, chuẩn hoá chữ (sameWord…), bộ test chuẩn (#sdk/testing), loader Node (#sdk/node), template game
+games/doantu/                   Game Đoán từ theo chuẩn module: engine/ (WordGame, kiểu chơi, đội, pack, nhận đáp án),
+                                render/ (canvas 1080×1920), server/ (chấm gần nghĩa nhiều lớp, thuộc tính, gợi ý tiếng Anh), data/ (kho soạn sẵn)
+games/memory/                   Game Nhớ số (mẫu thứ 2, không có server)
+scripts/new-game.mjs            npm run new-game <id> "Tên" — tạo game mới từ template
 server/
-  index.js      HTTP + WebSocket hub, API admin, lưu state
+  index.js      HTTP + WebSocket hub, API admin, lưu state (server đơn)
   tiktok.js     Kết nối TikTok Live, chuẩn hoá payload, tự kết nối lại
-  wordgame.js   Luật game Đoán từ (vòng, gợi ý, quà, thắng / thua)
-  scorer.js     Nhận đáp án (sameWord: so dấu), chấm theo chữ chỉ để test · scoring.js chấm gần nghĩa nhiều lớp (pack → embedding → Claude)
   wordbank.js   Kho từ: sinh từ bằng Claude, từ có sẵn, đánh dấu từ đã chơi, chống trùng
   wordsets.js   Bộ từ riêng (trend MXH…) · setgen.js tạo bộ / gợi ý bằng Claude
-  weekly.js     Bảng xếp hạng tuần · teams.js đấu đội
-  voice.js      Giọng MC ElevenLabs · goodbye.js hẹn giờ kết thúc live · pause.js tạm dừng
-  ghep.js       Game Ghép (/ghep) · giaima.js kiểu chơi Giải mã (chọn câu + gợi ý, kho modewords/giaima.json)
-  text.js       Bỏ dấu tiếng Việt
+  weekly.js     Bảng xếp hạng tuần
+  voice.js      Giọng MC ElevenLabs · goodbye.js hẹn giờ kết thúc live · pause.js PauseController
+  ghep.js       Game Ghép (/ghep), dữ liệu modewords/emoji-kitchen.json
+  wordgame.js, scorer.js, scoring.js, embeddings.js, attributes.js, englishhints.js, teams.js, giaima.js, text.js
+                re-export từ games/doantu và packages/sdk (giữ giao diện cũ)
 public/
-  doantu.html, js/wordgame.js   Màn hình game (canvas 1080×1920)
+  doantu.html, js/wordgame.js   Màn hình game của server đơn (canvas 1080×1920)
   js/sound.js, js/goodbye.js    Âm thanh WebAudio · màn "Chúc cả nhà ngủ ngon"
   admin.html                    Bảng điều khiển
 wordsets/                       Bộ từ có sẵn (trend MXH…)
-test/                           npm test
+test/                           npm test (cùng test của packages/sdk và games/*)
 deploy/stream.sh                Phát 24/7: Xvfb + Chrome + PulseAudio + ffmpeg -> RTMP
 deploy/bootstrap.sh             Cài trọn gói một lệnh (mặc định: chế độ điện thoại)
 deploy/install-ubuntu.sh        Cài lên VPS Ubuntu + dịch vụ systemd (--phone: chỉ server)

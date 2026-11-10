@@ -1,0 +1,8 @@
+{
+  "title": "Đoán từ",
+  "howTo": "Bình luận một từ để đoán từ bí mật. Mỗi từ được chấm độ gần nghĩa 1–100 — chỉ theo nghĩa và liên tưởng, không theo mặt chữ. Đoán trúng = 100 điểm, thắng vòng.",
+  "modes.meaning": "Gần nghĩa",
+  "modes.attr": "Đoán thuộc tính",
+  "modes.english": "Gợi ý tiếng Anh",
+  "modes.giaima": "Giải mã"
+}

@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "pointsPerComment": { "type": "integer", "title": "Điểm mỗi bình luận", "minimum": 1, "maximum": 100, "default": 1 },
+    "boostPoints": { "type": "integer", "title": "Điểm mỗi lần boost", "minimum": 1, "maximum": 1000, "default": 10 }
+  }
+}

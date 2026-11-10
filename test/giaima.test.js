@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { buildPuzzle, letterKey, letterSet, splitWords } from '../server/giaima.js';
 import { WordGame } from '../server/wordgame.js';
 
-const BANK = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'modewords', 'giaima.json'), 'utf8'));
+const BANK = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'games', 'doantu', 'data', 'giaima.json'), 'utf8'));
 
 /** rng cố định để test lặp lại được */
 function seeded(seed = 1) {

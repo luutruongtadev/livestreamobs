@@ -1,0 +1,274 @@
+// Âm thanh tổng hợp bằng WebAudio (không cần file). Có thể thay bằng file
+// riêng qua config.json -> "sounds": { "mo": "assets/mo.mp3", ... }
+// theme: 'temple' (mõ, chuông chùa, nhạc nền tụng kinh nếu có) | 'game' (pop, ding, không nhạc nền)
+export class SoundBoard {
+  constructor({ files = {}, muted = false, ambientVolume = 0.25, theme = 'temple' } = {}) {
+    this.theme = theme;
+    this.files = theme === 'game' ? {} : files; // game không dùng file âm thanh / nhạc nền của chùa
+    this.muted = muted;
+    this.ambientVolume = ambientVolume;
+    this.ctx = null;
+    this.master = null;
+    this.buffers = {};
+    this.last = {};
+  }
+
+  init() {
+    if (this.ctx) return this.ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.8;
+    // Reverb nhẹ cho cảm giác không gian chùa
+    this.reverb = this.ctx.createConvolver();
+    this.reverb.buffer = this.#impulse(3.2, 2.5);
+    this.wet = this.ctx.createGain();
+    this.wet.gain.value = 0.35;
+    this.reverb.connect(this.wet).connect(this.master);
+    this.master.connect(this.ctx.destination);
+    for (const [k, url] of Object.entries(this.files)) if (url) this.#loadFile(k, url);
+    if (this.files.ambient) this.#startAmbient(this.files.ambient);
+    return this.ctx;
+  }
+
+  get suspended() {
+    return !this.ctx || this.ctx.state === 'suspended';
+  }
+
+  resume() {
+    this.init();
+    return this.ctx?.resume();
+  }
+
+  #impulse(seconds, decay) {
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return buf;
+  }
+
+  async #loadFile(key, url) {
+    try {
+      const res = await fetch(url);
+      this.buffers[key] = await this.ctx.decodeAudioData(await res.arrayBuffer());
+    } catch (e) {
+      console.warn('Không tải được âm thanh', key, url, e);
+    }
+  }
+
+  #startAmbient(url) {
+    const el = new Audio(url);
+    el.loop = true;
+    el.volume = this.ambientVolume;
+    const play = () => el.play().catch(() => {});
+    play();
+    this.ambientEl = el;
+    document.addEventListener('click', play, { once: true });
+  }
+
+  #playBuffer(key, gain = 1) {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.buffers[key];
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    src.connect(g);
+    g.connect(this.master);
+    g.connect(this.reverb);
+    src.start();
+  }
+
+  #throttle(key, ms) {
+    const now = performance.now();
+    if (now - (this.last[key] || 0) < ms) return true;
+    this.last[key] = now;
+    return false;
+  }
+
+  #partial(freq, start, dur, gain, type = 'sine', wet = true) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, start);
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(gain, start + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    o.connect(g);
+    g.connect(this.master);
+    if (wet) g.connect(this.reverb);
+    o.start(start);
+    o.stop(start + dur + 0.05);
+    return o;
+  }
+
+  play(name, opts = {}) {
+    if (this.muted || !this.init() || this.ctx.state !== 'running') return;
+    if (this.buffers[name]) {
+      if (name === 'mo' && this.#throttle('mo', 90)) return;
+      return this.#playBuffer(name, opts.gain ?? 1);
+    }
+    const fn = (this.theme === 'game' && this['_game_' + name]) || this['_' + name];
+    if (fn) fn.call(this, opts);
+  }
+
+  // ---------- bộ âm thanh kiểu game (không mõ, không chuông chùa) ----------
+  // Có người đoán: tiếng "pop" ngắn
+  _game_mo() {
+    if (this.#throttle('mo', 90)) return;
+    const t = this.ctx.currentTime;
+    const o = this.#partial(520 + Math.random() * 80, t, 0.09, 0.22, 'sine', false);
+    o.frequency.exponentialRampToValueAtTime(1100, t + 0.07);
+  }
+
+  // Mở gợi ý / vòng mới: "ding-ding" hai nốt sáng
+  _game_bell() {
+    if (this.#throttle('bell', 400)) return;
+    const t = this.ctx.currentTime;
+    this.#partial(1047, t, 0.35, 0.16, 'triangle', false);
+    this.#partial(1568, t + 0.12, 0.5, 0.16, 'triangle', false);
+  }
+
+  // Điểm cao / mở khoá: "blip" theo cao độ
+  _game_chime({ pitch = 1 } = {}) {
+    if (this.#throttle('chime', 100)) return;
+    const t = this.ctx.currentTime;
+    this.#partial(784 * pitch, t, 0.28, 0.14, 'triangle', false);
+    this.#partial(1568 * pitch, t + 0.05, 0.18, 0.05, 'sine', false);
+  }
+
+  // Thắng vòng: kèn chiến thắng (arpeggio + hợp âm)
+  _game_levelup() {
+    const t = this.ctx.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => this.#partial(f, t + i * 0.1, 0.22, 0.15, 'square', false));
+    for (const f of [523, 659, 784, 1047]) this.#partial(f, t + 0.45, 0.9, 0.07, 'triangle', false);
+  }
+
+  // ---------- hiệu ứng đấu trường ----------
+  #noise(start, dur, gain, { freq = 800, q = 0.7, type = 'lowpass', sweepTo = null, wet = false } = {}) {
+    const ctx = this.ctx;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(freq, start);
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, start + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(gain, start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    src.connect(f).connect(g).connect(this.master);
+    if (wet) g.connect(this.reverb);
+    src.start(start);
+  }
+
+  // Nổ bom / mở rương: tiếng ầm trầm + nhiễu
+  _game_boom({ big = false } = {}) {
+    if (this.#throttle('boom', 120)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, big ? 1.6 : 0.9, big ? 0.9 : 0.6, { freq: big ? 900 : 1400, sweepTo: 60, wet: true });
+    const o = this.#partial(big ? 90 : 120, t, big ? 1.2 : 0.6, 0.5, 'sine', false);
+    o.frequency.exponentialRampToValueAtTime(35, t + (big ? 1.1 : 0.5));
+  }
+
+  // Đòn đánh / hạ gục: "bụp" ngắn
+  _game_hit() {
+    if (this.#throttle('hit', 70)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.12, 0.25, { freq: 2200, sweepTo: 300 });
+    this.#partial(180, t, 0.1, 0.18, 'square', false);
+  }
+
+  // Cồng vàng (Huyền thoại)
+  _game_gong() {
+    const t = this.ctx.currentTime;
+    for (const [m, g] of [[1, 0.35], [2.02, 0.16], [2.98, 0.1], [4.1, 0.06]]) this.#partial(98 * m, t, 4.5, g, 'sine', true);
+    this.#noise(t, 0.3, 0.2, { freq: 3000, type: 'bandpass', q: 2 });
+  }
+
+  // Sấm sét (Thần thoại / Lôi long)
+  _game_thunder() {
+    if (this.#throttle('thunder', 300)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.15, 0.8, { freq: 6000, type: 'highpass' });
+    this.#noise(t + 0.05, 2.4, 0.7, { freq: 700, sweepTo: 50, wet: true });
+  }
+
+  // Ánh sáng dâng lên trong rương: âm vút cao dần
+  _game_riser({ dur = 1.5, pitch = 1 } = {}) {
+    const t = this.ctx.currentTime;
+    const o = this.#partial(220 * pitch, t, dur, 0.12, 'sawtooth', true);
+    o.frequency.exponentialRampToValueAtTime(1760 * pitch, t + dur);
+    this.#noise(t, dur, 0.12, { freq: 400, sweepTo: 8000, type: 'bandpass', q: 3 });
+  }
+
+  // Lướt / lao tới
+  _game_whoosh() {
+    if (this.#throttle('whoosh', 150)) return;
+    const t = this.ctx.currentTime;
+    this.#noise(t, 0.45, 0.3, { freq: 300, sweepTo: 3000, type: 'bandpass', q: 1.5 });
+  }
+
+  // Gầm (Múa lân, vô địch)
+  _game_roar() {
+    if (this.#throttle('roar', 400)) return;
+    const t = this.ctx.currentTime;
+    const o = this.#partial(110, t, 0.9, 0.3, 'sawtooth', true);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.8);
+    this.#noise(t, 0.9, 0.3, { freq: 500, sweepTo: 150 });
+  }
+
+  // Tiếng mõ gỗ: hai thành phần tần số, tắt rất nhanh
+  _mo() {
+    if (this.#throttle('mo', 90)) return;
+    const t = this.ctx.currentTime;
+    const base = 480 + Math.random() * 30;
+    const o = this.#partial(base, t, 0.18, 0.55, 'triangle');
+    o.frequency.exponentialRampToValueAtTime(base * 0.82, t + 0.15);
+    this.#partial(base * 2.47, t, 0.06, 0.18, 'sine');
+    this.#partial(base * 4.1, t, 0.025, 0.08, 'sine', false);
+  }
+
+  // Đại hồng chung: các partial không điều hoà, ngân dài
+  _bell({ big = false } = {}) {
+    if (this.#throttle('bell', 600)) return;
+    const t = this.ctx.currentTime;
+    const f = big ? 82 : 110;
+    const parts = [
+      [0.5, 7, 0.25], [1, 6, 0.4], [1.19, 5, 0.16], [1.56, 4, 0.12],
+      [2.0, 3.5, 0.14], [2.74, 2.5, 0.08], [3.76, 1.6, 0.05], [5.4, 0.9, 0.03],
+    ];
+    for (const [m, d, g] of parts) {
+      this.#partial(f * m, t, d * (big ? 1.4 : 1), g, 'sine');
+      this.#partial(f * m * 1.003, t, d * (big ? 1.4 : 1), g * 0.5, 'sine');
+    }
+  }
+
+  // Chuông nhỏ / khánh
+  _chime({ pitch = 1 } = {}) {
+    if (this.#throttle('chime', 120)) return;
+    const t = this.ctx.currentTime;
+    const f = 880 * pitch;
+    this.#partial(f, t, 2.4, 0.16);
+    this.#partial(f * 2.76, t, 1.2, 0.06);
+    this.#partial(f * 5.4, t, 0.5, 0.03);
+  }
+
+  // Lên cấp: chuông lớn + chuỗi chuông ngũ cung
+  _levelup() {
+    this._bell({ big: true });
+    const scale = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3, 2];
+    scale.forEach((p, i) => setTimeout(() => {
+      this.last.chime = 0;
+      this._chime({ pitch: p * 0.75 });
+    }, 400 + i * 180));
+  }
+}

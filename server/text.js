@@ -1,15 +1,7 @@
-// Chuẩn hoá tiếng Việt: bỏ dấu, chữ thường, gom khoảng trắng.
-export function normalize(text) {
-  return String(text ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+// Chuẩn hoá tiếng Việt (bỏ dấu, chữ thường, gom khoảng trắng) nằm ở SDK nền tảng.
+import { normalize } from '#sdk';
+
+export { normalize };
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
