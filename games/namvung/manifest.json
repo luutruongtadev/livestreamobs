@@ -1,0 +1,194 @@
+{
+  "id": "namvung",
+  "name": "Nằm Vùng",
+  "description": "Streamer là cảnh sát chìm bị đưa sang trại lừa đảo: ban ngày chạy KPI để không bị nghi, lén thu thập bằng chứng và gửi về công an Việt Nam. Người xem là bảo an, chủ quản: tặng quà để gây khó hoặc giúp; thả tim để có sóng, bình luận “che” để đánh lạc hướng.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "party",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment",
+    "like"
+  ],
+  "restore": "full",
+  "server": false,
+  "play": true,
+  "data": {
+    "camp": "data/camp.json"
+  },
+  "actions": [
+    {
+      "id": "tuantra",
+      "label": "Bảo an tuần tra",
+      "icon": "🔦",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rose"
+        }
+      ]
+    },
+    {
+      "id": "chuquan",
+      "label": "Chủ quản nhắn",
+      "icon": "📱",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        }
+      ]
+    },
+    {
+      "id": "tangkpi",
+      "label": "Tăng KPI",
+      "icon": "📈",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Doughnut"
+        }
+      ]
+    },
+    {
+      "id": "thudt",
+      "label": "Thu điện thoại",
+      "icon": "📵",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Perfume"
+        }
+      ]
+    },
+    {
+      "id": "chidiem",
+      "label": "Chỉ điểm",
+      "icon": "🕵️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hat and Mustache"
+        }
+      ]
+    },
+    {
+      "id": "lucsoat",
+      "label": "Lục soát",
+      "icon": "🧳",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Corgi"
+        }
+      ]
+    },
+    {
+      "id": "nhot",
+      "label": "Nhốt phòng tối",
+      "icon": "🔒",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Money Gun"
+        }
+      ]
+    },
+    {
+      "id": "chuyentrai",
+      "label": "Chuyển trại",
+      "icon": "🚐",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Galaxy"
+        }
+      ]
+    },
+    {
+      "id": "lamngo",
+      "label": "Bảo an làm ngơ",
+      "icon": "🤝",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Heart Me"
+        }
+      ]
+    },
+    {
+      "id": "migoi",
+      "label": "Gói mì lén",
+      "icon": "🍜",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hand Hearts"
+        }
+      ]
+    },
+    {
+      "id": "sim",
+      "label": "Sim lậu",
+      "icon": "📶",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Sunglasses"
+        }
+      ]
+    },
+    {
+      "id": "noigian",
+      "label": "Nội gián đưa tài liệu",
+      "icon": "🗝️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Cap"
+        }
+      ]
+    },
+    {
+      "id": "lamho",
+      "label": "Đồng hương làm hộ",
+      "icon": "🧑‍🤝‍🧑",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Ice Cream Cone"
+        }
+      ]
+    },
+    {
+      "id": "giaicuu",
+      "label": "Công an ập vào",
+      "icon": "🚔",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Lion"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "next-day",
+      "label": "Sang ngày / bước kế"
+    },
+    {
+      "id": "new-campaign",
+      "label": "Chiến dịch mới"
+    },
+    {
+      "id": "clear-board",
+      "label": "Xoá bảng điểm"
+    }
+  ]
+}
