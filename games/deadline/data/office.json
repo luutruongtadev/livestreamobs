@@ -16,7 +16,13 @@
     { "name": "Dán {n} tờ giấy nhớ lên màn hình", "file": "GiayNho_todo.txt" },
     { "name": "Gõ {n} dòng báo cáo tuần", "file": "BaoCaoTuan_final.docx" },
     { "name": "Gấp {n} chiếc áo cho gọn", "file": "Ao_quan_chua_gap.jpg" },
-    { "name": "Đọc to {n} email của sếp", "file": "Mail_sep_chua_doc.msg" }
+    { "name": "Đọc to {n} email của sếp", "file": "Mail_sep_chua_doc.msg" },
+    { "name": "Xếp {n} cái cốc thành tháp", "file": "ThapCoc_v3.jpg" },
+    { "name": "Ném {n} cục giấy vào thùng rác", "file": "GiayVun_final.txt" },
+    { "name": "Gấp {n} con hạc giấy", "file": "HacGiay_cau_may.docx" },
+    { "name": "Viết {n} dòng bằng tay trái", "file": "TayTrai_luyen_chu.docx" },
+    { "name": "Bóc {n} viên kẹo bằng một tay", "file": "Keo_giai_lao.xlsx" },
+    { "name": "Dán {n} tờ giấy nhớ thành chữ OK", "file": "GiayNho_OK.png" }
   ],
   "pings": [
     "Xong chưa em?", "Em ơi file đâu rồi?", "Có update gì chưa em?", "Em check mail chưa?", "Gọi anh 5 phút nhé",
@@ -87,6 +93,12 @@
     "intern": { "mood": "happy", "lines": ["Thực tập sinh là chân ái 🫶", "Có người gánh team rồi", "Em giỏi quá em ơi"] },
     "thangchuc": { "mood": "rich", "lines": ["Giàu rồi!! 💸", "Lên chức rồi mọi người ơi 🎉", "Từ nay gọi em là sếp"] }
   },
+  "captcha": [["☕","ly cà phê",["🍵","🥤","🧋","🍺"]],["🐱","con mèo",["🐶","🐭","🐰","🦊"]],["📎","kẹp giấy",["✂️","📌","🖇️","📐"]],["🍜","tô mì",["🍚","🍲","🥟","🍱"]],["🖨️","máy in",["💻","🖥️","⌨️","📠"]]],
+  "approvals": ["Mua máy in mới","Tiệc tất niên","Team building Đà Lạt","Thay ghế xoay cả phòng","Quảng cáo TikTok","Mua 100 thùng mì","Thuê ca sĩ hát tất niên","Nâng cấp wifi","Mua cây xanh văn phòng","Đặt áo đồng phục"],
+  "typos": ["Báo cáo *quí* bốn đã *sog*","Em xin *phếp* nghỉ thứ sáu *ạh*","Họp giao ban *dời* sang *chín* giờ","Khách hàng đã *sác* nhận đơn *hàn*","Số liệu tháng này *tăg* nhẹ *xo* với tháng trước","Phiền anh *kí* giúp em tờ *chình*","Mọi người *kiễm* tra mail *giúb* em","Em gửi lại file *đín* kèm *ạ*"],
+  "replies": [{"msg":"Sao đơn của tôi giao chậm vậy???","good":"Dạ em xin lỗi, em kiểm tra ngay cho anh ạ","bad":["Chậm thì chờ thêm đi anh","Em đang bận live, lát rep"]},{"msg":"Sản phẩm bị lỗi, tôi muốn đổi!","good":"Dạ em hỗ trợ đổi mới cho chị liền ạ","bad":["Chắc tại chị dùng sai đó","Hết bảo hành rồi chị ơi 🙂"]},{"msg":"Gọi tổng đài 5 lần không ai nghe!","good":"Dạ em rất tiếc, em gọi lại cho anh ngay ạ","bad":["Tổng đài đi ăn trưa rồi","Anh gọi lần 6 thử xem"]},{"msg":"Giá bên khác rẻ hơn mà?","good":"Dạ bên em có bảo hành 2 năm và giao miễn phí ạ","bad":["Vậy anh mua bên đó đi","Rẻ thì chất lượng kém đó anh"]},{"msg":"Tôi chưa nhận được hoá đơn","good":"Dạ em gửi lại hoá đơn qua mail cho chị ngay ạ","bad":["Chị xem lại hộp thư rác đi","Hoá đơn để làm gì chị?"]},{"msg":"Nhân viên giao hàng thái độ quá!","good":"Dạ em thành thật xin lỗi, em sẽ phản hồi bên giao hàng ạ","bad":["Chắc anh ấy mệt thôi","Thái độ gì đâu anh"]}],
+  "meetings": ["Họp giao ban","Họp với khách","Đào tạo nội bộ","Họp ngân sách","Phỏng vấn ứng viên","Họp team","Gặp sếp tổng","Review dự án"],
+  "icons": ["Báo cáo","Hợp đồng","Lương","Ảnh team","Kế hoạch","Dự án","Tài liệu","Nhạc","Game","Slide","Khách hàng","Ngân sách","Wifi","Quà Tết","Ý tưởng","Việc tồn"],
   "story": {
     "company": "Công ty TNHH Deadline Dí",
     "chapters": [

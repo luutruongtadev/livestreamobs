@@ -40,11 +40,19 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
 
 ## Luật
 1. **Mỗi ca** có một nhiệm vụ `steps` bước (mặc định 10) và một deadline `shiftSeconds` (mặc định 5:00). Chức càng cao thì deadline càng ngắn: −8% mỗi bậc, tối thiểu 60%.
-2. **Mini-việc** (chế độ máy tính, xoay vòng; mỗi việc xong là +1 bước):
+2. **Mini-việc** (chế độ máy tính). Mỗi việc xong là +1 bước. Mặc định thứ tự việc được xáo ngẫu nhiên, đủ một vòng mới lặp lại và không trùng việc vừa làm. Chọn việc nào được dùng ở cài đặt `jobs`; `shuffleJobs` tắt thì việc chạy đúng theo thứ tự đã chọn.
    - ✉️ **Mail:** gõ lại câu rồi Enter.
    - 📥 **Hộp thư:** bấm Lưu hoặc Spam cho 4 thư.
    - 📊 **Bảng tính:** gõ tổng các ô rồi Enter.
    - 📁 **File:** bấm file, rồi bấm đúng thư mục (Ảnh / Tài liệu / Thùng rác).
+   - 🔐 **Đổi mật khẩu:** gõ mật khẩu đủ 4 điều kiện: ≥ 8 ký tự, có số, có chữ HOA, có ký tự đặc biệt. Mỗi điều kiện đạt thì sáng xanh.
+   - 🤖 **Tôi không phải robot:** chọn hết các ô có món được yêu cầu (☕ / 🐱 / 📎…) rồi bấm Xác minh. Chọn sai thì xoá chọn, làm lại.
+   - ✍️ **Ký duyệt:** 4 tờ trình. Trên 10 triệu thì Từ chối, còn lại thì Duyệt.
+   - 🔢 **Mã OTP:** mã 6 số hiện 3,5 giây (từ Trưởng nhóm trở lên là 2,5 giây) rồi ẩn đi, phải gõ lại theo trí nhớ. Gõ sai sẽ ra mã mới; nút "Gửi lại mã" cho xem lại.
+   - 📝 **Chính tả:** bấm vào các chữ viết sai trong câu.
+   - 💬 **Trả lời khách:** chọn câu lịch sự trong 3 câu.
+   - 📅 **Lịch họp:** bấm giờ bắt đầu sao cho 2 tiếng liền đều trống.
+   - 🧹 **Dọn màn hình:** bấm 6 icon theo thứ tự chữ cái A → Z.
 3. **Xong đủ bước:** hiện **XONG VIỆC!** và lên chức (Thực tập sinh → … → Chủ tịch).
 4. **Hết giờ:** hiện **TRỄ DEADLINE!**, kèm hình phạt vui (`punishments`) và xuống 1 chức (`demoteOnFail`).
 5. Thẻ kết quả có hai bảng **👔 Sếp soi nhất** và **🤝 Đồng nghiệp tận tâm** (tính theo số xu).
@@ -96,4 +104,4 @@ Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pau
   - Link hỏng thì tự quay về meme có sẵn.
 
 ## Dữ liệu
-`data/office.json`: các chức, nhiệm vụ, câu sếp ping / soi, câu Mail, câu trend văn phòng, thư thường / thư rác, file, virus, hình phạt, câu meme. Sửa trực tiếp file để thêm nội dung.
+`data/office.json`: các chức, nhiệm vụ, câu robot (`captcha`), tờ trình (`approvals`), câu sai chính tả (`typos`, chữ sai đặt giữa hai dấu *), câu trả lời khách (`replies`), tên cuộc họp (`meetings`), tên icon (`icons`), câu sếp ping / soi, câu Mail, câu trend văn phòng, thư thường / thư rác, file, virus, hình phạt, câu meme. Sửa trực tiếp file để thêm nội dung.

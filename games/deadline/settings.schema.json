@@ -33,6 +33,62 @@
       "maximum": 30,
       "default": 10
     },
+    "jobs": {
+      "type": "array",
+      "title": "Chế độ máy tính: các mini-việc được dùng",
+      "items": {
+        "type": "string",
+        "enum": [
+          "mail",
+          "inbox",
+          "sheet",
+          "files",
+          "password",
+          "captcha",
+          "approve",
+          "otp",
+          "typo",
+          "reply",
+          "calendar",
+          "desktop"
+        ],
+        "enumNames": [
+          "✉️ Mail: gõ lại câu",
+          "📥 Hộp thư: Lưu / Spam",
+          "📊 Bảng tính: gõ tổng",
+          "📁 File: bỏ đúng thư mục",
+          "🔐 Đổi mật khẩu theo 4 điều kiện",
+          "🤖 Tôi không phải robot",
+          "✍️ Ký duyệt tờ trình",
+          "🔢 Nhập mã OTP (nhớ nhanh)",
+          "📝 Bắt lỗi chính tả",
+          "💬 Trả lời khách lịch sự",
+          "📅 Xếp lịch họp 2 tiếng",
+          "🧹 Dọn màn hình A→Z"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "default": [
+        "mail",
+        "inbox",
+        "sheet",
+        "files",
+        "password",
+        "captcha",
+        "approve",
+        "otp",
+        "typo",
+        "reply",
+        "calendar",
+        "desktop"
+      ]
+    },
+    "shuffleJobs": {
+      "type": "boolean",
+      "title": "Chế độ máy tính: xáo ngẫu nhiên thứ tự mini-việc (tắt = theo đúng thứ tự trong danh sách)",
+      "default": true
+    },
     "shiftSeconds": {
       "type": "integer",
       "title": "Deadline mỗi ca (giây)",

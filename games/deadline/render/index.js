@@ -29,7 +29,7 @@ export const ACT = {
 const STATUS = { soi: ['👀', 'Sếp đang soi'], mayin: ['🖨️', 'Máy in kẹt'], hop: ['🚨', 'Đang họp'], buzz: ['🗣️', 'Đọc to câu sếp'], virus: ['👾', 'Máy dính virus'] };
 const COINS = { rose: 1, 'finger heart': 5, doughnut: 30, perfume: 20, 'hat and mustache': 99, 'money gun': 500, galaxy: 1000, corgi: 299, cap: 99, 'heart me': 1, 'hand hearts': 100, sunglasses: 199, lion: 29999, 'ice cream cone': 1, tiktok: 1, gg: 1 };
 const MOOD = { shock: '😱', cry: '😭', dizzy: '😵', angry: '😤', skull: '💀', happy: '🥳', rich: '🤑' };
-const APPS = { mail: ['✉️', 'Mail'], inbox: ['📥', 'Hộp thư'], sheet: ['📊', 'Bảng tính'], files: ['📁', 'File'] };
+const APPS = { mail: ['✉️', 'Mail'], inbox: ['📥', 'Hộp thư'], sheet: ['📊', 'Bảng tính'], files: ['📁', 'File'], password: ['🔐', 'Đổi mật khẩu'], captcha: ['🤖', 'Xác minh'], approve: ['✍️', 'Ký duyệt'], otp: ['🔢', 'Mã OTP'], typo: ['📝', 'Soát chính tả'], reply: ['💬', 'Chat khách hàng'], calendar: ['📅', 'Lịch họp'], desktop: ['🧹', 'Dọn màn hình'] };
 const FOLDER = [['anh', '🖼️', 'Ảnh'], ['tailieu', '📄', 'Tài liệu'], ['rac', '🗑️', 'Thùng rác']];
 const TOP = 150;
 
@@ -359,6 +359,102 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         }
       });
       text('Thư rác bấm Spam, thư công việc bấm Lưu', x + 36, y + h - 46, 22, '#8b8796', 600, 'left');
+    } else if (j.kind === 'password') {
+      text('🔐 Phòng IT: đổi mật khẩu ngay', x + 36, y + 50, 40, C.ink, 900, 'left');
+      text('Mật khẩu cũ đã hết hạn. Mật khẩu mới phải có:', x + 36, y + 100, 24, '#6b6878', 600, 'left');
+      const R = ['Ít nhất 8 ký tự', 'Có chữ số', 'Có chữ HOA', 'Có ký tự đặc biệt (@ # ! …)'];
+      R.forEach((r, i) => {
+        const ok = j.rules?.[i];
+        fill(x + 36, y + 130 + i * 62, w - 72, 52, 12, ok ? '#dcfce7' : '#f6f6f9');
+        text(`${ok ? '✅' : '⬜'}  ${r}`, x + 60, y + 156 + i * 62, 26, ok ? '#15803d' : C.ink2, 800, 'left');
+      });
+      field(x + 36, y + 390, w - 72, 100, j.typed, 'Gõ mật khẩu mới…', now, `j${j.id}`, 36);
+      text('Đủ 4 điều kiện rồi Enter', x + 36, y + h - 46, 22, '#8b8796', 600, 'left');
+      button(x + w - 186, y + h - 76, 150, 56, 'Lưu ➤', '#eef0ff', { type: 'click', target: 'send' }, 24, C.ink);
+    } else if (j.kind === 'captcha') {
+      text('🤖 Tôi không phải là robot', x + 36, y + 50, 40, C.ink, 900, 'left');
+      text(`Chọn TẤT CẢ ô có ${j.name} ${j.target}`, x + 36, y + 100, 28, C.blue, 800, 'left');
+      const gs = Math.min(w - 72, h - 260), cs = (gs - 20) / 3, gx = x + (w - gs) / 2, gy = y + 130;
+      j.cells.forEach((c, i) => {
+        const cx2 = gx + (i % 3) * (cs + 10), cy2 = gy + Math.floor(i / 3) * (cs + 10);
+        fill(cx2, cy2, cs, cs, 14, c.on ? '#dbeafe' : '#f3f2f7');
+        if (c.on) { rr(cx2, cy2, cs, cs, 14); ctx.strokeStyle = C.blue; ctx.lineWidth = 6; ctx.stroke(); text('✓', cx2 + cs - 26, cy2 + 26, 28, C.blue, 900); }
+        text(c.e, cx2 + cs / 2, cy2 + cs / 2 + 4, cs * 0.5);
+        hit(cx2, cy2, cs, cs, { type: 'click', target: 'cell', id: i });
+      });
+      button(x + w - 236, y + h - 80, 200, 60, 'Xác minh', C.blue, { type: 'click', target: 'verify' }, 26);
+    } else if (j.kind === 'approve') {
+      text('✍️ Ký duyệt tờ trình', x + 36, y + 50, 40, C.ink, 900, 'left');
+      text(`Luật của sếp: trên ${j.limit} triệu thì TỪ CHỐI, còn lại DUYỆT`, x + 36, y + 100, 25, '#b45309', 800, 'left', w - 72);
+      j.items.forEach((it, i) => {
+        const ry = y + 134 + i * 118;
+        fill(x + 36, ry, w - 72, 104, 14, it.done ? '#f1f1f4' : '#f7f6fb');
+        text(it.name, x + 62, ry + 34, 26, it.done ? '#a3a0ad' : C.ink, 800, 'left', w - 430);
+        text(`${it.amount} triệu`, x + 62, ry + 72, 30, it.done ? '#b4b1bd' : it.amount > j.limit ? '#c2410c' : '#15803d', 900, 'left');
+        if (it.done) text('✓ Xong', x + w - 120, ry + 52, 26, '#16a34a', 800);
+        else {
+          button(x + w - 330, ry + 22, 130, 60, 'Duyệt', '#16a34a', { type: 'click', target: 'approve', id: i, value: 'ok' });
+          button(x + w - 186, ry + 22, 130, 60, 'Từ chối', C.red, { type: 'click', target: 'approve', id: i, value: 'no' }, 24);
+        }
+      });
+    } else if (j.kind === 'otp') {
+      text('🔢 Nhập mã OTP', x + 36, y + 50, 40, C.ink, 900, 'left');
+      text('Mã chỉ hiện vài giây, nhớ nhanh rồi gõ lại', x + 36, y + 100, 24, '#6b6878', 600, 'left');
+      fill(x + 36, y + 136, w - 72, 170, 20, '#111827');
+      const showLeft = j.code ? left(j.showLeftMs, now) : 0;
+      if (j.code && showLeft > 0) {
+        text(j.code.split('').join(' '), x + w / 2, y + 210, 86, '#fde047', 900, 'center', 0, MONO);
+        fill(x + 60, y + 280, (w - 120) * (showLeft / j.showMs), 10, 5, '#fde047');
+      } else text('• • • • • •', x + w / 2, y + 220, 80, '#4b5563', 900, 'center', 0, MONO);
+      field(x + 36, y + 340, w - 72, 110, j.typed, 'Gõ 6 số…', now, `j${j.id}`, 52);
+      button(x + 36, y + h - 76, 230, 56, '↻ Gửi lại mã', '#f3f2f7', { type: 'click', target: 'resend' }, 22, C.ink);
+      button(x + w - 186, y + h - 76, 150, 56, 'Xác nhận', '#eef0ff', { type: 'click', target: 'send' }, 22, C.ink);
+    } else if (j.kind === 'typo') {
+      text('📝 Soát chính tả trước khi gửi sếp', x + 36, y + 50, 38, C.ink, 900, 'left');
+      const found = j.words.filter((w2) => w2.found).length;
+      text(`Bấm vào ${j.need} chữ viết sai (đã tìm ${found}/${j.need})`, x + 36, y + 100, 26, C.blue, 800, 'left');
+      let wx = x + 36, wy = y + 150;
+      j.words.forEach((wd, i) => {
+        const ww = measure(wd.w, 40, 800) + 34;
+        if (wx + ww > x + w - 36) { wx = x + 36; wy += 84; }
+        fill(wx, wy, ww, 70, 14, wd.found ? '#fee2e2' : '#f3f2f7');
+        text(wd.w, wx + ww / 2, wy + 36, 40, wd.found ? C.red : C.ink, 800);
+        if (wd.found) { ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wx + 12, wy + 38); ctx.lineTo(wx + ww - 12, wy + 38); ctx.stroke(); }
+        hit(wx, wy, ww, 70, { type: 'click', target: 'word', id: i });
+        wx += ww + 14;
+      });
+    } else if (j.kind === 'reply') {
+      text('💬 Khách hàng đang chờ', x + 36, y + 50, 40, C.ink, 900, 'left');
+      avatar({ name: 'K' }, x + 70, y + 132, 30, null);
+      const lines = wrap(j.msg, 32, w - 220, 700).slice(0, 2);
+      fill(x + 112, y + 100, Math.min(w - 150, Math.max(...lines.map((l) => measure(l, 32, 700))) + 50), 26 + lines.length * 42, 22, '#f3f2f7');
+      lines.forEach((ln, i) => text(ln, x + 136, y + 134 + i * 42, 32, C.ink, 700, 'left'));
+      text('Chọn câu trả lời lịch sự nhất:', x + 36, y + 250, 24, '#6b6878', 700, 'left');
+      j.opts.forEach((o, i) => button(x + 36, y + 286 + i * 100, w - 72, 84, o, '#2563eb', { type: 'click', target: 'reply', id: i }, 27));
+    } else if (j.kind === 'calendar') {
+      text('📅 Xếp cuộc họp 2 tiếng', x + 36, y + 50, 40, C.ink, 900, 'left');
+      text('Bấm giờ BẮT ĐẦU sao cho 2 tiếng liền đều trống', x + 36, y + 100, 24, C.blue, 800, 'left');
+      const rh = (h - 170) / j.slots.length;
+      j.slots.forEach((sl, i) => {
+        const ry = y + 130 + i * rh;
+        text(`${sl.h}:00`, x + 46, ry + rh / 2, 26, C.ink2, 800, 'left');
+        fill(x + 150, ry + 4, w - 186, rh - 8, 10, sl.busy ? '#fde2e4' : '#eef7ee');
+        text(sl.busy ? `🔒 ${sl.busy}` : 'Trống', x + 176, ry + rh / 2, 25, sl.busy ? '#be123c' : '#15803d', 700, 'left', w - 230);
+        hit(x + 150, ry + 4, w - 186, rh - 8, { type: 'click', target: 'slot', id: i });
+      });
+    } else if (j.kind === 'desktop') {
+      text('🧹 Dọn màn hình theo thứ tự A → Z', x + 36, y + 50, 38, C.ink, 900, 'left');
+      text(`Bấm icon theo thứ tự chữ cái (${j.pos}/${j.icons.length})`, x + 36, y + 100, 25, C.blue, 800, 'left');
+      const cwid = (w - 72 - 40) / 3, chei = (h - 200) / 2;
+      j.icons.forEach((ic, i) => {
+        const ix2 = x + 36 + (i % 3) * (cwid + 20), iy2 = y + 140 + Math.floor(i / 3) * (chei + 10) + ((i * 37) % 30);
+        ctx.save(); if (ic.done) ctx.globalAlpha = 0.3;
+        fill(ix2, iy2, cwid, chei - 30, 18, '#eef0ff');
+        text(['📁', '📄', '🗂️', '🖼️', '📊', '🎵'][i % 6], ix2 + cwid / 2, iy2 + (chei - 30) / 2 - 22, 70);
+        text(ic.name, ix2 + cwid / 2, iy2 + chei - 70, 26, C.ink, 800, 'center', cwid - 16);
+        ctx.restore();
+        if (!ic.done) hit(ix2, iy2, cwid, chei - 30, { type: 'click', target: 'icon', id: i });
+      });
     } else {
       text('Dọn file vào đúng thư mục', x + 36, y + 50, 40, C.ink, 900, 'left');
       const tw = (w - 72 - 20) / 2;
@@ -484,11 +580,12 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     }
     ctx.restore();
     // dock
-    const keys = ['mail', 'inbox', 'sheet', 'files'];
+    const keys = (S.jobs?.length ? S.jobs : ['mail', 'inbox', 'sheet', 'files']).filter((k2) => APPS[k2]);
+    const step2 = Math.min(92, (w - 40) / keys.length), isz = Math.min(42, step2 * 0.5);
     keys.forEach((k2, i) => {
-      const dx = x + w / 2 - 2 * 92 + i * 92 + 6;
-      if (S.job?.kind === k2) fill(dx, y + h - 86, 80, 76, 16, 'rgba(255,255,255,.16)');
-      text(APPS[k2][0], dx + 40, y + h - 48, 42);
+      const dx = x + w / 2 - (keys.length * step2) / 2 + i * step2;
+      if (S.job?.kind === k2) fill(dx + 4, y + h - 86, step2 - 8, 76, 16, 'rgba(255,255,255,.16)');
+      text(APPS[k2][0], dx + step2 / 2, y + h - 48, isz);
     });
     if (soi) redFrame(now, x, y, w, h, 26);
     ctx.restore();
