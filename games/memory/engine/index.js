@@ -2,7 +2,9 @@ import { Emitter, makePausable, digitsOf, triggerText, triggerIcon } from '#sdk'
 
 /**
  * Nhớ số: dãy số hiện trong thời gian ngắn rồi ẩn → người xem gõ lại vào bình luận.
- * Vòng: show (hiện số) → answer (ẩn số, nhận câu trả lời) → reveal (lộ đáp án, ai đúng) → vòng sau.
+ * Vòng: show (hiện số) → [mask: nhiễu số ngẫu nhiên xoá trí nhớ hình ảnh] → answer (ẩn số, nhận câu trả lời) → reveal → vòng sau.
+ * Cách hiện (showStyle): 'flash' = từng chữ số loé lên rồi tắt (khó), 'all' = cả dãy cùng lúc.
+ * Tốc độ (speed): ms cho mỗi chữ số theo mức chậm / vừa / nhanh / siêu tốc / tuỳ chỉnh, nhanh dần speedUpPerLevel % mỗi cấp.
  * Có người đúng → lên cấp; sai liên tiếp failsToLevelDown vòng → xuống 1 cấp (khiên chặn được 1 lần).
  * Mỗi người 1 lần trả lời / vòng; trả lời càng nhanh càng nhiều điểm; đúng nhiều vòng liền → thưởng chuỗi.
  */
@@ -10,6 +12,10 @@ export function createGame(ctx) { return new MemoryGame(ctx); }
 
 const pub = (u) => ({ id: String(u.id), name: String(u.name || 'Ẩn danh').slice(0, 40), avatar: u.avatar || null });
 const MAX_SHIELDS = 3;
+export const SPEED_MS = { cham: 700, vua: 450, nhanh: 300, sieutoc: 180 };
+const MIN_MS = 80;
+const LEAD_MS = 350; // khoảng trống trước chữ số đầu (chế độ từng chữ)
+const MASK_MS = 1200;
 
 export class MemoryGame extends Emitter {
   constructor(ctx) {
@@ -28,7 +34,13 @@ export class MemoryGame extends Emitter {
   }
 
   digitsForLevel(level) { return Math.min(this.s.maxDigits, this.s.startDigits + Math.floor((level - 1) / this.s.levelsPerDigit)); }
-  showMs(n) { return Math.max(500, Math.round((this.s.memoryMsPer4Digits * n) / 4)); }
+  /** ms hiện cho mỗi chữ số ở cấp hiện tại. */
+  perDigit(level = this.level) {
+    const base = this.s.speed === 'tuychinh' ? this.s.msPerDigit : SPEED_MS[this.s.speed] ?? SPEED_MS.nhanh;
+    return Math.max(MIN_MS, Math.round(base * Math.pow(1 - this.s.speedUpPerLevel / 100, Math.max(0, level - 1))));
+  }
+  get flashStyle() { return this.s.showStyle !== 'all'; }
+  showMs(n) { const per = this.perDigit(); return this.flashStyle ? LEAD_MS + n * per : Math.max(400, n * per); }
   /** Số chữ số tối đa được lộ bằng quà mỗi vòng: 1/3 dãy (luôn chừa phần lớn cho người chơi nhớ). */
   maxPeek() { return Math.max(1, Math.floor(this.number.length / 3)); }
 
@@ -40,9 +52,11 @@ export class MemoryGame extends Emitter {
     this.number = num;
     this.phase = 'show';
     this.startedAt = this.clock();
+    this.per = this.perDigit();
     this.endsAt = this.startedAt + this.showMs(n);
     this.answerFrom = null;
     this.flashUntil = null;
+    this.flashFrom = null;
     this.flashUsed = false;
     this.extra = 0;
     this.peek = []; // vị trí chữ số đã lộ nhờ quà
@@ -50,13 +64,18 @@ export class MemoryGame extends Emitter {
     this.correct = []; // [{ id, name, avatar, points, ms, streak }]
     this.wrong = 0;
     this.recent = []; // hoạt động gần nhất (không lộ số đã gõ): [{ name, avatar, ok }]
-    return [{ type: 'mm_show', round: this.round, level: this.level, digits: n }];
+    return [{ type: 'mm_show', round: this.round, level: this.level, digits: n, per: this.per, style: this.flashStyle ? 'flash' : 'all' }];
   }
 
   /** Sang pha tiếp theo. */
   advance() {
     const t = this.clock();
-    if (this.phase === 'show') {
+    if (this.phase === 'show' && this.s.mask) {
+      this.phase = 'mask';
+      this.endsAt = t + MASK_MS;
+      return [{ type: 'mm_mask', round: this.round }];
+    }
+    if (this.phase === 'show' || this.phase === 'mask') {
       this.phase = 'answer';
       this.answerFrom = t;
       this.endsAt = t + this.s.answerSeconds * 1000;
@@ -133,6 +152,7 @@ export class MemoryGame extends Emitter {
     if (id === 'flash') {
       if (this.flashUsed) return false;
       this.flashUsed = true;
+      this.flashFrom = t;
       this.flashUntil = t + this.showMs(this.number.length);
       return [{ type: 'mm_flash', ms: this.flashUntil - t }];
     }
@@ -160,12 +180,15 @@ export class MemoryGame extends Emitter {
     return [];
   }
 
-  onResume(d) { if (typeof this.flashUntil === 'number') this.flashUntil += d; if (typeof this.answerFrom === 'number') this.answerFrom += d; }
+  onResume(d) { for (const k of ['flashUntil', 'flashFrom', 'answerFrom']) if (typeof this[k] === 'number') this[k] += d; }
 
   snapshot() {
     const t = this.clock();
-    const showing = this.phase === 'show' || this.phase === 'reveal' || (this.flashUntil != null && t < this.flashUntil);
-    const phaseMs = this.phase === 'answer' ? this.endsAt - this.answerFrom : this.endsAt - (this.phase === 'show' ? this.startedAt : this.endsAt - this.s.revealSeconds * 1000);
+    const flashNow = this.phase === 'answer' && this.flashUntil != null && t < this.flashUntil;
+    const playing = this.phase === 'show' || flashNow;
+    const showing = this.phase === 'reveal' || (playing && !this.flashStyle);
+    const phaseMs = this.phase === 'answer' ? this.endsAt - this.answerFrom : this.phase === 'mask' ? MASK_MS : this.endsAt - (this.phase === 'show' ? this.startedAt : this.endsAt - this.s.revealSeconds * 1000);
+    const per = this.per || this.perDigit();
     return {
       round: this.round,
       level: this.level,
@@ -175,7 +198,11 @@ export class MemoryGame extends Emitter {
       number: showing ? this.number : null,
       // pha trả lời: chữ số đã lộ nhờ quà, '?' = còn ẩn
       partial: !showing && this.peek.length ? [...this.number].map((c, i) => (this.peek.includes(i) ? c : '?')).join('') : null,
-      flashing: this.phase === 'answer' && showing,
+      flashing: flashNow,
+      // chế độ từng chữ số: renderer tự tính chữ số đang loé theo thời gian (mượt cả khi mỗi chữ chỉ 0,1 giây)
+      seq: playing && this.flashStyle ? { digits: this.number, per, lead: LEAD_MS, elapsedMs: t - (flashNow ? this.flashFrom : this.startedAt) } : null,
+      style: this.flashStyle ? 'flash' : 'all',
+      perDigitMs: per,
       remainingMs: Math.max(0, this.endsAt - t),
       phaseMs: Math.max(1, phaseMs),
       flashUsed: this.flashUsed,
@@ -199,7 +226,7 @@ export class MemoryGame extends Emitter {
   serialize() {
     return {
       level: this.level, round: this.round, fails: this.fails, shields: this.shields, board: this.board, number: this.number, phase: this.phase,
-      startedAt: this.startedAt, endsAt: this.endsAt, answerFrom: this.answerFrom, flashUntil: this.flashUntil, flashUsed: this.flashUsed,
+      startedAt: this.startedAt, endsAt: this.endsAt, answerFrom: this.answerFrom, flashUntil: this.flashUntil, flashFrom: this.flashFrom, flashUsed: this.flashUsed, per: this.per,
       extra: this.extra, peek: this.peek, answered: this.answered, correct: this.correct, wrong: this.wrong,
       recent: this.recent, last: this.last, bestLevel: this.bestLevel,
     };

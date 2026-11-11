@@ -98,7 +98,7 @@ export function mount(el, { canvas, options = {} } = {}) {
 
   // ---------------- dữ liệu suy ra từ snapshot ----------------
   const remaining = (now) => (S.paused ? S.remainingMs : Math.max(0, S.remainingMs - (now - recvAt)));
-  const phaseColor = () => (S.flashing ? C.violet : S.phase === 'show' ? C.amber : S.phase === 'answer' ? C.sky : C.mint);
+  const phaseColor = () => (S.flashing ? C.violet : S.phase === 'show' ? C.amber : S.phase === 'mask' ? C.rose : S.phase === 'answer' ? C.sky : C.mint);
 
   // ---------------- nền ----------------
   const bgDigits = Array.from({ length: 34 }, (_, i) => ({ d: String((i * 7) % 10), x: (i * 211) % W, y: (i * 389) % H, s: 50 + (i % 4) * 26, v: 8 + (i % 5) * 5 }));
@@ -154,6 +154,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     const label = S.paused ? '⏸  TẠM DỪNG'
       : S.flashing ? '👀  NHÌN LẠI NHANH!'
       : S.phase === 'show' ? '👀  GHI NHỚ DÃY SỐ!'
+      : S.phase === 'mask' ? '🌀  NHIỄU… GIỮ SỐ TRONG ĐẦU!'
       : S.phase === 'answer' ? '⌨️  GÕ LẠI VÀO BÌNH LUẬN'
       : S.correct.length ? '✅  ĐÁP ÁN' : '⏳  ĐÁP ÁN';
     const col = S.paused ? C.rose : phaseColor();
@@ -186,10 +187,17 @@ export function mount(el, { canvas, options = {} } = {}) {
     const ring = anim.ringAt ? Math.max(0, 1 - (now - anim.ringAt) / 700) : 0;
     panel(x, y, w, h, 34, { fill: C.panel, stroke: ring ? hexA(anim.ringColor, 0.5 + ring / 2) : hexA(col, 0.55), lw: 3 + ring * 5, glow: hexA(ring ? anim.ringColor : col, 0.35 + ring * 0.4) });
     // nhãn nhỏ phía trên
-    const sub = S.phase === 'answer' && !S.flashing ? `Dãy ${S.digits} chữ số đã ẩn — bạn còn nhớ không?` : S.phase === 'reveal' ? `Đáp án vòng ${S.round}` : `${S.digits} chữ số · nhớ thật nhanh`;
+    const speed = `${(S.perDigitMs / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} giây / chữ số`;
+    const sub = S.phase === 'mask' ? 'Đừng nhìn số nhiễu, nhớ dãy vừa rồi!' : S.phase === 'answer' && !S.flashing ? `Dãy ${S.digits} chữ số đã ẩn — bạn còn nhớ không?` : S.phase === 'reveal' ? `Đáp án vòng ${S.round}` : S.style === 'flash' ? `${S.digits} chữ số · loé từng chữ · ${speed}` : `${S.digits} chữ số · ${speed}`;
     text(sub, W / 2, y + 38, 24, C.dim, 700);
 
     const visible = !!S.number;
+    // từng chữ số: tự tính chữ số đang loé theo thời gian (mượt kể cả 0,1 giây / chữ)
+    let flashIdx = -1;
+    if (S.seq) {
+      const el = S.seq.elapsedMs + (S.paused ? 0 : now - recvAt) - S.seq.lead;
+      if (el >= 0) { const i = Math.floor(el / S.seq.per); if (i < S.seq.digits.length && el % S.seq.per < S.seq.per * 0.78) flashIdx = i; }
+    }
     let idx = 0;
     rows.forEach((n, ri) => {
       const g = grouped(n);
@@ -198,7 +206,10 @@ export function mount(el, { canvas, options = {} } = {}) {
       const ty = y + 64 + ri * (th + rowGap);
       for (let i = 0; i < n; i++, idx++) {
         const peeked = !visible && S.partial && S.partial[idx] !== '?' ? S.partial[idx] : null;
-        drawTile(tx, ty, size, th, idx, visible ? S.number[idx] : peeked, now, !!peeked);
+        const ch = S.phase === 'mask' ? String((Math.floor(now / 70) * 7 + idx * 13 + Math.floor(now / 230) * 3) % 10)
+          : S.seq ? (idx === flashIdx ? S.seq.digits[idx] : null)
+          : visible ? S.number[idx] : peeked;
+        drawTile(tx, ty, size, th, idx, ch, now, !!peeked, S.seq && idx === flashIdx);
         tx += size + gap + (g && (i + 1) % 3 === 0 && i < n - 1 ? groupGap : 0);
       }
     });
@@ -206,10 +217,10 @@ export function mount(el, { canvas, options = {} } = {}) {
     return y + h;
   }
 
-  function drawTile(x, y, w, h, i, ch, now, peeked = false) {
+  function drawTile(x, y, w, h, i, ch, now, peeked = false, lit = false) {
     // vào vòng mới: rơi xuống lần lượt; đổi hiện ↔ ẩn: lật dọc lần lượt
     const drop = S.phase === 'show' && !reduced ? back((now - anim.phaseAt - i * 55) / 420) : 1;
-    const flipK = reduced ? 1 : Math.min(1, (now - anim.flipAt - i * 45) / 300);
+    const flipK = reduced || S.seq || S.phase === 'mask' ? 1 : Math.min(1, (now - anim.flipAt - i * 45) / 300);
     const sy = flipK < 1 ? Math.abs(Math.cos(flipK * Math.PI)) : 1;
     const showFace = flipK < 0.5 ? !ch : !!ch; // nửa đầu lật vẫn là mặt cũ
     const face = flipK < 1 ? showFace : !!ch;
@@ -218,7 +229,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.globalAlpha = Math.max(0, Math.min(1, drop * 1.4));
     ctx.translate(cx, cy - (1 - drop) * 120); ctx.scale(1, Math.max(0.02, sy)); ctx.translate(-cx, -cy);
     if (face && ch != null) {
-      const [a, b, ink] = peeked ? ['#e0f2fe', C.sky, '#082f49'] : S.flashing ? ['#ddd6fe', C.violet, '#2e1065'] : S.phase === 'reveal' ? ['#a7f3d0', C.mint, '#022c22'] : ['#fef3c7', C.amber, '#3b2300'];
+      const [a, b, ink] = S.phase === 'mask' ? ['#e5e7eb', '#6b7280', '#111827'] : peeked ? ['#e0f2fe', C.sky, '#082f49'] : S.flashing ? ['#ddd6fe', C.violet, '#2e1065'] : S.phase === 'reveal' ? ['#a7f3d0', C.mint, '#022c22'] : ['#fef3c7', C.amber, '#3b2300'];
       const g = ctx.createLinearGradient(x, y, x, y + h);
       g.addColorStop(0, a); g.addColorStop(1, b);
       ctx.shadowColor = hexA(b, 0.7); ctx.shadowBlur = 26;
@@ -230,7 +241,8 @@ export function mount(el, { canvas, options = {} } = {}) {
       rr(x, y, w, h, Math.round(w * 0.2)); ctx.fillStyle = 'rgba(255,255,255,.055)'; ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = hexA(S.phase === 'answer' ? C.sky : C.line, S.phase === 'answer' ? 0.55 : 1); ctx.stroke();
       const wob = reduced ? 0 : Math.sin(now / 320 + i * 0.9) * 5;
-      text('?', cx, cy + wob, Math.round(w * 0.62), 'rgba(186,230,253,.55)', 900);
+      if (!S.seq) text('?', cx, cy + wob, Math.round(w * 0.62), 'rgba(186,230,253,.55)', 900); // đang loé từng chữ: ô trống, không gợi ý
+      else text(String(i + 1), cx, cy, Math.round(w * 0.28), 'rgba(255,255,255,.18)', 800);
     }
     ctx.restore();
   }
