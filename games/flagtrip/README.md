@@ -21,12 +21,13 @@ Cả phòng lái chung một chiếc máy bay. Mỗi chặng hiện một lá c�
 4. **Lộ đáp án:** hiện thẻ du lịch gồm thủ đô, 2 danh thắng, món ngon và một điều thú vị.
    - Máy bay bay tới nước đó, đóng dấu hộ chiếu.
    - Nước đó được thắp sáng trên bản đồ suốt buổi live.
-   - Có người đúng: máy bay bay tới thủ đô, bản đồ phóng sát vào thủ đô rồi chuyển sang **cảnh thủ đô low poly**:
-     - công trình biểu tượng của nước đó dựng dần từ chân lên (khoảng 30 kiểu: tháp Eiffel, Big Ben, chùa Một Cột, kim tự tháp, Taj Mahal, nhà hát Sydney…);
-     - phố xá, cây cối và màu đất theo vùng và khí hậu;
-     - bầu trời ngày, hoàng hôn hoặc đêm (đêm thì đèn cửa sổ sáng);
-     - máy bay bay ngang kéo vệt khói, pháo hoa, băng rôn tên thủ đô.
-   - Bảng công trình theo nước nằm ở `render/lowpoly.js` (`LANDMARK`, `LANDMARK_NAME`). Nước chưa có trong bảng thì chọn theo vùng.
+   - Có người đúng: máy bay bay tới thủ đô, bản đồ phóng sát vào thủ đô rồi khung bản đồ mở rộng xuống thành **cảnh thủ đô low poly 3D**:
+     - máy quay hạ từ trên cao xuống mặt đất: lúc đầu thấy cả vùng xung quanh, rồi tiến dần vào công trình biểu tượng, công trình dựng dần từ chân lên (khoảng 30 kiểu: tháp Eiffel, Big Ben, chùa Một Cột, kim tự tháp, Taj Mahal, nhà hát Sydney…);
+     - bối cảnh sát thực tế theo từng nước: nhà cao tầng (Mỹ, Nhật, Singapore…), phố cổ mái ngói (Pháp, Ý…), ruộng lúa + nhà sàn + núi đá vôi (Việt Nam, Lào…), đồng lúa mì + nhà kho (Ukraina, Hà Lan…), sa mạc + nhà đất + cọ / xương rồng (Ai Cập, Ả Rập…), thảo nguyên bao báp / keo + lều tròn (Kenya…), rừng nhiệt đới, núi tuyết + thông, đồng cỏ lều du mục (Mông Cổ), bãi biển + thuyền buồm (đảo quốc);
+     - không viền đen: mọi khối có mặt sáng / mặt tối và bóng đổ mờ dưới chân; màu trầm kiểu sương khói, sương mù chân trời, mây khối;
+     - bầu trời ban ngày hoặc hoàng hôn (hoàng hôn thì đèn cửa sổ sáng); máy bay bay ngang kéo vệt khói, pháo hoa, băng rôn tên thủ đô;
+     - thẻ thông tin màu kem ở đáy cảnh: lá cờ, tên nước, thủ đô, danh thắng, món ngon, điều thú vị, con dấu "ĐÃ ĐẾN". Trong lúc này cảnh che dải chặng và thẻ lên máy bay.
+   - Bảng công trình và bối cảnh theo nước nằm ở `render/lowpoly.js` (`LANDMARK`, `LANDMARK_NAME`, `SETTING`). Nước chưa có trong bảng thì chọn theo vùng và khí hậu.
    - Thời gian xem thẻ và cảnh: `revealSeconds` (mặc định 10).
 5. **Không ai đúng:**
    - Phòng im, không ai đoán: chờ thêm. Im 2 lần thì đổi cờ, không phạt.
