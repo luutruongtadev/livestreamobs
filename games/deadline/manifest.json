@@ -165,6 +165,17 @@
       ]
     },
     {
+      "id": "hetlimit",
+      "label": "Claude hết limit",
+      "icon": "🤖",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "TikTok"
+        }
+      ]
+    },
+    {
       "id": "cafe",
       "label": "Cà phê sữa đá",
       "icon": "☕",
@@ -262,7 +273,7 @@
         "x": 24,
         "y": 1240,
         "w": 1032,
-        "h": 436
+        "h": 540
       },
       "when": {
         "mode": "desktop"
@@ -290,7 +301,7 @@
         "x": 704,
         "y": 326,
         "w": 352,
-        "h": 1236
+        "h": 1364
       },
       "when": {
         "mode": "camera"

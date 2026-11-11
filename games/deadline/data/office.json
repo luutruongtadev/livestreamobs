@@ -97,6 +97,7 @@
     "wifi": { "mood": "angry", "lines": ["Xoay xoay xoay… 📶", "Wifi công ty lại dỗi", "Gửi mãi không đi!"] },
     "antrua": { "mood": "happy", "lines": ["Cơm sếp bao ngon nhất 🍱", "Ăn đã, deadline tính sau", "Đồng hồ cũng đi ăn trưa"] },
     "tainghe": { "mood": "happy", "lines": ["Không nghe, không thấy 🎧", "Chế độ tập trung: BẬT", "Sếp nói gì cũng mặc"] },
+    "hetlimit": { "mood": "cry", "lines": ["AI cũng biết mệt 😭", "Hết limit đúng lúc gấp nhất", "Tự làm đi, đừng nhờ AI nữa"] },
     "thangchuc": { "mood": "rich", "lines": ["Giàu rồi!! 💸", "Lên chức rồi mọi người ơi 🎉", "Từ nay gọi em là sếp"] }
   },
   "captcha": [["☕","ly cà phê",["🍵","🥤","🧋","🍺"]],["🐱","con mèo",["🐶","🐭","🐰","🦊"]],["📎","kẹp giấy",["✂️","📌","🖇️","📐"]],["🍜","tô mì",["🍚","🍲","🥟","🍱"]],["🖨️","máy in",["💻","🖥️","⌨️","📠"]]],
