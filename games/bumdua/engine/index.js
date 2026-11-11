@@ -28,6 +28,7 @@ export class BumDua extends Emitter {
     this.now = ctx.now;
     this.melonNo = 0;
     this.popped = 0;
+    this.record = 0; // số dây nhiều nhất một trái từng chịu được
     this.board = {}; // id → { id, name, avatar, pops, bands }
     this.hall = []; // người làm nổ gần đây
     this.likeAcc = 0;
@@ -100,6 +101,7 @@ export class BumDua extends Emitter {
     this.popper = user;
     this.popHow = how;
     this.popped++;
+    this.record = Math.max(this.record, this.bands);
     this.knife = null;
     this.endsAt = t + this.s.popSeconds * 1000;
     if (!user.npc) {
@@ -226,6 +228,7 @@ export class BumDua extends Emitter {
       paused: !!this.paused,
       melonNo: this.melonNo,
       popped: this.popped,
+      record: this.record,
       size: this.size,
       sizeName: SIZES[this.size].name,
       bands: this.bands,
@@ -244,13 +247,14 @@ export class BumDua extends Emitter {
       popLeftMs: this.phase === 'pop' ? Math.max(0, this.endsAt - t) : 0,
       hall: this.hall.slice(0, 5),
       top: this.s.showBoard ? Object.values(this.board).filter((r) => r.pops > 0).sort((a, b) => b.pops - a.pops || b.bands - a.bands).slice(0, 5) : [],
+      most: Object.values(this.board).filter((r) => r.bands > 0 && r.id !== AUNTIE.id).sort((a, b) => b.bands - a.bands).slice(0, 3),
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger })),
     };
   }
 
   serialize() {
     return {
-      melonNo: this.melonNo, popped: this.popped, board: this.board, hall: this.hall, likeAcc: this.likeAcc, followed: this.followed, shields: this.shields,
+      melonNo: this.melonNo, popped: this.popped, record: this.record, board: this.board, hall: this.hall, likeAcc: this.likeAcc, followed: this.followed, shields: this.shields,
       turboUntil: this.turboUntil, size: this.size, breakAt: this.breakAt, bands: this.bands, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt,
       queue: this.queue, burst: this.burst, recent: this.recent, last: this.last, nextWrapAt: this.nextWrapAt, nextBurstAt: this.nextBurstAt, idleAt: this.idleAt,
       knife: this.knife, golden: this.golden, popper: this.popper, popHow: this.popHow,

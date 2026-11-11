@@ -146,25 +146,25 @@
   ],
   "panels": [
     {
-      "id": "gifts",
+      "id": "menu",
       "label": "Bảng quà",
       "icon": "🎁",
       "rect": {
         "x": 40,
-        "y": 1500,
+        "y": 1560,
         "w": 1000,
-        "h": 250
+        "h": 310
       }
     },
     {
-      "id": "hall",
-      "label": "Bảng Bùm",
-      "icon": "💥",
+      "id": "board",
+      "label": "Nhiều dây nhất + Bảng Bùm",
+      "icon": "👑",
       "rect": {
-        "x": 700,
-        "y": 300,
-        "w": 340,
-        "h": 360
+        "x": 30,
+        "y": 280,
+        "w": 320,
+        "h": 500
       }
     }
   ],
