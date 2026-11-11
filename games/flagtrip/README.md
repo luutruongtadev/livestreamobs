@@ -21,6 +21,13 @@ Cả phòng lái chung một chiếc máy bay. Mỗi chặng hiện một lá c�
 4. **Lộ đáp án:** hiện thẻ du lịch gồm thủ đô, 2 danh thắng, món ngon và một điều thú vị.
    - Máy bay bay tới nước đó, đóng dấu hộ chiếu.
    - Nước đó được thắp sáng trên bản đồ suốt buổi live.
+   - Có người đúng: máy bay bay tới thủ đô, bản đồ phóng sát vào thủ đô rồi chuyển sang **cảnh thủ đô low poly**:
+     - công trình biểu tượng của nước đó dựng dần từ chân lên (khoảng 30 kiểu: tháp Eiffel, Big Ben, chùa Một Cột, kim tự tháp, Taj Mahal, nhà hát Sydney…);
+     - phố xá, cây cối và màu đất theo vùng và khí hậu;
+     - bầu trời ngày, hoàng hôn hoặc đêm (đêm thì đèn cửa sổ sáng);
+     - máy bay bay ngang kéo vệt khói, pháo hoa, băng rôn tên thủ đô.
+   - Bảng công trình theo nước nằm ở `render/lowpoly.js` (`LANDMARK`, `LANDMARK_NAME`). Nước chưa có trong bảng thì chọn theo vùng.
+   - Thời gian xem thẻ và cảnh: `revealSeconds` (mặc định 10).
 5. **Không ai đúng:**
    - Phòng im, không ai đoán: chờ thêm. Im 2 lần thì đổi cờ, không phạt.
    - Có người đoán nhưng sai: máy bay sắp rơi về điểm mốc gần nhất (mỗi `checkpointEvery` chặng). Ai tặng quà **Khiên / cứu** trong `rescueSeconds` giây thì cứu được. Đã tích khiên thì tự đỡ.

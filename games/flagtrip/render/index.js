@@ -2,6 +2,8 @@
 // Motif hàng không: bản đồ đêm + đường bay, dải chặng có điểm mốc, "thẻ lên máy bay" giấy kem cho lá cờ, tem hộ chiếu khi tới nơi.
 // Không đụng DOM khi import; ảnh cờ / bản đồ nạp theo đường dẫn tương đối với file này.
 import { drawPanel } from '#sdk';
+import { createScene } from './lowpoly.js';
+
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const C = {
   sea0: '#071a26', sea1: '#0c2a3b', grid: 'rgba(160,210,220,.06)', land: '#1d4b5c', landEdge: '#0a2230', lit: '#f2b83b', litEdge: '#a8761a',
@@ -38,6 +40,20 @@ export function mount(el, { canvas, options = {} } = {}) {
   const floaters = [], confetti = [];
   const sound = makeSound(!!options.mute);
   let world = null, baseMap = null, litKey = '';
+  // cảnh low poly ở thủ đô khi đoán đúng: { at, out, fly, obj }
+  let scene = null;
+  const makeCanvas = (cw, ch) => (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(cw, ch) : Object.assign(document.createElement('canvas'), { width: cw, height: ch }));
+  const FLY_MS = 1800;
+  /** zk: độ phóng bản đồ vào thủ đô (0–1), a: độ hiện của cảnh low poly, t: giây kể từ lúc cảnh hiện. */
+  function sceneState(now) {
+    if (!scene) return { zk: 0, a: 0, t: 0 };
+    const e = now - scene.at - (scene.fly && !reduced ? FLY_MS : 0);
+    const t = Math.max(0, (e - (reduced ? 0 : 550)) / 1000);
+    if (scene.out == null) return reduced ? { zk: 0, a: e >= 0 ? 1 : 0, t } : { zk: ease(e / 900), a: Math.max(0, Math.min(1, (e - 550) / 450)), t };
+    const o = now - scene.out;
+    if (o > 800) { scene = null; return { zk: 0, a: 0, t: 0 }; }
+    return { zk: reduced ? 0 : 1 - ease(o / 800), a: 1 - Math.min(1, o / 450), t };
+  }
   const litLayer = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(MAP.w, MAP.h) : Object.assign(document.createElement('canvas'), { width: MAP.w, height: MAP.h });
 
   fetch(new URL('../data/world-110m.json', import.meta.url)).then((r) => r.json()).then((t) => { world = decodeTopo(t); baseMap = drawBase(); litKey = ''; }).catch(() => {});
@@ -111,6 +127,12 @@ export function mount(el, { canvas, options = {} } = {}) {
     rr(x, y, w, h, 24); ctx.clip();
     const sea = ctx.createLinearGradient(0, y, 0, y + h); sea.addColorStop(0, '#0d3245'); sea.addColorStop(1, '#09202e');
     ctx.fillStyle = sea; ctx.fillRect(x, y, w, h);
+    const sc = sceneState(now);
+    ctx.save();
+    if (sc.zk > 0) { // phóng sát vào thủ đô, đưa thủ đô dần về giữa khung
+      const [fx, fy] = proj(S.trip.at.lon, S.trip.at.lat), s = 1 + 5 * sc.zk;
+      ctx.translate(x + fx + (w / 2 - fx) * sc.zk, y + fy + (h / 2 - fy) * sc.zk); ctx.scale(s, s); ctx.translate(-(x + fx), -(y + fy));
+    }
     if (baseMap) ctx.drawImage(baseMap, x, y);
     else text('Đang tải bản đồ…', x + w / 2, y + h / 2, 26, C.faint, 700);
     drawLit();
@@ -146,6 +168,9 @@ export function mount(el, { canvas, options = {} } = {}) {
       drawPlane(x + px, y + py, -Math.PI / 4);
     }
     ctx.restore();
+    if (sc.a > 0 && scene?.obj) scene.obj.draw(ctx, x, y, sc.t, sc.a);
+    ctx.restore();
+    if (sc.a > 0.5) return y + h;
     // nhãn vị trí
     const label = S.phase === 'landed' ? '🏠 Về nhà: Hà Nội' : `📍 ${t.at.name}`;
     const lw = measure(label, 24, 800) + 36;
@@ -478,6 +503,12 @@ export function mount(el, { canvas, options = {} } = {}) {
       if (!prev || s.phase !== prev.phase || s.flag !== prev.flag) {
         anim.phaseAt = now;
         if ((s.phase === 'reveal' && s.answer?.solved) || s.phase === 'landed') anim.flyAt = now;
+        if (s.phase === 'reveal' && s.answer?.solved && s.trip?.at) {
+          try {
+            const obj = createScene({ iso2: s.answer.iso2, region: s.region, lat: s.trip.at.lat, lon: s.trip.at.lon, capital: s.answer.capital, country: s.answer.name, sight: s.answer.sights?.[0] }, { w: MAP.w, h: MAP.h, makeCanvas, font: FONT, reduced });
+            scene = { at: now, out: null, fly: !!s.trip.from, obj };
+          } catch (e) { console.warn('[flagtrip] cảnh low poly lỗi', e); scene = null; }
+        } else if (scene && scene.out == null) scene.out = now;
       }
       if (s.flag) flagImg(s.flag); // nạp sẵn ảnh cờ
       prev = s; S = s; recvAt = now;

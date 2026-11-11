@@ -23,7 +23,7 @@ test('so khớp tên nước: không dấu, tên gọi khác, gõ sai 1 chữ �
 test('chuyến bay: đúng → chốt sổ → lộ đáp án, tiến chặng; sai + hết giờ → cứu bằng khiên; im lặng không phạt; đủ chặng → hạ cánh', () => {
   const clock = fakeClock();
   const fx = [];
-  const host = createHost(game, { settings: { tripLength: 5, checkpointEvery: 2, flagSeconds: 20, lastCallSeconds: 4 }, data: game.data, now: clock.now, random: seededRandom(5), log: {}, onEffects: (e) => fx.push(...e) });
+  const host = createHost(game, { settings: { tripLength: 5, checkpointEvery: 2, flagSeconds: 20, lastCallSeconds: 4, revealSeconds: 8 }, data: game.data, now: clock.now, random: seededRandom(5), log: {}, onEffects: (e) => fx.push(...e) });
   const answer = () => byIso.get(host.snapshot().flag);
   const step = (ms) => { clock.advance(ms); return host.tick(); };
 
