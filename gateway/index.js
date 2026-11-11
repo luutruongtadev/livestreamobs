@@ -132,7 +132,7 @@ async function main() {
   const gw = new Gateway({ store, catalog, widgets, gameServers, memes, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
   // tên đăng nhập → email nội bộ <tên>@<usernameDomain>; cố định sau lần deploy đầu (đổi là mất đăng nhập của tài khoản cũ)
   const usernameDomain = String(env.AUTH_USERNAME_DOMAIN || env.PLAY_DOMAIN || 'localhost').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
-  const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain };
+  const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain, memes: memes.enabled };
   const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);

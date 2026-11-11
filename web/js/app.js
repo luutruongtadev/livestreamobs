@@ -312,7 +312,8 @@ function settingsTab(c, g) {
   const props = g.schema?.properties || {};
   const cur = c.games?.[g.id]?.settings || {};
   const draft = Object.fromEntries(Object.entries(props).map(([k, s]) => [k, cur[k] ?? s.default]));
-  return h('div', { class: 'card' }, h('h2', {}, `Cài đặt: ${g.name}`), h('p', { class: 'small muted' }, 'Lưu là áp dụng ngay cho overlay đang chạy.'),
+  const memeWarn = 'memeSearch' in props && !P.memes ? h('p', { class: 'pill err', style: 'display:block;margin:6px 0' }, '⚠️ Server chưa có GIPHY_API_KEY nên chưa tự tìm GIF meme được (vẫn phát link bạn dán và meme hoạt hình). Thêm secret GIPHY_API_KEY trên GitHub rồi chạy lại deploy.') : null;
+  return h('div', { class: 'card' }, h('h2', {}, `Cài đặt: ${g.name}`), h('p', { class: 'small muted' }, 'Lưu là áp dụng ngay cho overlay đang chạy.'), memeWarn,
     Object.entries(props).map(([k, s]) => fieldFor(k, s, draft[k], (v) => { draft[k] = v; })),
     h('div', { class: 'row', style: 'margin-top:12px' },
       h('button', { onclick: async () => { try { S.cur = await req('config', { channel: c.id, game: g.id, settings: draft }); toast('Đã lưu cài đặt'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu cài đặt'),

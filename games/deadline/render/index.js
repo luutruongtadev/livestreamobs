@@ -1085,7 +1085,7 @@ export function mount(el, { canvas, options = {}, input = null, memes: memeSvc =
               entry.loading = true;
               memeSvc.search(entry.query).then((items) => {
                 const it = items?.length ? items[Math.floor((Number(entry.r) || 0) * items.length) % items.length] : null;
-                if (it) { entry.clip = it.mp4 || it.gif; entry.giphy = true; }
+                if (it) { entry.clip = it.gif || it.mp4; entry.giphy = true; } // ưu tiên GIF: trình duyệt trong OBS / LIVE Studio thường không phát được mp4
               }).catch(() => {}).finally(() => { entry.loading = false; });
             }
             memes.push(entry); while (memes.length > 3) memes.shift();
