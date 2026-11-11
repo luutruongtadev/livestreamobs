@@ -4,7 +4,7 @@
 import { WebSocketServer } from 'ws';
 import { EVENT_TYPES, resolveSettings } from '#sdk';
 import { newKey } from './store.js';
-import { checkStudio, checkSfx, cleanTrigger, SessionStats } from './studio.js';
+import { checkStudio, checkSfx, checkScene, cleanTrigger, SessionStats } from './studio.js';
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
 const str = (v, max) => String(v ?? '').slice(0, max);
@@ -440,6 +440,13 @@ export class Gateway {
       case 'leaderboard': return this.store.leaderboard(ch.id, p.game || null);
       case 'studio': {
         const studio = checkStudio(p.studio, this.widgets, this.catalog);
+        if (ch.studio?.scene) studio.scene = ch.studio.scene; // trạng thái màn (live / chuẩn bị / kết thúc) đổi qua thao tác "scene", không theo bản nháp
+        const c = await this.store.updateChannel(ch.id, { studio });
+        this.runtimes.get(ch.id)?.setStudio(studio);
+        return c;
+      }
+      case 'scene': { // bật màn chuẩn bị / vào live / kết thúc / hẹn giờ tắt live
+        const studio = { ...(ch.studio || {}), scene: checkScene(p.scene) };
         const c = await this.store.updateChannel(ch.id, { studio });
         this.runtimes.get(ch.id)?.setStudio(studio);
         return c;

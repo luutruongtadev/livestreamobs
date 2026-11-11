@@ -404,6 +404,98 @@ const metaOf = (type) => (S.widgets || []).find((w) => w.id === type);
 const defaultsOf = (meta) => Object.fromEntries(Object.entries(meta?.schema?.properties || {}).map(([k, s]) => [k, s.default]));
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const studioOf = (c) => JSON.parse(JSON.stringify({ widgets: [], sounds: [], panels: {}, ...(c.studio || {}) }));
+// màn chuẩn bị / kết thúc live (cấu hình Studio, dùng chung mọi game)
+const THEME_SCH = { type: 'string', title: 'Màu nền', enum: ['tim', 'dem', 'cam', 'xanh', 'hong'], enumNames: ['Tím hồng', 'Đêm xanh', 'Hoàng hôn cam', 'Biển xanh', 'Hồng'] };
+const IMG_SCH = { type: 'string', title: 'Ảnh nền (link https, để trống = dùng màu)', maxLength: 500 };
+const SCENE_SCH = {
+  intro: {
+    title: { type: 'string', title: 'Tiêu đề', maxLength: 60, default: 'LIVE SẮP BẮT ĐẦU' },
+    subtitle: { type: 'string', title: 'Lời nhắn', maxLength: 160, default: 'Chờ chút nhé, mình đang chuẩn bị 💖' },
+    countdownMin: { type: 'integer', title: 'Đếm ngược (phút, 0 = không đếm)', minimum: 0, maximum: 180, default: 5 },
+    autoLive: { type: 'boolean', title: 'Hết đếm ngược thì tự vào live', default: false },
+    showChat: { type: 'boolean', title: 'Hiện bình luận / người vừa vào', default: true },
+    theme: { ...THEME_SCH, default: 'tim' }, image: { ...IMG_SCH, default: '' },
+  },
+  outro: {
+    title: { type: 'string', title: 'Tiêu đề', maxLength: 60, default: 'CẢM ƠN MỌI NGƯỜI!' },
+    subtitle: { type: 'string', title: 'Lời chào / lịch live sau', maxLength: 160, default: 'Hẹn gặp lại ở buổi live sau nha 👋' },
+    warnMin: { type: 'integer', title: 'Báo trước khi tắt (phút, 0 = không báo)', minimum: 0, maximum: 60, default: 5 },
+    pauseGame: { type: 'boolean', title: 'Tạm dừng game khi kết thúc', default: true },
+    showTop: { type: 'boolean', title: 'Hiện top người tặng quà', default: true },
+    theme: { ...THEME_SCH, default: 'dem' }, image: { ...IMG_SCH, default: '' },
+  },
+};
+const sceneDefaults = (k) => Object.fromEntries(Object.entries(SCENE_SCH[k]).map(([f, sc]) => [f, sc.default]));
+const hhmm = (t) => new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+const dur = (ms) => { const x = Math.max(0, Math.ceil(ms / 1000)); const hh = Math.floor(x / 3600), mm = Math.floor((x % 3600) / 60), ss = x % 60; return `${hh ? `${hh}:` : ''}${String(mm).padStart(hh ? 2 : 1, '0')}:${String(ss).padStart(2, '0')}`; };
+
+/** Thẻ "Màn chuẩn bị & hẹn giờ tắt live" trong tab Studio. Nội dung lưu cùng nút Lưu của Studio; nút bật màn / hẹn giờ áp dụng ngay. */
+function scenesCard(c, draft, markDirty, frame) {
+  draft.scenes = { intro: { ...sceneDefaults('intro'), ...(draft.scenes?.intro || {}) }, outro: { ...sceneDefaults('outro'), ...(draft.scenes?.outro || {}) } };
+  let scene = c.studio?.scene || { mode: 'live' };
+  let previewing = null;
+  const status = h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' });
+  const paintStatus = () => {
+    const now = Date.now();
+    const auto = scene.mode === 'intro' && draft.scenes.intro.autoLive && draft.scenes.intro.countdownMin > 0 && now >= (scene.at || 0) + draft.scenes.intro.countdownMin * 60_000;
+    const ended = scene.mode !== 'outro' && scene.endAt && now >= scene.endAt;
+    const m = ended ? 'outro' : auto ? 'live' : scene.mode;
+    status.replaceChildren(...[
+      h('span', { class: 'pill' }, m === 'intro' ? '🕒 Đang hiện màn chuẩn bị' : m === 'outro' ? '⏹ Đang hiện màn kết thúc' : '🔴 Đang live (không che)'),
+      scene.endAt && !ended ? h('span', { class: 'pill' }, `⏰ Tắt live lúc ${hhmm(scene.endAt)} · còn ${dur(scene.endAt - now)}`) : null,
+      m === 'intro' && draft.scenes.intro.countdownMin > 0 ? h('span', { class: 'pill' }, `Đếm ngược còn ${dur((scene.at || now) + draft.scenes.intro.countdownMin * 60_000 - now)}`) : null].filter(Boolean));
+  };
+  const tick = setInterval(() => { if (!status.isConnected) return clearInterval(tick); paintStatus(); }, 1000);
+  const setScene = async (patch, msg) => {
+    try {
+      S.cur = await req('scene', { channel: c.id, scene: { mode: scene.mode, endAt: scene.endAt ?? null, ...patch } });
+      scene = S.cur.studio?.scene || scene; paintStatus(); toast(msg);
+    } catch (e) { toast(e.message, true); }
+  };
+  const preview = (m) => {
+    previewing = previewing === m ? null : m;
+    try { frame.contentWindow?.postMessage({ t: 'scene-preview', mode: previewing }, location.origin); } catch { /* bỏ qua */ }
+    toast(previewing ? 'Đang xem thử trong khung bên trên (live không đổi). Bấm lại để tắt.' : 'Đã tắt xem thử');
+  };
+  const fields = (k) => Object.entries(SCENE_SCH[k]).map(([f, sc]) => fieldFor(f, sc, draft.scenes[k][f], (v) => { draft.scenes[k][f] = v; markDirty(); }));
+  // hẹn giờ tắt: lúc HH:MM (hôm nay, qua giờ thì ngày mai) hoặc sau N phút
+  const atTime = h('input', { type: 'time', value: scene.endAt ? new Date(scene.endAt).toTimeString().slice(0, 5) : '' });
+  const afterMin = h('input', { type: 'number', min: 1, max: 1440, placeholder: 'phút', style: 'width:90px' });
+  const schedule = () => {
+    let endAt = null;
+    if (afterMin.value) endAt = Date.now() + Number(afterMin.value) * 60_000;
+    else if (atTime.value) {
+      const [hh, mm] = atTime.value.split(':').map(Number);
+      const d = new Date(); d.setHours(hh, mm, 0, 0);
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+      endAt = d.getTime();
+    }
+    if (!endAt) return toast('Chọn giờ tắt hoặc nhập số phút', true);
+    setScene({ endAt, mode: scene.mode === 'outro' ? 'live' : scene.mode }, `Đã hẹn tắt live lúc ${hhmm(endAt)}`);
+  };
+  paintStatus();
+  return h('div', { class: 'card' },
+    h('div', { class: 'row' }, h('h2', { class: 'grow' }, '🎬 Màn chuẩn bị & hẹn giờ tắt live'), status),
+    h('p', { class: 'small muted' }, 'Màn hình che toàn khung live (cả game và widget), dùng chung mọi game. Sửa nội dung xong bấm "Lưu & áp dụng" ở trên; các nút bật màn / hẹn giờ có tác dụng ngay. Khi đang ở màn chuẩn bị (và màn kết thúc nếu bật) game được tạm dừng.'),
+    h('div', { class: 'st-scenes' },
+      h('div', {},
+        h('h3', {}, '🕒 Màn chuẩn bị live'), ...fields('intro'),
+        h('div', { class: 'row', style: 'margin-top:10px;flex-wrap:wrap' },
+          h('button', { onclick: () => setScene({ mode: 'intro' }, 'Đang hiện màn chuẩn bị') }, '▶ Bật màn chuẩn bị'),
+          h('button', { class: 'ghost', onclick: () => setScene({ mode: 'live' }, 'Đã vào live') }, '✅ Vào live'),
+          h('button', { class: 'ghost', onclick: () => preview('intro') }, '👁 Xem thử'))),
+      h('div', {},
+        h('h3', {}, '⏰ Hẹn giờ tắt live'),
+        h('div', { class: 'row', style: 'flex-wrap:wrap;gap:8px' }, 'Tắt lúc', atTime, 'hoặc sau', afterMin, 'phút',
+          h('button', { onclick: schedule }, 'Đặt hẹn giờ'),
+          h('button', { class: 'ghost', onclick: () => setScene({ endAt: null }, 'Đã huỷ hẹn giờ') }, 'Huỷ hẹn giờ')),
+        ...fields('outro'),
+        h('div', { class: 'row', style: 'margin-top:10px;flex-wrap:wrap' },
+          h('button', { class: 'danger', onclick: () => { if (confirm('Hiện màn kết thúc live ngay?')) setScene({ mode: 'outro', endAt: null }, 'Đang hiện màn kết thúc'); } }, '⏹ Kết thúc ngay'),
+          h('button', { class: 'ghost', onclick: () => setScene({ mode: 'live', endAt: null }, 'Đã quay lại live') }, '↩ Quay lại live'),
+          h('button', { class: 'ghost', onclick: () => preview('outro') }, '👁 Xem thử')))));
+}
+
 // vùng giao diện TikTok LIVE thường che trên khung 1080×1920 (gần đúng, tuỳ máy)
 const TIKTOK_ZONES = [
   { x: 0, y: 0, w: 1080, h: 150, label: 'Thanh trên TikTok' },
@@ -571,6 +663,7 @@ function studioTab(c) {
     h('label', { class: 'row small', style: 'margin-bottom:10px' }, h('input', { type: 'checkbox', checked: showZones, onchange: (e) => { showZones = e.target.checked; paintStage(); } }), 'Hiện vùng TikTok hay che'),
     h('p', { class: 'small muted', style: 'margin:0 0 6px' }, 'Widget (dùng chung mọi game)'),
     h('div', { class: 'st-lib' }, (S.widgets || []).map((m) => h('button', { class: 'ghost', title: m.description, onclick: () => add(m) }, h('span', { class: 'st-ico' }, m.icon), h('span', {}, m.name)))));
+  const scenes = scenesCard(c, draft, markDirty, frame);
   return h('div', {},
     h('div', { class: 'card' },
       h('div', { class: 'row' }, h('h2', { class: 'grow' }, '🎬 Studio — bố cục widget trên khung 9:16'), saveBtn,
@@ -578,6 +671,7 @@ function studioTab(c) {
         h('button', { class: 'ghost', title: 'Đếm lại xu / tim / follow / top tặng quà từ 0', onclick: async () => { if (!confirm('Đặt lại số liệu phiên (xu, tim, follow, top tặng quà) về 0?')) return; try { await req('stats-reset', { channel: c.id }); toast('Đã đặt lại số liệu phiên'); } catch (e) { toast(e.message, true); } } }, '↺ Đặt lại số liệu')),
       h('p', { class: 'small muted' }, 'Kéo widget để di chuyển, kéo góc dưới phải để đổi kích thước (bước 10px). Widget dùng chung cho mọi game; đổi game không mất bố cục. Bảng của game (viền vàng: bảng quà, dòng quà…) kéo / phóng / ẩn được, riêng cho từng game. Ô đỏ là vùng TikTok hay che (bình luận, nút). Nền là game đang chạy (cần mở overlay chính).'),
       h('div', { class: 'st-grid' }, h('div', {}, h('h3', {}, 'Thư viện'), lib), stage, h('div', {}, h('h3', {}, 'Cài đặt widget'), inspector))),
+    scenes,
     h('div', { class: 'card' }, h('h2', {}, 'Link overlay theo lớp'),
       overlayLinks(c).map(([label, url]) => h('div', { class: 'row', style: 'margin-bottom:6px' }, h('span', { style: 'min-width:260px' }, label), h('input', { value: url, readOnly: true, class: 'grow', onclick: (e) => e.target.select() }),
         h('button', { class: 'ghost', onclick: () => navigator.clipboard.writeText(url).then(() => toast('Đã copy')) }, 'Copy'))),

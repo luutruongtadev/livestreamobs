@@ -68,3 +68,6 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { padd
 button.small { padding: 5px 10px; font-size: 13px; }
 .sfx-groups { display: grid; gap: 10px; }
 .sfx-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }
+
+.st-scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 900px) { .st-scenes { grid-template-columns: 1fr; } }

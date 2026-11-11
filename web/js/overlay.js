@@ -3,9 +3,11 @@
 //   ?preview=1  chỉ hiển thị lại trạng thái của overlay chính (dashboard)   ?mute=1  ?debug=1  ?tts=0
 //   ?layer=game     chỉ game (không widget)      ?layer=widgets  chỉ widget Studio, nền trong suốt (đặt chồng lên camera)
 //   ?widgets=0      ẩn widget (trình chỉnh Studio dùng)   ?sound=1  cho overlay "chỉ widget" phát luật âm thanh
+//   ?scenes=0       không hiện màn chuẩn bị / kết thúc live
 //   ?play=1         cửa sổ chơi: giành vai overlay chính (nhận trạng thái mới nhất) để streamer gõ phím / bấm chuột vào game
 import { createHost, memoryStorage, defaultBindings, triggerText, triggerIcon } from '#sdk';
 import { createStudioLayer } from './studio-layer.js';
+import { createSceneLayer } from './scene-layer.js';
 
 const qs = new URLSearchParams(location.search);
 const key = location.pathname.split('/').filter(Boolean)[1] || '';
@@ -31,6 +33,21 @@ const serverNow = () => Date.now() + offset;
 // lớp widget Studio (đè lên canvas game); âm thanh Studio chỉ phát ở overlay chính (hoặc overlay chỉ-widget có ?sound=1)
 const studio = createStudioLayer({ muted: options.mute, canSound: () => !preview && !options.mute && (role === 'leader' || (layer === 'widgets' && qs.get('sound') === '1')) });
 if (studio) stage.append(studio.el);
+// màn chuẩn bị live / kết thúc live (đè lên game + widget); overlay chính tạm dừng game khi đang ở màn này
+let rawStudio = {}, scenePaused = false;
+const scenesOn = qs.get('scenes') !== '0';
+const sceneLayer = scenesOn ? createSceneLayer({
+  now: () => serverNow(),
+  onMode: (m) => {
+    if (preview || role !== 'leader' || !game?.host) return;
+    const want = m === 'intro' || (m === 'outro' && rawStudio?.scenes?.outro?.pauseGame !== false);
+    if (want && !scenePaused && !game.host.snapshot()?.paused) { scenePaused = true; applyFx(game.host.command('pause', { reason: 'scene' })); draw(); }
+    else if (!want && scenePaused) { scenePaused = false; applyFx(game.host.command('resume')); draw(); }
+  },
+}) : null;
+if (sceneLayer) stage.append(sceneLayer.el);
+if (preview && sceneLayer) addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.t === 'scene-preview') sceneLayer.preview(e.data.mode); });
+function setScene(st) { rawStudio = st || {}; sceneLayer?.set(rawStudio); }
 let legendFor = '';
 /** Bảng quà cho widget: bindings của game đang chơi (hoặc mặc định trong manifest) → { icon, text, label }. */
 async function updateLegend(ch) {
@@ -54,7 +71,7 @@ let draftPanels = null; // xem trước trong dashboard: tab Studio gửi bản 
 function applyPanels() { if (game?.view?.layout) game.view.layout((draftPanels && draftPanels.game === game.id ? draftPanels.panels : panelsAll[game.id]) || {}); }
 function setPanels(st) { panelsAll = st?.panels && typeof st.panels === 'object' ? st.panels : {}; applyPanels(); }
 if (preview) addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.t === 'panels') { draftPanels = { game: String(e.data.game || ''), panels: e.data.panels || {} }; applyPanels(); } });
-function onChannel(ch) { setPanels(ch.studio); if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
+function onChannel(ch) { setPanels(ch.studio); setScene(ch.studio); if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
 
 // ---------------- lớp UI chung ----------------
 function showBadge(text, cls = '') { badge.textContent = text; badge.className = `ui ${cls}`; badge.style.display = text ? 'block' : 'none'; }
@@ -72,7 +89,7 @@ function fit() {
   const s = Math.min(innerWidth / w, innerHeight / h);
   if (c) { c.style.width = `${w * s}px`; c.style.height = `${h * s}px`; }
   stage.style.width = `${w * s}px`; stage.style.height = `${h * s}px`;
-  studio?.fit(s * (w / 1080));
+  studio?.fit(s * (w / 1080)); sceneLayer?.fit(s * (w / 1080));
 }
 addEventListener('resize', fit);
 soundBtn.onclick = () => { game?.view?.resumeAudio?.(); studio?.resumeAudio(); soundBtn.style.display = 'none'; };
@@ -120,12 +137,12 @@ async function onMsg(m) {
       break;
     case 'role': role = m.role; onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
     case 'cfg': onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
-    case 'studio': setPanels(m.studio); if (studio) setStudio(studioOf(m.studio)); break;
+    case 'studio': setPanels(m.studio); setScene(m.studio); if (studio) setStudio(studioOf(m.studio)); break;
     case 'sfx': studio?.playNow(m); break;
-    case 'st': studio?.setStats(m.st); break;
-    case 'sx': if (role !== 'leader') studio?.event(m.e); break;
+    case 'st': studio?.setStats(m.st); sceneLayer?.setStats(m.st); break;
+    case 'sx': if (role !== 'leader') { studio?.event(m.e); sceneLayer?.event(m.e); } break;
     case 'ev':
-      if (role === 'leader' && m.e.seq > seq && !m.replay) studio?.event(m.e);
+      if (role === 'leader' && m.e.seq > seq && !m.replay) { studio?.event(m.e); sceneLayer?.event(m.e); }
       if (role !== 'leader' || !game?.host || m.e.seq <= seq) return;
       seq = m.e.seq;
       onEvent(m.e, !!m.replay);
@@ -174,7 +191,8 @@ async function loadGame(ch) {
     unloadGame();
     const canvas = document.createElement('canvas');
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
-    stage.replaceChildren(canvas, ...(studio ? [studio.el] : []));
+    stage.replaceChildren(canvas, ...(studio ? [studio.el] : []), ...(sceneLayer ? [sceneLayer.el] : []));
+    sceneLayer?.setGame(manifest.name);
     const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     applyPanels();
@@ -205,6 +223,9 @@ function startHost(ch, module, data) {
   });
   if (ch.state) host.restore(ch.state);
   game.host = host;
+  // đang ở màn chuẩn bị / kết thúc lúc nạp game → tạm dừng ngay
+  scenePaused = false;
+  if (sceneLayer) { const m = sceneLayer.modeNow(); if (m === 'intro' || (m === 'outro' && rawStudio?.scenes?.outro?.pauseGame !== false)) { scenePaused = true; host.command('pause', { reason: 'scene' }); } }
   game.tickTimer = setInterval(() => { const fx = host.tick(); if (fx.length) applyFx(fx); draw(); }, 250);
   game.saveTimer = setInterval(() => send({ t: 'save', game: game.id, state: host.serialize() }), 5000);
   draw();
