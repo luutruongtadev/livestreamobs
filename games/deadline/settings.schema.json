@@ -225,6 +225,18 @@
       "maximum": 100000,
       "default": 5
     },
+    "memeSearch": {
+      "type": "boolean",
+      "title": "Tự tìm GIF meme trên GIPHY theo từ khoá của từng quà (cần GIPHY_API_KEY trên server; quà đã dán link riêng thì dùng link đó)",
+      "default": true
+    },
+    "memeQueries": {
+      "type": "string",
+      "format": "textarea",
+      "title": "Đổi từ khoá tìm meme, mỗi dòng 'mã quà: từ khoá' (vd  soi: sếp đang nhìn). Mã quà: ping, soi, ban, mayin, buzz, hop, cattg, virus, lamlai, meo, capslock, cupdien, wifi, hetlimit, cafe, giahan, intern, antrua, tainghe, thangchuc",
+      "maxLength": 2000,
+      "default": ""
+    },
     "memeClip_ping": {
       "type": "string",
       "title": "Link video meme cho “Sếp ping” (mp4 / webm / gif, để trống = meme hoạt hình)",

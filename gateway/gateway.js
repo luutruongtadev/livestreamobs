@@ -143,6 +143,14 @@ class ChannelRuntime {
       case 'save':
         if (isLeader && m.handoff && this.handoffTo) { this.finishHandoff(m.game === this.cfg.active_game && m.state !== undefined ? { game: m.game, state: m.state } : null); break; }
         if (isLeader && m.game === this.cfg.active_game) { this.pendingSave = { game: m.game, state: m.state }; this.scheduleSave(); } break;
+      case 'meme': { // tìm GIF / video meme theo từ khoá (GIPHY, key ở server); mỗi overlay tối đa 20 lượt / phút
+        const t = Date.now();
+        if (!ws.memeWin || t - ws.memeWin.t > 60_000) ws.memeWin = { t, n: 0 };
+        const id = Number(m.id) || 0;
+        if (!this.gw.memes?.enabled || ++ws.memeWin.n > 20) { send(ws, { t: 'meme', id, items: [] }); break; }
+        this.gw.memes.search(str(m.q, 80)).then((items) => send(ws, { t: 'meme', id, items: items.slice(0, 25), source: this.gw.memes.source })).catch(() => send(ws, { t: 'meme', id, items: [] }));
+        break;
+      }
       case 'in': { // đầu vào tại chỗ từ overlay phụ → overlay chính (giới hạn 30 tin / giây)
         if (isLeader || !this.leader || !m.ev || typeof m.ev !== 'object') break;
         const t = Date.now();
@@ -312,8 +320,8 @@ class ChannelRuntime {
 }
 
 export class Gateway {
-  constructor({ store, catalog = [], widgets = [], gameServers = {}, bridgeFactory = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000, studioMs = 500 } = {}) {
-    Object.assign(this, { store, catalog, widgets, gameServers, bridgeFactory, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
+  constructor({ store, catalog = [], widgets = [], gameServers = {}, bridgeFactory = null, memes = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000, studioMs = 500 } = {}) {
+    Object.assign(this, { store, catalog, widgets, gameServers, bridgeFactory, memes, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
     this.studioTimer = setInterval(() => { for (const rt of this.runtimes.values()) rt.studioTick().catch(() => {}); }, studioMs);
     this.studioTimer.unref?.();
     this.runtimes = new Map(); // channel id → ChannelRuntime

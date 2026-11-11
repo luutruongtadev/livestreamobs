@@ -56,6 +56,7 @@ test('ca làm (máy tính): mini-việc, ping lấy bình luận người tặng
   // virus (299 xu → có meme) chặn việc đến khi xoá hết; sếp nói trend bắt gõ đúng nguyên văn
   const gv = host.handle(gift('d', 'Corgi', 299))[0];
   assert.ok(gv.meme?.line && gv.meme.mood);
+  assert.equal(gv.meme.query, D.memes.virus.query, 'chưa dán link → kèm từ khoá để tìm GIF trên GIPHY'); assert.ok(gv.meme.r >= 0 && gv.meme.r < 1);
   assert.equal(S().blocker.kind, 'virus');
   host.handle(gift('e', 'Hat and Mustache', 99));
   assert.deepEqual(doJob().filter((e) => e.type === 'dd_step'), [], 'đang dính virus thì không làm việc được');

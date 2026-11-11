@@ -24,6 +24,17 @@ let ws = null, role = null, seq = 0, retry = 500, loadToken = 0;
 let game = null; // { id, manifest, view, host, canvas }
 let tk = null, wsOk = false, offset = 0, bestRtt = Infinity;
 const pending = new Map(); let reqId = 0;
+const memeWait = new Map(); let memeId = 0;
+/** Tìm GIF / video meme theo từ khoá qua gateway (GIPHY) → [{ id, mp4, gif, w, h }] (rỗng nếu tắt / lỗi / quá 3 giây). */
+function searchMemes(q) {
+  return new Promise((resolve) => {
+    if (ws?.readyState !== 1 || !q) return resolve([]);
+    const id = ++memeId;
+    const timer = setTimeout(() => { memeWait.delete(id); resolve([]); }, 3000);
+    memeWait.set(id, (items) => { clearTimeout(timer); resolve(Array.isArray(items) ? items : []); });
+    send({ t: 'meme', id, q: String(q).slice(0, 80) });
+  });
+}
 const lat = []; let snapDirty = false, fxOut = [];
 
 const send = (m) => { if (ws?.readyState === 1) ws.send(JSON.stringify(m)); };
@@ -154,6 +165,7 @@ async function onMsg(m) {
     // cửa sổ chơi vừa mở: gửi trạng thái mới nhất để nó tiếp quản (gateway chuyển vai sau khi nhận)
     case 'handoff': if (role === 'leader' && game?.host) send({ t: 'save', game: game.id, state: game.host.serialize(), handoff: true }); else send({ t: 'save', handoff: true }); break;
     case 'g': { const p = pending.get(m.id); if (p) { pending.delete(m.id); m.err ? p.reject(new Error(m.err)) : p.resolve(m.r); } break; }
+    case 'meme': { const f = memeWait.get(m.id); if (f) { memeWait.delete(m.id); f(m.items); } break; }
     case 'tk': tk = m.tk; refreshBadge(); break;
     case 'pong': {
       const rtt = performance.now() - m.ts;
@@ -193,7 +205,7 @@ async function loadGame(ch) {
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
     stage.replaceChildren(canvas, ...(studio ? [studio.el] : []), ...(sceneLayer ? [sceneLayer.el] : []));
     sceneLayer?.setGame(manifest.name);
-    const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput });
+    const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput, memes: { search: searchMemes, source: 'giphy' } });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     applyPanels();
     fit();

@@ -99,7 +99,7 @@ ctx = {
 ## 4. Renderer — `mount(el, ctx)`
 
 ```js
-mount(el, { canvas, sound?, options?, i18n?, input? }) → { update(snapshot), effect(fx), resumeAudio?(), resize(), destroy() }
+mount(el, { canvas, sound?, options?, i18n?, input?, memes? })   // memes.search(từ khoá) → Promise<[{ id, mp4, gif, w, h }]> (GIPHY qua gateway; rỗng nếu tắt) → { update(snapshot), effect(fx), resumeAudio?(), resize(), destroy() }
 ```
 Không đụng DOM khi import (mọi thứ trong `mount`).
 - **Bảng chỉnh được trong Studio (`manifest.panels`):** renderer trả thêm `layout(map)` — `map` = `{ [panelId]: { x, y, s, hidden } }` do streamer lưu (đổi lúc nào cũng được, kể cả khi đang xem trước). Vẽ bảng bằng `drawPanel(ctx, map, id, { x, y }, () => vẽ ở toạ độ mặc định)` của SDK: chưa chỉnh thì giữ nguyên, đã chỉnh thì tự dời / phóng / ẩn. Nền tảng lo kết nối, nút bật âm thanh, chế độ điện thoại, lớp UI chung (trạng thái kết nối, BXH, bảng quà).

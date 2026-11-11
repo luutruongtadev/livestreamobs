@@ -103,6 +103,7 @@ Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pau
 ## Meme khi quà lớn
 - Meme hoạt hình có sẵn: quà từ `memeMinCoins` xu trở lên (mặc định 5) phát ngay sau chữ lớn. Tối đa 3 meme xếp hàng chờ.
 - **Meme có sẵn:** hoạt hình tự vẽ, gồm biểu cảm, câu meme tiếng Việt và âm thanh theo từng loại quà.
+- **Tự tìm GIF trên GIPHY** (cài đặt `memeSearch`, bật mặc định): quà chưa dán link riêng thì lấy ngẫu nhiên một GIF theo từ khoá của quà đó (`query` trong `data/office.json`, đổi được ở ô `memeQueries`, mỗi dòng `mã: từ khoá`). Mọi overlay hiện cùng một clip. Cần `GIPHY_API_KEY` trên server; không có key / không tìm thấy thì dùng meme hoạt hình. Có dòng "Powered by GIPHY" theo điều khoản của GIPHY.
 - **Video meme của bạn:** dán link vào ô `memeClip_<id>` trong Cài đặt game (mp4 / webm / gif, phát tối đa 6 giây). Quà đã có link thì **luôn phát**, không cần đủ `memeMinCoins` xu.
   - Repo công khai nên game không kèm clip có bản quyền.
   - Cách lấy link: mở [Tenor](https://tenor.com/vi) hoặc [Giphy](https://giphy.com), tìm clip, chuột phải chọn **Sao chép địa chỉ video** sẽ được link `media.tenor.com/….mp4`.

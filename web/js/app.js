@@ -302,6 +302,7 @@ function fieldFor(key, sch, value, onChange) {
     const names = sch.enumNames || sch.items.enumNames;
     input = h('div', { class: 'checks' }, sch.items.enum.map((o) => h('label', {}, h('input', { type: 'checkbox', checked: cur.has(o), onchange: (e) => { e.target.checked ? cur.add(o) : cur.delete(o); onChange(sch.items.enum.filter((x) => cur.has(x))); } }), ` ${nameOf(sch.items.enum, names, o)}`)));
   } else if (sch.type === 'array') input = h('input', { value: (value || []).join(', '), onchange: (e) => onChange(e.target.value.split(',').map((x) => x.trim()).filter(Boolean).map((x) => (sch.items?.type === 'integer' || sch.items?.type === 'number' ? Number(x) : x))) });
+  else if (sch.type === 'string' && sch.format === 'textarea') input = h('textarea', { value: value ?? '', rows: 5, maxLength: sch.maxLength, onchange: (e) => onChange(e.target.value) });
   else input = h('input', { value: value ?? '', maxLength: sch.maxLength, onchange: (e) => onChange(e.target.value) });
   return h('div', { class: 'field' }, h('label', {}, sch.title || key, sch.minimum != null || sch.maximum != null ? h('span', { class: 'small muted' }, ` (${sch.minimum ?? ''}–${sch.maximum ?? ''})`) : ''), input);
 }

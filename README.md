@@ -419,6 +419,8 @@ Muốn chỉnh mà không sửa file gốc, tạo `config.local.json` (đã giti
 
 Biến môi trường cũng được hỗ trợ: `TIKTOK_USERNAME`, `SIGN_API_KEY`, `HOST`, `PORT`, `ADMIN_TOKEN`.
 
+**Meme GIF tự tìm (GIPHY):** đặt `GIPHY_API_KEY` (tạo miễn phí tại developers.giphy.com) trong `.env` trên VPS hoặc thêm secret `GIPHY_API_KEY` trên GitHub để workflow deploy ghi vào. Gateway giữ key, lưu kết quả theo từ khoá 6 giờ, overlay hỏi qua WebSocket (`{t:'meme'}`), renderer nhận `ctx.memes.search(q)`. (Tenor đã khoá API từ 30/6/2026.)
+
 ## Cấu trúc mã
 
 > **Đang chuyển sang nền tảng nhiều game** (kế hoạch: nền tảng đa streamer, mỗi game một module). Chuẩn module: [`docs/game-module-standard.md`](docs/game-module-standard.md). Server đơn (`server/`, `public/`) vẫn chạy như cũ trong lúc chuyển — các file đã chuyển đi được giữ lại dưới dạng re-export.

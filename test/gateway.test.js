@@ -259,3 +259,31 @@ test('SupabaseStore: header theo loại key, kiểm tra token có cache, tạo k
   assert.equal(calls.at(-1).headers.Authorization, 'Bearer eyJhbGciOi.legacy', 'khoá service_role cũ (JWT) gửi cả Authorization');
   await legacy.close();
 });
+
+test('meme GIPHY: key ở server, chuẩn hoá kết quả, lưu theo từ khoá, lỗi → danh sách cũ / rỗng; overlay hỏi qua WebSocket', async () => {
+  const { createMemeSearch, giphyItems } = await import('../gateway/memes.js');
+  const calls = [];
+  let fail = false;
+  const fetchImpl = async (url) => { calls.push(url); if (fail) return { ok: false, status: 429 }; return { ok: true, json: async () => ({ data: [{ id: 'a1', images: { original: { mp4: 'https://media.giphy.com/a1.mp4', url: 'https://media.giphy.com/a1.gif', width: '480', height: '270' } } }, { id: 'x', images: {} }] }) }; };
+  let t = 0;
+  const m = createMemeSearch({ apiKey: 'K', fetchImpl, ttlMs: 1000, now: () => t, log: {} });
+  assert.deepEqual(await m.search('  Boss   Watching '), [{ id: 'a1', mp4: 'https://media.giphy.com/a1.mp4', gif: 'https://media.giphy.com/a1.gif', w: 480, h: 270 }]);
+  await m.search('boss watching');
+  assert.equal(calls.length, 1, 'cùng từ khoá → dùng kết quả đã lưu');
+  assert.match(calls[0], /api_key=K&q=boss%20watching&.*rating=pg-13/);
+  t = 5000; fail = true;
+  assert.equal((await m.search('boss watching')).length, 1, 'hết hạn + lỗi → vẫn trả danh sách cũ');
+  assert.deepEqual(await m.search('khác'), []);
+  assert.deepEqual(await createMemeSearch({ apiKey: '' }).search('x'), [], 'không có key → tắt');
+  assert.deepEqual(giphyItems({ data: [{ id: 'h', images: { original: { url: 'http://insecure.gif' } } }] }), [], 'bỏ link không phải https');
+  // overlay → gateway → trả danh sách
+  const s = await setup({ gw: { memes: m } });
+  try {
+    t = 0; fail = false;
+    const a = client(`ws://${s.base}/ws?overlay=${s.ch.overlay_key}`); await a.open(); await a.next((x) => x.t === 'hello');
+    a.send({ t: 'meme', id: 7, q: 'boss watching' });
+    const r = await a.next((x) => x.t === 'meme');
+    assert.equal(r.id, 7); assert.equal(r.items[0].id, 'a1'); assert.equal(r.source, 'giphy');
+    a.close();
+  } finally { await s.close(); }
+});

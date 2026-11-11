@@ -535,8 +535,20 @@ export class Deadline extends Emitter {
   memeFor(id) {
     const m = this.d.memes?.[id] || {};
     const lines = Array.isArray(m.lines) && m.lines.length ? m.lines : ['Ối dồi ôi!'];
-    const clip = String(this.s[`memeClip_${id}`] || '').trim();
-    return { line: this.pick(lines), mood: m.mood || 'shock', clip: /^https?:\/\/\S+$/i.test(clip) ? clip : null };
+    const raw = String(this.s[`memeClip_${id}`] || '').trim();
+    const clip = /^https?:\/\/\S+$/i.test(raw) ? raw : null;
+    // không có link riêng → renderer tự tìm GIF trên GIPHY theo từ khoá; r: chọn cùng một clip trên mọi overlay
+    const query = !clip && this.s.memeSearch ? this.memeQuery(id) : null;
+    return { line: this.pick(lines), mood: m.mood || 'shock', clip, query, r: Math.floor(this.ctx.random() * 1e6) / 1e6 };
+  }
+
+  /** Từ khoá tìm meme: dòng "mã: từ khoá" trong cài đặt memeQueries, không có thì lấy từ data. */
+  memeQuery(id) {
+    for (const line of String(this.s.memeQueries || '').split(/\r?\n/)) {
+      const m = /^\s*([a-z0-9_-]+)\s*[:=]\s*(.+?)\s*$/i.exec(line);
+      if (m && m[1].toLowerCase() === id && m[2]) return m[2].slice(0, 60);
+    }
+    return String(this.d.memes?.[id]?.query || '').slice(0, 60) || null;
   }
 
   /** Đầu vào tại chỗ của streamer (bàn phím / chuột trong cửa sổ chơi). */

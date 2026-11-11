@@ -41,7 +41,7 @@ const APPS = { mail: ['✉️', 'Mail'], inbox: ['📥', 'Hộp thư'], sheet: [
 const FOLDER = [['anh', '🖼️', 'Ảnh'], ['tailieu', '📄', 'Tài liệu'], ['rac', '🗑️', 'Thùng rác']];
 const TOP = 150;
 
-export function mount(el, { canvas, options = {}, input = null } = {}) {
+export function mount(el, { canvas, options = {}, input = null, memes: memeSvc = null } = {}) {
   let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
   const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
@@ -733,6 +733,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
 
   function startMeme(now) {
     if (meme || !memes.length || (anim.title && (now - anim.title.at) < 900)) return;
+    if (memes[0].loading && now - memes[0].queuedAt < 1800) return; // đang tìm GIF trên GIPHY: chờ tối đa 1,8 giây
     meme = { ...memes.shift(), at: now };
     meme.life = 3;
     if (meme.clip && typeof document !== 'undefined') {
@@ -743,12 +744,12 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const fail = () => { if (clipEl === m) { m.remove(); clipEl = null; meme.clip = null; meme.life = 3; meme.at = performance.now(); } };
       m.onerror = fail;
       if (!gif) {
-        m.playsInline = true; m.muted = !!options.mute; m.src = meme.clip;
+        m.playsInline = true; m.muted = !!options.mute || !!meme.giphy; m.loop = !!meme.giphy; m.src = meme.clip;
         m.onended = () => { if (meme && clipEl === m) meme.life = (performance.now() - meme.at) / 1000; };
         m.play?.().catch(() => { m.muted = true; m.play?.().catch(fail); });
       } else m.src = meme.clip;
       clipEl = m; el.append(m); placeClip();
-      meme.life = 6;
+      meme.life = meme.giphy ? 4 : 6;
     }
     sound.play(meme.mood);
   }
@@ -783,6 +784,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         confetti.push({ sym, x: 140 + Math.random() * (W - 280), y: meme.mood === 'cry' ? 900 : 300, vx: (Math.random() - 0.5) * 120, vy: meme.mood === 'cry' ? 260 : 380 + Math.random() * 300, life: 2.2, age: 0, size: 54 });
       }
     }
+    if (meme.clip && meme.giphy) text('Powered by GIPHY', 990, 1130, 20, 'rgba(255,255,255,.75)', 800, 'right');
     bigText(meme.line, W / 2, meme.clip ? 1200 : 1130, 74, '#fff', '#111', W - 100);
     text(`meme của ${meme.by?.name || ''} · ${ACT[meme.action]?.name || ''}`, W / 2, meme.clip ? 1280 : 1215, 26, 'rgba(255,255,255,.8)', 700);
     ctx.restore();
@@ -1076,7 +1078,18 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
           const a = ACT[fx.action]; if (!a) break;
           anim.title = { text: a.title, by: fx.by?.name, sub: fx.sub, color: a.color, at: now, life: 1.9 };
           anim.hot[fx.action] = now + 1600;
-          if (fx.meme) { memes.push({ ...fx.meme, by: fx.by, action: fx.action }); while (memes.length > 3) memes.shift(); }
+          if (fx.meme) {
+            const entry = { ...fx.meme, by: fx.by, action: fx.action, queuedAt: now };
+            // chưa có link riêng → tìm GIF trên GIPHY theo từ khoá; mọi overlay nhận cùng danh sách (server lưu) + cùng r → cùng clip
+            if (!entry.clip && entry.query && memeSvc?.search) {
+              entry.loading = true;
+              memeSvc.search(entry.query).then((items) => {
+                const it = items?.length ? items[Math.floor((Number(entry.r) || 0) * items.length) % items.length] : null;
+                if (it) { entry.clip = it.mp4 || it.gif; entry.giphy = true; }
+              }).catch(() => {}).finally(() => { entry.loading = false; });
+            }
+            memes.push(entry); while (memes.length > 3) memes.shift();
+          }
           sound.play(fx.action);
           if (fx.action === 'thangchuc') burst(220);
           break;

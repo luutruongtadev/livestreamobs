@@ -4,7 +4,7 @@
 #
 # Cần tạo trong GitHub repo → Settings → Secrets and variables → Actions:
 #   Secrets:   VPS_HOST, VPS_USER, VPS_PASSWORD, (tuỳ chọn) VPS_PORT, VPS_ENV_FILE,
-#              (tuỳ chọn, ghi vào .env trên VPS) SIGN_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY
+#              (tuỳ chọn, ghi vào .env trên VPS) SIGN_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY, GIPHY_API_KEY (meme GIF)
 #              (tuỳ chọn, chỉ dùng trên GitHub để chạy migration) SUPABASE_DB_URL
 #   Variables: (tuỳ chọn) DEPLOY_MODE = phone | server | stream (mặc định phone), VPS_DIR (mặc định /opt/chua-online)
 name: Deploy lên VPS
@@ -92,9 +92,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY }}
         run: |
           set -euo pipefail
-          KEYS="SIGN_API_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY"
+          KEYS="SIGN_API_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY GIPHY_API_KEY"
           printf '%s' "$VPS_ENV_FILE" > env.deploy
           : > secrets.deploy
           chmod 600 env.deploy secrets.deploy
