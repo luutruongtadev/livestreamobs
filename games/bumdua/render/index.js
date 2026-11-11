@@ -214,7 +214,10 @@ export function mount(el, { canvas, options = {} } = {}) {
   function drawAuntie(now) {
     const t = anim.tension, turbo = S.turboMs > 0, pop = S.phase === 'pop';
     const bob = reduced ? 0 : Math.sin(now / (turbo ? 150 : 620)) * (turbo ? 5 : 3);
-    const hx = AX, hy = 958 + bob; // tâm đầu
+    // biểu cảm theo độ biến dạng của dưa: 0 vui · 1 tò mò · 2 lo · 3 sợ · 4 hoảng (nhắm tịt mắt, né người) · 5 dưa vừa nổ
+    const mood = pop ? 5 : t > 0.9 ? 4 : t > 0.75 ? 3 : t > 0.55 ? 2 : t > 0.35 ? 1 : 0;
+    const fear = pop ? 0 : Math.max(0, Math.min(1, (t - 0.7) / 0.3)), jit = reduced ? 0 : fear * 7;
+    const hx = AX - fear * 16 + (Math.random() - 0.5) * jit, hy = 958 + bob + (Math.random() - 0.5) * jit * 0.6; // tâm đầu: sợ thì né ra xa và run
     // thân áo bà ba
     ctx.lineJoin = 'round';
     ctx.fillStyle = C.shirt; ctx.beginPath(); ctx.moveTo(AX - 112, 1290); ctx.quadraticCurveTo(AX - 122, 1090, AX - 62, 1052 + bob); ctx.lineTo(AX + 62, 1052 + bob); ctx.quadraticCurveTo(AX + 122, 1090, AX + 112, 1290); ctx.closePath(); ctx.fill();
@@ -230,25 +233,47 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.fillStyle = '#2a1a14'; ctx.beginPath(); ctx.moveTo(hx - 94, hy - 4); ctx.quadraticCurveTo(hx - 60, hy - 70, hx, hy - 62); ctx.quadraticCurveTo(hx + 60, hy - 70, hx + 94, hy - 4); ctx.quadraticCurveTo(hx + 70, hy - 44, hx + 10, hy - 40); ctx.quadraticCurveTo(hx - 60, hy - 40, hx - 94, hy - 4); ctx.fill();
     // má hồng
     ctx.fillStyle = 'rgba(255,110,130,.4)'; ctx.beginPath(); ctx.ellipse(hx - 56, hy + 36, 18, 12, 0, 0, Math.PI * 2); ctx.ellipse(hx + 60, hy + 36, 18, 12, 0, 0, Math.PI * 2); ctx.fill();
-    // mắt
-    const look = pop ? 0 : 5 + Math.sin(now / 1300) * 2, er = pop ? 24 : 19;
+    // mắt + chân mày
+    const er = [19, 20, 22, 25, 0, 24][mood], pr = [9, 9, 8, 5.5, 0, 6][mood];
+    const look = pop ? 0 : 6 + Math.sin(now / 1300) * 2, lookY = mood >= 1 && !pop ? 4 : 0;
+    const blink = mood < 3 && !reduced && now % 3400 < 130;
     for (const s of [-1, 1]) {
-      const ex = hx + s * 36 + 4;
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, hy + 6, er * 0.9, er, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3a2414'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.fillStyle = '#2a1a14'; ctx.beginPath(); ctx.arc(ex + look, hy + 8, pop ? 6 : 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + look + 3, hy + 4, 3, 0, Math.PI * 2); ctx.fill();
-      // chân mày
-      const worry = pop ? -14 : t > 0.6 ? 10 : 0;
-      ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ex - 16, hy - 22 - (pop ? 14 : 0) + worry * (s < 0 ? 0 : 1) * 0.6 - (s < 0 ? -worry : 0) * 0); ctx.lineTo(ex + 16, hy - 22 - (pop ? 14 : 0) - s * worry * 0.7); ctx.stroke();
+      const ex = hx + s * 36 + 4, ey = hy + 6;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (mood === 4) { // nhắm tịt mắt > <
+        ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(ex + s * 16, ey - 13); ctx.lineTo(ex - s * 12, ey); ctx.lineTo(ex + s * 16, ey + 13); ctx.stroke();
+        // nước mắt
+        const k = (now / 500 + (s > 0 ? 0.5 : 0)) % 1; ctx.globalAlpha = 1 - k; ctx.fillStyle = '#7fd3ff'; ctx.beginPath(); ctx.ellipse(ex + s * 24, ey + 10 + k * 46, 6, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      } else if (blink) { ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(ex - 15, ey + 2); ctx.quadraticCurveTo(ex, ey + 10, ex + 15, ey + 2); ctx.stroke(); }
+      else {
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, ey, er * 0.9, er, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3a2414'; ctx.lineWidth = 3; ctx.stroke();
+        const px = ex + look + (mood === 3 && !reduced ? Math.sin(now / 45) * 1.5 : 0); // sợ: con ngươi co lại, rung nhẹ
+        ctx.fillStyle = '#2a1a14'; ctx.beginPath(); ctx.arc(px, ey + 2 + lookY, pr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px + 3, ey - 2 + lookY, 3, 0, Math.PI * 2); ctx.fill();
+      }
+      // chân mày: lo / sợ thì đầu mày nhướng lên; tò mò thì nhướng một bên; nổ thì dựng cả hai
+      const raise = [0, s > 0 ? -9 : 0, 8, 13, 15, 0][mood], by0 = hy - 26 - Math.max(0, er - 19) - (pop ? 16 : 0) + (mood === 1 && s > 0 ? -8 : 0);
+      ctx.strokeStyle = '#2a1a14'; ctx.lineWidth = 6; ctx.beginPath();
+      ctx.moveTo(ex - s * 16, by0 - (mood === 1 ? 0 : raise)); ctx.lineTo(ex + s * 16, by0 + (mood === 1 ? 0 : raise * 0.5)); ctx.stroke();
     }
+    // sợ: vệt xanh tái trên trán
+    if (mood >= 3 && !pop) { ctx.strokeStyle = 'rgba(80,110,200,.5)'; ctx.lineWidth = 4; ctx.lineCap = 'round'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(hx + 44 + i * 11, hy - 44); ctx.lineTo(hx + 44 + i * 11, hy - 26 - (i % 2) * 6); ctx.stroke(); } }
     // miệng
     ctx.strokeStyle = '#7a2a1a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    if (pop) { ctx.fillStyle = '#5a1420'; ctx.beginPath(); ctx.ellipse(hx + 6, hy + 54, 17, 22, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ff7a8a'; ctx.beginPath(); ctx.ellipse(hx + 6, hy + 64, 10, 8, 0, 0, Math.PI * 2); ctx.fill(); }
-    else if (t > 0.75) { ctx.fillStyle = '#fff'; rr(ctx, hx - 20, hy + 44, 52, 20, 8); ctx.fill(); ctx.stroke(); ctx.lineWidth = 2; for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(hx - 20 + i * 13, hy + 44); ctx.lineTo(hx - 20 + i * 13, hy + 64); ctx.stroke(); } }
-    else if (t > 0.5) { ctx.beginPath(); ctx.moveTo(hx - 14, hy + 56); ctx.quadraticCurveTo(hx, hy + 48, hx + 12, hy + 56); ctx.quadraticCurveTo(hx + 20, hy + 60, hx + 28, hy + 54); ctx.stroke(); }
+    if (mood === 5) { ctx.fillStyle = '#5a1420'; ctx.beginPath(); ctx.ellipse(hx + 6, hy + 54, 17, 22, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ff7a8a'; ctx.beginPath(); ctx.ellipse(hx + 6, hy + 64, 10, 8, 0, 0, Math.PI * 2); ctx.fill(); }
+    else if (mood === 4) { // há miệng la, mép run
+      const w = 26 + (reduced ? 0 : Math.sin(now / 40) * 2);
+      ctx.fillStyle = '#5a1420'; ctx.beginPath(); ctx.moveTo(hx + 6 - w, hy + 46);
+      for (let i = 1; i <= 6; i++) ctx.lineTo(hx + 6 - w + (i / 6) * 2 * w, hy + 46 + (i % 2 ? -4 : 3));
+      ctx.quadraticCurveTo(hx + 6 + w * 0.9, hy + 82, hx + 6, hy + 82); ctx.quadraticCurveTo(hx + 6 - w * 0.9, hy + 82, hx + 6 - w, hy + 46); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff7a8a'; ctx.beginPath(); ctx.ellipse(hx + 6, hy + 73, 13, 7, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    else if (mood === 3) { ctx.fillStyle = '#fff'; rr(ctx, hx - 20, hy + 44, 52, 20, 8); ctx.fill(); ctx.stroke(); ctx.lineWidth = 2; for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(hx - 20 + i * 13, hy + 44); ctx.lineTo(hx - 20 + i * 13, hy + 64); ctx.stroke(); } }
+    else if (mood === 2) { ctx.beginPath(); ctx.moveTo(hx - 16, hy + 56); ctx.quadraticCurveTo(hx - 4, hy + 46, hx + 6, hy + 56); ctx.quadraticCurveTo(hx + 16, hy + 64, hx + 28, hy + 54); ctx.stroke(); }
+    else if (mood === 1) { ctx.fillStyle = '#5a1420'; ctx.beginPath(); ctx.ellipse(hx + 8, hy + 54, 8, 10, 0, 0, Math.PI * 2); ctx.fill(); }
     else { ctx.beginPath(); ctx.arc(hx + 6, hy + 40, 20, Math.PI * 0.12, Math.PI * 0.88); ctx.stroke(); }
-    // mồ hôi khi dưa căng
-    if (t > 0.6 && !pop) for (let i = 0; i < 2; i++) { const k = ((now / 700 + i * 0.5) % 1); ctx.globalAlpha = 1 - k; ctx.fillStyle = '#7fd3ff'; ctx.beginPath(); ctx.ellipse(hx + 98 - i * 196, hy - 20 + k * 50, 7, 11, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    // mồ hôi: càng căng càng nhiều giọt
+    if (mood >= 2 && !pop) for (let i = 0; i < mood; i++) { const k = ((now / (760 - mood * 90) + i * 0.37) % 1); ctx.globalAlpha = 1 - k; ctx.fillStyle = '#7fd3ff'; ctx.beginPath(); ctx.ellipse(hx + (i % 2 ? -100 : 98) + (i > 1 ? (i % 2 ? 18 : -18) : 0), hy - 24 + (i > 1 ? 30 : 0) + k * 54, 7, 11, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     // quai nón + nón lá
     ctx.strokeStyle = '#ff6f91'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(hx - 88, hy - 30); ctx.quadraticCurveTo(hx - 70, hy + 96, hx, hy + 98); ctx.quadraticCurveTo(hx + 70, hy + 96, hx + 88, hy - 30); ctx.stroke();
     ctx.save(); ctx.translate(hx, hy - 44); ctx.rotate(pop ? -0.16 : 0);
