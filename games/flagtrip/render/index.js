@@ -44,15 +44,22 @@ export function mount(el, { canvas, options = {} } = {}) {
   let scene = null;
   const makeCanvas = (cw, ch) => (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(cw, ch) : Object.assign(document.createElement('canvas'), { width: cw, height: ch }));
   const FLY_MS = 1800;
-  /** zk: độ phóng bản đồ vào thủ đô (0–1), a: độ hiện của cảnh low poly, t: giây kể từ lúc cảnh hiện. */
+  const SCENE_H = MAP.h + 618; // khung cảnh mở từ bản đồ xuống trùm hết thẻ lên máy bay (dải chặng 112 + khe 24 + thẻ 470 + mép 12)
+  const clamp01 = (k) => Math.max(0, Math.min(1, k));
+  /** zk: độ phóng bản đồ vào thủ đô (0–1), a: độ hiện của cảnh low poly, grow: khung cảnh mở cao tới đâu (0–1), t: giây kể từ lúc cảnh hiện. */
   function sceneState(now) {
-    if (!scene) return { zk: 0, a: 0, t: 0 };
+    if (!scene) return { zk: 0, a: 0, t: 0, grow: 0 };
     const e = now - scene.at - (scene.fly && !reduced ? FLY_MS : 0);
     const t = Math.max(0, (e - (reduced ? 0 : 550)) / 1000);
-    if (scene.out == null) return reduced ? { zk: 0, a: e >= 0 ? 1 : 0, t } : { zk: ease(e / 900), a: Math.max(0, Math.min(1, (e - 550) / 450)), t };
+    if (scene.out == null) {
+      const st = reduced ? { zk: 0, a: e >= 0 ? 1 : 0, t, grow: e >= 0 ? 1 : 0 } : { zk: ease(e / 900), a: clamp01((e - 550) / 450), t, grow: ease((e - 1000) / 700) };
+      scene.a0 = st.a; scene.g0 = st.grow; scene.z0 = st.zk;
+      return st;
+    }
     const o = now - scene.out;
-    if (o > 800) { scene = null; return { zk: 0, a: 0, t: 0 }; }
-    return { zk: reduced ? 0 : 1 - ease(o / 800), a: 1 - Math.min(1, o / 450), t };
+    if (o > 900) { scene = null; return { zk: 0, a: 0, t: 0, grow: 0 }; }
+    // rút lui: khung thu về cỡ bản đồ trước, rồi cảnh tan ra, bản đồ lùi về toàn cảnh
+    return { zk: reduced ? 0 : scene.z0 * (1 - ease(o / 900)), a: scene.a0 * (1 - clamp01((o - 400) / 450)), t, grow: scene.g0 * (reduced ? 1 : 1 - ease(o / 500)) };
   }
   const litLayer = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(MAP.w, MAP.h) : Object.assign(document.createElement('canvas'), { width: MAP.w, height: MAP.h });
 
@@ -168,7 +175,6 @@ export function mount(el, { canvas, options = {} } = {}) {
       drawPlane(x + px, y + py, -Math.PI / 4);
     }
     ctx.restore();
-    if (sc.a > 0 && scene?.obj) scene.obj.draw(ctx, x, y, sc.t, sc.a);
     ctx.restore();
     if (sc.a > 0.5) return y + h;
     // nhãn vị trí
@@ -187,6 +193,78 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.font = `44px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 10;
     ctx.fillText('✈️', 0, 0);
+    ctx.restore();
+  }
+
+  // ---------------- cảnh thủ đô low poly 3D (đoán đúng) ----------------
+  // Vẽ sau mọi bảng khác: khung cảnh mở từ ô bản đồ xuống che dải chặng + thẻ lên máy bay, thẻ thông tin mới trượt lên ở đáy.
+  const L = { cream: '#f3ead8', creamHi: '#fbf5e8', side: '#cbb893', sideDk: '#a8946f', ink: '#3b2a20', soft: '#7a6553', terra: '#b5593c', terraDk: '#8a4530', olive: '#6f7f4a' };
+  function poly(pts, col) { ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
+  function drawScene(now) {
+    const sc = sceneState(now);
+    if (!(sc.a > 0) || !scene?.obj) return;
+    const { x, y, w } = MAP, hh = MAP.h + (SCENE_H - MAP.h) * sc.grow;
+    ctx.save();
+    if (sc.grow > 0) { ctx.shadowColor = `rgba(0,0,0,${0.5 * sc.a})`; ctx.shadowBlur = 34; ctx.shadowOffsetY = 12; rr(x, y, w, hh, 24); ctx.fillStyle = `rgba(4,14,22,${sc.a})`; ctx.fill(); ctx.shadowColor = 'transparent'; }
+    rr(x, y, w, hh, 24); ctx.clip();
+    scene.obj.draw(ctx, x, y, sc.t, sc.a, { viewH: hh, grow: sc.grow });
+    drawSceneCard(x + 20, y + SCENE_H - 322, w - 40, 290, sc, now);
+    ctx.restore();
+    rr(x + 1.5, y + 1.5, w - 3, hh - 3, 23); ctx.strokeStyle = `rgba(243,234,216,${0.6 * sc.a})`; ctx.lineWidth = 3; ctx.stroke();
+  }
+  /** Thẻ thông tin của cảnh: tấm bảng kem dày (mặt trên sáng, cạnh dưới sẫm), lá cờ thành khối có bề dày, chữ nâu espresso. */
+  function drawSceneCard(x, y, w, h, sc, now) {
+    const a = scene.info;
+    const k = reduced ? (sc.t > 0 ? 1 : 0) : back((sc.t - 1.7) / 0.55);
+    if (!a || k <= 0) return;
+    ctx.save(); ctx.globalAlpha = sc.a * Math.min(1, k * 1.4); ctx.translate(0, (1 - k) * 110);
+    // bóng đổ + khối bảng
+    ctx.save(); ctx.translate(x + w / 2, y + h + 12); ctx.scale(1, 0.05); const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, w * 0.56); sg.addColorStop(0, 'rgba(30,26,20,.5)'); sg.addColorStop(1, 'rgba(30,26,20,0)'); ctx.fillStyle = sg; ctx.fillRect(-w, -w, w * 2, w * 2); ctx.restore();
+    rr(x, y + 12, w, h, 22); ctx.fillStyle = L.sideDk; ctx.fill();
+    ctx.save(); rr(x, y + 12, w, h, 22); ctx.clip(); poly([x, y + h - 20, x + w * 0.58, y + h - 20, x + w * 0.52, y + h + 12, x, y + h + 12], L.side); ctx.restore();
+    rr(x, y, w, h, 22); ctx.fillStyle = L.cream; ctx.fill();
+    ctx.save(); rr(x, y, w, h, 22); ctx.clip();
+    poly([x, y, x + w * 0.44, y, x + w * 0.3, y + h, x, y + h], L.creamHi); // mặt đón nắng
+    poly([x + w, y + h * 0.3, x + w, y + h, x + w * 0.72, y + h], '#eadfc8'); // mặt khuất
+    ctx.restore();
+    // lá cờ: khối có bề dày
+    const fw = 252, fh = 189, fx = x + 30, fy = y + 34, d = 10;
+    ctx.save(); ctx.translate(fx + fw / 2 + 10, fy + fh + d + 8); ctx.scale(1, 0.07); const fg = ctx.createRadialGradient(0, 0, 0, 0, 0, fw * 0.62); fg.addColorStop(0, 'rgba(30,26,20,.42)'); fg.addColorStop(1, 'rgba(30,26,20,0)'); ctx.fillStyle = fg; ctx.fillRect(-fw, -fw, fw * 2, fw * 2); ctx.restore();
+    poly([fx + fw, fy, fx + fw + d, fy + d, fx + fw + d, fy + fh + d, fx + fw, fy + fh], '#8d7b5e');
+    poly([fx, fy + fh, fx + fw, fy + fh, fx + fw + d, fy + fh + d, fx + d, fy + fh + d], '#75644a');
+    ctx.fillStyle = '#fff'; ctx.fillRect(fx, fy, fw, fh);
+    const im = flagImg(a.flag);
+    if (im) ctx.drawImage(im, fx, fy, fw, fh); else text('🏳️', fx + fw / 2, fy + fh / 2, 90);
+    poly([fx, fy, fx + fw * 0.5, fy, fx + fw * 0.26, fy + fh, fx, fy + fh], 'rgba(255,255,255,.1)');
+    // chữ
+    const tx = fx + fw + d + 34, tw = x + w - 30 - tx;
+    text(a.name, tx, y + 62, a.name.length > 14 ? 42 : 54, L.ink, 900, 'left', tw - 200);
+    text(`🏛️ Thủ đô: ${a.capital}`, tx, y + 116, 27, L.terraDk, 800, 'left', tw - 200);
+    if (a.sights.length) text(`📍 ${a.sights.join(' · ')}`, tx, y + 156, 23, L.soft, 700, 'left', tw);
+    if (a.food.length) text(`🍜 ${a.food.join(', ')}`, tx, y + 190, 23, L.soft, 700, 'left', tw);
+    // điều thú vị: tối đa 2 dòng, dòng cuối cắt bằng dấu ba chấm
+    ctx.font = `600 21px ${FONT}`;
+    const words = String(a.fact || '').split(' ').filter(Boolean);
+    let line = '', i = 0;
+    for (; i < words.length; i++) { const t2 = line ? `${line} ${words[i]}` : `💡 ${words[i]}`; if (ctx.measureText(t2).width > tw && line) break; line = t2; }
+    if (line) text(line, tx, y + 226, 21, L.ink, 600, 'left');
+    if (i < words.length) text(words.slice(i).join(' '), tx, y + 254, 21, L.ink, 600, 'left', tw);
+    // con dấu hộ chiếu + chặng
+    ctx.save(); ctx.translate(x + w - 122, y + 78); ctx.rotate(-0.16);
+    const sk = reduced ? 1 : back((sc.t - 2.4) / 0.35);
+    if (sk > 0) {
+      ctx.scale(2 - sk, 2 - sk); ctx.globalAlpha *= Math.min(1, sk) * 0.9; ctx.strokeStyle = L.terra; ctx.lineWidth = 5;
+      rr(-92, -42, 184, 84, 12); ctx.stroke(); ctx.lineWidth = 2; rr(-84, -34, 168, 68, 8); ctx.stroke();
+      text('ĐÃ ĐẾN', 0, -9, 32, L.terra, 900);
+      text(`${a.solvedCount} người đúng`, 0, 21, 17, L.terra, 800, 'center', 160);
+    }
+    ctx.restore();
+    // thanh thời gian
+    if (S.phase === 'reveal') {
+      const frac = clamp01(remaining(now) / S.phaseMs);
+      rr(x + 30, y + h - 20, w - 60, 8, 4); ctx.fillStyle = 'rgba(59,42,32,.16)'; ctx.fill();
+      rr(x + 30, y + h - 20, Math.max(8, (w - 60) * frac), 8, 4); ctx.fillStyle = L.olive; ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -490,6 +568,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     const legsBottom = drawLegs(mapBottom + 48);
     const passBottom = drawPass(legsBottom + 24, now);
     drawBottom(passBottom + 28);
+    drawScene(now);
     if (S.phase === 'rescue') drawRescue(now);
     drawFx(dt);
     if (S.phase === 'landed') drawLanded(now);
@@ -505,8 +584,9 @@ export function mount(el, { canvas, options = {} } = {}) {
         if ((s.phase === 'reveal' && s.answer?.solved) || s.phase === 'landed') anim.flyAt = now;
         if (s.phase === 'reveal' && s.answer?.solved && s.trip?.at) {
           try {
-            const obj = createScene({ iso2: s.answer.iso2, region: s.region, lat: s.trip.at.lat, lon: s.trip.at.lon, capital: s.answer.capital, country: s.answer.name, sight: s.answer.sights?.[0] }, { w: MAP.w, h: MAP.h, makeCanvas, font: FONT, reduced });
-            scene = { at: now, out: null, fly: !!s.trip.from, obj };
+            const obj = createScene({ iso2: s.answer.iso2, region: s.region, lat: s.trip.at.lat, lon: s.trip.at.lon, capital: s.answer.capital, country: s.answer.name, sight: s.answer.sights?.[0] }, { w: MAP.w, h: SCENE_H, makeCanvas, font: FONT, reduced });
+            const info = { ...s.answer, flag: s.flag, solvedCount: s.solvedCount, pos: s.trip.pos, length: s.trip.length };
+            scene = { at: now, out: null, fly: !!s.trip.from, obj, info, a0: 0, g0: 0, z0: 0 };
           } catch (e) { console.warn('[flagtrip] cảnh low poly lỗi', e); scene = null; }
         } else if (scene && scene.out == null) scene.out = now;
       }

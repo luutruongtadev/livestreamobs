@@ -21,11 +21,13 @@ Cả phòng lái chung một chiếc máy bay. Mỗi chặng hiện một lá c�
 4. **Lộ đáp án:** hiện thẻ du lịch gồm thủ đô, 2 danh thắng, món ngon và một điều thú vị.
    - Máy bay bay tới nước đó, đóng dấu hộ chiếu.
    - Nước đó được thắp sáng trên bản đồ suốt buổi live.
-   - Có người đúng: máy bay bay tới thủ đô, bản đồ phóng sát vào thủ đô rồi chuyển sang **cảnh thủ đô low poly**:
-     - công trình biểu tượng của nước đó dựng dần từ chân lên (khoảng 30 kiểu: tháp Eiffel, Big Ben, chùa Một Cột, kim tự tháp, Taj Mahal, nhà hát Sydney…);
-     - phố xá, cây cối và màu đất theo vùng và khí hậu;
-     - bầu trời ngày, hoàng hôn hoặc đêm (đêm thì đèn cửa sổ sáng);
-     - máy bay bay ngang kéo vệt khói, pháo hoa, băng rôn tên thủ đô.
+   - Có người đúng: máy bay bay tới thủ đô, bản đồ phóng sát vào thủ đô rồi khung bản đồ mở rộng xuống thành **cảnh thủ đô low poly 3D**:
+     - công trình biểu tượng của nước đó đứng trên một hòn đảo nổi, dựng dần từ chân lên (khoảng 30 kiểu: tháp Eiffel, Big Ben, chùa Một Cột, kim tự tháp, Taj Mahal, nhà hát Sydney…);
+     - đảo lao từ xa tới gần, quanh đảo có mảnh đá bay lơ lửng, núi đá đỏ gạch, sương mù chân trời, mây khối;
+     - không viền đen: mọi khối có mặt sáng / mặt tối và bóng đổ mờ dưới chân; màu trầm kiểu sương khói;
+     - nhà, cây và màu đất theo vùng và khí hậu; bầu trời ngày, hoàng hôn hoặc đêm (đêm thì đèn cửa sổ sáng);
+     - máy bay bay ngang kéo vệt khói, pháo hoa, băng rôn tên thủ đô;
+     - thẻ thông tin màu kem ở đáy cảnh: lá cờ, tên nước, thủ đô, danh thắng, món ngon, điều thú vị, con dấu "ĐÃ ĐẾN". Trong lúc này cảnh che dải chặng và thẻ lên máy bay.
    - Bảng công trình theo nước nằm ở `render/lowpoly.js` (`LANDMARK`, `LANDMARK_NAME`). Nước chưa có trong bảng thì chọn theo vùng.
    - Thời gian xem thẻ và cảnh: `revealSeconds` (mặc định 10).
 5. **Không ai đúng:**
