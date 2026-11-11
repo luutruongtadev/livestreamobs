@@ -175,7 +175,7 @@ test('dashboard: token sai bị đóng; dev token → tạo kênh, cài đặt /
     await req('config', { channel: ch.id, settings: { answerSeconds: 20 }, bindings: [{ action: 'flash', trigger: { type: 'follow' } }] });
     const cfg = await o.next((m) => m.t === 'cfg');
     assert.equal(cfg.channel.settings.answerSeconds, 20);
-    assert.equal(cfg.channel.settings.startDigits, 2, 'điền default');
+    assert.equal(cfg.channel.settings.startDigits, 4, 'điền default');
     assert.equal(cfg.channel.bindings[0].label, 'Hiện lại dãy số');
     await req('cmd', { channel: ch.id, id: 'next' });
     assert.equal((await o.next((m) => m.t === 'cmd')).id, 'next');

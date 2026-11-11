@@ -30,7 +30,7 @@ test('hai game chạy song song trên cùng nền tảng không ảnh hưởng n
   const a = createHost(doantu, { data: doantu.data, now: clock.now, random: seededRandom(1), server, log: {} });
   const b = createHost(memory, { data: memory.data, now: clock.now, random: seededRandom(1), server, log: {} });
   const rose = { type: 'gift', user: { id: 'g', name: 'G' }, giftName: 'Rose', diamonds: 1, count: 1 };
-  clock.advance(10_000); b.tick(); // memory sang pha trả lời
+  clock.advance(10_000); b.tick(); clock.advance(2000); b.tick(); // memory: hiện số → nhiễu → pha trả lời
   const fa = a.handle(rose), fb = b.handle(rose);
   assert.ok(fa.some((e) => e.type === 'wg_progress'), 'Đoán từ: Rose gom 1/5');
   assert.ok(fb.some((e) => e.type === 'mm_flash'), 'Nhớ số: Rose hiện lại số — cùng quà, mỗi game một action riêng');

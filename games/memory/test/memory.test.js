@@ -9,7 +9,8 @@ const u = (id) => ({ id, name: `Người ${id}` });
 function mk(settings = {}) {
   const clock = fakeClock();
   const fx = [];
-  const host = createHost(game, { settings, now: clock.now, random: seededRandom(3), log: {}, onEffects: (e) => fx.push(...e) });
+  // các test cũ chạy với luật cũ (cả dãy cùng lúc, không nhiễu, 2 chữ số, 2 cấp thêm 1 chữ số)
+  const host = createHost(game, { settings: { startDigits: 2, levelsPerDigit: 2, showStyle: 'all', mask: false, speed: 'tuychinh', msPerDigit: 500, speedUpPerLevel: 0, ...settings }, now: clock.now, random: seededRandom(3), log: {}, onEffects: (e) => fx.push(...e) });
   return { host, clock, fx, game: () => host };
 }
 
@@ -117,4 +118,29 @@ test('quà lộ chữ số (tối đa 1/3 dãy, điểm giảm), khiên giữ c�
   }
   assert.equal(pts[1].streak, 2);
   assert.ok(pts[1].points > pts[0].points, 'chuỗi đúng liên tiếp được thưởng');
+});
+
+test('từng chữ số + nhiễu + tốc độ: số không lộ cả dãy, mỗi chữ số theo ms cài đặt, nhanh dần theo cấp, nhiễu trước khi trả lời', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { speed: 'sieutoc', speedUpPerLevel: 10, answerSeconds: 10 }, now: clock.now, random: seededRandom(5), log: {} });
+  const s0 = host.snapshot();
+  assert.equal(s0.digits, 4, 'mặc định mới: 4 chữ số');
+  assert.equal(s0.style, 'flash');
+  assert.equal(s0.number, null, 'từng chữ số: không lộ cả dãy cùng lúc');
+  assert.equal(s0.seq.per, 180); assert.equal(s0.seq.digits.length, 4);
+  assert.equal(s0.remainingMs, 350 + 4 * 180);
+  clock.advance(350 + 4 * 180); const f1 = host.tick();
+  assert.equal(f1[0].type, 'mm_mask'); assert.equal(host.snapshot().phase, 'mask');
+  assert.deepEqual(host.handle({ type: 'comment', user: u('a'), text: s0.seq.digits }), [], 'đang nhiễu chưa nhận trả lời');
+  clock.advance(1200); assert.equal(host.tick()[0].type, 'mm_hide');
+  assert.equal(host.handle({ type: 'comment', user: u('a'), text: s0.seq.digits })[0].type, 'mm_correct');
+  clock.advance(10_000); host.tick(); clock.advance(5000); host.tick();
+  const s1 = host.snapshot();
+  assert.equal(s1.level, 2); assert.equal(s1.digits, 5, 'mỗi cấp thêm 1 chữ số');
+  assert.equal(s1.seq.per, 162, 'cấp 2 nhanh hơn 10%');
+  // tuỳ chỉnh tốc độ, có sàn 80 ms
+  const h2 = createHost(game, { settings: { speed: 'tuychinh', msPerDigit: 1000, showStyle: 'all', mask: false }, now: clock.now, random: seededRandom(1), log: {} });
+  assert.equal(h2.snapshot().perDigitMs, 1000); assert.ok(h2.snapshot().number, 'cả dãy cùng lúc: số hiện đủ');
+  const h3 = createHost(game, { settings: { speed: 'tuychinh', msPerDigit: 80, speedUpPerLevel: 20, startLevel: 20 }, now: clock.now, random: seededRandom(1), log: {} });
+  assert.equal(h3.snapshot().perDigitMs, 80);
 });

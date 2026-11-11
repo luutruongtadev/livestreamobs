@@ -3,7 +3,19 @@
 Game mẫu thứ hai của nền tảng, dùng để kiểm chứng chuẩn module: không có phần server, chỉ nhận bình luận.
 
 ## Luật chơi
-1. **Ghi nhớ**: một dãy số hiện lên trong thời gian ngắn (mặc định 2 giây cho 4 chữ số, tỉ lệ theo độ dài).
+1. **Ghi nhớ**: dãy số hiện lên rất nhanh. Chỉnh trong Cài đặt game:
+   - **Cách hiện** (`showStyle`):
+     - **Từng chữ số loé lên rồi tắt** (mặc định, khó): mỗi lúc chỉ thấy 1 chữ số, ô khác để trống.
+     - **Cả dãy cùng lúc** (dễ hơn).
+   - **Tốc độ** (`speed`):
+     - Chậm: 0,7 giây / chữ số.
+     - Vừa: 0,45 giây / chữ số.
+     - Nhanh: 0,3 giây / chữ số (mặc định).
+     - Siêu tốc: 0,18 giây / chữ số.
+     - Tuỳ chỉnh: `msPerDigit`, từ 80 ms trở lên.
+   - **Mỗi cấp nhanh thêm** `speedUpPerLevel` % (mặc định 4%), sàn 80 ms / chữ số.
+   - **Nhiễu** (`mask`, bật mặc định): sau khi ẩn, các ô nhấp nháy số ngẫu nhiên 1,2 giây để xoá trí nhớ hình ảnh, rồi mới nhận trả lời.
+   - Mặc định khó hơn trước: bắt đầu 4 chữ số, mỗi cấp thêm 1 chữ số (`startDigits`, `levelsPerDigit`).
 2. **Trả lời**: dãy số ẩn đi, người xem gõ lại vào bình luận. Khoảng trắng / dấu phân cách được bỏ qua, nhận cả chữ số không phải Latin (toàn chiều rộng, Ả Rập…). Bình luận có chữ cái không tính là câu trả lời. Mỗi người **1 lần / vòng**.
 3. **Đáp án**: lộ dãy số và danh sách người đúng. Điểm = 50–100% `basePoints`, trả lời càng sớm càng nhiều.
 4. Có người đúng → **lên cấp** (cứ `levelsPerDigit` cấp thêm 1 chữ số). Sai liên tiếp `failsToLevelDown` vòng → xuống 1 cấp.
