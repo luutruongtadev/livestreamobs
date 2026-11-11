@@ -57,7 +57,9 @@ test('checkStudio: toạ độ kẹp trong khung, config theo schema (sai → de
   assert.throws(() => checkStudio({ sounds: [{ when: { type: 'follow' }, sound: 'url', url: 'http://x.test/a.mp3' }] }, widgets), /https/);
   assert.throws(() => checkStudio({ sounds: [{ when: { type: 'gift' }, sound: 'coin' }] }, widgets), /gift/i);
   assert.throws(() => checkStudio({ widgets: Array.from({ length: STUDIO_LIMITS.widgets + 1 }, () => ({ type: 'text' })) }, widgets), /Tối đa/);
-  assert.deepEqual(checkStudio(null, widgets), { widgets: [], sounds: [], panels: {} });
+  const empty = checkStudio(null, widgets);
+  assert.deepEqual({ ...empty, scenes: undefined }, { widgets: [], sounds: [], panels: {}, scenes: undefined });
+  assert.equal(empty.scenes.intro.title, 'LIVE SẮP BẮT ĐẦU', 'màn chuẩn bị: mặc định');
 });
 
 test('SessionStats: xu = xu × số món, top người tặng, tim / follow / share / bình luận, đặt lại', () => {
@@ -172,4 +174,17 @@ test('checkStudio: bảng của game (vị trí / cỡ / ẩn) chỉ nhận game
   assert.equal(s.panels.g1.gifts.x, 1080 - 1000, 'không kéo ra hẳn ngoài khung (giữ được nửa bảng)');
   assert.equal(s.panels.g1.gifts.y, 300);
   assert.equal(s.panels.g1.gifts.hidden, true);
+});
+
+test('màn chuẩn bị / kết thúc live: cấu hình làm sạch (thiếu → mặc định, ảnh chỉ https), trạng thái màn + hẹn giờ tắt trong 24 giờ', async () => {
+  const { cleanScenes, checkScene } = await import('../gateway/studio.js');
+  const s = checkStudio({ scenes: { intro: { title: 'Sắp live', countdownMin: 999, image: 'http://x.test/a.jpg', theme: 'la' }, outro: { warnMin: 3, pauseGame: false } } }, widgets);
+  assert.equal(s.scenes.intro.title, 'Sắp live'); assert.equal(s.scenes.intro.countdownMin, 180); assert.equal(s.scenes.intro.image, ''); assert.equal(s.scenes.intro.theme, 'tim');
+  assert.equal(s.scenes.outro.warnMin, 3); assert.equal(s.scenes.outro.pauseGame, false); assert.equal(s.scenes.outro.title, 'CẢM ƠN MỌI NGƯỜI!');
+  assert.equal(cleanScenes({ intro: { image: 'https://cdn.test/bg.jpg' } }).intro.image, 'https://cdn.test/bg.jpg');
+  const now = 1_000_000_000;
+  assert.deepEqual(checkScene({ mode: 'intro' }, now), { mode: 'intro', at: now, endAt: null });
+  assert.equal(checkScene({ mode: 'live', endAt: now + 3600_000 }, now).endAt, now + 3600_000);
+  assert.throws(() => checkScene({ mode: 'live', endAt: now + 48 * 3600_000 }, now), /24 giờ/);
+  assert.throws(() => checkScene({ mode: 'xyz' }, now), /không hợp lệ/);
 });

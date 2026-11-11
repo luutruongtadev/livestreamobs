@@ -38,7 +38,7 @@ export function checkStudio(input, widgets = [], games = []) {
   if (list.length > STUDIO_LIMITS.widgets) throw new Error(`Tối đa ${STUDIO_LIMITS.widgets} widget trên một khung`);
   if (rules.length > STUDIO_LIMITS.sounds) throw new Error(`Tối đa ${STUDIO_LIMITS.sounds} luật âm thanh`);
   const seen = new Set();
-  const out = { widgets: [], sounds: [], panels: {} };
+  const out = { widgets: [], sounds: [], panels: {}, scenes: cleanScenes(s.scenes) };
   list.forEach((w, i) => {
     const meta = byType.get(w?.type);
     if (!meta) throw new Error(`widget[${i}]: không có loại "${w?.type}"`);
@@ -74,6 +74,41 @@ export function checkStudio(input, widgets = [], games = []) {
     if (Object.keys(clean).length) out.panels[g.id] = clean;
   }
   return out;
+}
+
+export const SCENE_THEMES = ['tim', 'dem', 'cam', 'xanh', 'hong'];
+export const SCENE_DEFAULTS = {
+  intro: { title: 'LIVE SẮP BẮT ĐẦU', subtitle: 'Chờ chút nhé, mình đang chuẩn bị 💖', countdownMin: 5, autoLive: false, theme: 'tim', image: '', showChat: true },
+  outro: { title: 'CẢM ƠN MỌI NGƯỜI!', subtitle: 'Hẹn gặp lại ở buổi live sau nha 👋', warnMin: 5, pauseGame: true, theme: 'dem', image: '', showTop: true },
+};
+const httpsUrl = (v) => { const u = str(v, 500).trim(); return /^https:\/\/[^\s"'<>]+$/i.test(u) ? u : ''; };
+
+/** Cấu hình màn chuẩn bị / màn kết thúc live (làm sạch, thiếu → mặc định). */
+export function cleanScenes(input) {
+  const i = input && typeof input === 'object' ? input : {};
+  const a = { ...SCENE_DEFAULTS.intro, ...(i.intro || {}) }, b = { ...SCENE_DEFAULTS.outro, ...(i.outro || {}) };
+  return {
+    intro: {
+      title: str(a.title, 60), subtitle: str(a.subtitle, 160), countdownMin: Math.round(num(a.countdownMin, 0, 180, 5)), autoLive: a.autoLive === true,
+      theme: SCENE_THEMES.includes(a.theme) ? a.theme : 'tim', image: httpsUrl(a.image), showChat: a.showChat !== false,
+    },
+    outro: {
+      title: str(b.title, 60), subtitle: str(b.subtitle, 160), warnMin: Math.round(num(b.warnMin, 0, 60, 5)), pauseGame: b.pauseGame !== false,
+      theme: SCENE_THEMES.includes(b.theme) ? b.theme : 'dem', image: httpsUrl(b.image), showTop: b.showTop !== false,
+    },
+  };
+}
+
+/** Trạng thái màn hiện tại do streamer bấm: live / intro (chuẩn bị) / outro (kết thúc) + hẹn giờ tắt (endAt, ms). */
+export function checkScene(p = {}, now = Date.now()) {
+  const mode = ['live', 'intro', 'outro'].includes(p.mode) ? p.mode : null;
+  if (!mode) throw new Error('Màn hình không hợp lệ');
+  let endAt = null;
+  if (p.endAt != null) {
+    endAt = Math.round(Number(p.endAt));
+    if (!Number.isFinite(endAt) || endAt < now - 60_000 || endAt > now + 24 * 3600_000) throw new Error('Giờ tắt live phải trong vòng 24 giờ tới');
+  }
+  return { mode, at: now, endAt };
 }
 
 /** Âm thanh bấm tay từ soundboard của dashboard → lệnh sạch cho overlay (ném lỗi nếu sai). */
