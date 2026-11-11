@@ -10,6 +10,44 @@ Người xem đóng vai **bảo an, chủ quản**: tặng quà để gây khó,
 
 Tên nhân vật, địa danh và kịch bản trong game đều là hư cấu. Người xem luôn thấy dòng **🚩 Dấu hiệu lừa đảo** dưới mỗi tin nhắn mồi, và cuối chiến dịch có một **mẹo phòng lừa đảo**.
 
+## 📖 Cốt truyện: 5 chương mỗi chiến dịch
+Nhân vật (hư cấu):
+- 🕶️ **Hắc Long:** chủ quản.
+- 🔦 **Tèo Cận:** bảo an ham tiền.
+- 🧑‍🌾 **Bé Hai:** đồng hương bị lừa sang.
+- 👮 **Chỉ huy Sơn:** công an, nhắn tin mật.
+- 🦊 **Cáo:** người bí ẩn.
+
+| Ngày | Chương | Người xem chọn (bình luận 1 / 2) |
+|---|---|---|
+| 1 | Bước qua cổng | Tèo Cận đòi 200 đô. **1** Đưa tiền: tuần tra ngắn một nửa cả chiến dịch, KPI hôm nay +2. **2** Từ chối: nghi ngờ +10%. |
+| 2 | Người đồng hương | Bé Hai xin trốn cùng. **1** Đưa theo: cứu thêm người, đêm cuối dài hơn. **2** Để lại: an toàn hơn. |
+| 3 | Sổ đen | Cáo đưa USB lạ. **1** Cắm vào: 50% ra 2 bằng chứng, 50% là bẫy (+20% nghi ngờ, mất sóng). **2** Vứt đi. |
+| 4 | Kẻ phản bội | Hắc Long tra hỏi. **1** Đổ cho người khác: −25% nghi ngờ. **2** Im lặng: +10%. Cuối ngày người xem **đoán kẻ phản bội**. |
+| 5 | Đêm giải cứu | Chọn đường: **1** cổng sau (ngắn, nhiều camera) / **2** đường ống (dài, ít camera). |
+
+- **Trong ngày:** nhân vật nhắn tin theo mốc thời gian, kèm sự kiện (tuần tra, thu điện thoại, Cáo lén đưa tài liệu…).
+- **Quà lúc bình chọn:** được giữ lại, vào ca mới có tác dụng.
+- **🐀 Kẻ phản bội:**
+  - Mỗi chiến dịch chọn ngẫu nhiên 3 nghi phạm từ 16 cái tên. Tên không trùng chiến dịch trước, nên mỗi màn mỗi khác.
+  - Ngày 1–3, Bé Hai (hoặc Cáo, nếu không đưa Bé Hai theo) kể manh mối: mỗi ngày một manh mối thật về kẻ phản bội và một chuyện của người vô tội.
+  - Cuối ngày 4, người xem bình luận **A / B / C**. Đoán đúng: −10% nghi ngờ và camera đêm cuối thưa hơn. Đoán sai: +15% nghi ngờ và camera dày hơn.
+- **📟 Tin mật của Chỉ huy Sơn:** xuất hiện ở tab Bí mật dưới dạng chữ bị dịch đi vài bậc trong bảng chữ cái. Giải đúng thì có `safeSeconds` giây (mặc định 25) ngồi ở tab Bí mật không bị nghi.
+- **💌 Lời nhắn của Bé Hai** (ngày 2): gõ lại để gửi về cho gia đình. Bé Hai tin bạn và đi nhanh hơn trong đêm cuối.
+- **🌙 Đêm giải cứu** (`nightSeconds`, mặc định 2:30): màn chạy trốn qua 5–8 đoạn hành lang.
+  - Mỗi đoạn rẽ trái hoặc phải. Sơ đồ đã gửi về sẽ hiện đường; bằng chứng "Sơ đồ khu trại" hiện toàn bộ.
+  - Camera quét thì phải chờ; đi lúc camera đang quét là bị thấy (+15%).
+  - Bảo an tuần tra thì bấm **TRỐN**.
+  - **Tim của người xem** làm camera tắt (`likeDistractMs` mỗi tim, tối đa 8 giây).
+  - Phím tắt: ← → để đi, Space để trốn.
+- **📁 Hồ sơ vụ án:** mỗi bằng chứng gửi về là một trang hồ sơ có chú thích, hiện ở thẻ kết thúc.
+- **5 đoạn kết:**
+  - 🚔 **Triệt phá hoàn toàn:** gửi đủ bằng chứng, đoán đúng kẻ phản bội, cứu Bé Hai.
+  - 🕊️ **Thoát cùng đồng hương.**
+  - 🏃 **Thoát một mình.**
+  - 😱 **Bị lộ:** nghi ngờ lên 100%.
+  - 🚐 **Bị bán sang trại khác:** trời sáng mà chưa thoát.
+
 ## Cách chơi (máy tính giả lập, cửa sổ chơi `?play=1`)
 Màn hình máy tính có 2 tab. Bấm vào tab hoặc nhấn **Tab** để đổi. Nhấn **Esc** để quay nhanh về Việc trại.
 
@@ -33,15 +71,13 @@ Bằng chứng thu được nằm trong máy nhưng **chưa an toàn**. Bấm **
 Ngồi ở tab Bí mật thì nghi ngờ tăng `secretSusPerSec`% mỗi giây. Nếu **bảo an đang tuần tra** thì tăng `patrolSusPerSec`% mỗi giây, nên phải chuyển tab ngay.
 
 ## Luật
-1. **Chiến dịch** gồm `days` ngày (mặc định 5), mỗi ngày dài `daySeconds` giây (mặc định 3:00).
+1. **Chiến dịch** gồm 4 ngày làm việc (mỗi ngày `daySeconds` giây, mặc định 3:00) và 1 đêm giải cứu.
    - KPI ngày đầu là `kpi`, mỗi ngày sau +1 (tối đa +4).
 2. **Cuối ngày:**
    - Đủ KPI: nghi ngờ −`kpiBonus`%.
    - Thiếu KPI: nghi ngờ +`missKpi`% và có hình phạt vui cho streamer.
-3. **Thắng (GIẢI CỨU THÀNH CÔNG):** gửi đủ `evidence` bằng chứng (mặc định 5).
-4. **Thua:**
-   - Nghi ngờ chạm 100%: **BỊ LỘ DANH TÍNH**.
-   - Hết số ngày mà chưa gửi đủ bằng chứng: **MẤT DẤU**.
+3. **Gửi đủ `evidence` bằng chứng** (mặc định 5) chưa phải là thắng: còn phải thoát ra trong Đêm giải cứu. Kết cục tuỳ bằng chứng, kẻ phản bội và Bé Hai (xem phần Cốt truyện).
+4. **Nghi ngờ chạm 100%** ở bất kỳ lúc nào: **BỊ LỘ DANH TÍNH**.
 5. Thẻ kết thúc có 2 bảng:
    - **🔦 Bảo an gắt nhất:** tính theo xu quà gây khó.
    - **🤝 Đồng đội thầm lặng:** tính xu quà giúp, cộng 1 điểm cho mỗi lần bình luận che.

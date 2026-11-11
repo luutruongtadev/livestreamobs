@@ -37,7 +37,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let S = null, recvAt = 0, raf = 0, stopped = false, last = performance.now();
-  const anim = { phaseAt: 0, phaseKey: '', title: null, shake: 0, hot: {}, pingAt: new Map(), kpiAt: 0, evAt: 0, patrolAt: 0, caughtAt: 0, flashAt: 0, flash: null };
+  const anim = { storyAt: new Map(), phaseAt: 0, phaseKey: '', title: null, shake: 0, hot: {}, pingAt: new Map(), kpiAt: 0, evAt: 0, patrolAt: 0, caughtAt: 0, flashAt: 0, flash: null };
   const floaters = [], confetti = [];
   let hits = [];
   const sound = makeSound(!!options.mute);
@@ -122,22 +122,23 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawHud(now) {
     const x = 24, y = TOP, w = 776, h = 150;
     fill(x, y, w, h, 26, C.panel); stroke(x, y, w, h, 26, C.edge);
-    text(`NGÀY ${S.day}/${S.days}`, x + 30, y + 34, 24, C.amber, 900, 'left');
+    text(`NGÀY ${S.day}/${S.days} · ${S.chapter?.title?.toUpperCase() || ''}`, x + 30, y + 34, 22, C.amber, 900, 'left', w - 330);
     const tag = `🕶️ Mật danh: ${S.code}`;
     const tw = measure(tag, 21, 800) + 28;
     fill(x + w - tw - 20, y + 15, tw, 38, 19, 'rgba(255,255,255,.1)');
     text(tag, x + w - tw / 2 - 20, y + 35, 21, '#e5e7eb', 800);
-    text('KPI hôm nay', x + 30, y + 80, 28, C.text, 800, 'left');
+    const esc = S.escape;
+    text(esc ? '🏃 Đường thoát' : 'KPI hôm nay', x + 30, y + 80, 28, C.text, 800, 'left');
     const bx = x + 30, by = y + 106, bw = w - 190;
-    bar(bx, by, bw, 24, S.kpi / Math.max(1, S.kpiTarget), '#f59e0b', '#fde047');
+    bar(bx, by, bw, 24, esc ? esc.seg / esc.n : S.kpi / Math.max(1, S.kpiTarget), esc ? '#38bdf8' : '#f59e0b', esc ? '#a7f3d0' : '#fde047');
     const pop = 1 + 0.35 * Math.max(0, 1 - (now - anim.kpiAt) / 350);
     ctx.save(); ctx.translate(x + w - 82, by + 6); ctx.scale(pop, pop);
-    text(`${S.kpi}/${S.kpiTarget}`, 0, 0, 40, S.kpi >= S.kpiTarget ? C.green : '#fde047', 900);
+    text(esc ? `${esc.seg}/${esc.n}` : `${S.kpi}/${S.kpiTarget}`, 0, 0, 40, esc ? '#a7f3d0' : S.kpi >= S.kpiTarget ? C.green : '#fde047', 900);
     ctx.restore();
     if (S.saved) text(`🛟 đã cứu ${S.saved}`, x + 230, y + 80, 22, '#67e8f9', 800, 'left');
     const dx = 816, dw = 240;
     fill(dx, y, dw, h, 26, C.panel); stroke(dx, y, dw, h, 26, C.edge);
-    text('HẾT NGÀY', dx + dw / 2, y + 32, 22, C.dim, 800);
+    text(S.chapter?.kind === 'escape' ? 'TRỜI SÁNG' : 'HẾT NGÀY', dx + dw / 2, y + 32, 22, C.dim, 800);
     const ms = S.phase === 'work' ? left(S.remainingMs, now) : S.phase === 'brief' ? S.dayMs : 0;
     const urgent = S.phase === 'work' && ms < 30_000;
     const pulse = urgent && !reduced ? 1 + 0.06 * Math.sin(now / 90) : 1;
@@ -160,11 +161,20 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     // sóng
     x = 380; w = 344;
     const noPhone = !!statusOf('thudt');
+    if (S.escape) {
+      const dm = left(S.escape.distractMs, now);
+      fill(x, y, w, h, 22, C.panel); stroke(x, y, w, h, 22, dm > 0 ? 'rgba(244,114,182,.8)' : C.edge, dm > 0 ? 4 : 2);
+      text('❤️ ĐÁNH LẠC HƯỚNG', x + 20, y + 28, 22, '#f9a8d4', 900, 'left');
+      text(dm > 0 ? `${(dm / 1000).toFixed(1)}s` : '—', x + w - 20, y + 28, 28, '#fff', 900, 'right');
+      bar(x + 20, y + 54, w - 40, 22, dm / 8000, '#f472b6', '#fbcfe8');
+      text('Thả tim: camera tắt (tối đa 8 giây)', x + 20, y + 102, 19, C.dim, 700, 'left', w - 40);
+    } else {
     fill(x, y, w, h, 22, C.panel); stroke(x, y, w, h, 22, S.signal >= 100 && !noPhone ? 'rgba(74,222,128,.7)' : C.edge, S.signal >= 100 ? 4 : 2);
     text(noPhone ? '📵 MẤT ĐIỆN THOẠI' : '📶 SÓNG', x + 20, y + 28, 22, noPhone ? C.redSoft : C.green, 900, 'left');
     text(noPhone ? '—' : `${Math.floor(S.signal)}%`, x + w - 20, y + 28, 30, '#fff', 900, 'right');
     bar(x + 20, y + 54, w - 40, 22, noPhone ? 0 : S.signal / 100, '#22c55e', '#bef264');
     text(S.signal >= 100 && !noPhone ? '✅ Đủ sóng: gửi được!' : `❤️ Thả tim để có sóng (${fmtN(S.likesFull)} tim)`, x + 20, y + 102, 19, C.dim, 700, 'left', w - 40);
+    }
     // bằng chứng
     x = 736; w = 320;
     fill(x, y, w, h, 22, C.panel); stroke(x, y, w, h, 22, C.edge);
@@ -320,6 +330,22 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawSecret(now, x, y, w, h) {
     fill(x, y, w, h, 18, C.term);
     const j = S.secret;
+    if (S.safeMs > 0) { const lab = `🛡️ AN TOÀN ${Math.ceil(left(S.safeMs, now) / 1000)}s`; const lw = measure(lab, 22, 900) + 30; fill(x + w - lw - 20, y + 18, lw, 40, 20, 'rgba(34,197,94,.3)'); text(lab, x + w - lw / 2 - 20, y + 39, 22, '#bbf7d0', 900); }
+    if (j?.kind === 'cipher' || j?.kind === 'relay') {
+      const cip = j.kind === 'cipher';
+      text(cip ? '📟 TIN MẬT TỪ CHỈ HUY SƠN' : '💌 LỜI NHẮN CỦA BÉ HAI', x + 30, y + 40, 22, 'rgba(134,239,172,.7)', 900, 'left', w - 280, MONO);
+      text(cip ? 'Giải mã để biết lúc nào an toàn' : 'Gửi giúp về cho gia đình Bé Hai', x + 30, y + 86, 34, C.termInk, 900, 'left', w - 60);
+      fill(x + 30, y + 120, w - 60, 150, 14, cip ? '#05140b' : '#f5f0dc');
+      if (cip) {
+        text(j.enc, x + w / 2, y + 180, 44, '#fde68a', 900, 'center', w - 100, MONO);
+        const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        text(`Mỗi chữ cái lùi lại ${j.shift} bậc: ${L[j.shift]} → A, ${L[j.shift + 1]} → B, ${L[j.shift + 2]} → C…`, x + w / 2, y + 240, 22, 'rgba(134,239,172,.75)', 700);
+      } else wrap(`“${j.text}”`, 34, w - 120, 800).slice(0, 2).forEach((ln, i, arr) => text(ln, x + w / 2, y + 195 + (i - (arr.length - 1) / 2) * 44, 34, '#3f3a2a', 800));
+      field(x + 30, y + 296, w - 60, 120, j.typed, cip ? 'Gõ câu đã giải mã…' : 'Gõ lại lời nhắn…', now, `x${j.id}`, 34, true);
+      button(x + w - 210, y + 436, 180, 60, cip ? 'Giải ➤' : 'Gửi ➤', '#16a34a', { type: 'click', target: 'send' }, 24);
+      text(cip ? 'Giải đúng: một lúc ở tab này không bị nghi ngờ' : 'Bé Hai sẽ tin bạn và đi nhanh hơn trong đêm giải cứu', x + 30, y + 466, 20, 'rgba(134,239,172,.6)', 700, 'left', w - 280);
+      return;
+    }
     const sendH = 150;
     const ch = h - sendH - 16;
     if (!j) {
@@ -383,6 +409,81 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     ctx.restore();
   }
 
+  // ---------------- đêm giải cứu: hành lang ----------------
+  function drawEscape(now, x, y, w, h) {
+    const e = S.escape;
+    const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, '#060912'); g.addColorStop(1, '#111827');
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    // bản đồ các đoạn
+    const n = e.n, sw = (w - 60) / n;
+    e.segs.forEach((sg, i) => {
+      const sx = x + 30 + i * sw, done = i < e.seg, cur = i === e.seg;
+      fill(sx + 3, y + 24, sw - 6, 56, 10, done ? 'rgba(34,197,94,.35)' : cur ? 'rgba(56,189,248,.35)' : 'rgba(255,255,255,.06)');
+      text(done ? '✓' : sg.revealed ? (sg.dir === 'trai' ? '⬅' : '➡') : '?', sx + sw / 2, y + 53, 28, done ? '#86efac' : sg.revealed ? '#fde68a' : C.faint, 900);
+      if (sg.cam && !done) text('📹', sx + sw - 16, y + 30, 18);
+    });
+    text('🚪', x + w - 22, y + 53, 30);
+    // khung cảnh đoạn hiện tại
+    const cy = y + 110, chh = h - 280;
+    fill(x + 30, cy, w - 60, chh, 18, '#0b1222');
+    ctx.save(); rr(x + 30, cy, w - 60, chh, 18); ctx.clip();
+    // hành lang phối cảnh
+    ctx.strokeStyle = 'rgba(148,163,184,.25)'; ctx.lineWidth = 3;
+    const vx = x + w / 2, vy = cy + chh * 0.42;
+    for (const [px, py] of [[x + 30, cy], [x + w - 30, cy], [x + 30, cy + chh], [x + w - 30, cy + chh]]) { ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(vx, vy); ctx.stroke(); }
+    fill(vx - 120, vy - 80, 240, 160, 6, 'rgba(15,23,42,.9)'); stroke(vx - 120, vy - 80, 240, 160, 6, 'rgba(148,163,184,.4)', 3);
+    const sg = e.segs[e.seg];
+    if (sg) {
+      text(sg.revealed ? (sg.dir === 'trai' ? '⬅ RẼ TRÁI' : 'RẼ PHẢI ➡') : '❓ Chưa rõ đường', vx, vy - 120, 34, sg.revealed ? '#fde68a' : C.dim, 900);
+      if (sg.cam) { // camera quét
+        const a = (now / 600) % (Math.PI * 2);
+        ctx.save(); ctx.translate(x + w - 120, cy + 40); ctx.rotate(Math.PI * 0.62 + Math.sin(a) * 0.35);
+        const cg = ctx.createLinearGradient(0, 0, 600, 0); cg.addColorStop(0, 'rgba(239,68,68,.55)'); cg.addColorStop(1, 'rgba(239,68,68,0)');
+        ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(620, -130); ctx.lineTo(620, 130); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        text('📹', x + w - 120, cy + 40, 52);
+        text('CAMERA ĐANG QUÉT: CHỜ!', vx, cy + chh - 40, 30, '#fca5a5', 900);
+      } else text(e.distractMs > 0 ? '❤️ Camera bị đánh lạc hướng: ĐI!' : '✅ Camera quay đi: ĐI!', vx, cy + chh - 40, 30, '#86efac', 900);
+    }
+    // nhân vật
+    const bob = reduced ? 0 : Math.sin(now / 200) * 4;
+    ctx.save(); if (e.hidden) ctx.globalAlpha = 0.45;
+    text(e.hidden ? '📦' : '🕵️', vx - (e.friend ? 50 : 0), vy + 150 + bob, 96);
+    if (e.friend) text(S.cast?.friend?.icon || '🧑‍🌾', vx + 60, vy + 160 - bob, 80);
+    ctx.restore();
+    if (e.moveInMs > 0) text(`${e.friend ? 'Bé Hai theo sau' : 'Lấy hơi'}… ${(left(e.moveInMs, now) / 1000).toFixed(1)}s`, vx, vy + 240, 22, C.dim, 700);
+    ctx.restore();
+    // nút
+    const byb = y + h - 150, bw2 = (w - 100) / 3;
+    const canMove = !e.hidden && left(e.moveInMs, now) <= 0;
+    button(x + 30, byb, bw2, 120, '⬅ TRÁI', '#2563eb', { type: 'click', target: 'move', id: 'trai' }, 40, '#fff', !canMove);
+    button(x + 50 + bw2, byb, bw2, 120, e.hidden ? '🏃 RA KHỎI CHỖ TRỐN' : '🫣 TRỐN', e.hidden ? '#a16207' : '#475569', { type: 'click', target: 'hide' }, e.hidden ? 26 : 40);
+    button(x + 70 + bw2 * 2, byb, bw2, 120, 'PHẢI ➡', '#2563eb', { type: 'click', target: 'move', id: 'phai' }, 40, '#fff', !canMove);
+  }
+
+  // ---------------- nhân vật nhắn tin ----------------
+  function storyCard(m, x, y, w, now) {
+    const lines = wrap(m.text, 26, w - 140, 700).slice(0, 2);
+    const h = 66 + lines.length * 34;
+    const at = anim.storyAt.get(m.id) ?? now;
+    const k = reduced ? 1 : back(Math.min(1, (now - at) / 320));
+    const fade = Math.min(1, left(m.leftMs, now) / 400);
+    ctx.save(); ctx.globalAlpha = Math.min(1, k + 0.2) * fade; ctx.translate((1 - k) * -80, 0);
+    ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 6;
+    fill(x, y, w, h, 20, '#fffaf0'); ctx.shadowColor = 'transparent';
+    fill(x, y, 9, h, 4, '#f59e0b');
+    ctx.beginPath(); ctx.arc(x + 52, y + 46, 30, 0, Math.PI * 2); ctx.fillStyle = '#fde68a'; ctx.fill();
+    text(m.by.icon || '💬', x + 52, y + 49, 36);
+    text(m.by.name, x + 96, y + 30, 22, '#92400e', 800, 'left', w - 120);
+    lines.forEach((ln, i) => text(ln, x + 96, y + 64 + i * 34, 26, C.ink, 700, 'left', w - 120));
+    ctx.restore();
+    return h;
+  }
+  function drawStory(now, x, yBottom, w) {
+    let cy = yBottom;
+    for (const m of (S.story || []).slice(-2).reverse()) { const n = Math.min(2, wrap(m.text, 26, w - 140, 700).length); cy -= 66 + n * 34 + 12; storyCard(m, x, cy, w, now); }
+  }
+
   function drawLocked(now, x, y, w, h) {
     fill(x, y, w, h, 18, '#020203');
     const st = statusOf('nhot');
@@ -435,7 +536,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     ctx.save(); ctx.translate(sh, 0);
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 14; fill(x, y, w, h, 26, '#1b1d26'); ctx.restore();
     // tab
-    const tabs = [['camp', '💼 Việc trại'], ['secret', statusOf('thudt') ? '🔒 Bí mật' : '🕵️ Bí mật']];
+    const tabs = S.escape ? [] : [['camp', '💼 Việc trại'], ['secret', statusOf('thudt') ? '🔒 Bí mật' : '🕵️ Bí mật']];
+    if (S.escape) text('🌙 ĐÊM GIẢI CỨU · ← → để đi, Space để trốn', x + 24, y + 39, 24, '#a7f3d0', 900, 'left');
     tabs.forEach(([id, label], i) => {
       const tx = x + 16 + i * 250, on = S.tab === id;
       fill(tx, y + 10, 240, 56, 14, on ? (id === 'secret' ? C.term : '#ffffff') : 'rgba(255,255,255,.07)');
@@ -446,7 +548,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     else if (secret) text('Esc: về Việc trại', x + w - 24, y + 39, 20, C.faint, 700, 'right');
     const ix = x + 16, iy = y + 76, iw = w - 32, ih = h - 92;
     ctx.save(); rr(ix, iy, iw, ih, 18); ctx.clip();
-    if (S.phase === 'work') {
+    if (S.phase === 'work' && S.escape) {
+      if (statusOf('nhot')) drawLocked(now, ix, iy, iw, ih); else drawEscape(now, ix, iy, iw, ih);
+    } else if (S.phase === 'work') {
       if (statusOf('nhot')) drawLocked(now, ix, iy, iw, ih);
       else if (secret) drawSecret(now, ix, iy, iw, ih);
       else drawCampJob(now, ix, iy, iw, ih);
@@ -465,12 +569,14 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const bw = measure(bub, 27, 800) + 44;
       fill(gx - 140 - bw, gy - 160, bw, 62, 31, '#fff');
       text(bub, gx - 140 - bw / 2, gy - 128, 27, C.ink, 800);
-      const warn = secret && Math.floor(now / 260) % 2 === 0;
-      const label = secret ? '⚠️ CHUYỂN TAB NGAY! (Esc)' : `🔦 Bảo an tuần tra ${Math.ceil(left(patrol.leftMs, now) / 1000)}s`;
+      const danger = S.escape ? !S.escape.hidden : secret;
+      const warn = danger && Math.floor(now / 260) % 2 === 0;
+      const label = S.escape ? (S.escape.hidden ? `🫣 Đang trốn… ${Math.ceil(left(patrol.leftMs, now) / 1000)}s` : '⚠️ TRỐN NGAY! (Space)') : secret ? '⚠️ CHUYỂN TAB NGAY! (Esc)' : `🔦 Bảo an tuần tra ${Math.ceil(left(patrol.leftMs, now) / 1000)}s`;
       const lw = measure(label, 30, 900) + 50;
-      fill(x + w / 2 - lw / 2, y + h - 40, lw, 64, 32, secret ? (warn ? '#dc2626' : '#7f1d1d') : 'rgba(17,24,39,.95)');
+      fill(x + w / 2 - lw / 2, y + h - 40, lw, 64, 32, danger ? (warn ? '#dc2626' : '#7f1d1d') : 'rgba(17,24,39,.95)');
       text(label, x + w / 2, y + h - 7, 30, '#fff', 900);
     } else ctx.restore();
+    if (S.phase === 'work' && S.story?.length) drawStory(now, x + 40, y + h - 30 - (patrol ? 60 : 0), w - 80);
     // tin chủ quản che màn hình (bấm ✕ mới đóng)
     if (S.phase === 'work' && S.pings?.length) { hits = hits.filter((hh) => hh.ev.type === 'tab'); activeField = null; }
     for (const p of S.pings || []) {
@@ -519,29 +625,61 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 50; fill(x, y, w, h, 34, 'rgba(14,16,24,.97)'); ctx.restore();
     stroke(x, y, w, h, 34, 'rgba(255,255,255,.1)');
   }
+  function voteBox(now, y, v, opts = {}) {
+    const qLines = wrap(v.q, 28, 780, 700).slice(0, 2);
+    const many = v.options.length > 2;
+    const oh = many ? 80 : 92;
+    const h = 90 + qLines.length * 38 + (many ? v.options.length * (oh + 10) : oh) + 20;
+    fill(110, y, 860, h, 22, 'rgba(250,204,21,.12)'); stroke(110, y, 860, h, 22, 'rgba(250,204,21,.6)', 3);
+    text(`🗳️ NGƯỜI XEM QUYẾT ĐỊNH · bình luận ${many ? 'A, B hoặc C' : '1 hoặc 2'} · còn ${Math.ceil(left(S.remainingMs, now) / 1000)}s`, W / 2, y + 30, 22, '#fde047', 900, 'center', 820);
+    qLines.forEach((ln, i) => text(ln, W / 2, y + 72 + i * 38, 28, '#fff', 700));
+    const oy = y + 72 + qLines.length * 38 + 6, tot = v.counts.reduce((a, c) => a + c, 0);
+    v.options.forEach((o, i) => {
+      const ox = many ? 130 : 130 + i * 415, ow = many ? 820 : 405, yy = many ? oy + i * (oh + 10) : oy;
+      const k2 = tot ? v.counts[i] / tot : 0;
+      fill(ox, yy, ow, oh, 18, 'rgba(255,255,255,.08)');
+      if (k2 > 0) fill(ox, yy, Math.max(36, ow * k2), oh, 18, ['rgba(96,165,250,.35)', 'rgba(244,114,182,.35)', 'rgba(250,204,21,.3)'][i % 3]);
+      const key = many ? 'ABC'[i] : String(i + 1);
+      text(key, ox + 34, yy + oh / 2, 44, ['#93c5fd', '#f9a8d4', '#fde047'][i % 3], 900, 'center', 0, TITLE);
+      if (many && opts.suspects) {
+        const sp = opts.suspects[i];
+        text(`${sp.icon} ${sp.name} · ${sp.role}`, ox + 70, yy + 24, 24, '#fff', 800, 'left', ow - 180);
+        text(sp.clues.length ? `“${sp.clues.join('” · “')}”` : 'Chưa có manh mối', ox + 70, yy + 56, 18, '#fde68a', 700, 'left', ow - 180);
+      } else wrap(o.label, 24, ow - 110, 800).slice(0, 2).forEach((ln, k3, arr) => text(ln, ox + 70, yy + oh / 2 + (k3 - (arr.length - 1) / 2) * 28, 24, '#fff', 800, 'left'));
+      text(`${v.counts[i]} phiếu`, ox + ow - 14, yy + oh - 14, 16, C.dim, 800, 'right');
+    });
+    return h;
+  }
   function drawBrief(now) {
     const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 420));
     ctx.save(); ctx.translate(W / 2, 980); ctx.scale(k, k); ctx.translate(-W / 2, -980);
-    if (S.day === 1) {
-      const lines = (S.intro || []).flatMap((l) => wrap(l, 32, 760, 700));
-      const ch = 420 + lines.length * 46, y0 = 1000 - ch / 2;
-      card(90, y0, 900, ch);
-      text(`CHIẾN DỊCH ${S.campaign}`, W / 2, y0 + 56, 26, C.amber, 900);
-      bigText(`🕶️ NẰM VÙNG`, W / 2, y0 + 130, 92, '#fff');
-      lines.forEach((ln, i) => text(ln, W / 2, y0 + 220 + i * 46, 32, '#e5e7eb', 700));
-      const yb = y0 + 236 + lines.length * 46;
-      text('Cần gửi về:', W / 2, yb + 10, 24, C.dim, 700);
-      const n = S.items.length, sz = 72, gap = 14, sx = W / 2 - (n * sz + (n - 1) * gap) / 2;
-      S.items.forEach((it, i) => { fill(sx + i * (sz + gap), yb + 36, sz, sz, 16, 'rgba(255,255,255,.08)'); text(it.icon, sx + i * (sz + gap) + sz / 2, yb + 74, 42); });
-      text(`${S.days} ngày · mỗi ngày ${clock(S.dayMs)} · KPI ngày 1: ${S.kpiTarget}`, W / 2, yb + 146, 26, C.lime, 800);
-    } else {
-      const ch = 360, y0 = 980 - ch / 2;
-      card(140, y0, 800, ch);
-      bigText(`NGÀY ${S.day}/${S.days}`, W / 2, y0 + 100, 96, '#fde047');
-      text(`KPI hôm nay: ${S.kpiTarget} · nghi ngờ đang ${Math.floor(S.suspicion)}%`, W / 2, y0 + 200, 30, '#fff', 800);
-      text(`Đã gửi ${S.sent}/${S.items.length} bằng chứng${S.held ? ` · giữ ${S.held} chưa gửi` : ''}`, W / 2, y0 + 250, 26, C.dim, 700);
-      text('Gõ phím, bấm chuột trong cửa sổ chơi · Esc về Việc trại', W / 2, y0 + 300, 22, C.faint, 700);
+    const ch = S.chapter || {};
+    const first = S.day === 1;
+    const intro = [...(first ? S.intro : []), ...(ch.intro || [])].flatMap((l) => wrap(l, 30, 800, 700)).slice(0, 9);
+    const vh = S.vote ? 90 + wrap(S.vote.q, 28, 780, 700).slice(0, 2).length * 38 + 112 : 0;
+    const chh = 330 + intro.length * 42 + (first ? 120 : 0) + vh, y0 = Math.max(TOP + 10, 990 - chh / 2);
+    card(80, y0, 920, chh);
+    text(first ? `CHIẾN DỊCH ${S.campaign} · MẬT DANH ${S.code.toUpperCase()}` : `NGÀY ${S.day}/${S.days}`, W / 2, y0 + 50, 24, C.amber, 900);
+    bigText(`${ch.kind === 'escape' ? '🌙' : '🕶️'} ${ch.title}`, W / 2, y0 + 118, 80, ch.kind === 'escape' ? '#a7f3d0' : '#fff');
+    let y = y0 + 190;
+    intro.forEach((ln, i) => text(ln, W / 2, y + i * 42, 30, '#e5e7eb', 700));
+    y += intro.length * 42 + 10;
+    if (first) { // dàn nhân vật
+      const cast = Object.values(S.cast || {}).slice(0, 5);
+      const cw = 168;
+      cast.forEach((c, i) => {
+        const cx = W / 2 - (cast.length * cw) / 2 + i * cw + cw / 2;
+        ctx.beginPath(); ctx.arc(cx, y + 34, 32, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fill();
+        text(c.icon, cx, y + 37, 38); text(c.name, cx, y + 86, 20, '#fff', 800, 'center', cw - 8); text(c.role, cx, y + 108, 16, C.dim, 700, 'center', cw - 8);
+      });
+      y += 130;
     }
+    const info = ch.kind === 'escape' ? `Thoát ra trước khi trời sáng (${clock(S.dayMs)}) · đã gửi ${S.sent}/${S.items.length} bằng chứng${S.flags?.friend ? ' · Bé Hai đi cùng' : ''}`
+      : `KPI hôm nay ${S.kpiTarget} · nghi ngờ ${Math.floor(S.suspicion)}% · đã gửi ${S.sent}/${S.items.length} bằng chứng`;
+    text(info, W / 2, y + 20, 26, C.lime, 800, 'center', 860);
+    y += 60;
+    if (S.vote) voteBox(now, y, S.vote);
+    else text(`Vào ca sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, y + 10, 22, C.faint, 700);
     ctx.restore();
   }
   function board(title, rows, x, y, w, unit) {
@@ -557,16 +695,25 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     const r = S.dayResult; if (!r) return;
     const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 450));
     ctx.save(); ctx.translate(W / 2, 1000); ctx.scale(k, k); ctx.translate(-W / 2, -1000);
-    card(110, 700, 860, r.punishment ? 560 : 420);
-    bigText(r.ok ? 'QUA ĐƯỢC NGÀY!' : 'THIẾU KPI!', W / 2, 800, 96, r.ok ? '#4ade80' : '#ff4d6d');
-    text(`KPI ${r.kpi}/${r.target} · nghi ngờ ${r.delta >= 0 ? '+' : ''}${r.delta}% → ${r.sus}%`, W / 2, 900, 32, '#fff', 800);
-    text(r.ok ? 'Chủ quản tạm hài lòng 😮‍💨' : 'Chủ quản bắt đầu để ý bạn… 👀', W / 2, 956, 28, C.dim, 700);
+    const tv = S.vote?.kind === 'traitor';
+    const chLines = r.choice?.result ? wrap(`🗳️ “${r.choice.label}”: ${r.choice.result}`, 26, 780, 700).slice(0, 3) : [];
+    const tvh = tv ? 90 + 38 + S.vote.options.length * 90 + 20 : 0;
+    const hh = 300 + chLines.length * 36 + (r.punishment ? 130 : 0) + tvh;
+    const y0 = Math.max(TOP + 10, 1000 - hh / 2);
+    card(90, y0, 900, hh);
+    bigText(r.ok ? 'QUA ĐƯỢC NGÀY!' : 'THIẾU KPI!', W / 2, y0 + 80, 88, r.ok ? '#4ade80' : '#ff4d6d');
+    text(`Ngày ${r.day}: ${r.title} · KPI ${r.kpi}/${r.target} · nghi ngờ ${r.delta >= 0 ? '+' : ''}${r.delta}% → ${r.sus}%`, W / 2, y0 + 168, 26, '#fff', 800, 'center', 860);
+    let y = y0 + 210;
+    chLines.forEach((ln, i) => text(ln, W / 2, y + i * 36, 26, '#c4b5fd', 700));
+    y += chLines.length * 36 + 10;
     if (r.punishment) {
-      fill(170, 1000, 740, 110, 20, 'rgba(225,29,72,.18)');
-      text('Hình phạt cho streamer', W / 2, 1030, 22, C.redSoft, 800);
-      text(r.punishment, W / 2, 1072, 30, '#fff', 800, 'center', 700);
+      fill(150, y, 780, 110, 20, 'rgba(225,29,72,.18)');
+      text('Hình phạt cho streamer', W / 2, y + 30, 22, C.redSoft, 800);
+      text(r.punishment, W / 2, y + 72, 30, '#fff', 800, 'center', 740);
+      y += 130;
     }
-    text(`Sang ngày ${r.day + 1} sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, r.punishment ? 1200 : 1070, 24, C.faint, 700);
+    if (tv) { text('🐀 HẮC LONG: "TRONG TRẠI CÓ CHUỘT"', W / 2, y + 16, 26, '#fca5a5', 900); y += 40; voteBox(now, y, S.vote, { suspects: S.suspects }); }
+    else text(`Sang ngày ${r.day + 1} sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, y + 30, 24, C.faint, 700);
     ctx.restore();
   }
   function drawEnd(now) {
@@ -579,29 +726,40 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     }
     const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 450));
     ctx.save(); ctx.translate(W / 2, 1000); ctx.scale(k, k); ctx.translate(-W / 2, -1000);
-    card(60, 430, 960, 1130);
-    const title = r.win ? 'GIẢI CỨU THÀNH CÔNG!' : r.how === 'lo' ? 'BỊ LỘ DANH TÍNH!' : 'MẤT DẤU!';
-    bigText(title, W / 2, 530, 92, r.win ? '#4ade80' : '#ff4d6d');
-    const sub = r.win ? (r.how === 'giaicuu' ? 'Công an ập vào khu trại 🚔' : `Mật danh ${r.code} đã gửi đủ bằng chứng 🚔`)
-      : r.how === 'lo' ? `Mật danh ${r.code} bị bảo an phát hiện 😱` : `Hết ${r.days} ngày, mật danh ${r.code} bị chuyển đi nơi khác`;
-    text(sub, W / 2, 626, 30, '#fff', 800, 'center', 900);
-    const n = r.items.length, sz = 70, gap = 14, sx = W / 2 - (n * sz + (n - 1) * gap) / 2;
-    r.items.forEach((it, i) => {
-      fill(sx + i * (sz + gap), 670, sz, sz, 16, it.sent ? 'rgba(34,197,94,.3)' : 'rgba(255,255,255,.06)');
-      ctx.save(); ctx.globalAlpha = it.sent ? 1 : 0.3; text(it.icon, sx + i * (sz + gap) + sz / 2, 707, 40); ctx.restore();
+    card(50, TOP + 20, 980, 1560);
+    const y0 = TOP + 20;
+    text(`CHIẾN DỊCH ${r.campaign} · MẬT DANH ${r.code.toUpperCase()}`, W / 2, y0 + 46, 22, C.amber, 900);
+    bigText(`${r.icon} ${r.title}`, W / 2, y0 + 112, 72, r.win ? '#4ade80' : '#ff4d6d');
+    let y = y0 + 180;
+    for (const l of r.lines) for (const ln of wrap(l, 28, 860, 700)) { text(ln, W / 2, y, 28, '#e5e7eb', 700); y += 40; }
+    y += 14;
+    // kẻ phản bội
+    const t = r.traitor;
+    fill(110, y, 860, 76, 18, 'rgba(239,68,68,.12)');
+    text(`🐀 Kẻ phản bội: ${t.icon} ${t.name}${t.guessed ? (t.correct ? ' · người xem đoán ĐÚNG ✅' : ` · người xem đoán nhầm ${t.guessed} ❌`) : ''}`, W / 2, y + 38, 26, '#fecaca', 800, 'center', 820);
+    y += 96;
+    // hồ sơ vụ án
+    text(`📁 HỒ SƠ VỤ ÁN · ${r.dossier.filter((p) => p.sent).length}/${r.total} trang`, 120, y + 14, 24, '#93c5fd', 900, 'left');
+    y += 40;
+    r.dossier.forEach((p) => {
+      fill(110, y, 860, 64, 14, p.sent ? 'rgba(59,130,246,.14)' : 'rgba(255,255,255,.04)');
+      ctx.save(); if (!p.sent) ctx.globalAlpha = 0.4;
+      text(p.icon, 150, y + 33, 32);
+      text(p.name, 190, y + 22, 22, '#fff', 800, 'left', 760);
+      text(p.sent ? p.note : 'Chưa gửi về được', 190, y + 47, 18, p.sent ? '#bfdbfe' : C.dim, 700, 'left', 760);
+      ctx.restore();
+      y += 72;
     });
-    text(`Ngày ${r.day}/${r.days} · gửi ${r.sent}/${r.total} bằng chứng · cứu ${r.saved} người · ${r.scams} lần chạy KPI`, W / 2, 780, 25, C.dim, 700, 'center', 920);
-    fill(120, 820, 840, 112, 20, 'rgba(59,130,246,.16)');
-    text('🛡️ Nhớ để không bị lừa', W / 2, 850, 22, '#93c5fd', 800);
-    text(r.tip, W / 2, 894, 28, '#fff', 800, 'center', 800);
-    board('🔦 Bảo an gắt nhất', S.top?.bosses, 110, 990, 400, 'xu');
-    board('🤝 Đồng đội thầm lặng', S.top?.helpers, 570, 990, 400, 'điểm');
-    text('Đồng đội: quà giúp tính theo xu, mỗi lần bình luận che +1', W / 2, 1220, 20, C.faint, 700);
-    text(`Chiến dịch mới sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, 1500, 24, C.faint, 700);
-    ctx.save(); ctx.translate(790, 1330); ctx.rotate(-0.16); ctx.globalAlpha = 0.85;
-    stroke(-150, -46, 300, 92, 14, r.win ? '#22c55e' : '#e11d48', 7);
-    text(r.win ? 'TRIỆT PHÁ' : 'THẤT BẠI', 0, 2, 48, r.win ? '#22c55e' : '#e11d48', 900, 'center', 0, TITLE);
-    ctx.restore();
+    y += 6;
+    text(`🛟 Cứu ${r.saved} người · ${r.scams} lần chạy KPI · lựa chọn: ${r.choices.map((c) => (c.tag === 'tot' ? '🤍' : '🎲')).join(' ') || '—'}`, W / 2, y + 12, 22, C.dim, 700, 'center', 880);
+    y += 44;
+    fill(110, y, 860, 96, 20, 'rgba(59,130,246,.16)');
+    text('🛡️ Nhớ để không bị lừa · gặp chuyện gọi 113', W / 2, y + 28, 20, '#93c5fd', 800);
+    text(r.tip, W / 2, y + 66, 26, '#fff', 800, 'center', 820);
+    y += 120;
+    board('🔦 Bảo an gắt nhất', S.top?.bosses, 110, y, 400, 'xu');
+    board('🤝 Đồng đội thầm lặng', S.top?.helpers, 570, y, 400, 'điểm');
+    text(`Chiến dịch mới sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, y0 + 1530, 22, C.faint, 700);
     ctx.restore();
   }
 
@@ -632,6 +790,11 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   }
   function onKey(e) {
     if (!S || e.target === typing) return;
+    if (S.escape && S.phase === 'work') {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); input({ type: 'move', dir: 'trai' }); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); input({ type: 'move', dir: 'phai' }); return; }
+      if (e.code === 'Space' || e.key === 'ArrowDown') { e.preventDefault(); input({ type: 'hide' }); return; }
+    }
     if (e.key === 'Escape') { e.preventDefault(); input({ type: 'tab', id: 'camp' }); }
     else if (e.key === 'Tab') { e.preventDefault(); input({ type: 'tab', id: S.tab === 'secret' ? 'camp' : 'secret' }); }
     else if (activeField && e.key.length === 1 && !e.ctrlKey && !e.metaKey) typing.focus();
@@ -680,6 +843,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const key = `${s.phase}|${s.campaign}|${s.day}`;
       if (key !== anim.phaseKey) { anim.phaseKey = key; anim.phaseAt = now; if (s.phase !== 'work') { floaters.length = 0; anim.title = null; } }
       for (const p of s.pings || []) if (!anim.pingAt.has(p.id)) anim.pingAt.set(p.id, now);
+      for (const m of s.story || []) if (!anim.storyAt.has(m.id)) anim.storyAt.set(m.id, now);
+      if (anim.storyAt.size > 40) for (const id of [...anim.storyAt.keys()].slice(0, 20)) anim.storyAt.delete(id);
       if (anim.pingAt.size > 60) for (const id of [...anim.pingAt.keys()].slice(0, 30)) anim.pingAt.delete(id);
       const pat = !!s.status?.some((x) => x.kind === 'tuantra');
       if (pat && !S?.status?.some((x) => x.kind === 'tuantra')) anim.patrolAt = now;
@@ -712,6 +877,18 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         case 'nv_lose': anim.shake = 1; sound.play('fail'); break;
         case 'nv_dayend': sound.play(fx.ok ? 'cleared' : 'fail'); break;
         case 'nv_brief': sound.play('brief'); break;
+        case 'nv_vote': sound.play('zap'); break;
+        case 'nv_choice': anim.title = { text: `NGƯỜI XEM CHỌN ${fx.i + 1}!`, by: null, sub: fx.label, color: '#fde047', at: now, life: 2.2 }; sound.play('help'); break;
+        case 'nv_traitor': anim.title = { text: fx.correct ? 'LẬT MẶT KẺ PHẢN BỘI!' : 'ĐOÁN NHẦM RỒI!', by: null, sub: fx.correct ? `${fx.name} là chuột của Hắc Long` : `${fx.name} vô tội… kẻ phản bội vẫn ẩn mình`, color: fx.correct ? '#5eea8f' : '#ff6b5e', at: now, life: 2.6 }; sound.play(fx.correct ? 'cleared' : 'alarm'); break;
+        case 'nv_traitor_vote': sound.play('alarm'); break;
+        case 'nv_story': sound.play('ping'); break;
+        case 'nv_clue': floaters.push({ text: `🔎 Manh mối mới về ${fx.name}`, x: W / 2, y: 540, color: '#fde68a', size: 32, life: 1.6, age: 0 }); break;
+        case 'nv_cipher_ok': sound.play('radio'); floaters.push({ text: `📟 ${fx.plain}`, x: W / 2, y: 560, color: '#86efac', size: 40, life: 2, age: 0 }); break;
+        case 'nv_relay_ok': sound.play('cleared'); floaters.push({ text: '💌 Đã gửi lời nhắn của Bé Hai', x: W / 2, y: 560, color: '#fbcfe8', size: 38, life: 1.8, age: 0 }); break;
+        case 'nv_spotted': anim.shake = 1; sound.play('alarm'); anim.title = { text: 'CAMERA THẤY BẠN!', by: null, sub: '+15% nghi ngờ', color: '#ff6b5e', at: now, life: 1.4 }; break;
+        case 'nv_move': anim.kpiAt = now; sound.play('step'); break;
+        case 'nv_hide': sound.play('zap'); break;
+        case 'nv_distract': floaters.push({ text: '❤️ Đánh lạc hướng camera!', x: W / 2, y: 600, color: '#f9a8d4', size: 40, life: 1.4, age: 0 }); break;
         default:
       }
     },

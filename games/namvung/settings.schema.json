@@ -1,27 +1,188 @@
 {
   "type": "object",
   "properties": {
-    "place": { "type": "string", "title": "Tên nơi bị đưa tới (hiện ở phần mở đầu)", "maxLength": 60, "default": "một trại lừa đảo bên kia biên giới" },
-    "days": { "type": "integer", "title": "Số ngày mỗi chiến dịch (hết ngày chưa gửi đủ bằng chứng = thua)", "minimum": 1, "maximum": 10, "default": 5 },
-    "daySeconds": { "type": "integer", "title": "Thời gian mỗi ngày (giây)", "minimum": 60, "maximum": 900, "default": 180 },
-    "kpi": { "type": "integer", "title": "KPI ngày đầu (mỗi ngày sau +1, tối đa +4)", "minimum": 1, "maximum": 30, "default": 5 },
-    "evidence": { "type": "integer", "title": "Số bằng chứng cần gửi về", "minimum": 1, "maximum": 7, "default": 5 },
-    "campJobs": { "type": "string", "title": "Việc trại", "enum": ["mix", "chat"], "enumNames": ["Xoay vòng: nhắn tin, gọi điện, tính tiền", "Chỉ nhắn tin (gõ chữ)"], "default": "mix" },
-    "missKpi": { "type": "integer", "title": "Thiếu KPI cuối ngày: nghi ngờ tăng (%)", "minimum": 0, "maximum": 100, "default": 25 },
-    "kpiBonus": { "type": "integer", "title": "Đủ KPI cuối ngày: nghi ngờ giảm (%)", "minimum": 0, "maximum": 50, "default": 10 },
-    "warnSuspicion": { "type": "integer", "title": "Bấm Cảnh báo ngầm (cứu nạn nhân): nghi ngờ tăng (%)", "minimum": 0, "maximum": 50, "default": 6 },
-    "secretSusPerSec": { "type": "number", "title": "Ở tab Bí mật: nghi ngờ tăng mỗi giây (%)", "minimum": 0, "maximum": 10, "default": 0.4 },
-    "patrolSusPerSec": { "type": "number", "title": "Ở tab Bí mật lúc bảo an tuần tra: nghi ngờ tăng mỗi giây (%)", "minimum": 0, "maximum": 50, "default": 8 },
-    "signalPerLike": { "type": "number", "title": "Mỗi tim cộng bao nhiêu % sóng (0,2 = 500 tim đầy sóng)", "minimum": 0.01, "maximum": 100, "default": 0.2 },
-    "coverWord": { "type": "string", "title": "Từ người xem bình luận để che cho cảnh sát (để trống = tắt)", "maxLength": 20, "default": "che" },
-    "coverPoints": { "type": "integer", "title": "Mỗi bình luận che: nghi ngờ giảm (%)", "minimum": 0, "maximum": 20, "default": 1 },
-    "coverCooldownSec": { "type": "integer", "title": "Mỗi người che lại được sau (giây)", "minimum": 1, "maximum": 120, "default": 10 },
-    "briefSeconds": { "type": "integer", "title": "Thời gian giới thiệu đầu ngày (giây)", "minimum": 2, "maximum": 30, "default": 6 },
-    "resultSeconds": { "type": "integer", "title": "Thời gian hiện kết quả cuối ngày (giây)", "minimum": 3, "maximum": 30, "default": 8 },
-    "endSeconds": { "type": "integer", "title": "Thời gian hiện kết thúc chiến dịch (giây)", "minimum": 5, "maximum": 60, "default": 16 },
-    "strictAccents": { "type": "boolean", "title": "Bắt gõ đúng dấu tiếng Việt", "default": false },
-    "pingWaitSeconds": { "type": "integer", "title": "Chờ người tặng Chủ quản nhắn gõ câu nhắn (giây)", "minimum": 3, "maximum": 30, "default": 10 },
-    "maxPings": { "type": "integer", "title": "Số tin chủ quản tối đa cùng lúc", "minimum": 1, "maximum": 10, "default": 5 },
-    "bannedWords": { "type": "string", "title": "Từ cấm trong câu chủ quản nhắn (cách nhau dấu phẩy)", "maxLength": 1000, "default": "đm, dm, địt, đjt, lồn, cặc, đéo, vcl, vkl, clm, đĩ, óc chó" }
+    "place": {
+      "type": "string",
+      "title": "Tên nơi bị đưa tới (hiện ở phần mở đầu)",
+      "maxLength": 60,
+      "default": "một trại lừa đảo bên kia biên giới"
+    },
+    "daySeconds": {
+      "type": "integer",
+      "title": "Thời gian mỗi ngày (giây), 4 ngày đầu",
+      "minimum": 60,
+      "maximum": 900,
+      "default": 180
+    },
+    "nightSeconds": {
+      "type": "integer",
+      "title": "Đêm giải cứu (ngày cuối): thời gian chạy trốn (giây), hết giờ chưa thoát = bị bán sang trại khác",
+      "minimum": 30,
+      "maximum": 600,
+      "default": 150
+    },
+    "kpi": {
+      "type": "integer",
+      "title": "KPI ngày đầu (mỗi ngày sau +1, tối đa +4)",
+      "minimum": 1,
+      "maximum": 30,
+      "default": 5
+    },
+    "evidence": {
+      "type": "integer",
+      "title": "Số bằng chứng cần gửi về",
+      "minimum": 1,
+      "maximum": 7,
+      "default": 5
+    },
+    "campJobs": {
+      "type": "string",
+      "title": "Việc trại",
+      "enum": [
+        "mix",
+        "chat"
+      ],
+      "enumNames": [
+        "Xoay vòng: nhắn tin, gọi điện, tính tiền",
+        "Chỉ nhắn tin (gõ chữ)"
+      ],
+      "default": "mix"
+    },
+    "missKpi": {
+      "type": "integer",
+      "title": "Thiếu KPI cuối ngày: nghi ngờ tăng (%)",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 25
+    },
+    "kpiBonus": {
+      "type": "integer",
+      "title": "Đủ KPI cuối ngày: nghi ngờ giảm (%)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 10
+    },
+    "warnSuspicion": {
+      "type": "integer",
+      "title": "Bấm Cảnh báo ngầm (cứu nạn nhân): nghi ngờ tăng (%)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 6
+    },
+    "secretSusPerSec": {
+      "type": "number",
+      "title": "Ở tab Bí mật: nghi ngờ tăng mỗi giây (%)",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 0.4
+    },
+    "patrolSusPerSec": {
+      "type": "number",
+      "title": "Ở tab Bí mật lúc bảo an tuần tra: nghi ngờ tăng mỗi giây (%)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 8
+    },
+    "signalPerLike": {
+      "type": "number",
+      "title": "Mỗi tim cộng bao nhiêu % sóng (0,2 = 500 tim đầy sóng)",
+      "minimum": 0.01,
+      "maximum": 100,
+      "default": 0.2
+    },
+    "coverWord": {
+      "type": "string",
+      "title": "Từ người xem bình luận để che cho cảnh sát (để trống = tắt)",
+      "maxLength": 20,
+      "default": "che"
+    },
+    "coverPoints": {
+      "type": "integer",
+      "title": "Mỗi bình luận che: nghi ngờ giảm (%)",
+      "minimum": 0,
+      "maximum": 20,
+      "default": 1
+    },
+    "coverCooldownSec": {
+      "type": "integer",
+      "title": "Mỗi người che lại được sau (giây)",
+      "minimum": 1,
+      "maximum": 120,
+      "default": 10
+    },
+    "briefSeconds": {
+      "type": "integer",
+      "title": "Thời gian giới thiệu đầu ngày (giây)",
+      "minimum": 2,
+      "maximum": 30,
+      "default": 6
+    },
+    "resultSeconds": {
+      "type": "integer",
+      "title": "Thời gian hiện kết quả cuối ngày (giây)",
+      "minimum": 3,
+      "maximum": 30,
+      "default": 8
+    },
+    "endSeconds": {
+      "type": "integer",
+      "title": "Thời gian hiện kết thúc chiến dịch (giây)",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 16
+    },
+    "storyBriefSeconds": {
+      "type": "integer",
+      "title": "Thời gian đọc lời dẫn đầu mỗi chương (giây)",
+      "minimum": 3,
+      "maximum": 30,
+      "default": 10
+    },
+    "voteSeconds": {
+      "type": "integer",
+      "title": "Thời gian người xem bình chọn (1 / 2 mỗi chương, A / B / C đoán kẻ phản bội; 0 = tắt)",
+      "minimum": 0,
+      "maximum": 60,
+      "default": 15
+    },
+    "safeSeconds": {
+      "type": "integer",
+      "title": "Giải đúng tin mật: số giây an toàn ở tab Bí mật (không tăng nghi ngờ)",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 25
+    },
+    "likeDistractMs": {
+      "type": "integer",
+      "title": "Đêm giải cứu: mỗi tim làm camera tắt thêm bao nhiêu mili giây (tối đa 8 giây)",
+      "minimum": 1,
+      "maximum": 2000,
+      "default": 40
+    },
+    "strictAccents": {
+      "type": "boolean",
+      "title": "Bắt gõ đúng dấu tiếng Việt",
+      "default": false
+    },
+    "pingWaitSeconds": {
+      "type": "integer",
+      "title": "Chờ người tặng Chủ quản nhắn gõ câu nhắn (giây)",
+      "minimum": 3,
+      "maximum": 30,
+      "default": 10
+    },
+    "maxPings": {
+      "type": "integer",
+      "title": "Số tin chủ quản tối đa cùng lúc",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 5
+    },
+    "bannedWords": {
+      "type": "string",
+      "title": "Từ cấm trong câu chủ quản nhắn (cách nhau dấu phẩy)",
+      "maxLength": 1000,
+      "default": "đm, dm, địt, đjt, lồn, cặc, đéo, vcl, vkl, clm, đĩ, óc chó"
+    }
   }
 }
