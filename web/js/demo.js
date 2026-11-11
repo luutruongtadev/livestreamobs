@@ -6,7 +6,7 @@ const qs = new URLSearchParams(location.search);
 const id = /^[a-z][a-z0-9-]{1,31}$/.test(qs.get('game') || '') ? qs.get('game') : 'memory';
 const stage = document.getElementById('stage');
 const NAMES = ['Minh Anh', 'Tuấn Kiệt', 'Hồng Nhung', 'Bảo Long', 'Thu Trang', 'Quốc Huy', 'Lan Chi', 'Gia Bảo', 'Ngọc Hân', 'Hải Đăng', 'Phương Vy', 'Đức Thịnh', 'Khánh Linh', 'Hoàng Nam'];
-const SETTINGS = { deadline: { mode: qs.get('mode') === 'camera' ? 'camera' : 'desktop', shiftSeconds: 150, steps: 8, briefSeconds: 3, resultSeconds: 8 }, doantu: { modes: ['meaning'], roundSeconds: 120, hintAtSeconds: [20, 45, 75] }, flagtrip: { tripLength: 12, flagSeconds: 18, revealSeconds: 6 }, memory: { answerSeconds: 8, revealSeconds: 4 }, namvung: { daySeconds: 150, briefSeconds: 6, resultSeconds: 6, evidence: 4 } };
+const SETTINGS = { deadline: { mode: qs.get('mode') === 'camera' ? 'camera' : 'desktop', shiftSeconds: 150, steps: 8, briefSeconds: 3, resultSeconds: 8 }, doantu: { modes: ['meaning'], roundSeconds: 120, hintAtSeconds: [20, 45, 75] }, flagtrip: { tripLength: 12, flagSeconds: 18, revealSeconds: 6 }, memory: { answerSeconds: 8, revealSeconds: 4 }, namvung: { daySeconds: 120, nightSeconds: 100, briefSeconds: 6, storyBriefSeconds: 8, voteSeconds: 10, resultSeconds: 6, evidence: 4 } };
 const rand = Math.random;
 // giá xu của quà phổ biến (để thấy hiệu ứng theo số xu, vd meme quà lớn)
 const COINS = { rose: 1, 'finger heart': 5, doughnut: 30, perfume: 20, 'hat and mustache': 99, 'money gun': 500, galaxy: 1000, corgi: 299, cap: 99, 'heart me': 1, 'hand hearts': 100, sunglasses: 199, lion: 29999 };

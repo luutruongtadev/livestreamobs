@@ -2,55 +2,208 @@
   "intro": [
     "Bạn là cảnh sát chìm, mật danh {code}.",
     "Bạn giả làm người đi xin việc và bị đưa vào {place}.",
-    "Ban ngày phải chạy KPI lừa đảo để không bị nghi ngờ.",
-    "Ban đêm lén thu thập {n} bằng chứng, chờ có sóng thì gửi về công an Việt Nam."
+    "Ban ngày phải chạy KPI để không bị Hắc Long nghi ngờ.",
+    "Lén thu {n} bằng chứng, gửi về Chỉ huy Sơn, rồi thoát ra trong đêm giải cứu."
   ],
-  "codes": ["Cá Mập", "Hải Âu", "Sói Xám", "Bóng Đêm", "Mắt Bão", "Rắn Lục"],
+  "codes": [
+    "Cá Mập",
+    "Hải Âu",
+    "Sói Xám",
+    "Bóng Đêm",
+    "Mắt Bão",
+    "Rắn Lục"
+  ],
   "chats": [
-    ["Chúc mừng anh trúng thưởng xe SH, bấm link để nhận quà nhé", "Trúng thưởng bất ngờ + bấm link lạ"],
-    ["Việc nhẹ lương cao, làm online 2 tiếng được 500 nghìn mỗi ngày", "Việc nhẹ lương cao"],
-    ["Em là nhân viên ngân hàng, tài khoản của anh sắp bị khoá", "Giả danh ngân hàng, doạ khoá tài khoản"],
-    ["Chị ơi đơn hàng bị giữ ở kho, chị chuyển phí 30 nghìn giúp em", "Đòi chuyển phí lạ"],
-    ["Anh vào nhóm đầu tư với em, lãi 30 phần trăm mỗi tuần", "Lãi cao phi lý"],
-    ["Bạn được chọn làm cộng tác viên chốt đơn, nạp tiền trước để nhận việc", "Bắt nạp tiền trước"],
-    ["Anh nộp thiếu thuế rồi, cài ứng dụng này để kê khai lại nhé", "Bắt cài ứng dụng lạ"],
-    ["Em làm quen anh nha, em đang chơi sàn tiền ảo lời lắm", "Làm quen online rồi rủ đầu tư"],
-    ["Con anh bị tai nạn đang cấp cứu, chuyển gấp tiền viện phí", "Báo tin người thân gặp nạn, giục chuyển tiền"],
-    ["Anh đọc giúp em mã OTP vừa gửi về điện thoại nhé", "Xin mã OTP"]
+    [
+      "Chúc mừng anh trúng thưởng xe SH, bấm link để nhận quà nhé",
+      "Trúng thưởng bất ngờ + bấm link lạ"
+    ],
+    [
+      "Việc nhẹ lương cao, làm online 2 tiếng được 500 nghìn mỗi ngày",
+      "Việc nhẹ lương cao"
+    ],
+    [
+      "Em là nhân viên ngân hàng, tài khoản của anh sắp bị khoá",
+      "Giả danh ngân hàng, doạ khoá tài khoản"
+    ],
+    [
+      "Chị ơi đơn hàng bị giữ ở kho, chị chuyển phí 30 nghìn giúp em",
+      "Đòi chuyển phí lạ"
+    ],
+    [
+      "Anh vào nhóm đầu tư với em, lãi 30 phần trăm mỗi tuần",
+      "Lãi cao phi lý"
+    ],
+    [
+      "Bạn được chọn làm cộng tác viên chốt đơn, nạp tiền trước để nhận việc",
+      "Bắt nạp tiền trước"
+    ],
+    [
+      "Anh nộp thiếu thuế rồi, cài ứng dụng này để kê khai lại nhé",
+      "Bắt cài ứng dụng lạ"
+    ],
+    [
+      "Em làm quen anh nha, em đang chơi sàn tiền ảo lời lắm",
+      "Làm quen online rồi rủ đầu tư"
+    ],
+    [
+      "Con anh bị tai nạn đang cấp cứu, chuyển gấp tiền viện phí",
+      "Báo tin người thân gặp nạn, giục chuyển tiền"
+    ],
+    [
+      "Anh đọc giúp em mã OTP vừa gửi về điện thoại nhé",
+      "Xin mã OTP"
+    ]
   ],
-  "victims": ["Chú Ba Tiền Giang", "Cô Tư bán xôi", "Anh Tuấn shipper", "Chị Lan kế toán", "Bác Hai về hưu", "Em Vy sinh viên", "Anh Long xe ôm", "Cô Mai giáo viên"],
+  "victims": [
+    "Chú Ba Tiền Giang",
+    "Cô Tư bán xôi",
+    "Anh Tuấn shipper",
+    "Chị Lan kế toán",
+    "Bác Hai về hưu",
+    "Em Vy sinh viên",
+    "Anh Long xe ôm",
+    "Cô Mai giáo viên"
+  ],
   "calls": [
-    { "victim": "Alo ai vậy?", "script": "Dạ em gọi từ bên giao hàng ạ", "wrong": ["Em là kẻ lừa đảo đây ạ", "Alo alo một hai ba bốn"] },
-    { "victim": "Sao em biết số chị?", "script": "Dạ hệ thống tự gửi thông báo ạ", "wrong": ["Em mua danh sách số trên mạng", "Em đoán bừa đó chị"] },
-    { "victim": "Để chú hỏi con chú đã", "script": "Dạ việc này gấp lắm chú ơi", "wrong": ["Dạ chú hỏi đi, con chú biết hết", "Chú đừng hỏi ai nha, em sợ"] },
-    { "victim": "Có thật không đó em?", "script": "Dạ thật mà anh, có giấy tờ đàng hoàng", "wrong": ["Dạ cũng không chắc lắm anh", "Thật như kẹo cao su"] },
-    { "victim": "Thôi để mai tính nha", "script": "Ưu đãi chỉ còn hôm nay thôi ạ", "wrong": ["Dạ mai em gọi lại, khỏi lo", "Mai em bị phạt mất anh ơi"] },
-    { "victim": "Sao giọng em lạ vậy?", "script": "Dạ em đang ở ngoài đường nên ồn ạ", "wrong": ["Em đang bị nhốt trong trại", "Em bị cảm, khụ khụ"] }
+    {
+      "victim": "Alo ai vậy?",
+      "script": "Dạ em gọi từ bên giao hàng ạ",
+      "wrong": [
+        "Em là kẻ lừa đảo đây ạ",
+        "Alo alo một hai ba bốn"
+      ]
+    },
+    {
+      "victim": "Sao em biết số chị?",
+      "script": "Dạ hệ thống tự gửi thông báo ạ",
+      "wrong": [
+        "Em mua danh sách số trên mạng",
+        "Em đoán bừa đó chị"
+      ]
+    },
+    {
+      "victim": "Để chú hỏi con chú đã",
+      "script": "Dạ việc này gấp lắm chú ơi",
+      "wrong": [
+        "Dạ chú hỏi đi, con chú biết hết",
+        "Chú đừng hỏi ai nha, em sợ"
+      ]
+    },
+    {
+      "victim": "Có thật không đó em?",
+      "script": "Dạ thật mà anh, có giấy tờ đàng hoàng",
+      "wrong": [
+        "Dạ cũng không chắc lắm anh",
+        "Thật như kẹo cao su"
+      ]
+    },
+    {
+      "victim": "Thôi để mai tính nha",
+      "script": "Ưu đãi chỉ còn hôm nay thôi ạ",
+      "wrong": [
+        "Dạ mai em gọi lại, khỏi lo",
+        "Mai em bị phạt mất anh ơi"
+      ]
+    },
+    {
+      "victim": "Sao giọng em lạ vậy?",
+      "script": "Dạ em đang ở ngoài đường nên ồn ạ",
+      "wrong": [
+        "Em đang bị nhốt trong trại",
+        "Em bị cảm, khụ khụ"
+      ]
+    }
   ],
   "copies": [
-    "Toà B3 tầng 4 giữ 27 người", "Giờ đổi ca bảo an là 2 giờ sáng", "Cổng sau không có camera",
-    "Xe chở người đến vào tối thứ năm", "Tài khoản nhận tiền đứng tên công ty ma", "Phòng chủ quản ở tầng 6 toà A"
+    "Toà B3 tầng 4 giữ 27 người",
+    "Giờ đổi ca bảo an là 2 giờ sáng",
+    "Cổng sau không có camera",
+    "Xe chở người đến vào tối thứ năm",
+    "Tài khoản nhận tiền đứng tên công ty ma",
+    "Phòng chủ quản ở tầng 6 toà A"
   ],
   "evidence": [
-    { "name": "Sơ đồ khu trại", "icon": "🗺️", "kind": "map" },
-    { "name": "Danh sách người bị giữ", "icon": "📋", "kind": "copy" },
-    { "name": "Sổ chuyển tiền", "icon": "💰", "kind": "photo" },
-    { "name": "Ảnh mặt chủ quản", "icon": "📸", "kind": "photo" },
-    { "name": "Lịch đổi ca bảo an", "icon": "🕐", "kind": "copy" },
-    { "name": "Hộ chiếu bị thu giữ", "icon": "🛂", "kind": "photo" },
-    { "name": "Toạ độ khu trại", "icon": "📍", "kind": "gps" }
+    {
+      "name": "Sơ đồ khu trại",
+      "icon": "🗺️",
+      "kind": "map",
+      "note": "Vị trí 6 toà nhà, cổng sau không có camera."
+    },
+    {
+      "name": "Danh sách người bị giữ",
+      "icon": "📋",
+      "kind": "copy",
+      "note": "27 người Việt bị giữ ở toà B3, có cả học sinh."
+    },
+    {
+      "name": "Sổ chuyển tiền",
+      "icon": "💰",
+      "kind": "photo",
+      "note": "Hơn 1.200 giao dịch trong một tháng qua tài khoản công ty ma."
+    },
+    {
+      "name": "Ảnh mặt chủ quản",
+      "icon": "📸",
+      "kind": "photo",
+      "note": "Ảnh rõ mặt Hắc Long đang chia tiền."
+    },
+    {
+      "name": "Lịch đổi ca bảo an",
+      "icon": "🕐",
+      "kind": "copy",
+      "note": "Bảo an đổi ca lúc 2 giờ sáng, cổng trống 5 phút."
+    },
+    {
+      "name": "Hộ chiếu bị thu giữ",
+      "icon": "🛂",
+      "kind": "photo",
+      "note": "Một tủ khoá chứa hàng chục hộ chiếu của nạn nhân."
+    },
+    {
+      "name": "Toạ độ khu trại",
+      "icon": "📍",
+      "kind": "gps",
+      "note": "Toạ độ chính xác để lực lượng chức năng tiếp cận."
+    }
   ],
-  "rooms": ["Phòng máy A", "Phòng máy B", "Nhà ăn", "Phòng chủ quản", "Kho", "Ký túc xá", "Cổng chính", "Cổng sau"],
+  "rooms": [
+    "Phòng máy A",
+    "Phòng máy B",
+    "Nhà ăn",
+    "Phòng chủ quản",
+    "Kho",
+    "Ký túc xá",
+    "Cổng chính",
+    "Cổng sau"
+  ],
   "pings": [
-    "Hôm nay chưa đủ KPI thì đừng hòng ăn tối", "Gõ nhanh lên!", "Sao ngồi im vậy?", "Mày đang nhắn cho ai đó?",
-    "Đưa điện thoại đây kiểm tra", "Khách sắp chuyển tiền rồi, chốt đi", "Tháng này cả phòng bị trừ lương vì mày",
-    "Tối nay tăng ca tới 2 giờ sáng", "Lên phòng tao gặp chút", "Ai cho mày nghỉ?"
+    "Hôm nay chưa đủ KPI thì đừng hòng ăn tối",
+    "Gõ nhanh lên!",
+    "Sao ngồi im vậy?",
+    "Mày đang nhắn cho ai đó?",
+    "Đưa điện thoại đây kiểm tra",
+    "Khách sắp chuyển tiền rồi, chốt đi",
+    "Tháng này cả phòng bị trừ lương vì mày",
+    "Tối nay tăng ca tới 2 giờ sáng",
+    "Lên phòng tao gặp chút",
+    "Ai cho mày nghỉ?"
   ],
-  "patrol": ["Đang làm gì đó?", "Màn hình mở gì vậy?", "Đứng im!", "Cho xem tay coi"],
+  "patrol": [
+    "Đang làm gì đó?",
+    "Màn hình mở gì vậy?",
+    "Đứng im!",
+    "Cho xem tay coi"
+  ],
   "punishments": [
-    "Chống đẩy 10 cái", "Đứng nghiêm 20 giây không cười", "Hát to một câu bất kỳ",
-    "Đọc to 3 lần: Mai tôi sẽ đạt KPI", "Ngồi xổm làm việc tới hết ngày sau", "Cảm ơn từng người tặng quà",
-    "Làm mặt sợ hãi 10 giây", "Nhảy một điệu TikTok"
+    "Chống đẩy 10 cái",
+    "Đứng nghiêm 20 giây không cười",
+    "Hát to một câu bất kỳ",
+    "Đọc to 3 lần: Mai tôi sẽ đạt KPI",
+    "Ngồi xổm làm việc tới hết ngày sau",
+    "Cảm ơn từng người tặng quà",
+    "Làm mặt sợ hãi 10 giây",
+    "Nhảy một điệu TikTok"
   ],
   "tips": [
     "Không ai cho việc nhẹ lương cao qua tin nhắn lạ",
@@ -59,5 +212,449 @@
     "Bị lừa ra nước ngoài? Gọi 113 hoặc Đại sứ quán Việt Nam",
     "Người thân gặp nạn? Gọi lại số quen trước khi chuyển tiền",
     "Lãi 30% mỗi tuần là lừa đảo"
-  ]
+  ],
+  "cast": {
+    "boss": {
+      "name": "Hắc Long",
+      "icon": "🕶️",
+      "role": "chủ quản"
+    },
+    "guard": {
+      "name": "Tèo Cận",
+      "icon": "🔦",
+      "role": "bảo an"
+    },
+    "friend": {
+      "name": "Bé Hai",
+      "icon": "🧑‍🌾",
+      "role": "đồng hương"
+    },
+    "police": {
+      "name": "Chỉ huy Sơn",
+      "icon": "👮",
+      "role": "công an"
+    },
+    "cao": {
+      "name": "Cáo",
+      "icon": "🦊",
+      "role": "người bí ẩn"
+    }
+  },
+  "suspects": [
+    {
+      "name": "Tuấn Mập",
+      "icon": "🧔",
+      "role": "đầu bếp"
+    },
+    {
+      "name": "Lan Ròm",
+      "icon": "👩",
+      "role": "tổ trưởng phòng máy"
+    },
+    {
+      "name": "Kiệt Sẹo",
+      "icon": "🧑‍🦲",
+      "role": "tài xế"
+    },
+    {
+      "name": "Hằng Tóc Đỏ",
+      "icon": "👩‍🦰",
+      "role": "kế toán"
+    },
+    {
+      "name": "Phát Còi",
+      "icon": "🧑",
+      "role": "thợ sửa máy"
+    },
+    {
+      "name": "Ngọc Lùn",
+      "icon": "👧",
+      "role": "phiên dịch"
+    },
+    {
+      "name": "Sang Hói",
+      "icon": "👨‍🦲",
+      "role": "thủ kho"
+    },
+    {
+      "name": "Vy Kính",
+      "icon": "👩‍💼",
+      "role": "thư ký"
+    },
+    {
+      "name": "Đạt Đen",
+      "icon": "🧑‍🔧",
+      "role": "thợ điện"
+    },
+    {
+      "name": "Mai Mắt Xanh",
+      "icon": "👱‍♀️",
+      "role": "giữ đồ"
+    },
+    {
+      "name": "Lộc Lé",
+      "icon": "🧔‍♂️",
+      "role": "lao công"
+    },
+    {
+      "name": "Thảo Mai",
+      "icon": "👩‍🍳",
+      "role": "phụ bếp"
+    },
+    {
+      "name": "Huy Gầy",
+      "icon": "🧑‍💻",
+      "role": "IT"
+    },
+    {
+      "name": "Trinh Cận",
+      "icon": "👓",
+      "role": "chấm công"
+    },
+    {
+      "name": "Bảo Xăm",
+      "icon": "💪",
+      "role": "bốc vác"
+    },
+    {
+      "name": "Duyên Hồng",
+      "icon": "💁‍♀️",
+      "role": "lễ tân"
+    }
+  ],
+  "clues": {
+    "traitor": [
+      "{name} hỏi Tèo Cận rất kỹ giờ đổi ca bảo an",
+      "{name} có điện thoại riêng, dù ai cũng bị thu",
+      "{name} vào phòng Hắc Long rất lâu mỗi tối",
+      "{name} biết chuyện bạn gửi tin dù bạn chưa kể ai",
+      "{name} tối nào cũng có thêm suất cơm thịt",
+      "{name} đứng nghe lén ở cửa lúc bạn nói chuyện với Bé Hai"
+    ],
+    "innocent": [
+      "{name} lén khóc mỗi đêm vì nhớ con",
+      "{name} hay ra cổng sau… hoá ra để cho mèo hoang ăn",
+      "{name} giấu một tấm ảnh gia đình dưới gối",
+      "{name} xin thêm việc để gửi tiền về quê trả nợ",
+      "{name} gặp Tèo Cận ở góc sân… để mua thuốc cảm",
+      "{name} hỏi bạn đường về Việt Nam đi mấy ngày"
+    ]
+  },
+  "ciphers": [
+    "DOI CA LUC HAI GIO",
+    "CONG SAU KHONG KHOA",
+    "CAMERA TAT LUC NUA DEM",
+    "XE CHO TOI THU NAM",
+    "GIU BINH TINH CHO LENH",
+    "DOI DAC NHIEM DA SAN SANG"
+  ],
+  "relays": [
+    "Mẹ ơi con vẫn khoẻ, sắp về rồi",
+    "Ba mẹ đừng chuyển tiền cho ai nhé",
+    "Con xin lỗi vì đã tin người lạ",
+    "Nhờ chú báo công an giúp con"
+  ],
+  "days": [
+    {
+      "title": "Bước qua cổng",
+      "kind": "day",
+      "intro": [
+        "Ngày đầu trong trại. Hắc Long nhìn bạn từ đầu đến chân.",
+        "\"Người mới phải chạy KPI gấp đôi. Đừng giở trò.\""
+      ],
+      "choice": {
+        "q": "Tèo Cận chặn bạn ở hành lang, đòi 200 đô \"tiền làm ngơ\".",
+        "options": [
+          {
+            "label": "Đưa tiền cho Tèo",
+            "tag": "lieu",
+            "kpi": 2,
+            "bribe": true,
+            "result": "Tèo làm ngơ: tuần tra cả chiến dịch ngắn hơn, nhưng hôm nay KPI +2."
+          },
+          {
+            "label": "Từ chối thẳng",
+            "tag": "tot",
+            "sus": 10,
+            "result": "Tèo ghi thù: nghi ngờ +10%."
+          }
+        ]
+      },
+      "events": [
+        {
+          "at": 0.12,
+          "who": "boss",
+          "text": "Người mới hả? Hôm nay không đủ KPI thì nhịn đói."
+        },
+        {
+          "at": 0.3,
+          "who": "police",
+          "text": "Đã nhận tín hiệu. Gửi tin mật đầu tiên, giải mã rồi làm theo.",
+          "effect": "cipher"
+        },
+        {
+          "at": 0.45,
+          "who": "clue",
+          "text": 0
+        },
+        {
+          "at": 0.6,
+          "who": "guard",
+          "text": "Đi tuần đây, ai lười là biết tay!",
+          "effect": "tuantra"
+        },
+        {
+          "at": 0.75,
+          "who": "clue",
+          "text": 1
+        }
+      ]
+    },
+    {
+      "title": "Người đồng hương",
+      "kind": "day",
+      "intro": [
+        "Ở bàn bên là Bé Hai, cô gái miền Tây bị lừa sang với lời hứa \"việc nhẹ lương cao\".",
+        "Cô ấy nhận ra bạn không giống những người khác…"
+      ],
+      "choice": {
+        "q": "Bé Hai đoán ra thân phận của bạn và xin được trốn cùng.",
+        "options": [
+          {
+            "label": "Hứa đưa Bé Hai theo",
+            "tag": "tot",
+            "friend": true,
+            "result": "Bé Hai sẽ đi cùng trong đêm giải cứu: cứu thêm người, nhưng đường trốn dài hơn."
+          },
+          {
+            "label": "Từ chối cho an toàn",
+            "tag": "lieu",
+            "friend": false,
+            "sus": -5,
+            "result": "Bé Hai lặng lẽ quay đi. An toàn hơn, nhưng bạn sẽ thoát một mình."
+          }
+        ]
+      },
+      "events": [
+        {
+          "at": 0.15,
+          "who": "friend",
+          "text": "Anh/chị ơi… em muốn về nhà."
+        },
+        {
+          "at": 0.32,
+          "who": "clue",
+          "text": 0
+        },
+        {
+          "at": 0.45,
+          "who": "friend",
+          "text": "Nhờ anh/chị gửi giúp em lời nhắn về cho mẹ…",
+          "effect": "relay"
+        },
+        {
+          "at": 0.62,
+          "who": "boss",
+          "text": "Hai người nói gì thì thầm đó?",
+          "effect": "chuquan"
+        },
+        {
+          "at": 0.8,
+          "who": "clue",
+          "text": 1
+        }
+      ]
+    },
+    {
+      "title": "Sổ đen",
+      "kind": "day",
+      "intro": [
+        "Sổ chuyển tiền của cả trại nằm trong phòng Hắc Long.",
+        "Chỉ huy Sơn: \"Muốn vào phòng, phải biết giờ bảo an đổi ca.\""
+      ],
+      "choice": {
+        "q": "Cáo lén dúi vào tay bạn một chiếc USB lạ: \"Mọi thứ ở trong này.\"",
+        "options": [
+          {
+            "label": "Cắm USB vào máy",
+            "tag": "lieu",
+            "usb": true,
+            "result": "Liều ăn nhiều: có thể là toàn bộ sổ sách… hoặc là bẫy."
+          },
+          {
+            "label": "Vứt USB đi",
+            "tag": "tot",
+            "result": "Bạn không tin Cáo. An toàn, nhưng phải tự tìm bằng chứng."
+          }
+        ]
+      },
+      "events": [
+        {
+          "at": 0.2,
+          "who": "police",
+          "text": "Tin mật số 2. Giải mã để biết lúc nào an toàn.",
+          "effect": "cipher"
+        },
+        {
+          "at": 0.38,
+          "who": "clue",
+          "text": 0
+        },
+        {
+          "at": 0.55,
+          "who": "guard",
+          "text": "Kiểm tra điện thoại đột xuất!",
+          "effect": "thudt"
+        },
+        {
+          "at": 0.72,
+          "who": "cao",
+          "text": "Tài liệu để dưới khay cơm tối nay. Đừng hỏi gì.",
+          "effect": "noigian"
+        },
+        {
+          "at": 0.85,
+          "who": "clue",
+          "text": 1
+        }
+      ]
+    },
+    {
+      "title": "Kẻ phản bội",
+      "kind": "day",
+      "traitorVote": true,
+      "intro": [
+        "Sáng nay Hắc Long nói một câu khiến bạn lạnh gáy: \"Tao biết trong trại có chuột.\"",
+        "Có người đã báo cho hắn. Kẻ phản bội ở rất gần bạn."
+      ],
+      "choice": {
+        "q": "Hắc Long gọi bạn vào tra hỏi giữa phòng máy.",
+        "options": [
+          {
+            "label": "Đổ cho người khác",
+            "tag": "lieu",
+            "sus": -25,
+            "result": "Hắc Long quay sang tra người khác. Bạn thoát… nhưng lương tâm thì không."
+          },
+          {
+            "label": "Im lặng chịu đựng",
+            "tag": "tot",
+            "sus": 10,
+            "result": "Bạn không khai gì. Nghi ngờ +10%, nhưng không ai bị liên luỵ."
+          }
+        ]
+      },
+      "events": [
+        {
+          "at": 0.15,
+          "who": "boss",
+          "text": "Ai là chuột, tự khai ra trước khi tao tìm thấy!"
+        },
+        {
+          "at": 0.35,
+          "who": "guard",
+          "text": "Lục soát toàn bộ phòng máy!",
+          "effect": "tuantra"
+        },
+        {
+          "at": 0.5,
+          "who": "police",
+          "text": "Tin mật cuối. Đêm mai đội đặc nhiệm sẽ vào.",
+          "effect": "cipher"
+        },
+        {
+          "at": 0.7,
+          "who": "friend",
+          "text": "Em nghe nói đêm mai có biến… anh/chị cẩn thận."
+        }
+      ]
+    },
+    {
+      "title": "Đêm giải cứu",
+      "kind": "escape",
+      "intro": [
+        "2 giờ sáng. Bảo an đổi ca. Chỉ huy Sơn: \"Đội đặc nhiệm đang chờ ngoài cổng.\"",
+        "Đi theo sơ đồ đã gửi, né camera, trốn khi có tuần tra. Đi!"
+      ],
+      "choice": {
+        "q": "Chọn đường thoát.",
+        "options": [
+          {
+            "label": "Cổng sau: ngắn, nhiều camera",
+            "tag": "lieu",
+            "route": "short",
+            "result": "Đường ngắn hơn nhưng camera quét dày đặc."
+          },
+          {
+            "label": "Đường ống: dài, ít camera",
+            "tag": "tot",
+            "route": "long",
+            "result": "Đường dài hơn nhưng camera thưa."
+          }
+        ]
+      },
+      "events": [
+        {
+          "at": 0.25,
+          "who": "guard",
+          "text": "Ai đó?! Đứng lại!",
+          "effect": "tuantra"
+        },
+        {
+          "at": 0.55,
+          "who": "boss",
+          "text": "Bật hết đèn lên! Tìm cho bằng được!",
+          "effect": "tuantra"
+        }
+      ]
+    }
+  ],
+  "endings": {
+    "full": {
+      "title": "TRIỆT PHÁ HOÀN TOÀN",
+      "icon": "🚔",
+      "lines": [
+        "Đội đặc nhiệm ập vào lúc 2 giờ 15.",
+        "Hắc Long bị bắt khi đang đốt sổ sách. Kẻ phản bội {traitor} bị còng tay ngay tại cổng.",
+        "Bé Hai ôm mẹ ở sân bay Tân Sơn Nhất.",
+        "Toàn bộ người bị giữ đã được đưa về nước."
+      ]
+    },
+    "friend": {
+      "title": "THOÁT CÙNG ĐỒNG HƯƠNG",
+      "icon": "🕊️",
+      "lines": [
+        "Bạn và Bé Hai chạy thoát qua {route}.",
+        "Nhưng {why} Hắc Long đã kịp trốn sang biên giới.",
+        "Bé Hai được về nhà. Chiến dịch chưa kết thúc…"
+      ]
+    },
+    "alone": {
+      "title": "THOÁT MỘT MÌNH",
+      "icon": "🏃",
+      "lines": [
+        "Bạn thoát ra ngoài một mình trong đêm.",
+        "Ngoái lại, đèn phòng máy vẫn sáng. Bé Hai vẫn còn trong đó.",
+        "Chỉ huy Sơn: \"Chúng ta sẽ quay lại. Hứa đấy.\""
+      ]
+    },
+    "lo": {
+      "title": "BỊ LỘ DANH TÍNH",
+      "icon": "😱",
+      "lines": [
+        "Hắc Long đứng sau lưng bạn, cầm chiếc điện thoại bí mật.",
+        "\"Tao biết ngay mà.\"",
+        "Tín hiệu của mật danh {code} tắt lúc nửa đêm."
+      ]
+    },
+    "ban": {
+      "title": "BỊ BÁN SANG TRẠI KHÁC",
+      "icon": "🚐",
+      "lines": [
+        "Trời sáng trước khi bạn kịp thoát ra.",
+        "Bạn bị bịt mắt, đẩy lên một chiếc xe không biển số…",
+        "Phần 2: một trại mới, một thân phận mới."
+      ]
+    }
+  }
 }
