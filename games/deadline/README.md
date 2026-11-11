@@ -12,6 +12,8 @@ Game văn phòng: streamer phải xong việc trước deadline. Người xem t�
   - Mỗi bước xong, bấm **+1 bước** trên dashboard hoặc phím **Space / →** trong cửa sổ chơi (**←** để lùi).
 
 ## 📖 Cốt truyện (cài đặt `story`, bật mặc định, áp dụng cho cả 2 chế độ)
+
+Tắt `story` để chơi đơn giản: chỉ làm việc và quà, không chương, bình chọn hay đối thủ Trâm.
 Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi chức là một chương**, tổng cộng 7 chương:
 
 | Chương | Chức | Tên chương | Nhân vật chính |

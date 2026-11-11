@@ -125,7 +125,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawHud(now) {
     const x = 24, y = TOP, w = 776, h = 150;
     fill(x, y, w, h, 26, C.panel); stroke(x, y, w, h, 26, C.edge);
-    text(`NGÀY ${S.day}/${S.days} · ${S.chapter?.title?.toUpperCase() || ''}`, x + 30, y + 34, 22, C.amber, 900, 'left', w - 330);
+    text(`NGÀY ${S.day}/${S.days}${S.simple ? ' · NẰM VÙNG' : ` · ${S.chapter?.title?.toUpperCase() || ''}`}`, x + 30, y + 34, 22, C.amber, 900, 'left', w - 330);
     const tag = `🕶️ Mật danh: ${S.code}`;
     const tw = measure(tag, 21, 800) + 28;
     fill(x + w - tw - 20, y + 15, tw, 38, 19, 'rgba(255,255,255,.1)');
@@ -660,14 +660,14 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     const first = S.day === 1;
     const intro = [...(first ? S.intro : []), ...(ch.intro || [])].flatMap((l) => wrap(l, 30, 800, 700)).slice(0, 9);
     const vh = S.vote ? 90 + wrap(S.vote.q, 28, 780, 700).slice(0, 2).length * 38 + 112 : 0;
-    const chh = 330 + intro.length * 42 + (first ? 120 : 0) + vh, y0 = Math.max(TOP + 10, 990 - chh / 2);
+    const chh = 330 + intro.length * 42 + (first && !S.simple ? 120 : 0) + vh, y0 = Math.max(TOP + 10, 990 - chh / 2);
     card(80, y0, 920, chh);
     text(first ? `CHIẾN DỊCH ${S.campaign} · MẬT DANH ${S.code.toUpperCase()}` : `NGÀY ${S.day}/${S.days}`, W / 2, y0 + 50, 24, C.amber, 900);
     bigText(`${ch.kind === 'escape' ? '🌙' : '🕶️'} ${ch.title}`, W / 2, y0 + 118, 80, ch.kind === 'escape' ? '#a7f3d0' : '#fff');
     let y = y0 + 190;
     intro.forEach((ln, i) => text(ln, W / 2, y + i * 42, 30, '#e5e7eb', 700));
     y += intro.length * 42 + 10;
-    if (first) { // dàn nhân vật
+    if (first && !S.simple) { // dàn nhân vật
       const cast = Object.values(S.cast || {}).slice(0, 5);
       const cw = 168;
       cast.forEach((c, i) => {
@@ -736,11 +736,13 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     let y = y0 + 180;
     for (const l of r.lines) for (const ln of wrap(l, 28, 860, 700)) { text(ln, W / 2, y, 28, '#e5e7eb', 700); y += 40; }
     y += 14;
-    // kẻ phản bội
+    // kẻ phản bội (chỉ khi có cốt truyện)
     const t = r.traitor;
-    fill(110, y, 860, 76, 18, 'rgba(239,68,68,.12)');
-    text(`🐀 Kẻ phản bội: ${t.icon} ${t.name}${t.guessed ? (t.correct ? ' · người xem đoán ĐÚNG ✅' : ` · người xem đoán nhầm ${t.guessed} ❌`) : ''}`, W / 2, y + 38, 26, '#fecaca', 800, 'center', 820);
-    y += 96;
+    if (t) {
+      fill(110, y, 860, 76, 18, 'rgba(239,68,68,.12)');
+      text(`🐀 Kẻ phản bội: ${t.icon} ${t.name}${t.guessed ? (t.correct ? ' · người xem đoán ĐÚNG ✅' : ` · người xem đoán nhầm ${t.guessed} ❌`) : ''}`, W / 2, y + 38, 26, '#fecaca', 800, 'center', 820);
+      y += 96;
+    }
     // hồ sơ vụ án
     text(`📁 HỒ SƠ VỤ ÁN · ${r.dossier.filter((p) => p.sent).length}/${r.total} trang`, 120, y + 14, 24, '#93c5fd', 900, 'left');
     y += 40;
@@ -754,7 +756,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       y += 72;
     });
     y += 6;
-    text(`🛟 Cứu ${r.saved} người · ${r.scams} lần chạy KPI · lựa chọn: ${r.choices.map((c) => (c.tag === 'tot' ? '🤍' : '🎲')).join(' ') || '—'}`, W / 2, y + 12, 22, C.dim, 700, 'center', 880);
+    text(`🛟 Cứu ${r.saved} người · ${r.scams} lần chạy KPI${r.simple ? '' : ` · lựa chọn: ${r.choices.map((c) => (c.tag === 'tot' ? '🤍' : '🎲')).join(' ') || '—'}`}`, W / 2, y + 12, 22, C.dim, 700, 'center', 880);
     y += 44;
     fill(110, y, 860, 96, 20, 'rgba(59,130,246,.16)');
     text('🛡️ Nhớ để không bị lừa · gặp chuyện gọi 113', W / 2, y + 28, 20, '#93c5fd', 800);

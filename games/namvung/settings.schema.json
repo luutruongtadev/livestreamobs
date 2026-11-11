@@ -1,6 +1,18 @@
 {
   "type": "object",
   "properties": {
+    "story": {
+      "type": "boolean",
+      "title": "Cốt truyện: 5 chương có nhân vật, bình chọn, kẻ phản bội, đêm giải cứu (tắt = chơi đơn giản: chạy KPI, thu và gửi bằng chứng; gửi đủ là thắng)",
+      "default": true
+    },
+    "simpleDays": {
+      "type": "integer",
+      "title": "Chơi đơn giản (tắt cốt truyện): số ngày để gửi đủ bằng chứng",
+      "minimum": 2,
+      "maximum": 10,
+      "default": 5
+    },
     "place": {
       "type": "string",
       "title": "Tên nơi bị đưa tới (hiện ở phần mở đầu)",

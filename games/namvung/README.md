@@ -48,6 +48,13 @@ Nhân vật (hư cấu):
   - 😱 **Bị lộ:** nghi ngờ lên 100%.
   - 🚐 **Bị bán sang trại khác:** trời sáng mà chưa thoát.
 
+## 🎯 Chơi đơn giản (tắt cốt truyện)
+Tắt cài đặt `story` để chỉ giữ vòng chơi chính: chạy KPI, lén thu bằng chứng, chờ sóng từ tim để gửi về.
+- **Bỏ:** chương, lời dẫn dài, bình chọn 1 / 2, kẻ phản bội, tin nhắn nhân vật, tin mật, đêm giải cứu.
+- **Thắng:** gửi đủ bằng chứng thì công an ập vào ngay.
+- **Thua:** hết `simpleDays` ngày (mặc định 5) mà chưa gửi đủ, hoặc nghi ngờ lên 100%.
+- Quà, tuần tra, bình luận "che" vẫn như cũ.
+
 ## Cách chơi (máy tính giả lập, cửa sổ chơi `?play=1`)
 Màn hình máy tính có 2 tab. Bấm vào tab hoặc nhấn **Tab** để đổi. Nhấn **Esc** để quay nhanh về Việc trại.
 

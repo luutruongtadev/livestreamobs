@@ -41,6 +41,14 @@ const FALLBACK = {
   endings: {},
 };
 
+// kết thúc của chế độ đơn giản (tắt cốt truyện) — data/camp.json endings có thì dùng bản trong data
+const SIMPLE_END = {
+  simple: { title: 'TRIỆT PHÁ ĐƯỜNG DÂY', icon: '🚔', lines: ['Bằng chứng cuối cùng đã về tới Chỉ huy Sơn.', 'Công an ập vào lúc rạng sáng, giải cứu toàn bộ người bị giữ.', 'Mật danh {code} hoàn thành nhiệm vụ.'] },
+  het: { title: 'HẾT THỜI GIAN', icon: '🚐', lines: ['Hết {days} ngày mà hồ sơ vẫn chưa đủ.', 'Trại chuyển đi nơi khác trong đêm, dấu vết bị xoá sạch.', 'Chiến dịch sau: thu nhanh hơn, gửi sớm hơn!'] },
+};
+
+const SIMPLE_INTRO = ['Bạn là cảnh sát chìm, mật danh {code}, đang nằm vùng trong một trại lừa đảo.', 'Ban ngày chạy KPI để không bị nghi ngờ.', 'Lén thu {n} bằng chứng và gửi về Chỉ huy Sơn trong {days} ngày.', 'Gửi đủ là công an ập vào!'];
+
 function bannedRegexes(list) {
   return String(list || '').split(',').map((w) => canon(w)).filter(Boolean).slice(0, 100)
     .map((w) => new RegExp(`(^|[^\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\\p{L}\\p{N}])`, 'giu'));
@@ -70,8 +78,10 @@ export class NamVung extends Emitter {
   pick(list) { return list[Math.floor(this.ctx.random() * list.length)]; }
   shuffle(list) { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.ctx.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   get collected() { return this.sent + this.held; }
-  get days() { return this.d.days.length; }
-  chapter() { return this.d.days[clamp(this.day - 1, 0, this.days - 1)] || {}; }
+  /** Tắt cốt truyện: chỉ còn vòng chơi chính (KPI, thu + gửi bằng chứng) — không chương, bình chọn, kẻ phản bội, đêm giải cứu. */
+  get simple() { return this.s.story === false; }
+  get days() { return this.simple ? this.s.simpleDays : this.d.days.length; }
+  chapter() { return this.simple ? { title: `Ngày ${this.day}`, kind: 'day', intro: [], events: [] } : this.d.days[clamp(this.day - 1, 0, this.days - 1)] || {}; }
   get escaping() { return this.phase === 'work' && !!this.escape; }
   person(who) {
     const c = this.d.cast[who];
@@ -127,7 +137,7 @@ export class NamVung extends Emitter {
     this.vote = this.s.voteSeconds > 0 && Array.isArray(opts) && opts.length >= 2
       ? { kind: 'choice', q: String(ch.choice.q || ''), options: opts.slice(0, 2).map((o) => ({ label: String(o.label || '') })), counts: [0, 0], voters: {} }
       : null;
-    const briefS = Math.max(this.s.briefSeconds, this.s.storyBriefSeconds, this.vote ? this.s.voteSeconds : 0);
+    const briefS = this.simple ? this.s.briefSeconds : Math.max(this.s.briefSeconds, this.s.storyBriefSeconds, this.vote ? this.s.voteSeconds : 0);
     this.endsAt = this.startedAt + briefS * 1000;
     return [{ type: 'nv_brief', day: this.day, days: this.days, campaign: this.campaign, first: this.day === 1, kpi: this.kpiTarget, title: String(ch.title || '') }];
   }
@@ -207,6 +217,7 @@ export class NamVung extends Emitter {
     this.dayResult = { ok, kpi: this.kpi, target: this.kpiTarget, day: this.day, sus: Math.round(this.suspicion), delta: Math.round(this.suspicion - before), punishment: !ok ? this.pick(this.d.punishments) : null, choice: this.choice, title: String(this.chapter().title || '') };
     this.clearWork();
     if (this.suspicion >= MAX_SUS) return this.finish(false, 'lo');
+    if (this.simple && this.day >= this.days) return this.finish(false, 'het'); // chế độ đơn giản: hết số ngày mà chưa gửi đủ
     this.phase = 'dayend';
     this.startedAt = this.clock();
     const fx = [];
@@ -227,9 +238,10 @@ export class NamVung extends Emitter {
     const right = this.guess ? this.guess.correct : !(this.s.voteSeconds > 0); // tắt bình chọn → coi như đã lật tẩy
     let ending = how === 'lo' ? 'lo' : how === 'ban' ? 'ban' : sentAll && friend && right ? 'full' : friend ? 'friend' : 'alone';
     if (win && how === 'giaicuu') ending = this.guess?.correct === false ? 'friend' : 'full'; // công an ập vào: cứu tất cả
-    const E = this.d.endings?.[ending] || {};
+    if (this.simple) ending = how === 'lo' ? 'lo' : win ? 'simple' : 'het';
+    const E = this.d.endings?.[ending] || SIMPLE_END[ending] || {};
     const why = !sentAll ? 'thiếu bằng chứng,' : !this.guess?.correct ? 'kẻ phản bội đã báo tin,' : '';
-    const fill = (l) => String(l).replace(/\{code\}/g, this.code).replace(/\{traitor\}/g, this.suspects[this.traitor].name).replace(/\{route\}/g, this.flags.route === 'short' ? 'cổng sau' : 'đường ống').replace(/\{why\}/g, why);
+    const fill = (l) => String(l).replace(/\{code\}/g, this.code).replace(/\{traitor\}/g, this.suspects[this.traitor].name).replace(/\{route\}/g, this.flags.route === 'short' ? 'cổng sau' : 'đường ống').replace(/\{why\}/g, why).replace(/\{days\}/g, this.days);
     const saved = this.saved + ((friend || how === 'giaicuu') && win ? 1 : 0);
     if (win) this.wins++;
     this.clearWork();
@@ -240,7 +252,8 @@ export class NamVung extends Emitter {
       campaign: this.campaign, code: this.code, day: this.day, days: this.days,
       sent: this.sent, total: this.items.length, saved, scams: this.scams, sus: Math.round(this.suspicion),
       dossier: this.items.map((it, i) => ({ ...it, sent: i < this.sent || (how === 'giaicuu') })),
-      traitor: { name: this.suspects[this.traitor].name, icon: this.suspects[this.traitor].icon, guessed: this.guess?.name || null, correct: this.guess?.correct ?? null },
+      simple: this.simple,
+      traitor: this.simple ? null : { name: this.suspects[this.traitor].name, icon: this.suspects[this.traitor].icon, guessed: this.guess?.name || null, correct: this.guess?.correct ?? null },
       friend, choices: this.choices.map((c) => ({ day: c.day, label: c.label, tag: c.tag })),
       tip: this.pick(this.d.tips),
     };
@@ -366,7 +379,8 @@ export class NamVung extends Emitter {
     const pages = this.items.slice(this.sent, this.sent + n);
     this.sent += n; this.held = 0; this.signal = 0;
     const fx = [{ type: 'nv_sent', n, sent: this.sent, total: this.items.length, pages }];
-    if (this.sent >= this.items.length) { this.say('police', 'Đã nhận đủ hồ sơ! Đêm giải cứu chỉ cần thoát ra ngoài, đội đặc nhiệm lo phần còn lại.'); fx.push({ type: 'nv_story', by: this.person('police'), text: 'Đã nhận đủ hồ sơ!' }); }
+    if (this.sent >= this.items.length && this.simple) fx.push(...this.finish(true, 'gui')); // chế độ đơn giản: đủ hồ sơ là công an ập vào
+    else if (this.sent >= this.items.length) { this.say('police', 'Đã nhận đủ hồ sơ! Đêm giải cứu chỉ cần thoát ra ngoài, đội đặc nhiệm lo phần còn lại.'); fx.push({ type: 'nv_story', by: this.person('police'), text: 'Đã nhận đủ hồ sơ!' }); }
     return fx;
   }
 
@@ -771,6 +785,7 @@ export class NamVung extends Emitter {
       paused: !!this.paused,
       campaign: this.campaign,
       code: this.code,
+      simple: this.simple,
       day: this.day,
       days: this.days,
       chapter: { no: this.day, title: String(ch.title || ''), kind: ch.kind === 'escape' ? 'escape' : 'day', intro: (Array.isArray(ch.intro) ? ch.intro : []).map(String).slice(0, 4) },
@@ -794,7 +809,7 @@ export class NamVung extends Emitter {
       covered: this.phase === 'work' && this.covered(),
       coverWord: this.s.coverWord,
       likesFull: Math.ceil(100 / Math.max(0.01, this.s.signalPerLike)),
-      intro: this.d.intro.map((l) => String(l).replace(/\{code\}/g, this.code).replace(/\{place\}/g, this.s.place).replace(/\{n\}/g, this.items.length)),
+      intro: (this.simple ? (Array.isArray(this.d.introSimple) && this.d.introSimple.length ? this.d.introSimple : SIMPLE_INTRO) : this.d.intro).map((l) => String(l).replace(/\{days\}/g, this.days).replace(/\{code\}/g, this.code).replace(/\{place\}/g, this.s.place).replace(/\{n\}/g, this.items.length)),
       cast: Object.fromEntries(Object.entries(this.d.cast).map(([k, c]) => [k, { name: String(c.name), icon: String(c.icon || ''), role: String(c.role || '') }])),
       suspects: this.suspects.map((x, i) => ({ ...x, letter: LETTERS[i], clues: this.clues.filter((c) => c.who === i).map((c) => c.text) })),
       flags: { bribe: this.flags.bribe, friend: this.flags.friend, trust: this.flags.trust },

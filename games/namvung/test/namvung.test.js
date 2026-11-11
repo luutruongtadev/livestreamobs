@@ -196,3 +196,20 @@ test('bị lộ: nghi ngờ 100% giữa ngày; công an ập vào thắng ngay; 
   host.handle(gift('z', 'Lion', 29999));
   assert.equal(S().result.win, true); assert.equal(S().result.how, 'giaicuu');
 });
+
+test('tắt cốt truyện (chơi đơn giản): không chương / bình chọn / tin nhắn nhân vật; gửi đủ bằng chứng là thắng ngay; hết số ngày chưa đủ thì thua', () => {
+  const { host, S, step, doSecret } = setup({ story: false, simpleDays: 2, voteSeconds: 15, storyBriefSeconds: 20 });
+  assert.equal(S().simple, true); assert.equal(S().days, 2); assert.equal(S().chapter.title, 'Ngày 1');
+  step(2500);
+  assert.equal(S().phase, 'work', 'chỉ đọc briefSeconds, không chờ lời dẫn / bình chọn');
+  assert.equal(S().vote, null);
+  host.input({ type: 'tab', id: 'secret' });
+  for (let i = 0; i < 3; i++) { doSecret(); host.handle({ type: 'like', user: u('l'), count: 500 }); host.input({ type: 'click', target: 'radio' }); }
+  assert.equal(S().phase, 'end'); assert.equal(S().result.win, true); assert.equal(S().result.ending, 'simple');
+  assert.equal(S().result.traitor, null);
+  assert.deepEqual(S().story, [], 'không có tin nhắn nhân vật');
+  // ván sau: hết 2 ngày mà chưa gửi đủ → thua "hết thời gian"
+  step(5000); step(2500);
+  step(600_000); step(3500); step(2500); step(600_000);
+  assert.equal(S().phase, 'end'); assert.equal(S().result.ending, 'het');
+});

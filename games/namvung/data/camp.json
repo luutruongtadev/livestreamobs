@@ -655,6 +655,24 @@
         "Bạn bị bịt mắt, đẩy lên một chiếc xe không biển số…",
         "Phần 2: một trại mới, một thân phận mới."
       ]
+    },
+    "simple": {
+      "title": "TRIỆT PHÁ ĐƯỜNG DÂY",
+      "icon": "🚔",
+      "lines": [
+        "Bằng chứng cuối cùng đã về tới Chỉ huy Sơn.",
+        "Công an ập vào lúc rạng sáng, giải cứu toàn bộ người bị giữ.",
+        "Mật danh {code} hoàn thành nhiệm vụ."
+      ]
+    },
+    "het": {
+      "title": "HẾT THỜI GIAN",
+      "icon": "🚐",
+      "lines": [
+        "Hết {days} ngày mà hồ sơ vẫn chưa đủ.",
+        "Trại chuyển đi nơi khác trong đêm, dấu vết bị xoá sạch.",
+        "Chiến dịch sau: thu nhanh hơn, gửi sớm hơn!"
+      ]
     }
   }
 }

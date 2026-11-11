@@ -16,7 +16,7 @@
     },
     "story": {
       "type": "boolean",
-      "title": "Cốt truyện: mỗi chức là một chương (sếp, lời dẫn, nhân vật nhắn tin, sự kiện, đoạn kết sang mùa mới)",
+      "title": "Cốt truyện: mỗi chức là một chương (sếp, lời dẫn, nhân vật nhắn tin, bình chọn, đối thủ Trâm, đoạn kết sang mùa mới). Tắt = chơi đơn giản: chỉ làm việc + quà",
       "default": true
     },
     "storyBriefSeconds": {
