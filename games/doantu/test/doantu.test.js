@@ -118,3 +118,21 @@ test('không có server (lỗi mạng) → từ ngoài pack là "chưa rõ nghĩ
   assert.equal(s.source, 'none');
   assert.ok(s.score <= 9);
 });
+
+test('luân phiên kiểu chơi theo cài đặt dashboard: đổi cài đặt rồi khôi phục ván cũ KHÔNG bị kiểu chơi / số vòng cũ ghi đè', () => {
+  const a = mk({ settings: { modes: ['meaning', 'giaima'], alternateEvery: 2 } });
+  const modesA = [];
+  for (let i = 0; i < 6; i++) { modesA.push(a.host.snapshot().mode); a.host.command('next'); a.host.command('next'); }
+  assert.deepEqual(modesA, ['meaning', 'meaning', 'giaima', 'giaima', 'meaning', 'meaning'], 'mỗi 2 vòng đổi kiểu');
+  const saved = JSON.parse(JSON.stringify(a.host.serialize()));
+  assert.equal(saved.state.settings, undefined, 'bản lưu không kèm kiểu chơi');
+  // streamer đổi sang chỉ Giải mã, đổi mỗi vòng → overlay nạp lại game và khôi phục bản lưu (kể cả bản lưu kiểu cũ có settings)
+  const b = mk({ settings: { modes: ['giaima'], alternateEvery: 1 } });
+  b.host.restore({ ...saved, state: { ...saved.state, settings: { modes: ['meaning', 'attr', 'english', 'giaima'], alternateEvery: 2 } } });
+  for (let i = 0; i < 4; i++) { b.host.command('next'); b.host.command('next'); assert.equal(b.host.snapshot().mode, 'giaima', `vòng ${i + 2} vẫn theo cài đặt mới`); }
+  const c = mk({ settings: { modes: ['meaning', 'giaima'], alternateEvery: 1 } });
+  c.host.restore(saved);
+  const modesC = [];
+  for (let i = 0; i < 4; i++) { c.host.command('next'); c.host.command('next'); modesC.push(c.host.snapshot().mode); }
+  assert.ok(modesC.includes('meaning') && modesC.includes('giaima') && modesC[0] !== modesC[1], `đổi mỗi vòng: ${modesC}`);
+});
