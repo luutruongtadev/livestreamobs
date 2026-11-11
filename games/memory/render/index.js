@@ -9,6 +9,7 @@
 //  │ khu giữa: người nhanh nhất / bục vinh danh / vòng trước │
 //  │ ┌ bảng điểm ─────────┐ ┌ tương tác (quà → tác dụng) ┐ │
 //  └────────────────────────────────────────────────────┘
+import { drawPanel } from '#sdk';
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const C = {
   bg0: '#060a18', bg1: '#0b1430', bg2: '#101a3d',
@@ -23,6 +24,8 @@ const ACTION_TEXT = { flash: 'hiện lại dãy số', time: 'thêm giờ trả 
  * canvas: nền tảng tạo sẵn đúng kích thước manifest.canvas (1080×1920). options: { mute, debug } từ URL overlay.
  */
 export function mount(el, { canvas, options = {} } = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -540,7 +543,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     drawMiddle(statusBottom + 22, bottomY - 22, now);
     const bh = Math.min(380, H - 260 - bottomY);
     drawBoard(40, bottomY, 590, bh);
-    drawPowerups(650, bottomY, W - 690, bh);
+    studioPanel('gifts', { x: 650, y: bottomY }, () => drawPowerups(650, bottomY, W - 690, bh));
     drawFx(dt);
     drawLevelBanner(now);
     if (S.paused) drawPaused();
@@ -585,6 +588,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() { stopped = true; cancelAnimationFrame(raf); sound.close(); },
   };
 }

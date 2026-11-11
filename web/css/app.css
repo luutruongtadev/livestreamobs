@@ -60,6 +60,11 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; } td, th { padd
 .st-box.on .st-handle { display: block; }
 .st-tag { position: absolute; left: 0; top: -44px; font: 700 26px 'Be Vietnam Pro', sans-serif; color: #fff; background: var(--accent); padding: 2px 12px; border-radius: 8px; display: none; white-space: nowrap; }
 .st-box.on .st-tag { display: block; }
+.st-panel { outline: 4px dashed rgba(251,191,36,.85); background: rgba(251,191,36,.08); }
+.st-panel.on { outline: 5px solid #fbbf24; }
+.st-panel.hidden { opacity: .35; background: repeating-linear-gradient(45deg, rgba(0,0,0,.25) 0 20px, transparent 20px 40px); }
+.st-plabel { position: absolute; left: 12px; top: 10px; font: 800 28px 'Be Vietnam Pro', sans-serif; color: #fde68a; text-shadow: 0 2px 6px #000; pointer-events: none; }
+.st-zone { position: absolute; pointer-events: none; border: 3px dashed rgba(239,68,68,.7); background: rgba(239,68,68,.12); color: rgba(254,202,202,.95); font: 800 26px 'Be Vietnam Pro', sans-serif; padding: 8px 12px; box-sizing: border-box; }
 button.small { padding: 5px 10px; font-size: 13px; }
 .sfx-groups { display: grid; gap: 10px; }
 .sfx-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 4px; }

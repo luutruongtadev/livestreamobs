@@ -48,7 +48,13 @@ let studioKey = '';
 function setStudio(st) { const k = JSON.stringify(st || {}); if (k === studioKey) return; studioKey = k; studio.setStudio(st); } // không đổi → giữ widget (khỏi mất lịch sử bình luận)
 // ?layer=game / ?widgets=0: vẫn giữ luật âm thanh, chỉ bỏ widget
 const studioOf = (st) => (widgetsOn ? st : { ...(st || {}), widgets: [] });
-function onChannel(ch) { if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
+// bảng của game (bảng quà, dòng quà…) streamer kéo / phóng / ẩn trong Studio: studio.panels[gameId]
+let panelsAll = {};
+let draftPanels = null; // xem trước trong dashboard: tab Studio gửi bản nháp qua postMessage khi đang kéo
+function applyPanels() { if (game?.view?.layout) game.view.layout((draftPanels && draftPanels.game === game.id ? draftPanels.panels : panelsAll[game.id]) || {}); }
+function setPanels(st) { panelsAll = st?.panels && typeof st.panels === 'object' ? st.panels : {}; applyPanels(); }
+if (preview) addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.t === 'panels') { draftPanels = { game: String(e.data.game || ''), panels: e.data.panels || {} }; applyPanels(); } });
+function onChannel(ch) { setPanels(ch.studio); if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
 
 // ---------------- lớp UI chung ----------------
 function showBadge(text, cls = '') { badge.textContent = text; badge.className = `ui ${cls}`; badge.style.display = text ? 'block' : 'none'; }
@@ -114,7 +120,7 @@ async function onMsg(m) {
       break;
     case 'role': role = m.role; onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
     case 'cfg': onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
-    case 'studio': if (studio) setStudio(studioOf(m.studio)); break;
+    case 'studio': setPanels(m.studio); if (studio) setStudio(studioOf(m.studio)); break;
     case 'sfx': studio?.playNow(m); break;
     case 'st': studio?.setStats(m.st); break;
     case 'sx': if (role !== 'leader') studio?.event(m.e); break;
@@ -171,6 +177,7 @@ async function loadGame(ch) {
     stage.replaceChildren(canvas, ...(studio ? [studio.el] : []));
     const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
+    applyPanels();
     fit();
     if (role === 'leader') startHost({ ...ch, state: carry ?? ch.state }, { manifest, schema, createGame: engine.createGame }, data);
     updateLegend(ch);

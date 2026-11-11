@@ -45,6 +45,7 @@ Tạo nhanh: `npm run new-game <id> "Tên hiển thị"`.
 | `secrets` | – | tên biến môi trường phần server được nhận (vd `ANTHROPIC_API_KEY`) |
 | `restore` | – | `full` (reload overlay khôi phục nguyên ván) · `partial` (chỉ giữ dữ liệu bền) |
 | `play` | – | `true`: streamer chơi bằng bàn phím / chuột → dashboard hiện nút **Mở cửa sổ chơi** (`/o/<mã>?play=1`) |
+| `panels` | – | bảng có sẵn trong game mà streamer kéo / phóng / ẩn được trong Studio (tránh bị bình luận TikTok che): `[{ id, label, icon?, rect: { x, y, w, h }, when?: { <cài đặt>: <giá trị> } }]`. `rect` = vị trí mặc định trên canvas; `when` = chỉ hiện khi cài đặt khớp (vd `{ "mode": "camera" }`). Renderer phải có `layout(map)` và vẽ bảng qua `drawPanel()` của SDK (xem mục 4) |
 
 **Trigger** (streamer gán lại trong dashboard; một action có thể có nhiều trigger):
 ```jsonc
@@ -100,7 +101,8 @@ ctx = {
 ```js
 mount(el, { canvas, sound?, options?, i18n?, input? }) → { update(snapshot), effect(fx), resumeAudio?(), resize(), destroy() }
 ```
-Không đụng DOM khi import (mọi thứ trong `mount`). Nền tảng lo kết nối, nút bật âm thanh, chế độ điện thoại, lớp UI chung (trạng thái kết nối, BXH, bảng quà).
+Không đụng DOM khi import (mọi thứ trong `mount`).
+- **Bảng chỉnh được trong Studio (`manifest.panels`):** renderer trả thêm `layout(map)` — `map` = `{ [panelId]: { x, y, s, hidden } }` do streamer lưu (đổi lúc nào cũng được, kể cả khi đang xem trước). Vẽ bảng bằng `drawPanel(ctx, map, id, { x, y }, () => vẽ ở toạ độ mặc định)` của SDK: chưa chỉnh thì giữ nguyên, đã chỉnh thì tự dời / phóng / ẩn. Nền tảng lo kết nối, nút bật âm thanh, chế độ điện thoại, lớp UI chung (trạng thái kết nối, BXH, bảng quà).
 
 ## 5. Phần server — `createServer(ctx)` (tuỳ chọn)
 

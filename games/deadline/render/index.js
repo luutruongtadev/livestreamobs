@@ -2,6 +2,7 @@
 // Bố cục theo kiểu game văn phòng: thẻ NHIỆM VỤ + ô DEADLINE ở trên; chế độ camera để trống giữa màn hình cho camera
 // (thông báo sếp ping bên trái, bảng quà bên phải); chế độ máy tính vẽ một cửa sổ máy tính giả để streamer gõ / bấm.
 // Không đụng DOM khi import. mount() nhận thêm input(ev) (đầu vào tại chỗ) — có thì bật gõ phím / bấm chuột.
+import { drawPanel } from '#sdk';
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const TITLE = "'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif";
 const MONO = "ui-monospace, 'Cascadia Mono', Consolas, monospace";
@@ -40,6 +41,8 @@ const FOLDER = [['anh', '🖼️', 'Ảnh'], ['tailieu', '📄', 'Tài liệu'],
 const TOP = 150;
 
 export function mount(el, { canvas, options = {}, input = null } = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -994,16 +997,19 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     drawHud(now);
     if (desktop) {
       drawDesktop(now);
-      const gb = giftGrid(now, 24, WIN.y + WIN.h + 24, 1032);
-      drawFeed(now, 24, Math.min(H - 40, gb + 260));
+      const gy = WIN.y + WIN.h + 24;
+      let gb = gy;
+      studioPanel('gifts', { x: 24, y: gy }, () => { gb = giftGrid(now, 24, gy, 1032); });
+      const fb = Math.min(H - 40, Math.max(gb, gy + 436) + 260);
+      studioPanel('feed', { x: 24, y: fb - 222 }, () => drawFeed(now, 24, fb));
       drawTitle(now, 780);
     } else {
       const cy = drawChips(now, 24, TOP + 176, 650);
       const sy = S.phase === 'work' ? drawStory(now, 24, Math.max(TOP + 186, cy), 650, 2) : Math.max(TOP + 186, cy);
       const py = drawCameraPings(now, sy);
-      giftList(now, 704, TOP + 176, 352);
+      studioPanel('giftsCam', { x: 704, y: TOP + 176 }, () => giftList(now, 704, TOP + 176, 352));
       drawCameraExtras(now, Math.max(cy, py));
-      drawFeed(now, 24, H - 120);
+      studioPanel('feedCam', { x: 24, y: H - 120 - 222 }, () => drawFeed(now, 24, H - 120));
       drawTitle(now, 1240);
     }
     if (S.phase === 'work' && statusOf('cupdien')) drawBlackout(now, desktop);
@@ -1075,6 +1081,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() {
       stopped = true; cancelAnimationFrame(raf); sound.close();
       typing?.remove(); clipEl?.remove();

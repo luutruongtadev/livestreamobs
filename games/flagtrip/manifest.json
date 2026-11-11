@@ -144,5 +144,18 @@
       "id": "clear-board",
       "label": "Xoá bảng điểm"
     }
+  ],
+  "panels": [
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 660,
+        "y": 1340,
+        "w": 380,
+        "h": 330
+      }
+    }
   ]
 }

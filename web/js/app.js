@@ -1,3 +1,5 @@
+import { activePanels, PANEL_SCALE } from '#sdk';
+
 // Dashboard của streamer. Không có code riêng cho từng game: form cài đặt sinh từ settings.schema.json,
 // trình gán quà / tim sinh từ manifest.actions, nút lệnh từ manifest.commands.
 const P = window.PLATFORM || {};
@@ -401,7 +403,14 @@ const loadWidget = (type) => { if (!widgetMod.has(type)) widgetMod.set(type, imp
 const metaOf = (type) => (S.widgets || []).find((w) => w.id === type);
 const defaultsOf = (meta) => Object.fromEntries(Object.entries(meta?.schema?.properties || {}).map(([k, s]) => [k, s.default]));
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const studioOf = (c) => JSON.parse(JSON.stringify({ widgets: [], sounds: [], ...(c.studio || {}) }));
+const studioOf = (c) => JSON.parse(JSON.stringify({ widgets: [], sounds: [], panels: {}, ...(c.studio || {}) }));
+// vùng giao diện TikTok LIVE thường che trên khung 1080×1920 (gần đúng, tuỳ máy)
+const TIKTOK_ZONES = [
+  { x: 0, y: 0, w: 1080, h: 150, label: 'Thanh trên TikTok' },
+  { x: 0, y: 1250, w: 720, h: 520, label: '💬 Bình luận TikTok' },
+  { x: 940, y: 860, w: 140, h: 780, label: 'Nút TikTok' },
+  { x: 0, y: 1770, w: 1080, h: 150, label: 'Ô nhập bình luận / quà' },
+];
 const overlayLinks = (c) => [
   ['Đầy đủ (game + widget)', overlayUrl(c)],
   ['Chỉ game', `${overlayUrl(c)}?layer=game`],
@@ -411,7 +420,16 @@ const overlayLinks = (c) => [
 
 function studioTab(c) {
   const draft = studioOf(c);
-  let sel = draft.widgets[0]?.id || null;
+  // bảng của game đang chơi (bảng quà, dòng quà…): streamer kéo / phóng / ẩn để khỏi bị bình luận TikTok che
+  const g = gameOf(c.active_game);
+  const gSet = { ...Object.fromEntries(Object.entries(g?.schema?.properties || {}).map(([k, sc]) => [k, sc.default])), ...(c.games?.[g?.id]?.settings || {}) };
+  const gPanels = g ? activePanels(g, gSet) : [];
+  if (g && !draft.panels[g.id]) draft.panels[g.id] = {};
+  const pmap = g ? draft.panels[g.id] : {};
+  const pcur = (p) => ({ x: pmap[p.id]?.x ?? p.rect.x, y: pmap[p.id]?.y ?? p.rect.y, s: pmap[p.id]?.s ?? 1, hidden: !!pmap[p.id]?.hidden });
+  const pviews = new Map(); // panel id → box
+  let showZones = true;
+  let sel = draft.widgets[0]?.id || (gPanels[0] ? `panel:${gPanels[0].id}` : null);
   let dirty = false;
   const views = new Map(); // id → { box, inst }
   const editLayer = h('div', { class: 'st-edit', style: `width:1080px;height:1920px;transform:scale(${SCALE})` });
@@ -452,15 +470,67 @@ function studioTab(c) {
       box.onpointerup = () => { box.onpointermove = null; box.onpointerup = null; if (w.x !== ox || w.y !== oy || w.w !== ow || w.h !== oh) { if (resize) mountView(w); paintInspector(); } };
     };
   }
+  const frame = h('iframe', { class: 'st-frame', src: `/o/${c.overlay_key}?preview=1&widgets=0`, title: 'Game (xem trước)', style: `transform:scale(${SCALE})` });
+  function postPanels() { if (g) try { frame.contentWindow?.postMessage({ t: 'panels', game: g.id, panels: JSON.parse(JSON.stringify(pmap)) }, location.origin); } catch { /* bỏ qua */ } }
+  frame.addEventListener('load', () => setTimeout(postPanels, 800));
+  function placePanel(p, box) {
+    const v = pcur(p);
+    Object.assign(box.style, { left: `${v.x}px`, top: `${v.y}px`, width: `${p.rect.w * v.s}px`, height: `${p.rect.h * v.s}px` });
+    box.classList.toggle('hidden', v.hidden);
+  }
+  function mountPanel(p) {
+    const box = h('div', { class: 'st-box st-panel' });
+    const handle = h('div', { class: 'st-handle', title: 'Kéo để phóng to / thu nhỏ' });
+    box.append(handle, h('div', { class: 'st-tag' }, `${p.icon || '🎮'} ${p.label}`), h('div', { class: 'st-plabel' }, `${p.icon || '🎮'} ${p.label}`));
+    placePanel(p, box);
+    box.classList.toggle('on', sel === `panel:${p.id}`);
+    pviews.set(p.id, box);
+    editLayer.append(box);
+    box.onpointerdown = (e) => {
+      e.preventDefault();
+      select(`panel:${p.id}`);
+      const resize = e.target === handle;
+      const v0 = pcur(p);
+      const sx = e.clientX, sy = e.clientY;
+      box.setPointerCapture(e.pointerId);
+      box.onpointermove = (m) => {
+        const dx = (m.clientX - sx) / SCALE, dy = (m.clientY - sy) / SCALE;
+        const o = (pmap[p.id] ||= {});
+        if (resize) o.s = Math.round(clampN((p.rect.w * v0.s + dx) / p.rect.w, PANEL_SCALE.min, PANEL_SCALE.max) * 100) / 100;
+        else { o.x = Math.round((v0.x + dx) / SNAP) * SNAP; o.y = Math.round((v0.y + dy) / SNAP) * SNAP; }
+        o.x ??= v0.x; o.y ??= v0.y; o.s ??= v0.s;
+        placePanel(p, box); markDirty(); postPanels();
+      };
+      box.onpointerup = () => { box.onpointermove = null; box.onpointerup = null; paintInspector(); };
+    };
+  }
   function paintStage() {
     for (const v of views.values()) { try { v.inst?.destroy(); } catch { /* bỏ qua */ } v.box.remove(); }
     views.clear();
+    for (const b of pviews.values()) b.remove();
+    pviews.clear();
+    editLayer.querySelectorAll('.st-zone').forEach((z) => z.remove());
+    if (showZones) for (const z of TIKTOK_ZONES) editLayer.append(h('div', { class: 'st-zone', style: `left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px` }, z.label));
+    gPanels.forEach(mountPanel); // bảng của game nằm dưới widget
     draft.widgets.forEach(mountView); // thứ tự trong mảng = thứ tự lớp (sau đè trước)
   }
   function select(id) {
     sel = id;
     for (const [k, v] of views) v.box.classList.toggle('on', k === id);
+    for (const [k, b] of pviews) b.classList.toggle('on', `panel:${k}` === id);
     paintInspector();
+  }
+  function panelInspector(p) {
+    const v = pcur(p);
+    const set = (patch) => { pmap[p.id] = { x: v.x, y: v.y, s: v.s, hidden: v.hidden, ...pmap[p.id], ...patch }; markDirty(); placePanel(p, pviews.get(p.id)); postPanels(); paintInspector(); };
+    const numIn = (k, max) => h('input', { type: 'number', value: v[k], min: 0, max, step: SNAP, style: 'width:80px', onchange: (e) => set({ [k]: clampN(Math.round(Number(e.target.value) || 0), 0, max) }) });
+    inspector.replaceChildren(
+      h('h3', {}, `${p.icon || '🎮'} ${p.label}`),
+      h('p', { class: 'small muted' }, `Bảng có sẵn của game ${g.name}. Kéo ra khỏi vùng bình luận TikTok (ô đỏ) để người xem thấy rõ. Chỉ áp dụng cho game này.`),
+      h('label', { class: 'row small' }, h('input', { type: 'checkbox', checked: v.hidden, onchange: (e) => set({ hidden: e.target.checked }) }), 'Ẩn bảng này'),
+      h('div', { class: 'row small', style: 'margin-top:8px' }, 'Cỡ', h('input', { type: 'range', min: PANEL_SCALE.min * 100, max: PANEL_SCALE.max * 100, step: 5, value: Math.round(v.s * 100), class: 'grow', onchange: (e) => set({ s: Number(e.target.value) / 100 }) }), `${Math.round(v.s * 100)}%`),
+      h('div', { class: 'row small', style: 'margin-top:10px' }, 'x', numIn('x', 1080), 'y', numIn('y', 1920)),
+      h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { class: 'ghost small', onclick: () => { delete pmap[p.id]; markDirty(); placePanel(p, pviews.get(p.id)); postPanels(); paintInspector(); } }, '↺ Về vị trí mặc định')));
   }
   function add(meta) {
     const size = meta.size || { w: 500, h: 200 };
@@ -469,6 +539,8 @@ function studioTab(c) {
     draft.widgets.push(w); markDirty(); mountView(w); select(w.id);
   }
   function paintInspector() {
+    const gp = typeof sel === 'string' && sel.startsWith('panel:') ? gPanels.find((p) => `panel:${p.id}` === sel) : null;
+    if (gp) return panelInspector(gp);
     const w = draft.widgets.find((x) => x.id === sel);
     if (!w) return inspector.replaceChildren(h('p', { class: 'muted small' }, 'Bấm vào một widget trên khung để chỉnh, hoặc thêm widget từ thư viện bên trái.'));
     const meta = metaOf(w.type);
@@ -490,17 +562,21 @@ function studioTab(c) {
   };
   window.onbeforeunload = (e) => { if (dirty && S.tab === 'studio') e.preventDefault(); };
 
-  const stage = h('div', { class: 'st-stage', style: `width:${STAGE_W}px;height:${STAGE_W * 16 / 9}px` },
-    h('iframe', { class: 'st-frame', src: `/o/${c.overlay_key}?preview=1&widgets=0`, title: 'Game (xem trước)', style: `transform:scale(${SCALE})` }),
-    editLayer);
+  const stage = h('div', { class: 'st-stage', style: `width:${STAGE_W}px;height:${STAGE_W * 16 / 9}px` }, frame, editLayer);
   paintStage(); paintInspector();
-  const lib = h('div', { class: 'st-lib' }, (S.widgets || []).map((m) => h('button', { class: 'ghost', title: m.description, onclick: () => add(m) }, h('span', { class: 'st-ico' }, m.icon), h('span', {}, m.name))));
+  const lib = h('div', {},
+    gPanels.length ? h('div', { class: 'st-lib', style: 'margin-bottom:14px' },
+      h('p', { class: 'small muted', style: 'margin:0 0 6px' }, `Bảng của game ${g.name} (bấm để chỉnh)`),
+      gPanels.map((p) => h('button', { class: 'ghost', onclick: () => select(`panel:${p.id}`) }, h('span', { class: 'st-ico' }, p.icon || '🎮'), h('span', {}, `${p.label}${pcur(p).hidden ? ' (đang ẩn)' : ''}`)))) : null,
+    h('label', { class: 'row small', style: 'margin-bottom:10px' }, h('input', { type: 'checkbox', checked: showZones, onchange: (e) => { showZones = e.target.checked; paintStage(); } }), 'Hiện vùng TikTok hay che'),
+    h('p', { class: 'small muted', style: 'margin:0 0 6px' }, 'Widget (dùng chung mọi game)'),
+    h('div', { class: 'st-lib' }, (S.widgets || []).map((m) => h('button', { class: 'ghost', title: m.description, onclick: () => add(m) }, h('span', { class: 'st-ico' }, m.icon), h('span', {}, m.name)))));
   return h('div', {},
     h('div', { class: 'card' },
       h('div', { class: 'row' }, h('h2', { class: 'grow' }, '🎬 Studio — bố cục widget trên khung 9:16'), saveBtn,
         h('button', { class: 'ghost', onclick: () => { if (!dirty || confirm('Bỏ các thay đổi chưa lưu?')) render(); } }, 'Hoàn tác'),
         h('button', { class: 'ghost', title: 'Đếm lại xu / tim / follow / top tặng quà từ 0', onclick: async () => { if (!confirm('Đặt lại số liệu phiên (xu, tim, follow, top tặng quà) về 0?')) return; try { await req('stats-reset', { channel: c.id }); toast('Đã đặt lại số liệu phiên'); } catch (e) { toast(e.message, true); } } }, '↺ Đặt lại số liệu')),
-      h('p', { class: 'small muted' }, 'Kéo widget để di chuyển, kéo góc dưới phải để đổi kích thước (bước 10px). Widget dùng chung cho mọi game; đổi game không mất bố cục. Nền là game đang chạy (cần mở overlay chính).'),
+      h('p', { class: 'small muted' }, 'Kéo widget để di chuyển, kéo góc dưới phải để đổi kích thước (bước 10px). Widget dùng chung cho mọi game; đổi game không mất bố cục. Bảng của game (viền vàng: bảng quà, dòng quà…) kéo / phóng / ẩn được, riêng cho từng game. Ô đỏ là vùng TikTok hay che (bình luận, nút). Nền là game đang chạy (cần mở overlay chính).'),
       h('div', { class: 'st-grid' }, h('div', {}, h('h3', {}, 'Thư viện'), lib), stage, h('div', {}, h('h3', {}, 'Cài đặt widget'), inspector))),
     h('div', { class: 'card' }, h('h2', {}, 'Link overlay theo lớp'),
       overlayLinks(c).map(([label, url]) => h('div', { class: 'row', style: 'margin-bottom:6px' }, h('span', { style: 'min-width:260px' }, label), h('input', { value: url, readOnly: true, class: 'grow', onclick: (e) => e.target.select() }),

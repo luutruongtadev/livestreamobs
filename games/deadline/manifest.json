@@ -252,5 +252,63 @@
       "id": "clear-board",
       "label": "Xoá bảng điểm"
     }
+  ],
+  "panels": [
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 24,
+        "y": 1240,
+        "w": 1032,
+        "h": 436
+      },
+      "when": {
+        "mode": "desktop"
+      }
+    },
+    {
+      "id": "feed",
+      "label": "Dòng quà vừa tặng",
+      "icon": "🧾",
+      "rect": {
+        "x": 24,
+        "y": 1658,
+        "w": 660,
+        "h": 222
+      },
+      "when": {
+        "mode": "desktop"
+      }
+    },
+    {
+      "id": "giftsCam",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 704,
+        "y": 326,
+        "w": 352,
+        "h": 1236
+      },
+      "when": {
+        "mode": "camera"
+      }
+    },
+    {
+      "id": "feedCam",
+      "label": "Dòng quà vừa tặng",
+      "icon": "🧾",
+      "rect": {
+        "x": 24,
+        "y": 1578,
+        "w": 660,
+        "h": 222
+      },
+      "when": {
+        "mode": "camera"
+      }
+    }
   ]
 }

@@ -1,6 +1,6 @@
 // Studio của kênh (dùng chung mọi game): bố cục widget trên khung 9:16 + luật âm thanh, và số liệu phiên live
 // (xu, tim, follow… + người tặng nhiều nhất) mà gateway đếm từ mọi sự kiện rồi phát cho mọi overlay.
-import { resolveSettings, triggerErrors, TRIGGER_TYPES } from '#sdk';
+import { resolveSettings, triggerErrors, TRIGGER_TYPES, cleanPanels } from '#sdk';
 import { SOUNDS } from '../web/js/sounds.js';
 
 export const CANVAS = { w: 1080, h: 1920 };
@@ -30,7 +30,7 @@ export function cleanTrigger(t = {}, where = 'trigger') {
  * Kiểm tra studio streamer gửi lên. widgets: catalog widget (widget.json) theo id.
  * Trả về bản sạch: toạ độ nằm trong khung, config theo schema của widget (sai → default), âm thanh có trong thư viện.
  */
-export function checkStudio(input, widgets = []) {
+export function checkStudio(input, widgets = [], games = []) {
   const byType = new Map(widgets.map((w) => [w.id, w]));
   const s = input && typeof input === 'object' ? input : {};
   const list = Array.isArray(s.widgets) ? s.widgets : [];
@@ -38,7 +38,7 @@ export function checkStudio(input, widgets = []) {
   if (list.length > STUDIO_LIMITS.widgets) throw new Error(`Tối đa ${STUDIO_LIMITS.widgets} widget trên một khung`);
   if (rules.length > STUDIO_LIMITS.sounds) throw new Error(`Tối đa ${STUDIO_LIMITS.sounds} luật âm thanh`);
   const seen = new Set();
-  const out = { widgets: [], sounds: [] };
+  const out = { widgets: [], sounds: [], panels: {} };
   list.forEach((w, i) => {
     const meta = byType.get(w?.type);
     if (!meta) throw new Error(`widget[${i}]: không có loại "${w?.type}"`);
@@ -66,6 +66,13 @@ export function checkStudio(input, widgets = []) {
     } else if (!ids.has(r.sound)) throw new Error(`${where}: không có âm thanh "${r.sound}"`);
     out.sounds.push({ id: ID.test(String(r.id || '')) ? String(r.id) : `s${i}`, when, sound: r.sound, ...(url ? { url } : {}), volume: num(r.volume, 0, 1, 0.8) });
   });
+  // bảng của từng game (vị trí / cỡ / ẩn) — chỉ game có manifest.panels, bảng lạ bị bỏ
+  const panels = s.panels && typeof s.panels === 'object' ? s.panels : {};
+  for (const g of games) {
+    if (!g?.panels?.length || !panels[g.id]) continue;
+    const clean = cleanPanels(g, panels[g.id]);
+    if (Object.keys(clean).length) out.panels[g.id] = clean;
+  }
   return out;
 }
 

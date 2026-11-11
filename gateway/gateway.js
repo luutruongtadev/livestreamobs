@@ -439,7 +439,7 @@ export class Gateway {
       }
       case 'leaderboard': return this.store.leaderboard(ch.id, p.game || null);
       case 'studio': {
-        const studio = checkStudio(p.studio, this.widgets);
+        const studio = checkStudio(p.studio, this.widgets, this.catalog);
         const c = await this.store.updateChannel(ch.id, { studio });
         this.runtimes.get(ch.id)?.setStudio(studio);
         return c;

@@ -1,6 +1,7 @@
 // Renderer canvas của Nằm Vùng (khung dọc 1080×1920, chừa ~150px trên cho giao diện TikTok).
 // Trên: thẻ NGÀY / KPI + đồng hồ; hàng đồng hồ đo Nghi ngờ / Sóng / Bằng chứng; giữa: máy tính trong trại với 2 tab
 // (💼 Việc trại, 🕵️ Bí mật); dưới: bảng quà + dòng hoạt động. Không đụng DOM khi import.
+import { drawPanel } from '#sdk';
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const TITLE = "'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif";
 const MONO = "ui-monospace, 'Cascadia Mono', Consolas, monospace";
@@ -33,6 +34,8 @@ const JOBNAME = { chat: ['💬', 'Nhắn tin mồi'], call: ['📞', 'Gọi theo
 const TOP = 150;
 
 export function mount(el, { canvas, options = {}, input = null } = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -823,8 +826,11 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     drawHud(now);
     drawMeters(now);
     drawDesktop(now);
-    const gb = giftGrid(now, 24, WIN.y + WIN.h + 18, 1032);
-    drawFeed(now, 24, Math.min(H - 20, gb + 236));
+    const gy = WIN.y + WIN.h + 18;
+    let gb = gy;
+    studioPanel('gifts', { x: 24, y: gy }, () => { gb = giftGrid(now, 24, gy, 1032); });
+    const fb = Math.min(H - 20, Math.max(gb, gy + 356) + 236);
+    studioPanel('feed', { x: 24, y: fb - 216 }, () => drawFeed(now, 24, fb));
     drawTitle(now, 860);
     if (S.phase === 'brief') drawBrief(now);
     if (S.phase === 'dayend') drawDayEnd(now);
@@ -894,6 +900,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() {
       stopped = true; cancelAnimationFrame(raf); sound.close();
       typing?.remove();
