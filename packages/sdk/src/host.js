@@ -20,7 +20,7 @@ export function memoryStorage(init = {}) {
 export function createHost(module, {
   settings: input = {}, bindings = null, data = {}, now = () => Date.now(), random = Math.random,
   server = null, storage = null, report = null, log = console,
-  onEffects = null, onError = null, maxErrors = 5, errorWindowMs = 10_000,
+  onEffects = null, onError = null, onAction = null, maxErrors = 5, errorWindowMs = 10_000,
 } = {}) {
   const { manifest, schema, createGame } = module;
   const { settings, errors: settingErrors } = resolveSettings(schema || { type: 'object', properties: {} }, input);
@@ -82,6 +82,7 @@ export function createHost(module, {
           const res = guard('action', () => game.action(binding.action, ev, binding), []);
           if (res === false) { triggers.refund(binding); break; } // game không áp dụng được → trả lượt
           fx.push(...list(res));
+          try { onAction?.(binding.action, ev, binding); } catch { /* lớp meme lỗi không ảnh hưởng game */ }
         }
       }
       return fx;

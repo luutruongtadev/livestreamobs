@@ -58,7 +58,7 @@ test('checkStudio: toạ độ kẹp trong khung, config theo schema (sai → de
   assert.throws(() => checkStudio({ sounds: [{ when: { type: 'gift' }, sound: 'coin' }] }, widgets), /gift/i);
   assert.throws(() => checkStudio({ widgets: Array.from({ length: STUDIO_LIMITS.widgets + 1 }, () => ({ type: 'text' })) }, widgets), /Tối đa/);
   const empty = checkStudio(null, widgets);
-  assert.deepEqual({ ...empty, scenes: undefined }, { widgets: [], sounds: [], panels: {}, scenes: undefined });
+  assert.deepEqual({ ...empty, scenes: undefined }, { widgets: [], sounds: [], memes: [], panels: {}, scenes: undefined });
   assert.equal(empty.scenes.intro.title, 'LIVE SẮP BẮT ĐẦU', 'màn chuẩn bị: mặc định');
 });
 
@@ -187,4 +187,31 @@ test('màn chuẩn bị / kết thúc live: cấu hình làm sạch (thiếu →
   assert.equal(checkScene({ mode: 'live', endAt: now + 3600_000 }, now).endAt, now + 3600_000);
   assert.throws(() => checkScene({ mode: 'live', endAt: now + 48 * 3600_000 }, now), /24 giờ/);
   assert.throws(() => checkScene({ mode: 'xyz' }, now), /không hợp lệ/);
+});
+
+test('meme dùng chung: luật theo quà / sự kiện game (kiểm tra theo manifest), link https, âm có sẵn; bộ mặc định của game hợp lệ; Freesound; host báo action', async () => {
+  const { checkMemeRule } = await import('../gateway/studio.js');
+  const ok = checkMemeRule({ id: 'a', when: { type: 'game', game: 'deadline', event: 'action:soi' }, gif: { mode: 'search', q: 'boss watching' }, sound: { mode: 'lib', id: 'vineboom' }, text: 'Ủa alo??', seconds: 99 }, 0, catalog);
+  assert.deepEqual(ok, { id: 'a', on: true, when: { type: 'game', game: 'deadline', event: 'action:soi' }, gif: { mode: 'search', q: 'boss watching' }, sound: { mode: 'lib', volume: 0.8, id: 'vineboom' }, text: 'Ủa alo??', seconds: 10 });
+  assert.equal(checkMemeRule({ when: { type: 'game', game: 'flagtrip', event: 'solved' } }, 0, catalog).when.event, 'solved');
+  assert.equal(checkMemeRule({ when: { type: 'gift', giftName: 'Rose' }, gif: { mode: 'url', url: 'https://x.y/a.gif' }, sound: { mode: 'search', q: 'bruh' } }, 0, catalog).sound.q, 'bruh');
+  assert.throws(() => checkMemeRule({ when: { type: 'game', game: 'deadline', event: 'action:khongco' } }, 0, catalog), /không có sự kiện/);
+  assert.throws(() => checkMemeRule({ when: { type: 'like', every: 10 }, gif: { mode: 'url', url: 'http://x.gif' } }, 0, catalog), /https/);
+  assert.throws(() => checkMemeRule({ when: { type: 'follow' }, sound: { mode: 'lib', id: 'khongco' } }, 0, catalog), /âm thanh/);
+  // bộ meme mặc định của mọi game đều qua kiểm tra (sự kiện có thật, âm có trong thư viện)
+  for (const g of catalog) for (const [i, d] of (g.memes || []).entries()) checkMemeRule({ when: { type: 'game', game: g.id, event: d.event }, gif: { mode: 'search', q: d.q }, sound: d.sound, text: d.text }, i, catalog);
+  assert.equal(checkStudio({ memes: [{ when: { type: 'follow' } }, { when: { type: 'follow' } }] }, widgets, catalog).memes.length, 2);
+  assert.throws(() => checkStudio({ memes: Array.from({ length: STUDIO_LIMITS.memes + 1 }, () => ({ when: { type: 'follow' } })) }, widgets, catalog), /Tối đa/);
+  const { freesoundItems } = await import('../gateway/memes.js');
+  assert.deepEqual(freesoundItems({ results: [{ id: 5, name: 'Fail', duration: 1.234, previews: { 'preview-hq-mp3': 'https://cdn.freesound.org/5.mp3' }, license: 'CC0', username: 'u' }, { id: 6, previews: {} }] }),
+    [{ id: '5', mp3: 'https://cdn.freesound.org/5.mp3', name: 'Fail', duration: 1.2, license: 'CC0', user: 'u' }]);
+  // host báo action vừa áp dụng (để lớp meme bắt sự kiện "action:<id>")
+  const { createHost, fakeClock, seededRandom } = await import('#sdk');
+  const { loadGame } = await import('#sdk/node');
+  const game = await loadGame(path.join(ROOT, 'games', 'deadline'));
+  const acts = [];
+  const clock = fakeClock();
+  const host = createHost(game, { data: game.data, now: clock.now, random: seededRandom(1), log: {}, onAction: (a) => acts.push(a) });
+  host.handle({ type: 'gift', user: { id: 'u', name: 'U' }, giftName: 'Finger Heart', diamonds: 5, count: 1 });
+  assert.deepEqual(acts, ['soi']);
 });

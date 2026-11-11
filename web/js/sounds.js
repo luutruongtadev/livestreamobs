@@ -2,7 +2,7 @@
 // Dùng ở overlay (phát theo luật âm thanh) và dashboard (nghe thử). Gateway import SOUNDS để kiểm tra luật.
 // Không đụng DOM / AudioContext khi import.
 
-export const SOUND_GROUPS = ['Chiến thắng', 'Thông báo', 'Vui nhộn', 'Hồi hộp', 'Thất bại', 'Hiệu ứng'];
+export const SOUND_GROUPS = ['Chiến thắng', 'Thông báo', 'Vui nhộn', 'Meme', 'Hồi hộp', 'Thất bại', 'Hiệu ứng'];
 export const SOUNDS = [
   // Chiến thắng
   { id: 'fanfare', name: '🎺 Kèn chiến thắng', group: 'Chiến thắng' },
@@ -56,6 +56,14 @@ export const SOUNDS = [
   { id: 'thunder', name: '⛈️ Sấm', group: 'Hiệu ứng' },
   { id: 'siren', name: '🚨 Còi báo động', group: 'Hiệu ứng' },
   { id: 'typing', name: '⌨️ Gõ phím', group: 'Hiệu ứng' },
+  // Meme (tự tổng hợp, không bản quyền)
+  { id: 'vineboom', name: '💥 Bùm (vine boom)', group: 'Meme' },
+  { id: 'dramatic', name: '😱 Dun dun duuun', group: 'Meme' },
+  { id: 'errorpc', name: '🖥️ Lỗi máy tính', group: 'Meme' },
+  { id: 'bruh', name: '😑 Bruh (giọng trầm)', group: 'Meme' },
+  { id: 'wow', name: '😮 Woww', group: 'Meme' },
+  { id: 'nopenope', name: '🙅 Nope nope', group: 'Meme' },
+  { id: 'scratch', name: '💿 Rít đĩa (dừng hình)', group: 'Meme' },
 ];
 
 /** Bộ phát âm thanh: tạo AudioContext lười (lần phát đầu / resume()). */
@@ -137,6 +145,13 @@ export function createSoundPlayer({ muted = false } = {}) {
     bassdrop: (o) => { tone(o, 140, 1.4, { vol: 0.5, slide: 0.25, attack: 0.005 }); hiss(o, 0.2, { freq: 200, vol: 0.3 }); },
     thunder: (o) => { hiss(o, 0.25, { freq: 900, q: 0.3, vol: 0.5 }); hiss(o, 2.2, { at: 0.15, freq: 160, q: 0.5, vol: 0.6, sweep: 0.5 }); },
     siren: (o) => { const a = ac, t0 = a.currentTime; const os = a.createOscillator(), g = a.createGain(); os.type = 'triangle'; for (let i = 0; i < 4; i++) { os.frequency.setValueAtTime(700, t0 + i * 0.5); os.frequency.linearRampToValueAtTime(1200, t0 + i * 0.5 + 0.25); os.frequency.linearRampToValueAtTime(700, t0 + i * 0.5 + 0.5); } g.gain.setValueAtTime(0.15, t0); g.gain.setValueAtTime(0.15, t0 + 1.9); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2); os.connect(g).connect(o); os.start(t0); os.stop(t0 + 2.05); },
+    vineboom: (o) => { tone(o, 72, 1.1, { vol: 0.7, slide: 0.55, attack: 0.003 }); tone(o, 144, 0.5, { type: 'triangle', vol: 0.25, slide: 0.5, attack: 0.003 }); hiss(o, 0.15, { freq: 300, vol: 0.4 }); },
+    dramatic: (o) => { [[196, 0], [185, 0.35], [147, 0.7]].forEach(([f, at], i) => { tone(o, f, i === 2 ? 1.6 : 0.3, { type: 'sawtooth', vol: 0.14, at }); tone(o, f / 2, i === 2 ? 1.6 : 0.3, { type: 'square', vol: 0.06, at }); }); },
+    errorpc: (o) => { tone(o, 880, 0.12, { type: 'square', vol: 0.1 }); tone(o, 660, 0.25, { type: 'square', vol: 0.1, at: 0.13 }); },
+    bruh: (o) => { tone(o, 110, 0.55, { type: 'sawtooth', vol: 0.22, slide: 0.8 }); tone(o, 220, 0.55, { type: 'triangle', vol: 0.1, slide: 0.8 }); hiss(o, 0.1, { freq: 700, vol: 0.15 }); },
+    wow: (o) => { tone(o, 300, 0.8, { type: 'triangle', vol: 0.22, slide: 2.2 }); tone(o, 600, 0.8, { vol: 0.08, slide: 2.2, at: 0.05 }); },
+    nopenope: (o) => { [0, 0.28].forEach((at) => { tone(o, 330, 0.18, { type: 'square', vol: 0.1, at, slide: 0.7 }); }); },
+    scratch: (o) => { hiss(o, 0.35, { freq: 1500, q: 2, vol: 0.5, sweep: 0.2 }); tone(o, 600, 0.3, { type: 'sawtooth', vol: 0.06, slide: 0.3 }); },
     typing: (o) => { for (let i = 0; i < 14; i++) hiss(o, 0.02, { at: i * 0.09 + Math.random() * 0.05, freq: 3000 + Math.random() * 2000, q: 3, vol: 0.3 }); },
   };
   const audios = new Map(); // url → HTMLAudioElement đã nạp

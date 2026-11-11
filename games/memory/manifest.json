@@ -88,5 +88,40 @@
         "h": 370
       }
     }
+  ],
+  "events": [
+    {
+      "id": "record",
+      "label": "Phá kỷ lục cấp độ",
+      "fx": "mm_reveal",
+      "where": {
+        "record": true
+      }
+    },
+    {
+      "id": "shield",
+      "label": "Khiên đỡ một lần thua",
+      "fx": "mm_shield_used"
+    }
+  ],
+  "memes": [
+    {
+      "event": "record",
+      "q": "genius brain",
+      "sound": {
+        "mode": "lib",
+        "id": "wow"
+      },
+      "text": "Trí nhớ siêu phàm!|Kỷ lục mới 🧠"
+    },
+    {
+      "event": "shield",
+      "q": "phew close call",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Suýt nữa thì toang|Khiên cứu rồi 🛡️"
+    }
   ]
 }

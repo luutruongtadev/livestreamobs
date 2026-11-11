@@ -44,6 +44,8 @@ Tạo nhanh: `npm run new-game <id> "Tên hiển thị"`.
 | `server` | – | `true` nếu có `server/index.js` |
 | `secrets` | – | tên biến môi trường phần server được nhận (vd `ANTHROPIC_API_KEY`) |
 | `restore` | – | `full` (reload overlay khôi phục nguyên ván) · `partial` (chỉ giữ dữ liệu bền) |
+| `events` | – | Sự kiện của game cho luật meme Studio: `[{ id, label, fx, where? }]` — hiệu ứng `fx` (khớp thêm các trường `where`) xảy ra thì luật "sự kiện game: <id>" chạy. Quà / tương tác (`actions`) tự có sẵn dạng `action:<id>` |
+| `memes` | – | Bộ meme mặc định cho nút "Thêm bộ meme mặc định": `[{ event, q, sound: { mode: 'lib', id }, text }]` |
 | `play` | – | `true`: streamer chơi bằng bàn phím / chuột → dashboard hiện nút **Mở cửa sổ chơi** (`/o/<mã>?play=1`) |
 | `panels` | – | bảng có sẵn trong game mà streamer kéo / phóng / ẩn được trong Studio (tránh bị bình luận TikTok che): `[{ id, label, icon?, rect: { x, y, w, h }, when?: { <cài đặt>: <giá trị> } }]`. `rect` = vị trí mặc định trên canvas; `when` = chỉ hiện khi cài đặt khớp (vd `{ "mode": "camera" }`). Renderer phải có `layout(map)` và vẽ bảng qua `drawPanel()` của SDK (xem mục 4) |
 

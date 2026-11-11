@@ -1078,7 +1078,7 @@ export function mount(el, { canvas, options = {}, input = null, memes: memeSvc =
           const a = ACT[fx.action]; if (!a) break;
           anim.title = { text: a.title, by: fx.by?.name, sub: fx.sub, color: a.color, at: now, life: 1.9 };
           anim.hot[fx.action] = now + 1600;
-          if (fx.meme) {
+          if (fx.meme && !memeSvc?.covered?.(fx.action)) { // quà đã có luật meme trong Studio → nhường lớp meme chung
             const entry = { ...fx.meme, by: fx.by, action: fx.action, queuedAt: now };
             // chưa có link riêng → tìm GIF trên GIPHY theo từ khoá; mọi overlay nhận cùng danh sách (server lưu) + cùng r → cùng clip
             if (!entry.clip && entry.query && memeSvc?.search) {

@@ -5,7 +5,7 @@ import { SOUNDS } from '../web/js/sounds.js';
 
 export const CANVAS = { w: 1080, h: 1920 };
 // giới hạn gói miễn phí (sau này đổi theo profiles.plan)
-export const STUDIO_LIMITS = { widgets: 12, sounds: 20 };
+export const STUDIO_LIMITS = { widgets: 12, sounds: 20, memes: 40 };
 export const SOUND_WHEN = [...TRIGGER_TYPES, 'goal'];
 
 const str = (v, max) => String(v ?? '').slice(0, max);
@@ -27,6 +27,40 @@ export function cleanTrigger(t = {}, where = 'trigger') {
 }
 
 /**
+ * Một luật meme (dùng chung mọi game): khi <quà / tim / follow / share / từ khoá / mục tiêu / sự kiện của game>
+ * thì hiện GIF (tự tìm GIPHY theo từ khoá / link / không) + phát âm (thư viện / link / tự tìm Freesound / không) + câu chữ.
+ * Sự kiện game: "action:<id>" (action trong manifest, vd quà "Sếp đến soi") hoặc id trong manifest.events.
+ */
+export function checkMemeRule(r = {}, i = 0, games = []) {
+  const where = `meme[${i}]`;
+  const t = r?.when || {};
+  let when;
+  if (t.type === 'game') {
+    const g = games.find((x) => x.id === t.game);
+    if (!g) throw new Error(`${where}: không có game "${t.game}"`);
+    const ev = str(t.event, 60);
+    const ok = ev.startsWith('action:') ? (g.actions || []).some((a) => `action:${a.id}` === ev) : (g.events || []).some((e) => e.id === ev);
+    if (!ok) throw new Error(`${where}: game ${g.name} không có sự kiện "${ev}"`);
+    when = { type: 'game', game: g.id, event: ev };
+  } else when = cleanTrigger(t, where);
+  const link = (u, what) => {
+    const v = str(u, 500).trim();
+    if (!/^https:\/\/[^\s"'<>]+$/i.test(v)) throw new Error(`${where}: link ${what} phải bắt đầu bằng https://`);
+    return v;
+  };
+  const gm = ['search', 'url', 'none'].includes(r.gif?.mode) ? r.gif.mode : 'search';
+  const gif = { mode: gm };
+  if (gm === 'search') gif.q = str(r.gif?.q, 60).trim();
+  if (gm === 'url') gif.url = link(r.gif?.url, 'GIF');
+  const sm = ['lib', 'url', 'search', 'none'].includes(r.sound?.mode) ? r.sound.mode : 'none';
+  const sound = { mode: sm, volume: num(r.sound?.volume, 0, 1, 0.8) };
+  if (sm === 'lib') { if (!SOUNDS.some((x) => x.id === r.sound?.id)) throw new Error(`${where}: không có âm thanh "${r.sound?.id}"`); sound.id = r.sound.id; }
+  if (sm === 'url') sound.url = link(r.sound?.url, 'âm thanh');
+  if (sm === 'search') sound.q = str(r.sound?.q, 60).trim();
+  return { id: ID.test(String(r.id || '')) ? String(r.id) : `m${i}`, on: r.on !== false, when, gif, sound, text: str(r.text, 300), seconds: num(r.seconds, 2, 10, 4) };
+}
+
+/**
  * Kiểm tra studio streamer gửi lên. widgets: catalog widget (widget.json) theo id.
  * Trả về bản sạch: toạ độ nằm trong khung, config theo schema của widget (sai → default), âm thanh có trong thư viện.
  */
@@ -37,8 +71,12 @@ export function checkStudio(input, widgets = [], games = []) {
   const rules = Array.isArray(s.sounds) ? s.sounds : [];
   if (list.length > STUDIO_LIMITS.widgets) throw new Error(`Tối đa ${STUDIO_LIMITS.widgets} widget trên một khung`);
   if (rules.length > STUDIO_LIMITS.sounds) throw new Error(`Tối đa ${STUDIO_LIMITS.sounds} luật âm thanh`);
+  const memes = Array.isArray(s.memes) ? s.memes : [];
+  if (memes.length > STUDIO_LIMITS.memes) throw new Error(`Tối đa ${STUDIO_LIMITS.memes} luật meme`);
   const seen = new Set();
-  const out = { widgets: [], sounds: [], panels: {}, scenes: cleanScenes(s.scenes) };
+  const out = { widgets: [], sounds: [], memes: [], panels: {}, scenes: cleanScenes(s.scenes) };
+  const mids = new Set();
+  memes.forEach((r, i) => { const m = checkMemeRule(r, i, games); while (mids.has(m.id)) m.id += 'x'; mids.add(m.id); out.memes.push(m); });
   list.forEach((w, i) => {
     const meta = byType.get(w?.type);
     if (!meta) throw new Error(`widget[${i}]: không có loại "${w?.type}"`);

@@ -4,7 +4,7 @@
 import { WebSocketServer } from 'ws';
 import { EVENT_TYPES, resolveSettings } from '#sdk';
 import { newKey } from './store.js';
-import { checkStudio, checkSfx, checkScene, cleanTrigger, SessionStats } from './studio.js';
+import { checkStudio, checkSfx, checkScene, cleanTrigger, checkMemeRule, SessionStats } from './studio.js';
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg)); };
 const str = (v, max) => String(v ?? '').slice(0, max);
@@ -147,11 +147,19 @@ class ChannelRuntime {
         const t = Date.now();
         if (!ws.memeWin || t - ws.memeWin.t > 60_000) ws.memeWin = { t, n: 0 };
         const id = Number(m.id) || 0, q = str(m.q, 80);
-        const tag = `[meme] kênh ${String(this.id).slice(0, 8)}${ws.preview ? ' (xem trước)' : isLeader ? ' (chính)' : ''}: "${q}"`;
-        if (!this.gw.memes?.enabled) { this.gw.log.info?.(`${tag} → tắt (chưa có GIPHY_API_KEY)`); send(ws, { t: 'meme', id, items: [] }); break; }
+        const svc = m.kind === 'sound' ? this.gw.sounds : this.gw.memes; // sound: Freesound, còn lại: GIF (GIPHY)
+        const tag = `[meme] kênh ${String(this.id).slice(0, 8)}${ws.preview ? ' (xem trước)' : isLeader ? ' (chính)' : ''} ${m.kind === 'sound' ? 'âm' : 'gif'}: "${q}"`;
+        if (!svc?.enabled) { this.gw.log.info?.(`${tag} → tắt (chưa có key)`); send(ws, { t: 'meme', id, items: [] }); break; }
         if (++ws.memeWin.n > 60) { this.gw.log.info?.(`${tag} → quá 60 lượt / phút`); send(ws, { t: 'meme', id, items: [] }); break; }
-        this.gw.memes.search(q).then((items) => { this.gw.log.info?.(`${tag} → ${items.length} clip`); send(ws, { t: 'meme', id, items: items.slice(0, 25), source: this.gw.memes.source }); })
+        svc.search(q).then((items) => { this.gw.log.info?.(`${tag} → ${items.length} kết quả`); send(ws, { t: 'meme', id, items: items.slice(0, 25), source: svc.source }); })
           .catch((e) => { this.gw.log.info?.(`${tag} → lỗi ${e.message}`); send(ws, { t: 'meme', id, items: [] }); });
+        break;
+      }
+      case 'memefx': { // overlay chính chọn meme (luật Studio) → mọi overlay khác phát cùng meme
+        if (!isLeader || !m.shot || typeof m.shot !== 'object') break;
+        const s = JSON.stringify({ t: 'memefx', shot: m.shot });
+        if (s.length > 4000) break;
+        for (const w of this.overlays) if (w !== ws) send(w, s);
         break;
       }
       case 'in': { // đầu vào tại chỗ từ overlay phụ → overlay chính (giới hạn 30 tin / giây)
@@ -323,8 +331,8 @@ class ChannelRuntime {
 }
 
 export class Gateway {
-  constructor({ store, catalog = [], widgets = [], gameServers = {}, bridgeFactory = null, memes = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000, studioMs = 500 } = {}) {
-    Object.assign(this, { store, catalog, widgets, gameServers, bridgeFactory, memes, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
+  constructor({ store, catalog = [], widgets = [], gameServers = {}, bridgeFactory = null, memes = null, sounds = null, log = console, idleMs = 120_000, replayMs = 10_000, likeFlushMs = 200, saveMs = 3000, opTimeoutMs = 25_000, opRate = { perSec: 20, burst: 60 }, pingMs = 15_000, studioMs = 500 } = {}) {
+    Object.assign(this, { store, catalog, widgets, gameServers, bridgeFactory, memes, sounds, log, idleMs, replayMs, likeFlushMs, saveMs, opTimeoutMs, opRate, pingMs });
     this.studioTimer = setInterval(() => { for (const rt of this.runtimes.values()) rt.studioTick().catch(() => {}); }, studioMs);
     this.studioTimer.unref?.();
     this.runtimes = new Map(); // channel id → ChannelRuntime
@@ -461,6 +469,19 @@ export class Gateway {
         const c = await this.store.updateChannel(ch.id, { studio });
         this.runtimes.get(ch.id)?.setStudio(studio);
         return c;
+      }
+      case 'memesearch': { // dashboard tìm thử GIF / âm meme để chọn
+        const svc = p.kind === 'sound' ? this.sounds : this.memes;
+        if (!svc?.enabled) throw new Error(p.kind === 'sound' ? 'Server chưa có FREESOUND_API_KEY' : 'Server chưa có GIPHY_API_KEY');
+        return { items: (await svc.search(str(p.q, 80))).slice(0, 24), source: svc.source };
+      }
+      case 'memetest': { // dashboard bấm "Thử" một luật meme → mọi overlay đang mở phát ngay
+        const r = this.runtimes.get(ch.id);
+        if (!r?.overlays.size) throw new Error('Chưa mở overlay của kênh (OBS / LIVE Studio)');
+        const rule = checkMemeRule(p.rule || {}, 0, this.catalog);
+        const msg = JSON.stringify({ t: 'memefx', shot: { rule, r: Math.random(), by: { name: 'Người thử' } } });
+        for (const w of r.overlays) send(w, msg);
+        return { ok: true };
       }
       case 'sfx': { // soundboard: overlay đang mở phát ngay (tối đa 5 âm / giây / kênh)
         const s = checkSfx(p);

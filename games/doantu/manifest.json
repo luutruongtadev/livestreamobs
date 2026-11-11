@@ -7,11 +7,27 @@
   "status": "live",
   "category": "word",
   "thumbnail": "assets/thumb.svg",
-  "canvas": { "width": 1080, "height": 1920 },
-  "inputs": ["comment", "gift", "like", "share"],
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment",
+    "gift",
+    "like",
+    "share"
+  ],
   "restore": "partial",
   "server": true,
-  "secrets": ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "VOYAGE_API_KEY", "OPENAI_API_KEY", "EMBEDDING_PROVIDER", "EMBEDDING_API_KEY", "EMBEDDING_MODEL"],
+  "secrets": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "VOYAGE_API_KEY",
+    "OPENAI_API_KEY",
+    "EMBEDDING_PROVIDER",
+    "EMBEDDING_API_KEY",
+    "EMBEDDING_MODEL"
+  ],
   "data": {
     "meaning": "data/meaning.json",
     "attr": "data/attr.json",
@@ -20,22 +36,129 @@
     "giaima": "data/giaima.json"
   },
   "actions": [
-    { "id": "letter", "label": "Lộ 1 chữ cái", "icon": "🔤", "defaultTriggers": [
-      { "type": "gift", "gifts": ["Rose", "TikTok", "Heart Me", "Ice Cream Cone"], "every": 5 },
-      { "type": "gift", "giftName": "Finger Heart" },
-      { "type": "like", "every": 1000 }
-    ] },
-    { "id": "hint", "label": "Mở gợi ý tiếp theo", "icon": "🎁", "defaultTriggers": [{ "type": "gift", "minDiamonds": 10 }] },
-    { "id": "time", "label": "+60 giây cho vòng", "icon": "🍩", "params": { "seconds": 60 }, "defaultTriggers": [{ "type": "gift", "minDiamonds": 30 }] },
-    { "id": "syllable", "label": "Lộ cả 1 tiếng", "icon": "💎", "defaultTriggers": [{ "type": "gift", "minDiamonds": 99 }] }
+    {
+      "id": "letter",
+      "label": "Lộ 1 chữ cái",
+      "icon": "🔤",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "gifts": [
+            "Rose",
+            "TikTok",
+            "Heart Me",
+            "Ice Cream Cone"
+          ],
+          "every": 5
+        },
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        },
+        {
+          "type": "like",
+          "every": 1000
+        }
+      ]
+    },
+    {
+      "id": "hint",
+      "label": "Mở gợi ý tiếp theo",
+      "icon": "🎁",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "minDiamonds": 10
+        }
+      ]
+    },
+    {
+      "id": "time",
+      "label": "+60 giây cho vòng",
+      "icon": "🍩",
+      "params": {
+        "seconds": 60
+      },
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "minDiamonds": 30
+        }
+      ]
+    },
+    {
+      "id": "syllable",
+      "label": "Lộ cả 1 tiếng",
+      "icon": "💎",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "minDiamonds": 99
+        }
+      ]
+    }
   ],
   "commands": [
-    { "id": "next", "label": "Kết thúc vòng / vòng tiếp" },
-    { "id": "hint", "label": "Mở gợi ý" },
-    { "id": "team", "label": "Bật / tắt đấu đội" },
-    { "id": "reset", "label": "Xoá thành tích, chơi lại" }
+    {
+      "id": "next",
+      "label": "Kết thúc vòng / vòng tiếp"
+    },
+    {
+      "id": "hint",
+      "label": "Mở gợi ý"
+    },
+    {
+      "id": "team",
+      "label": "Bật / tắt đấu đội"
+    },
+    {
+      "id": "reset",
+      "label": "Xoá thành tích, chơi lại"
+    }
   ],
   "panels": [
-    { "id": "feed", "label": "Lượt đoán vừa rồi", "icon": "💬", "rect": { "x": 40, "y": 1346, "w": 640, "h": 290 } }
+    {
+      "id": "feed",
+      "label": "Lượt đoán vừa rồi",
+      "icon": "💬",
+      "rect": {
+        "x": 40,
+        "y": 1346,
+        "w": 640,
+        "h": 290
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "win",
+      "label": "Có người đoán trúng từ",
+      "fx": "wg_win"
+    },
+    {
+      "id": "timeout",
+      "label": "Hết giờ không ai đoán được",
+      "fx": "wg_timeout"
+    }
+  ],
+  "memes": [
+    {
+      "event": "win",
+      "q": "big brain genius",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Đỉnh của chóp!|Trúng phóc 🎯"
+    },
+    {
+      "event": "timeout",
+      "q": "confused math lady",
+      "sound": {
+        "mode": "lib",
+        "id": "crickets"
+      },
+      "text": "Từ gì vậy trời?|Bó tay luôn 🤷"
+    }
   ]
 }

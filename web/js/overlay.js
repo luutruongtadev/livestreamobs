@@ -7,6 +7,7 @@
 //   ?play=1         cửa sổ chơi: giành vai overlay chính (nhận trạng thái mới nhất) để streamer gõ phím / bấm chuột vào game
 import { createHost, memoryStorage, defaultBindings, triggerText, triggerIcon } from '#sdk';
 import { createStudioLayer } from './studio-layer.js';
+import { createMemeLayer } from './meme-layer.js';
 import { createSceneLayer } from './scene-layer.js';
 
 const qs = new URLSearchParams(location.search);
@@ -27,9 +28,10 @@ const pending = new Map(); let reqId = 0;
 const memeWait = new Map(); let memeId = 0;
 /** Tìm GIF / video meme theo từ khoá qua gateway (GIPHY) → [{ id, mp4, gif, w, h }] (rỗng nếu tắt / lỗi / quá 3 giây). */
 const memeCache = new Map(); // từ khoá → { at, items } — mỗi từ khoá chỉ hỏi server 1 lần / 30 phút
-function searchMemes(q) {
+function searchMemes(q, kind = 'gif') {
   const key = String(q || '').toLowerCase().trim().slice(0, 80);
-  const hit = memeCache.get(key);
+  const ck = `${kind}|${key}`;
+  const hit = memeCache.get(ck);
   if (hit && Date.now() - hit.at < 30 * 60_000) return Promise.resolve(hit.items);
   return new Promise((resolve) => {
     if (ws?.readyState !== 1 || !key) return resolve([]);
@@ -38,11 +40,11 @@ function searchMemes(q) {
     memeWait.set(id, (items) => {
       clearTimeout(timer);
       const list = Array.isArray(items) ? items : [];
-      if (list.length) memeCache.set(key, { at: Date.now(), items: list });
+      if (list.length) memeCache.set(ck, { at: Date.now(), items: list });
       if (options.debug) console.log('[meme]', key, '→', list.length, 'clip');
       resolve(list);
     });
-    send({ t: 'meme', id, q: key });
+    send({ t: 'meme', id, q: key, kind });
   });
 }
 const lat = []; let snapDirty = false, fxOut = [];
@@ -54,6 +56,11 @@ const serverNow = () => Date.now() + offset;
 // lớp widget Studio (đè lên canvas game); âm thanh Studio chỉ phát ở overlay chính (hoặc overlay chỉ-widget có ?sound=1)
 const studio = createStudioLayer({ muted: options.mute, canSound: () => !preview && !options.mute && (role === 'leader' || (layer === 'widgets' && qs.get('sound') === '1')) });
 if (studio) stage.append(studio.el);
+// lớp meme dùng chung mọi game (luật trong Studio); âm thanh chỉ phát ở overlay chính như luật âm thanh
+const memeLayer = createMemeLayer({ search: (kind, q) => searchMemes(q, kind), muted: options.mute, canSound: () => !preview && !options.mute && role === 'leader' });
+stage.append(memeLayer.el);
+/** Overlay chính: phát meme rồi gửi cho các overlay khác (cùng r → cùng clip). */
+function emitMemes(shots) { for (const s of shots || []) { memeLayer.play(s); send({ t: 'memefx', shot: s }); } }
 // màn chuẩn bị live / kết thúc live (đè lên game + widget); overlay chính tạm dừng game khi đang ở màn này
 let rawStudio = {}, scenePaused = false;
 const scenesOn = qs.get('scenes') !== '0';
@@ -92,7 +99,7 @@ let draftPanels = null; // xem trước trong dashboard: tab Studio gửi bản 
 function applyPanels() { if (game?.view?.layout) game.view.layout((draftPanels && draftPanels.game === game.id ? draftPanels.panels : panelsAll[game.id]) || {}); }
 function setPanels(st) { panelsAll = st?.panels && typeof st.panels === 'object' ? st.panels : {}; applyPanels(); }
 if (preview) addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.t === 'panels') { draftPanels = { game: String(e.data.game || ''), panels: e.data.panels || {} }; applyPanels(); } });
-function onChannel(ch) { setPanels(ch.studio); setScene(ch.studio); if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
+function onChannel(ch) { memeLayer.setRules(ch.studio?.memes); memeLayer.setGame(ch.game); setPanels(ch.studio); setScene(ch.studio); if (!studio) return; setStudio(studioOf(ch.studio)); updateLegend(ch); }
 
 // ---------------- lớp UI chung ----------------
 function showBadge(text, cls = '') { badge.textContent = text; badge.className = `ui ${cls}`; badge.style.display = text ? 'block' : 'none'; }
@@ -110,10 +117,10 @@ function fit() {
   const s = Math.min(innerWidth / w, innerHeight / h);
   if (c) { c.style.width = `${w * s}px`; c.style.height = `${h * s}px`; }
   stage.style.width = `${w * s}px`; stage.style.height = `${h * s}px`;
-  studio?.fit(s * (w / 1080)); sceneLayer?.fit(s * (w / 1080));
+  studio?.fit(s * (w / 1080)); sceneLayer?.fit(s * (w / 1080)); memeLayer.fit(s * (w / 1080));
 }
 addEventListener('resize', fit);
-soundBtn.onclick = () => { game?.view?.resumeAudio?.(); studio?.resumeAudio(); soundBtn.style.display = 'none'; };
+soundBtn.onclick = () => { game?.view?.resumeAudio?.(); studio?.resumeAudio(); memeLayer.resumeAudio(); soundBtn.style.display = 'none'; };
 fit();
 
 // ---------------- kết nối ----------------
@@ -158,12 +165,13 @@ async function onMsg(m) {
       break;
     case 'role': role = m.role; onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
     case 'cfg': onChannel(m.channel); if (gameOn) await loadGame(m.channel); break;
-    case 'studio': setPanels(m.studio); setScene(m.studio); if (studio) setStudio(studioOf(m.studio)); break;
+    case 'memefx': memeLayer.play(m.shot); break;
+    case 'studio': memeLayer.setRules(m.studio?.memes); setPanels(m.studio); setScene(m.studio); if (studio) setStudio(studioOf(m.studio)); break;
     case 'sfx': studio?.playNow(m); break;
     case 'st': studio?.setStats(m.st); sceneLayer?.setStats(m.st); break;
     case 'sx': if (role !== 'leader') { studio?.event(m.e); sceneLayer?.event(m.e); } break;
     case 'ev':
-      if (role === 'leader' && m.e.seq > seq && !m.replay) { studio?.event(m.e); sceneLayer?.event(m.e); }
+      if (role === 'leader' && m.e.seq > seq && !m.replay) { studio?.event(m.e); sceneLayer?.event(m.e); emitMemes(memeLayer.onEvent(m.e)); }
       if (role !== 'leader' || !game?.host || m.e.seq <= seq) return;
       seq = m.e.seq;
       onEvent(m.e, !!m.replay);
@@ -213,9 +221,9 @@ async function loadGame(ch) {
     unloadGame();
     const canvas = document.createElement('canvas');
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
-    stage.replaceChildren(canvas, ...(studio ? [studio.el] : []), ...(sceneLayer ? [sceneLayer.el] : []));
+    stage.replaceChildren(canvas, ...(studio ? [studio.el] : []), memeLayer.el, ...(sceneLayer ? [sceneLayer.el] : []));
     sceneLayer?.setGame(manifest.name);
-    const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput, memes: { search: searchMemes, source: 'giphy' } });
+    const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput, memes: { search: (q) => searchMemes(q, 'gif'), source: 'giphy', covered: (action) => memeLayer.covers(ch.game, `action:${action}`) } });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     applyPanels();
     fit();
@@ -238,6 +246,7 @@ function startHost(ch, module, data) {
     storage: memoryStorage(),
     report: { round: (r) => send({ t: 'round', r }), points: (user, n, win) => send({ t: 'pts', user, n, win }) },
     onEffects: (fx) => { applyFx(fx); draw(); },
+    onAction: (action, ev) => emitMemes(memeLayer.onGame(`action:${action}`, ev?.user)),
     onError: (err) => {
       send({ t: 'err', err });
       if (err.crashed) { showNotice('Game gặp lỗi — đang chạy lại…'); setTimeout(() => { if (game?.host === host) { host.recover(); showNotice(''); draw(); } }, 5000); }
@@ -261,8 +270,20 @@ function sendInput(ev) {
   else send({ t: 'in', ev });
 }
 
+/** Hiệu ứng của game khớp sự kiện khai báo trong manifest.events ({ id, fx, where? }) → meme (chỉ overlay chính). */
+function gameEventMemes(fx) {
+  const defs = game?.manifest?.events;
+  if (!Array.isArray(defs) || !defs.length || role !== 'leader') return;
+  for (const e of fx) for (const d of defs) {
+    if (d.fx !== e.type) continue;
+    if (d.where && Object.entries(d.where).some(([k, v]) => e[k] !== v)) continue;
+    emitMemes(memeLayer.onGame(d.id, e.by || null));
+  }
+}
+
 function applyFx(fx) {
   if (!fx?.length || !game) return;
+  gameEventMemes(fx);
   for (const e of fx) { try { game.view.effect(e); } catch (err) { console.warn(err); } }
   fxOut.push(...fx);
   if (fx.some((e) => /_(start|win|timeout|reveal)$/.test(e.type || ''))) send({ t: 'save', game: game.id, state: game.host?.serialize() });

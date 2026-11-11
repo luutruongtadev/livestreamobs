@@ -157,5 +157,76 @@
         "h": 330
       }
     }
+  ],
+  "events": [
+    {
+      "id": "solved",
+      "label": "Có người đoán đúng cờ",
+      "fx": "ft_reveal",
+      "where": {
+        "solved": true
+      }
+    },
+    {
+      "id": "nobody",
+      "label": "Không ai đoán đúng",
+      "fx": "ft_reveal",
+      "where": {
+        "solved": false
+      }
+    },
+    {
+      "id": "fall",
+      "label": "Máy bay rơi về điểm mốc",
+      "fx": "ft_fall"
+    },
+    {
+      "id": "rescued",
+      "label": "Cứu máy bay thành công",
+      "fx": "ft_rescued"
+    },
+    {
+      "id": "landed",
+      "label": "Hạ cánh về nhà (hết chuyến)",
+      "fx": "ft_landed"
+    }
+  ],
+  "memes": [
+    {
+      "event": "nobody",
+      "q": "confused travolta",
+      "sound": {
+        "mode": "lib",
+        "id": "crickets"
+      },
+      "text": "Cờ gì đây trời?|Không ai biết luôn 😶|Đi học địa lý lại thôi"
+    },
+    {
+      "event": "fall",
+      "q": "plane crash fail",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Máy bay rớt rồi!|Quay về điểm mốc 😭"
+    },
+    {
+      "event": "rescued",
+      "q": "hero save",
+      "sound": {
+        "mode": "lib",
+        "id": "fanfare"
+      },
+      "text": "Cứu kịp rồi!|Anh hùng xuất hiện 🦸"
+    },
+    {
+      "event": "landed",
+      "q": "landing celebration",
+      "sound": {
+        "mode": "lib",
+        "id": "applause"
+      },
+      "text": "Hạ cánh an toàn!|Chuyến bay tuyệt vời ✈️"
+    }
   ]
 }

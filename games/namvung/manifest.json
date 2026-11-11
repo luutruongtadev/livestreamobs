@@ -214,5 +214,70 @@
         "h": 216
       }
     }
+  ],
+  "events": [
+    {
+      "id": "win",
+      "label": "Thắng chiến dịch",
+      "fx": "nv_win"
+    },
+    {
+      "id": "lose",
+      "label": "Thua (bị lộ / bị bán / hết giờ)",
+      "fx": "nv_lose"
+    },
+    {
+      "id": "caught",
+      "label": "Bị tuần tra bắt gặp",
+      "fx": "nv_caught"
+    },
+    {
+      "id": "sent",
+      "label": "Gửi bằng chứng thành công",
+      "fx": "nv_sent"
+    },
+    {
+      "id": "spotted",
+      "label": "Bị camera phát hiện (đêm giải cứu)",
+      "fx": "nv_spotted"
+    }
+  ],
+  "memes": [
+    {
+      "event": "caught",
+      "q": "caught red handed",
+      "sound": {
+        "mode": "lib",
+        "id": "dramatic"
+      },
+      "text": "Bị bắt quả tang!|Chết rồi 😨"
+    },
+    {
+      "event": "sent",
+      "q": "mission accomplished",
+      "sound": {
+        "mode": "lib",
+        "id": "cash"
+      },
+      "text": "Gửi thành công!|Chỉ huy đã nhận 📡"
+    },
+    {
+      "event": "win",
+      "q": "police arrest celebration",
+      "sound": {
+        "mode": "lib",
+        "id": "fanfare"
+      },
+      "text": "Triệt phá thành công!|Công lý thắng 🚔"
+    },
+    {
+      "event": "lose",
+      "q": "game over",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Toang thật rồi…|Nhiệm vụ thất bại 💀"
+    }
   ]
 }

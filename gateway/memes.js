@@ -18,7 +18,7 @@ export function giphyItems(json) {
   }).filter((x) => x.id && (x.mp4 || x.gif) && /^https:\/\//.test(x.mp4 || x.gif));
 }
 
-export function createMemeSearch({ apiKey = '', fetchImpl = globalThis.fetch, ttlMs = 6 * 3600_000, maxKeys = 300, perMin = 30, rating = 'pg-13', limit = 25, log = console, now = () => Date.now() } = {}) {
+export function createMemeSearch({ apiKey = '', fetchImpl = globalThis.fetch, ttlMs = 6 * 3600_000, maxKeys = 300, perMin = 30, rating = 'pg-13', limit = 25, log = console, now = () => Date.now(), parse = giphyItems } = {}) {
   const cache = new Map(); // từ khoá → { at, items }
   const inflight = new Map();
   let calls = []; // thời điểm gọi API (giới hạn perMin lượt / phút cho cả server)
@@ -34,7 +34,7 @@ export function createMemeSearch({ apiKey = '', fetchImpl = globalThis.fetch, tt
     try {
       const r = await fetchImpl(url, { signal: ctl?.signal });
       if (!r.ok) throw new Error(`GIPHY ${r.status}`);
-      return giphyItems(await r.json());
+      return parse(await r.json());
     } finally { clearTimeout(timer); }
   }
 
@@ -58,4 +58,29 @@ export function createMemeSearch({ apiKey = '', fetchImpl = globalThis.fetch, tt
       return p;
     },
   };
+}
+
+// ---------------- âm thanh meme (Freesound, giấy phép Creative Commons) ----------------
+const FS_API = 'https://freesound.org/apiv2/search/text/';
+
+/** Kết quả Freesound → [{ id, mp3, name, duration, license, user }] (bản xem trước mp3 https). */
+export function freesoundItems(json) {
+  return (Array.isArray(json?.results) ? json.results : []).map((d) => ({
+    id: String(d?.id ?? ''), mp3: d?.previews?.['preview-hq-mp3'] || d?.previews?.['preview-lq-mp3'] || null,
+    name: String(d?.name || '').slice(0, 80), duration: Math.round((Number(d?.duration) || 0) * 10) / 10,
+    license: String(d?.license || ''), user: String(d?.username || '').slice(0, 40),
+  })).filter((x) => x.id && /^https:\/\//.test(x.mp3 || ''));
+}
+
+/** Tìm âm thanh ngắn (≤ 8 giây) theo từ khoá, cùng cơ chế lưu / giới hạn như tìm GIF. */
+export function createSoundSearch({ apiKey = '', fetchImpl = globalThis.fetch, ttlMs = 12 * 3600_000, maxKeys = 300, perMin = 30, log = console, now = () => Date.now() } = {}) {
+  const inner = createMemeSearch({ apiKey, fetchImpl: async (url) => {
+    const q = new URL(url).searchParams.get('q');
+    const u = `${FS_API}?query=${encodeURIComponent(q)}&filter=${encodeURIComponent('duration:[0.2 TO 8]')}&fields=id,name,duration,previews,license,username&page_size=25&token=${encodeURIComponent(apiKey)}`;
+    const r = await fetchImpl(u);
+    if (!r.ok) return { ok: false, status: r.status };
+    const json = await r.json();
+    return { ok: true, json: async () => ({ fs: json }) };
+  }, ttlMs, maxKeys, perMin, log, now, parse: (j) => freesoundItems(j.fs) });
+  return { ...inner, source: 'freesound' };
 }

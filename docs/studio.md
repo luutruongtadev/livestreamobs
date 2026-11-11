@@ -40,6 +40,14 @@ widgets/<id>/index.js      export function mount(el, { config, editing, signal }
 - **Cài đặt:** form trên dashboard sinh từ `schema`, gồm `enumNames` (nhãn cho lựa chọn) và `format: "color"` (ô chọn màu). Màu do streamer nhập chỉ nhận dạng `#rgb`, `#rrggbb`, `#rrggbbaa`.
 - **Test** (`test/studio.test.js`, tự chạy cho mọi widget): manifest hợp lệ, default qua được validate, import được ở Node, chỉ import thư viện được phép.
 
+## Meme (tab 😂 Meme, dùng chung mọi game)
+Mỗi luật: **khi** <quà / tim / follow / share / vào live / từ khoá / sự kiện của game> → **hình** (tự tìm GIF trên GIPHY theo từ khoá, link GIF, hoặc không) + **tiếng** (âm có sẵn, link mp3, tự tìm trên Freesound, hoặc không) + **chữ** (nhiều câu cách nhau `|`, chọn ngẫu nhiên) + số giây hiện.
+- **Sự kiện của game:** `action:<id>` (quà / tương tác khai báo trong `manifest.actions`, ví dụ "Sếp đến soi") hoặc id trong `manifest.events` (ví dụ Đoán cờ `solved`, Nằm Vùng `caught`). Nút **Thêm bộ meme mặc định** lấy từ `manifest.memes` của game đang chơi.
+- **Chạy ở đâu:** overlay chính khớp luật (sự kiện TikTok, `host.onAction`, hiệu ứng của game khớp `manifest.events`), phát meme rồi gửi `{t:'memefx', shot}` cho các overlay khác qua gateway. Shot có số ngẫu nhiên `r` nên mọi overlay hiện cùng một clip. Âm thanh chỉ phát ở overlay chính. Tối đa 6 meme / 10 giây, 3 meme xếp hàng.
+- **Tìm kiếm:** overlay hỏi gateway `{t:'meme', kind: 'gif' | 'sound', q}`; gateway giữ key (`GIPHY_API_KEY`, `FREESOUND_API_KEY`), lưu kết quả theo từ khoá. Dashboard xem trước bằng op `memesearch`, phát thử bằng op `memetest` (không cần lưu).
+- Game có meme riêng (Deadline Dí) nhường cho luật Studio khi trùng sự kiện (`ctx.memes.covered(action)`).
+- Code: `web/js/meme-layer.js`, `gateway/memes.js`, `checkMemeRule` trong `gateway/studio.js`.
+
 ## Giới hạn và lưu trữ
-- **Gói miễn phí:** tối đa 12 widget và 20 luật âm thanh (`STUDIO_LIMITS` trong `gateway/studio.js`).
+- **Gói miễn phí:** tối đa 12 widget, 20 luật âm thanh và 40 luật meme (`STUDIO_LIMITS` trong `gateway/studio.js`).
 - **Lưu trữ:** cột `channels.studio` (jsonb), migration `20261111000000_studio.sql`.

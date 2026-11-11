@@ -93,9 +93,10 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY }}
+          FREESOUND_API_KEY: ${{ secrets.FREESOUND_API_KEY }}
         run: |
           set -euo pipefail
-          KEYS="SIGN_API_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY GIPHY_API_KEY"
+          KEYS="SIGN_API_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY GIPHY_API_KEY FREESOUND_API_KEY"
           printf '%s' "$VPS_ENV_FILE" > env.deploy
           : > secrets.deploy
           chmod 600 env.deploy secrets.deploy

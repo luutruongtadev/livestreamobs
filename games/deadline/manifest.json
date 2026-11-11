@@ -321,5 +321,222 @@
         "mode": "camera"
       }
     }
+  ],
+  "events": [
+    {
+      "id": "win",
+      "label": "Xong việc (thắng ca)",
+      "fx": "dd_win"
+    },
+    {
+      "id": "fail",
+      "label": "Trễ deadline",
+      "fx": "dd_fail"
+    },
+    {
+      "id": "rival",
+      "label": "Trâm về đích trước",
+      "fx": "dd_rival_done"
+    }
+  ],
+  "memes": [
+    {
+      "event": "action:ping",
+      "q": "boss texting",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Ting ting! Sếp nhắn 📱|Lại là sếp…|Không dám mở tin nhắn"
+    },
+    {
+      "event": "action:soi",
+      "q": "boss watching you",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Ủa alo??|Sếp đứng sau lưng từ bao giờ 😨|Giả vờ bận… giả vờ bận…"
+    },
+    {
+      "event": "action:ban",
+      "q": "hit in the face",
+      "sound": {
+        "mode": "lib",
+        "id": "boing"
+      },
+      "text": "BỐP! Đau nha 😵|Ai ném đó?!|Né không kịp luôn"
+    },
+    {
+      "event": "action:mayin",
+      "q": "printer rage",
+      "sound": {
+        "mode": "lib",
+        "id": "buzzer"
+      },
+      "text": "Máy in lại dỗi rồi 💢|In 1 tờ mà kẹt 3 lần|Đập nhẹ thử xem…"
+    },
+    {
+      "event": "action:buzz",
+      "q": "confused corporate",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Sếp nói gì em không hiểu 🥲|Sync, align, push… em xỉu|Tiếng Việt đâu rồi sếp ơi"
+    },
+    {
+      "event": "action:hop",
+      "q": "boring meeting",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Lại họp nữa hả trời 😩|Cuộc họp này lẽ ra chỉ là 1 email|Họp xong quên luôn đang làm gì"
+    },
+    {
+      "event": "action:cattg",
+      "q": "you're fired",
+      "sound": {
+        "mode": "lib",
+        "id": "dramatic"
+      },
+      "text": "Thôi xong… toang rồi 💀|Ôm thùng carton ra về|Mất việc thật rồi sao 😭"
+    },
+    {
+      "event": "action:virus",
+      "q": "computer virus panic",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Ét o ét!! 🆘|Máy tính bốc khói rồi|Ai tải file lạ về vậy?!"
+    },
+    {
+      "event": "action:lamlai",
+      "q": "start over crying",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Làm lại từ đầu?! 😭|Ctrl+Z cả cuộc đời|Sửa nhỏ thôi mà…"
+    },
+    {
+      "event": "action:meo",
+      "q": "cat on keyboard",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Meo meo… xoá hết rồi 🐱|Ai cho mèo vào văn phòng?!|Bàn phím giờ là giường của nó"
+    },
+    {
+      "event": "action:capslock",
+      "q": "angry typing",
+      "sound": {
+        "mode": "lib",
+        "id": "boing"
+      },
+      "text": "tẠi SaO cHữ Bị NgƯợC|Caps Lock phản chủ 😵|GÕ GÌ CŨNG NHƯ ĐANG HÉT"
+    },
+    {
+      "event": "action:cupdien",
+      "q": "power outage",
+      "sound": {
+        "mode": "lib",
+        "id": "dramatic"
+      },
+      "text": "Tối thui luôn 🌑|Ai rút phích cắm vậy?!|Chưa kịp lưu file…"
+    },
+    {
+      "event": "action:wifi",
+      "q": "no wifi",
+      "sound": {
+        "mode": "lib",
+        "id": "buzzer"
+      },
+      "text": "Xoay xoay xoay… 📶|Wifi công ty lại dỗi|Gửi mãi không đi!"
+    },
+    {
+      "event": "action:hetlimit",
+      "q": "ai error",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "AI cũng biết mệt 😭|Hết limit đúng lúc gấp nhất|Tự làm đi, đừng nhờ AI nữa"
+    },
+    {
+      "event": "action:cafe",
+      "q": "coffee energy",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Sống lại rồi ☕✨|Một ly cà phê, mười cái deadline|Tỉnh cả người"
+    },
+    {
+      "event": "action:giahan",
+      "q": "relief phew",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Được cứu rồi 😭🙏|Sếp hôm nay hiền thế|Thêm giờ, thêm hy vọng"
+    },
+    {
+      "event": "action:intern",
+      "q": "teamwork help",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Thực tập sinh là chân ái 🫶|Có người gánh team rồi|Em giỏi quá em ơi"
+    },
+    {
+      "event": "action:antrua",
+      "q": "free lunch happy",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Cơm sếp bao ngon nhất 🍱|Ăn đã, deadline tính sau|Đồng hồ cũng đi ăn trưa"
+    },
+    {
+      "event": "action:tainghe",
+      "q": "noise cancelling peace",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Không nghe, không thấy 🎧|Chế độ tập trung: BẬT|Sếp nói gì cũng mặc"
+    },
+    {
+      "event": "action:thangchuc",
+      "q": "money rain rich",
+      "sound": {
+        "mode": "lib",
+        "id": "cash"
+      },
+      "text": "Giàu rồi!! 💸|Lên chức rồi mọi người ơi 🎉|Từ nay gọi em là sếp"
+    },
+    {
+      "event": "win",
+      "q": "office celebration dance",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Xong việc rồi!|Nộp kịp!|Nhân viên xuất sắc tháng 🏆"
+    },
+    {
+      "event": "fail",
+      "q": "crying at work",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "Tăng ca rồi…|Trễ deadline 😭|Sếp gọi lên phòng"
+    }
   ]
 }

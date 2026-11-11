@@ -220,9 +220,9 @@ function addChannelForm() {
 function channelView() {
   const c = S.cur;
   const g = gameOf(c.active_game);
-  const tabs = [['live', '🎛 Điều khiển'], ['studio', '🎬 Studio'], ['sounds', '🔊 Âm thanh'], ['settings', '⚙️ Cài đặt game'], ['bindings', '🎁 Quà & tương tác'], ['board', '🏆 Bảng xếp hạng'], ['channel', '🔗 Kênh']];
+  const tabs = [['live', '🎛 Điều khiển'], ['studio', '🎬 Studio'], ['sounds', '🔊 Âm thanh'], ['memes', '😂 Meme'], ['settings', '⚙️ Cài đặt game'], ['bindings', '🎁 Quà & tương tác'], ['board', '🏆 Bảng xếp hạng'], ['channel', '🔗 Kênh']];
   if (!tabs.some(([k]) => k === S.tab)) S.tab = 'live';
-  const body = { live: liveTab, studio: studioTab, sounds: soundsTab, settings: settingsTab, bindings: bindingsTab, board: boardTab, channel: channelTab }[S.tab](c, g);
+  const body = { live: liveTab, studio: studioTab, sounds: soundsTab, memes: memesTab, settings: settingsTab, bindings: bindingsTab, board: boardTab, channel: channelTab }[S.tab](c, g);
   return h('div', {},
     h('div', { class: 'card' },
       h('div', { class: 'row' }, h('h2', { class: 'grow' }, `@${c.username} · ${g?.name || c.active_game}`), h('span', { id: 'status' })),
@@ -734,6 +734,100 @@ function soundsTab(c) {
   });
   return h('div', { class: 'card' }, h('h2', {}, '🔊 Âm thanh — khi … thì phát …'),
     h('p', { class: 'small muted' }, 'Âm thanh phát trên overlay chính (thứ OBS / LIVE Studio thu), không phát ở dashboard. Một món quà khớp tối đa một luật quà (theo tên trước, rồi theo xu). Tối đa 4 âm / giây để không ồn.'),
+    box);
+}
+
+// ---- tab Meme: khi … thì hiện GIF + chữ + phát âm (Studio, dùng chung mọi game) ----
+const MEME_WHEN = { ...TRIG_LABEL, game: '🎮 Sự kiện game' };
+const newMeme = (g) => ({ id: `m${Date.now().toString(36)}${Math.floor(Math.random() * 99)}`, on: true, when: g ? { type: 'game', game: g.id, event: g.events?.[0]?.id || `action:${g.actions?.[0]?.id}` } : { type: 'gift', minDiamonds: 1 }, gif: { mode: 'search', q: 'funny' }, sound: { mode: 'lib', id: 'vineboom', volume: 0.8 }, text: '', seconds: 4 });
+/** Sự kiện của game cho ô chọn: sự kiện khai báo trong manifest.events + quà / tương tác của game (action). */
+const gameEvents = (g) => [...(g?.events || []).map((e) => [e.id, `⭐ ${e.label}`]), ...(g?.actions || []).map((a) => [`action:${a.id}`, `${a.icon || '🎁'} ${a.label}`])];
+
+function memesTab(c, g) {
+  const draft = studioOf(c);
+  draft.memes ||= [];
+  const box = h('div', {}, h('p', { class: 'muted' }, 'Đang tải…'));
+  sounds().then(({ SOUNDS }) => {
+    const pickBox = (holder, items, onUse, kind) => {
+      holder.replaceChildren(...(items.length ? items.map((it) => (kind === 'gif'
+        ? h('img', { src: it.gif || it.mp4, title: 'Bấm để dùng đúng clip này', style: 'height:72px;border-radius:8px;cursor:pointer;margin:2px', referrerPolicy: 'no-referrer', onclick: () => onUse(it) })
+        : h('span', { class: 'row', style: 'gap:4px;margin:2px 0' }, h('button', { class: 'ghost small', onclick: () => { soundPlayer.resume(); soundPlayer.play('url', { url: it.mp3 }); } }, '▶'), h('span', { class: 'small' }, `${it.name} (${it.duration}s)`), h('button', { class: 'ghost small', onclick: () => onUse(it) }, 'Dùng âm này'))))
+        : [h('span', { class: 'small muted' }, 'Không tìm thấy, thử từ khoá tiếng Anh')]));
+    };
+    const row = (r) => {
+      const t = r.when;
+      const on = h('input', { type: 'checkbox', checked: r.on !== false, title: 'Bật / tắt luật', onchange: (e) => { r.on = e.target.checked; } });
+      const type = h('select', { onchange: (e) => { r.when = e.target.value === 'game' ? newMeme(g).when : freshTrigger(e.target.value); el.replaceWith(row(r)); } },
+        Object.entries(MEME_WHEN).filter(([k]) => k !== 'game' || g).map(([k, v]) => h('option', { value: k, selected: k === t.type }, v)));
+      const evs = gameEvents(gameOf(t.game) || g);
+      const when = t.type === 'game'
+        ? [h('select', { onchange: (e) => { t.event = e.target.value; } }, evs.map(([id, label]) => h('option', { value: id, selected: id === t.event }, label))), t.game && t.game !== g?.id ? h('span', { class: 'small muted' }, `(game ${gameOf(t.game)?.name || t.game})`) : '']
+        : trigFields(t);
+      // hình
+      const gifRes = h('div', { class: 'row', style: 'flex-wrap:wrap' });
+      const gq = h('input', { class: 'wide', placeholder: 'từ khoá GIF (tiếng Anh nhiều kết quả hơn)', value: r.gif.q || '', hidden: r.gif.mode !== 'search', onchange: (e) => { r.gif.q = e.target.value.trim(); } });
+      const gu = h('input', { class: 'wide', placeholder: 'https://…/meme.gif', value: r.gif.url || '', hidden: r.gif.mode !== 'url', onchange: (e) => { r.gif.url = e.target.value.trim(); } });
+      const gm = h('select', { onchange: (e) => { r.gif.mode = e.target.value; gq.hidden = r.gif.mode !== 'search'; gu.hidden = r.gif.mode !== 'url'; } },
+        [['search', 'Tự tìm GIPHY'], ['url', 'Link GIF'], ['none', 'Không hình']].map(([k, v]) => h('option', { value: k, selected: k === r.gif.mode }, v)));
+      const gfind = h('button', { class: 'ghost small', onclick: async () => {
+        try {
+          const { items } = await req('memesearch', { channel: c.id, kind: 'gif', q: gq.value || r.gif.q || 'funny' });
+          pickBox(gifRes, items.slice(0, 12), (it) => { r.gif = { mode: 'url', url: it.gif || it.mp4 }; el.replaceWith(row(r)); toast('Đã chọn clip, bấm Lưu'); }, 'gif');
+        } catch (e) { toast(e.message, true); }
+      } }, 'Xem GIF');
+      // tiếng
+      const sndRes = h('div', {});
+      const sl = h('select', { hidden: r.sound.mode !== 'lib', onchange: (e) => { r.sound.id = e.target.value; } }, SOUNDS.map((x) => h('option', { value: x.id, selected: x.id === r.sound.id }, x.name)));
+      const su = h('input', { class: 'wide', placeholder: 'https://…/am-thanh.mp3', value: r.sound.url || '', hidden: r.sound.mode !== 'url', onchange: (e) => { r.sound.url = e.target.value.trim(); } });
+      const sq = h('input', { class: 'wide', placeholder: 'từ khoá âm (vd: fail trombone, vine boom, bruh)', value: r.sound.q || '', hidden: r.sound.mode !== 'search', onchange: (e) => { r.sound.q = e.target.value.trim(); } });
+      const sm = h('select', { onchange: (e) => { r.sound.mode = e.target.value; if (r.sound.mode === 'lib' && !r.sound.id) r.sound.id = SOUNDS[0].id; sl.hidden = r.sound.mode !== 'lib'; su.hidden = r.sound.mode !== 'url'; sq.hidden = r.sound.mode !== 'search'; } },
+        [['lib', 'Âm có sẵn'], ['url', 'Link mp3'], ['search', 'Tự tìm Freesound'], ['none', 'Không tiếng']].map(([k, v]) => h('option', { value: k, selected: k === r.sound.mode }, v)));
+      const sprev = h('button', { class: 'ghost small', title: 'Nghe thử / tìm thử', onclick: async () => {
+        soundPlayer.resume();
+        if (r.sound.mode === 'lib') soundPlayer.play(r.sound.id, { volume: r.sound.volume ?? 0.8 });
+        else if (r.sound.mode === 'url') soundPlayer.play('url', { url: r.sound.url });
+        else if (r.sound.mode === 'search') {
+          try {
+            const { items } = await req('memesearch', { channel: c.id, kind: 'sound', q: sq.value || r.sound.q });
+            pickBox(sndRes, items.slice(0, 6), (it) => { r.sound = { mode: 'url', url: it.mp3, volume: r.sound.volume ?? 0.8 }; el.replaceWith(row(r)); toast('Đã chọn âm, bấm Lưu'); }, 'sound');
+          } catch (e) { toast(e.message, true); }
+        }
+      } }, '▶');
+      const vol = h('input', { type: 'range', min: 0, max: 1, step: 0.05, value: r.sound.volume ?? 0.8, style: 'width:80px', title: 'Âm lượng', oninput: (e) => { r.sound.volume = Number(e.target.value); } });
+      const text = h('input', { class: 'wide', style: 'width:320px', placeholder: 'Câu meme (nhiều câu cách nhau dấu |, chọn ngẫu nhiên)', value: r.text || '', onchange: (e) => { r.text = e.target.value; } });
+      const secs = h('input', { type: 'number', min: 2, max: 10, value: r.seconds ?? 4, style: 'width:60px', title: 'Hiện bao nhiêu giây', onchange: (e) => { r.seconds = Number(e.target.value) || 4; } });
+      const el = h('div', { class: 'card', style: 'padding:10px 12px;margin-bottom:8px' },
+        h('div', { class: 'trig' }, on, 'Khi', type, when),
+        h('div', { class: 'trig' }, 'Hình', gm, gq, gu, gfind),
+        gifRes,
+        h('div', { class: 'trig' }, 'Tiếng', sm, sl, su, sq, sprev, vol),
+        sndRes,
+        h('div', { class: 'trig' }, 'Chữ', text, secs, 'giây',
+          h('button', { class: 'ghost small', title: 'Phát thử trên overlay đang mở', onclick: () => req('memetest', { channel: c.id, rule: r }).then(() => toast('Đã phát thử trên overlay')).catch((e) => toast(e.message, true)) }, 'Thử trên live'),
+          h('button', { class: 'ghost small', onclick: () => { draft.memes.splice(draft.memes.indexOf(r), 1); el.remove(); } }, 'Xoá')));
+      return el;
+    };
+    const list = h('div', {}, draft.memes.map(row));
+    const defaults = g?.memes || [];
+    box.replaceChildren(
+      !P.memes ? h('p', { class: 'pill err', style: 'display:block' }, 'Server chưa có GIPHY_API_KEY: chưa tự tìm GIF được (link GIF vẫn dùng được).') : '',
+      !P.soundSearch ? h('p', { class: 'pill warn', style: 'display:block' }, 'Server chưa có FREESOUND_API_KEY: chưa tự tìm âm được (âm có sẵn và link mp3 vẫn dùng được). Tạo key miễn phí tại freesound.org/apiv2/apply rồi thêm secret FREESOUND_API_KEY trên GitHub.') : '',
+      list,
+      h('div', { class: 'row', style: 'margin-top:10px' },
+        h('button', { class: 'ghost', onclick: () => { const r = newMeme(null); draft.memes.push(r); list.append(row(r)); } }, '+ Thêm luật'),
+        defaults.length ? h('button', { class: 'ghost', onclick: () => {
+          let n = 0;
+          for (const d of defaults) {
+            if (draft.memes.some((m) => m.when?.type === 'game' && m.when.game === g.id && m.when.event === d.event)) continue;
+            const r = { ...newMeme(g), id: `m${Date.now().toString(36)}${n}`, when: { type: 'game', game: g.id, event: d.event }, gif: { mode: 'search', q: d.q || '' }, sound: { volume: 0.8, ...(d.sound || { mode: 'none' }) }, text: d.text || '' };
+            draft.memes.push(r); list.append(row(r)); n++;
+          }
+          toast(n ? `Đã thêm ${n} luật mặc định của ${g.name}, bấm Lưu` : 'Bộ mặc định đã có đủ');
+        } }, `Thêm bộ meme mặc định của ${g.name} (${defaults.length})`) : '',
+        h('button', { onclick: async () => { try { S.cur = await req('studio', { channel: c.id, studio: draft }); toast('Đã lưu meme'); render(); } catch (e) { toast(e.message, true); } } }, 'Lưu')));
+  });
+  return h('div', { class: 'card' }, h('h2', {}, '😂 Meme: khi … thì hiện GIF + chữ + phát âm'),
+    h('p', { class: 'small muted' }, 'Dùng chung mọi game: luật theo quà / tim / follow / từ khoá, hoặc theo sự kiện của game đang chơi (vd "Sếp đến soi", "Có người đoán đúng cờ", "Bị lộ"). Meme hiện trên mọi overlay, âm thanh phát ở overlay chính. Tối đa 6 meme / 10 giây. Game có meme riêng (Deadline Dí) sẽ nhường cho luật ở đây nếu trùng sự kiện.'),
     box);
 }
 

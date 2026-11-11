@@ -1,6 +1,6 @@
 // Gateway của nền tảng: HTTP (trang web, file game, SDK) + WebSocket /ws (đường đi nóng).
 //   node gateway/index.js            (PORT mặc định 8787)
-// Biến môi trường: SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_PUBLISHABLE_KEY, SIGN_API_KEY, GIPHY_API_KEY (meme GIF),
+// Biến môi trường: SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_PUBLISHABLE_KEY, SIGN_API_KEY, GIPHY_API_KEY (meme GIF), FREESOUND_API_KEY (âm meme),
 //   GATEWAY_DEV_TOKEN (hoặc ADMIN_TOKEN) khi chưa có Supabase, secret của từng game (manifest.secrets).
 import http from 'node:http';
 import fs from 'node:fs';
@@ -127,17 +127,18 @@ async function main() {
   const widgets = buildWidgetCatalog(path.join(ROOT, 'widgets'));
   const gameServers = await loadGameServers(gamesDir, { env, dataDir });
   const { TikTokBridge } = await import('../server/tiktok.js');
-  const { createMemeSearch } = await import('./memes.js');
+  const { createMemeSearch, createSoundSearch } = await import('./memes.js');
   const memes = createMemeSearch({ apiKey: env.GIPHY_API_KEY || '' });
-  const gw = new Gateway({ store, catalog, widgets, gameServers, memes, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
+  const sounds = createSoundSearch({ apiKey: env.FREESOUND_API_KEY || '' });
+  const gw = new Gateway({ store, catalog, widgets, gameServers, memes, sounds, bridgeFactory: () => new TikTokBridge({ signApiKey: env.SIGN_API_KEY }) });
   // tên đăng nhập → email nội bộ <tên>@<usernameDomain>; cố định sau lần deploy đầu (đổi là mất đăng nhập của tài khoản cũ)
   const usernameDomain = String(env.AUTH_USERNAME_DOMAIN || env.PLAY_DOMAIN || 'localhost').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
-  const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain, memes: memes.enabled };
+  const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain, memes: memes.enabled, soundSearch: sounds.enabled };
   const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);
   server.listen(port, env.HOST || '0.0.0.0', () => {
-    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  ${widgets.length} widget  ·  lưu trữ: ${store.kind}  ·  meme GIPHY: ${memes.enabled ? 'bật' : 'tắt (chưa có GIPHY_API_KEY)'}`);
+    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  ${widgets.length} widget  ·  lưu trữ: ${store.kind}  ·  meme GIPHY: ${memes.enabled ? 'bật' : 'tắt (chưa có GIPHY_API_KEY)'}  ·  âm Freesound: ${sounds.enabled ? 'bật' : 'tắt (chưa có FREESOUND_API_KEY)'}`);
   });
   const stop = async () => { await gw.close(); server.close(); process.exit(0); };
   process.on('SIGINT', stop);
