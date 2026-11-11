@@ -33,7 +33,10 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
   - Gây khó: sếp đến soi, họp đột xuất, virus, máy in kẹt, bắt gõ câu trend, xoá việc đang làm.
   - Giúp đỡ: cà phê, gia hạn, làm hộ.
   - Sự kiện chạy giống quà, nhưng nhân vật không được tính vào bảng xếp hạng.
-- **Hết ca:** thẻ kết quả có lời kết riêng của chương, khác nhau khi thắng và khi thua.
+- **🗳️ Người xem quyết định:** khi vào chương mới, thẻ mở đầu có một tình huống với 2 lựa chọn (ví dụ "Trâm nhờ làm hộ: Giúp Trâm / Mặc kệ"). Người xem bình luận **1** hoặc **2** trong `voteSeconds` giây (mặc định 15), mỗi người 1 phiếu, hoà thì ngẫu nhiên. Lựa chọn thắng đổi luật của ca: thêm / bớt bước, cộng giờ, Trâm nhanh hay chậm hơn. Quà tặng lúc đang bình chọn được giữ lại, vào ca mới có tác dụng.
+- **😏 Đối thủ Trâm** (`rival`): đồng nghiệp cùng đợt, đua cùng bạn trên thanh tiến độ ở cả 2 chế độ. Mỗi chương Trâm nhanh hơn. Trâm vượt nửa đường thì buông lời khiêu khích; nếu Trâm về đích trước, sếp khen Trâm và deadline của bạn −20 giây. Thắng trước Trâm thì thẻ kết quả ghi "Bạn vượt mặt Trâm!".
+- **Hết ca:** thẻ kết quả có lời kết riêng của chương (thắng / thua), hậu quả của lựa chọn người xem, kết quả đua với Trâm và đoạn giới thiệu chương sau.
+- **Hai đoạn kết:** lên tới Chủ tịch, nếu người xem chọn phe tử tế nhiều hơn thì kết **🏆 CHỦ TỊCH ĐƯỢC LÒNG**, phe tham vọng nhiều hơn thì kết **😈 CHỦ TỊCH MÁU LẠNH** (Trâm mở công ty đối thủ "Deadline Dí 2").
 - **Thắng ca ở chức Chủ tịch:** hiện đoạn kết **KẾT THÚC MÙA N**, rồi bắt đầu **mùa mới** từ chức khởi đầu.
 - Sửa nội dung ở `data/office.json` → `story` (`chapters[]`: `title`, `boss`, `intro`, `desktopTask`, `cameraTask`, `events[]` gồm `at` (0–1, theo deadline gốc), `from`, `icon`, `text`, `effect`, `phrase`; `win`, `fail`; `ending[]`).
 - Tắt `story` thì game chạy như bản cũ.
@@ -45,10 +48,10 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
    - 📥 **Hộp thư:** bấm Lưu hoặc Spam cho 4 thư.
    - 📊 **Bảng tính:** gõ tổng các ô rồi Enter.
    - 📁 **File:** bấm file, rồi bấm đúng thư mục (Ảnh / Tài liệu / Thùng rác).
-   - 🔐 **Đổi mật khẩu:** gõ mật khẩu đủ 4 điều kiện: ≥ 8 ký tự, có số, có chữ HOA, có ký tự đặc biệt. Mỗi điều kiện đạt thì sáng xanh.
+   - 🔐 **Đổi mật khẩu:** mỗi lần đổi chọn ngẫu nhiên `pwRuleCount` luật (mặc định 5) trong 20 luật, ví dụ: số ký tự, chữ HOA, tổng các chữ số bằng N, có tên con vật / màu, có "sếp", có "deadline", có emoji, có số năm nay, không có 2 ký tự trùng liền nhau, độ dài chẵn… Ban đầu chỉ hiện 1 luật. Mỗi lần gõ mật khẩu thoả các luật đang hiện rồi Enter thì hiện thêm 1 luật mới; thoả đủ hết mới qua. Luật nào đạt thì sáng xanh. Mọi tổ hợp luật đều có lời giải (đã kiểm tra 20.000 tổ hợp).
    - 🤖 **Tôi không phải robot:** chọn hết các ô có món được yêu cầu (☕ / 🐱 / 📎…) rồi bấm Xác minh. Chọn sai thì xoá chọn, làm lại.
-   - ✍️ **Ký duyệt:** 4 tờ trình. Trên 10 triệu thì Từ chối, còn lại thì Duyệt.
-   - 🔢 **Mã OTP:** mã 6 số hiện 3,5 giây (từ Trưởng nhóm trở lên là 2,5 giây) rồi ẩn đi, phải gõ lại theo trí nhớ. Gõ sai sẽ ra mã mới; nút "Gửi lại mã" cho xem lại.
+   - ✍️ **Ký duyệt (đối soát):** 4 tờ trình, mỗi tờ kèm số tiền trên hoá đơn. Chỉ DUYỆT khi số tiền ≤ 10 triệu **và** khớp hoá đơn từng đồng; còn lại TỪ CHỐI. Số tiền lệch thường chỉ đảo 2 chữ số, nên phải đọc kỹ.
+   - 🔢 **Mã OTP:** mã 6 số hiện `otpSeconds` giây (mặc định 3,5) rồi ẩn đi, phải gõ lại theo trí nhớ. Gõ sai sẽ ra mã mới; nút "Gửi lại mã" cho xem lại.
    - 📝 **Chính tả:** bấm vào các chữ viết sai trong câu.
    - 💬 **Trả lời khách:** chọn câu lịch sự trong 3 câu.
    - 📅 **Lịch họp:** bấm giờ bắt đầu sao cho 2 tiếng liền đều trống.

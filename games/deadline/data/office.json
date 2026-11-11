@@ -146,7 +146,28 @@
           }
         ],
         "win": "Chị Hạnh gật gù: \"Được đó em!\" Bạn được nhận làm nhân viên chính thức.",
-        "fail": "Chị Hạnh thở dài: \"Mai làm lại nha em…\""
+        "fail": "Chị Hạnh thở dài: \"Mai làm lại nha em…\"",
+        "rivalPace": 0.92,
+        "choice": {
+          "q": "Trâm, thực tập sinh cùng đợt, nhờ bạn làm hộ phần việc của cô ấy.",
+          "options": [
+            {
+              "label": "Giúp Trâm",
+              "tag": "tot",
+              "steps": 2,
+              "rival": 0.12,
+              "result": "Bạn làm thêm 2 bước. Trâm cảm động, đi chậm lại."
+            },
+            {
+              "label": "Mặc kệ, lo việc mình",
+              "tag": "tham",
+              "steps": -1,
+              "rival": -0.08,
+              "result": "Bớt 1 bước, nhưng Trâm ghi thù và tăng tốc."
+            }
+          ]
+        },
+        "next": "Một khách hàng \"huyền thoại\" đang chờ bạn…"
       },
       {
         "title": "Khách hàng khó tính",
@@ -187,7 +208,28 @@
           }
         ],
         "win": "Khách hàng khó tính để lại 5 sao. Anh Long đề xuất bạn lên chuyên viên.",
-        "fail": "Khách hàng đòi gặp \"người có thẩm quyền\". Anh Long nhìn bạn rất lâu."
+        "fail": "Khách hàng đòi gặp \"người có thẩm quyền\". Anh Long nhìn bạn rất lâu.",
+        "rivalPace": 0.9,
+        "choice": {
+          "q": "Khách VIP đòi giảm giá 50%, nếu không sẽ đăng bài bóc phốt.",
+          "options": [
+            {
+              "label": "Chiều khách, nhận lỗi",
+              "tag": "tot",
+              "deadline": 45,
+              "steps": 2,
+              "result": "Khách dịu lại: +45 giây nhưng thêm 2 bước sửa đơn."
+            },
+            {
+              "label": "Đổ lỗi cho Trâm",
+              "tag": "tham",
+              "steps": -2,
+              "rival": -0.12,
+              "result": "Khách đi tìm Trâm. Trâm biết chuyện và chạy nước rút."
+            }
+          ]
+        },
+        "next": "Chị Mai giao cho bạn một dự án tối mật…"
       },
       {
         "title": "Dự án bí mật",
@@ -223,7 +265,27 @@
           }
         ],
         "win": "Dí Pay ra mắt thành công. Chị Mai mời bạn làm trưởng nhóm.",
-        "fail": "Dí Pay ra mắt trễ một ngày. Báo chí viết: \"Dí Pay bị deadline dí\"."
+        "fail": "Dí Pay ra mắt trễ một ngày. Báo chí viết: \"Dí Pay bị deadline dí\".",
+        "rivalPace": 0.88,
+        "choice": {
+          "q": "Trâm để quên file thiết kế Dí Pay trên máy in.",
+          "options": [
+            {
+              "label": "Trả lại cho Trâm",
+              "tag": "tot",
+              "deadline": 30,
+              "result": "Trâm cảm ơn rối rít và cho bạn mượn 30 giây."
+            },
+            {
+              "label": "Lén dùng làm của mình",
+              "tag": "tham",
+              "steps": -3,
+              "rival": -0.15,
+              "result": "Bớt 3 bước! Nhưng Trâm phát hiện và làm như điên."
+            }
+          ]
+        },
+        "next": "Bạn sắp có hai \"đệ tử\" đầu tiên…"
       },
       {
         "title": "Lần đầu làm sếp",
@@ -264,7 +326,28 @@
           }
         ],
         "win": "Team của bạn xong việc sớm nhất phòng. Bạn lên trưởng phòng.",
-        "fail": "Bin và Na xin chuyển team. Bạn ngồi ăn trưa một mình."
+        "fail": "Bin và Na xin chuyển team. Bạn ngồi ăn trưa một mình.",
+        "rivalPace": 0.86,
+        "choice": {
+          "q": "Bin làm sai, cả team bị sếp mắng.",
+          "options": [
+            {
+              "label": "Nhận lỗi thay Bin",
+              "tag": "tot",
+              "deadline": 45,
+              "steps": 1,
+              "result": "Bin và Na cảm động: +45 giây, nhưng thêm 1 bước sửa sai."
+            },
+            {
+              "label": "Phạt Bin trước cả team",
+              "tag": "tham",
+              "steps": -2,
+              "rival": -0.08,
+              "result": "Cả team sợ hãi làm nhanh hơn. Trâm cười khẩy."
+            }
+          ]
+        },
+        "next": "Lịch của bạn sắp kín họp tới mức không thở nổi…"
       },
       {
         "title": "Cuộc họp không hồi kết",
@@ -299,7 +382,28 @@
           }
         ],
         "win": "Ngân sách được duyệt ngay lần đầu. Hội đồng bổ nhiệm bạn làm giám đốc.",
-        "fail": "Ngân sách bị trả về kèm 47 bình luận. Cuộc họp tiếp theo: ngày mai, 7 giờ sáng."
+        "fail": "Ngân sách bị trả về kèm 47 bình luận. Cuộc họp tiếp theo: ngày mai, 7 giờ sáng.",
+        "rivalPace": 0.84,
+        "choice": {
+          "q": "Giám đốc Phương hỏi: ai làm lệch ngân sách?",
+          "options": [
+            {
+              "label": "Nói thật: lỗi cả phòng",
+              "tag": "tot",
+              "deadline": 60,
+              "steps": 1,
+              "result": "Giám đốc quý sự thật thà: +60 giây."
+            },
+            {
+              "label": "Chỉ tay vào Trâm",
+              "tag": "tham",
+              "steps": -2,
+              "rival": -0.12,
+              "result": "Trâm bị gọi lên phòng… rồi quay về với ánh mắt rực lửa."
+            }
+          ]
+        },
+        "next": "Có kẻ đang nhắm vào hệ thống của công ty…"
       },
       {
         "title": "Đối thủ chơi xấu",
@@ -334,7 +438,28 @@
           }
         ],
         "win": "Hệ thống an toàn, đối thủ bị lật tẩy. Chủ tịch Bảo trao lại ghế cho bạn.",
-        "fail": "Cổ đông họp trong khi màn hình vẫn hiện \"Bạn đã bị hack\". Chủ tịch Bảo im lặng."
+        "fail": "Cổ đông họp trong khi màn hình vẫn hiện \"Bạn đã bị hack\". Chủ tịch Bảo im lặng.",
+        "rivalPace": 0.82,
+        "choice": {
+          "q": "Công ty đối thủ mời bạn về làm với lương gấp đôi.",
+          "options": [
+            {
+              "label": "Từ chối, ở lại cứu công ty",
+              "tag": "tot",
+              "deadline": 60,
+              "steps": 2,
+              "result": "Cả công ty đứng sau bạn: +60 giây, thêm 2 bước."
+            },
+            {
+              "label": "Nhận tiền, vẫn giả vờ ở lại",
+              "tag": "tham",
+              "steps": -3,
+              "rival": -0.15,
+              "result": "Ví dày lên, việc nhẹ đi. Trâm đã chụp màn hình tin nhắn…"
+            }
+          ]
+        },
+        "next": "Chiếc ghế chủ tịch đang ở rất gần…"
       },
       {
         "title": "Ghế chủ tịch",
@@ -369,13 +494,66 @@
           }
         ],
         "win": "Hội đồng cổ đông đứng dậy vỗ tay.",
-        "fail": "Hội đồng cổ đông xin \"suy nghĩ thêm\". Bạn quay về làm giám đốc."
+        "fail": "Hội đồng cổ đông xin \"suy nghĩ thêm\". Bạn quay về làm giám đốc.",
+        "rivalPace": 0.8,
+        "choice": {
+          "q": "Trâm giờ là giám đốc, xin bạn một cơ hội cuối.",
+          "options": [
+            {
+              "label": "Cho Trâm làm phó chủ tịch",
+              "tag": "tot",
+              "deadline": 60,
+              "rival": 0.4,
+              "result": "Trâm không đua nữa mà quay sang giúp bạn: +60 giây."
+            },
+            {
+              "label": "Sa thải Trâm ngay",
+              "tag": "tham",
+              "steps": -2,
+              "rival": -0.2,
+              "result": "Trâm ôm thùng carton ra về… và thề sẽ quay lại."
+            }
+          ]
+        }
       }
     ],
     "ending": [
       "Quyết định đầu tiên của chủ tịch: cấm họp sau 5 giờ chiều.",
       "Chị Hạnh, Linh, Bin, Na và bác bảo vệ mở tiệc mừng.",
       "Mùa {season} khép lại. Sáng mai, một thực tập sinh mới bước vào cổng…"
-    ]
+    ],
+    "rival": {
+      "name": "Trâm",
+      "icon": "😏",
+      "taunts": [
+        "Ủa chưa xong hả? Mình xong nửa rồi nè 💅",
+        "Chậm vậy sao lên chức được trời",
+        "Sếp vừa khen mình đó, ghen tị hông?",
+        "Mình nộp trước là cái chắc 😏"
+      ],
+      "won": [
+        "Mình nộp xong rồi nha, sếp khen mình quá trời 😘",
+        "Về nhất rồi, bạn cứ thong thả nha 💅"
+      ],
+      "beaten": [
+        "Hừ… lần này bạn may thôi đó 😤",
+        "Được rồi, ca sau mình không nhường nữa đâu!",
+        "Sao bạn làm nhanh vậy?! 😱"
+      ]
+    },
+    "endings": {
+      "tot": [
+        "Bạn là chủ tịch được lòng nhất lịch sử công ty.",
+        "Quyết định đầu tiên: cấm họp sau 5 giờ chiều, mỗi thứ Sáu ăn lẩu.",
+        "Trâm, chị Hạnh, Linh, Bin, Na và bác bảo vệ mở tiệc mừng.",
+        "Mùa {season} khép lại. Sáng mai, một thực tập sinh mới bước vào cổng… và bạn sẽ là người dắt họ đi."
+      ],
+      "tham": [
+        "Bạn ngồi một mình trên tầng 30, nhìn xuống thành phố.",
+        "Không ai dám nói chuyện với bạn ở thang máy nữa.",
+        "Ở bên kia đường, Trâm vừa khai trương công ty mới: \"Deadline Dí 2\".",
+        "Mùa {season} khép lại. Cuộc chiến thật sự mới bắt đầu…"
+      ]
+    }
   }
 }

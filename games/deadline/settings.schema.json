@@ -26,6 +26,18 @@
       "maximum": 30,
       "default": 10
     },
+    "voteSeconds": {
+      "type": "integer",
+      "title": "Cốt truyện: thời gian người xem bình chọn lựa chọn của chương (bình luận 1 / 2; 0 = tắt)",
+      "minimum": 0,
+      "maximum": 60,
+      "default": 15
+    },
+    "rival": {
+      "type": "boolean",
+      "title": "Cốt truyện: có đối thủ Trâm đua cùng (Trâm về đích trước thì deadline −20 giây)",
+      "default": true
+    },
     "steps": {
       "type": "integer",
       "title": "Số bước mỗi nhiệm vụ",
@@ -60,9 +72,9 @@
           "📥 Hộp thư: Lưu / Spam",
           "📊 Bảng tính: gõ tổng",
           "📁 File: bỏ đúng thư mục",
-          "🔐 Đổi mật khẩu theo 4 điều kiện",
+          "🔐 Đổi mật khẩu: luật hiện dần từng cái (tối đa 20 luật)",
           "🤖 Tôi không phải robot",
-          "✍️ Ký duyệt tờ trình",
+          "✍️ Ký duyệt tờ trình: đối soát hạn mức + hoá đơn",
           "🔢 Nhập mã OTP (nhớ nhanh)",
           "📝 Bắt lỗi chính tả",
           "💬 Trả lời khách lịch sự",
@@ -110,6 +122,20 @@
       "minimum": 1,
       "maximum": 50,
       "default": 5
+    },
+    "pwRuleCount": {
+      "type": "integer",
+      "title": "Việc “Đổi mật khẩu”: số luật phải thoả (hiện dần từng luật, chọn ngẫu nhiên trong 20 luật)",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 5
+    },
+    "otpSeconds": {
+      "type": "number",
+      "title": "Việc “Mã OTP”: mã hiện bao nhiêu giây để ghi nhớ",
+      "minimum": 0.5,
+      "maximum": 20,
+      "default": 3.5
     },
     "shiftSeconds": {
       "type": "integer",
