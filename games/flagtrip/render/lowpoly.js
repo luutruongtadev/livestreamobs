@@ -632,7 +632,7 @@ export function createScene(info, { w = 1000, h = 1010, makeCanvas, font = 'sans
   const setting = settingOf(info.iso2, info.region, info.lat, info.lon, clim);
   const cityKey = cityOf(info.iso2, info.region, info.lat, info.lon), city = CITY[cityKey];
   const r0 = rng();
-  const tod = r0 < 0.5 ? 'day' : r0 < 0.82 ? 'sunset' : 'night';
+  const tod = r0 < 0.6 ? 'day' : 'sunset'; // không dùng cảnh đêm: tối quá, khó nhận ra bối cảnh
   const sky = SKY[tod], haze = sky[sky.length - 1];
   const water = WATER.has(type);
   const cx = w / 2, horizon = Math.round(h * 0.46), yb = Math.round(h * 0.575), LH = Math.round(Math.min(h * 0.35, w * 0.36));
