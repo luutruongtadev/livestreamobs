@@ -191,8 +191,9 @@ test('LayeredScorer Lớp 4 stream: từ nào chấm xong trả điểm ngay, kh
   assert.equal(rb.source, 'claude');
   assert.equal(reqs[0].model, 'claude-haiku-5-5');
   assert.equal(reqs[0].fallbacks, undefined);
+  assert.deepEqual(reqs[0].thinking, { type: 'disabled' });
   const s2 = new LayeredScorer({ client: fakeClient() });
-  assert.equal(s2.judgeModel, 'claude-sonnet-5-5');
+  assert.equal(s2.judgeModel, 'claude-haiku-5-5');
 });
 
 test('WordGame: đầu vòng gọi prepare() soạn pack; chấm truyền cách gọi khác (aliases); từ có điểm ngay không tính vào độ trễ', async () => {

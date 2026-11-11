@@ -23,14 +23,15 @@ export function createServer({ secrets = {}, dataDir = null, log = console, conf
   const scorer = new LayeredScorer({
     model: config.model || 'claude-opus-5-5',
     packModel: config.packModel || null,
-    judgeModel: config.judgeModel || 'claude-sonnet-5-5', // Lớp 4 chấm từ đoán: model nhanh (đường đi nóng)
+    judgeModel: config.judgeModel || 'claude-haiku-5-5', // Lớp 4 chấm từ đoán: Haiku, không suy nghĩ (đường đi nóng)
     bands: config.scoreBands || {},
-    batchMs: config.batchMs ?? 100, // đường đi nóng: gom lô ngắn
+    batchMs: config.batchMs ?? 50, // đường đi nóng: gom lô ngắn
     cachePath: file('wordscore-cache.json'),
     packPath: file('knowledge-packs.json'),
     seedPackPath: path.join(GAME_DIR, 'data', 'knowledge-packs.json'),
     client: claude,
-    embedder: Embedder.fromEnv(secrets, config.embedding || {}),
+    // Lớp 3 (embedding) thêm 1 lượt gọi API trước Claude → mặc định tắt, chỉ chạy khi bật rõ embedding.enabled: true
+    embedder: config.embedding?.enabled === true ? Embedder.fromEnv(secrets, config.embedding) : null,
     embed: config.embedding || {},
     log,
   });

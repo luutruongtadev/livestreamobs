@@ -78,7 +78,7 @@ const JUDGE_SCHEMA = {
  * prepare(secret, ctx): soạn Knowledge Pack trước khi người xem đoán (gọi ở đầu vòng).
  */
 export class LayeredScorer {
-  constructor({ model = 'claude-opus-5-5', packModel = null, judgeModel = 'claude-sonnet-5-5', batchMs = 400, maxBatch = 12, maxInflight = 6, timeoutMs = 20_000,
+  constructor({ model = 'claude-opus-5-5', packModel = null, judgeModel = 'claude-haiku-5-5', batchMs = 400, maxBatch = 12, maxInflight = 6, timeoutMs = 20_000,
     cachePath = null, packPath = null, seedPackPath = null, client = null, bands = SCORE_BANDS, embedder = null, embed = {}, log = console } = {}) {
     this.model = model;
     this.packModel = packModel || model;
@@ -332,6 +332,8 @@ export class LayeredScorer {
     };
     const res = await this.create({
       model: this.judgeModel, max_tokens: 2000, stream: true,
+      // Haiku: tắt suy nghĩ (cho phép ở effort ≤ high) → ra chữ ngay, phân loại nhóm không cần suy luận dài
+      ...(/haiku/.test(this.judgeModel) ? { thinking: { type: 'disabled' } } : {}),
       output_config: { effort: 'low', format: { type: 'json_schema', schema: JUDGE_SCHEMA } },
       system: JUDGE_SYSTEM,
       messages: [{ role: 'user', content: `${context ? `NGỮ CẢNH: ${context}\n` : ''}TỪ BÍ MẬT: ${JSON.stringify(secret)}\nTỪ ĐOÁN: ${JSON.stringify(words)}` }],
