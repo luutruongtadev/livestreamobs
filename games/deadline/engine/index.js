@@ -1,4 +1,5 @@
 import { Emitter, makePausable, normalize, canon, digitsOf, triggerText, triggerIcon } from '#sdk';
+import { pickRules, ruleText, ruleOk } from './password.js';
 
 /**
  * Deadline Dí: streamer chạy deadline, quà của người xem là những ông sếp soi việc (hoặc đồng nghiệp cứu).
@@ -27,7 +28,7 @@ export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc', 'antrua', 'tainghe
 export const JOBS = ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop', 'sign', 'colleague', 'quiz'];
 export const VIEWER_JOBS = ['sign', 'colleague', 'quiz']; // việc cần người xem bình luận (có nút Bỏ qua)
 const JUNK = '#$%&@!?*~^qzxjwkfv';
-export const APPROVE_LIMIT = 10; // triệu: tờ trình trên mức này thì Từ chối
+export const APPROVE_LIMIT = 10; // triệu: tờ trình trên mức này thì Từ chối (và phải khớp hoá đơn)
 export const FOLDERS = ['anh', 'tailieu', 'rac'];
 const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000, meo: 8000, capslock: 15000, cupdien: 12000, wifi: 8000, antrua: 15000, tainghe: 30000 };
 const SOI_PING_MS = 4500;
@@ -96,7 +97,7 @@ export class Deadline extends Emitter {
 
   // ---------------- vòng đời ca làm ----------------
   startShift() {
-    if (this.newSeason) { this.newSeason = false; this.season++; this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1); this.seen = []; this.streak = 0; }
+    if (this.newSeason) { this.newSeason = false; this.season++; this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1); this.seen = []; this.streak = 0; this.tags = []; }
     this.shiftNo++;
     this.phase = 'brief';
     this.startedAt = this.clock();
@@ -105,12 +106,23 @@ export class Deadline extends Emitter {
     const fresh = !!ch && !this.seen.includes(this.rank);
     if (fresh) this.seen.push(this.rank);
     this.chapterFresh = fresh;
-    this.endsAt = this.startedAt + (fresh ? Math.max(this.s.briefSeconds, this.s.storyBriefSeconds) : this.s.briefSeconds) * 1000;
+    const ch0 = ch?.choice;
+    // lựa chọn của chương: người xem bình luận 1 / 2 trong lúc đọc lời dẫn (chỉ lần đầu vào chương)
+    this.vote = fresh && this.s.voteSeconds > 0 && Array.isArray(ch0?.options) && ch0.options.length >= 2
+      ? { q: String(ch0.q || ''), options: ch0.options.slice(0, 2).map((o) => ({ label: String(o.label || ''), tag: o.tag === 'tham' ? 'tham' : 'tot' })), counts: [0, 0], voters: {} }
+      : null;
+    this.choice = null;
+    this.queued = [];
+    const briefS = fresh ? Math.max(this.s.briefSeconds, this.s.storyBriefSeconds, this.vote ? this.s.voteSeconds : 0) : this.s.briefSeconds;
+    this.endsAt = this.startedAt + briefS * 1000;
     this.deadlineMs = this.shiftMs();
+    this.target = this.s.steps;
+    this.rival = ch && this.s.rival && this.d.story?.rival ? { name: String(this.d.story.rival.name || 'Trâm'), icon: String(this.d.story.rival.icon || '😏'), pace: Number(ch.rivalPace) || 0.88, k: 0, taunted: false, done: false } : null;
     const custom = !this.desktop && String(this.s.cameraTask || '').trim();
     const chTask = ch && (this.desktop ? (ch.desktopTask?.name ? ch.desktopTask : null) : (ch.cameraTask ? { name: ch.cameraTask, file: ch.desktopTask?.file } : null));
     const t = custom ? { name: custom.slice(0, 80), file: 'ViecCuaToi_final.docx' } : chTask || this.pick(this.desktop ? this.d.desktopTasks : this.d.cameraTasks);
-    this.task = { name: String(t.name).replace(/\{n\}/g, this.s.steps), file: String(t.file || 'BaoCao_final.docx') };
+    this.taskTpl = String(t.name);
+    this.task = { name: this.taskTpl.replace(/\{n\}/g, this.target), file: String(t.file || 'BaoCao_final.docx') };
     this.step = 0;
     this.pings = [];
     this.status = [];
@@ -125,11 +137,37 @@ export class Deadline extends Emitter {
   }
 
   startWork() {
+    const fx = [];
+    if (this.vote) fx.push(...this.resolveVote());
     this.phase = 'work';
     this.startedAt = this.clock();
     this.endsAt = this.startedAt + this.deadlineMs;
+    this.lastTickAt = this.startedAt;
     if (this.desktop) this.newJob();
-    return [{ type: 'dd_start', shift: this.shiftNo }];
+    fx.unshift({ type: 'dd_start', shift: this.shiftNo });
+    for (const q of this.queued || []) { const r = this.applyEffect(q.id, q.by); fx.push({ type: 'dd_gift', action: q.id, by: q.by, sub: r.sub, meme: null, harm: HARM.includes(q.id), applied: true, late: true }, ...r.fx); }
+    this.queued = [];
+    return fx;
+  }
+
+  /** Chốt lựa chọn của người xem (nhiều phiếu hơn thắng, hoà thì ngẫu nhiên) và áp dụng tác dụng lên ca này. */
+  resolveVote() {
+    const v = this.vote;
+    this.vote = null;
+    const opts = this.chapter()?.choice?.options || [];
+    const [a, b] = v.counts;
+    const i = a === b ? Math.floor(this.ctx.random() * 2) : a > b ? 0 : 1;
+    const o = opts[i] || {};
+    const dSec = Math.max(-120, Math.min(300, Number(o.deadline) || 0));
+    const dSteps = Math.max(-10, Math.min(10, Number(o.steps) || 0));
+    this.deadlineMs = Math.max(30_000, this.deadlineMs + dSec * 1000);
+    this.target = Math.max(3, Math.min(40, this.target + dSteps));
+    if (this.rival) this.rival.pace = Math.max(0.45, Math.min(1.6, this.rival.pace + (Number(o.rival) || 0)));
+    this.task.name = this.taskTpl.replace(/\{n\}/g, this.target);
+    const tag = o.tag === 'tham' ? 'tham' : 'tot';
+    this.tags = [...(this.tags || []), tag];
+    this.choice = { i, label: String(o.label || ''), tag, result: String(o.result || ''), votes: v.counts.slice(), deadline: dSec, steps: dSteps, rival: Number(o.rival) || 0 };
+    return [{ type: 'dd_choice', ...this.choice }];
   }
 
   finish(win, how = '') {
@@ -141,16 +179,26 @@ export class Deadline extends Emitter {
     this.bestRank = Math.max(this.bestRank, this.rank);
     const t = this.clock();
     this.result = {
-      win, how, shift: this.shiftNo, task: this.task.name, step: this.step, steps: this.s.steps,
+      win, how, shift: this.shiftNo, task: this.task.name, step: this.step, steps: this.target,
       leftMs: win ? Math.max(0, this.endsAt - t) : 0,
       rankFrom: this.d.ranks[from], rankTo: this.d.ranks[this.rank], rankChange: Math.sign(this.rank - from),
       punishment: !win && this.s.punishments ? this.pick(this.d.punishments) : null,
       streak: this.streak,
       story: ch ? String((win ? ch.win : ch.fail) || '') : null,
-      ending: null, season: this.season,
+      ending: null, endingTag: null, season: this.season,
+      choice: this.choice,
+      rival: this.rival ? { name: this.rival.name, icon: this.rival.icon, beat: win && !this.rival.done, done: this.rival.done, line: win && !this.rival.done ? this.pick(this.d.story.rival.beaten || ['Hừ!']) : null } : null,
+      next: null,
     };
-    if (ch && win && from === last) { // thắng ca cuối ở chức cao nhất → đoạn kết, ca sau sang mùa mới
-      this.result.ending = (this.d.story.ending || []).map((l) => String(l).replace(/\{season\}/g, this.season));
+    const nextCh = ch && win && from < last ? this.d.story.chapters[from + 1] : null;
+    if (nextCh) this.result.next = { no: from + 2, title: String(nextCh.title || ''), teaser: String(ch.next || '') };
+    if (ch && win && from === last) { // thắng ca cuối ở chức cao nhất → đoạn kết (theo các lựa chọn của người xem), ca sau sang mùa mới
+      const tags = this.tags || [];
+      const tham = tags.filter((x) => x === 'tham').length, tot = tags.length - tham;
+      const tag = tags.length ? (tham > tot ? 'tham' : 'tot') : null;
+      const lines = (tag && this.d.story.endings?.[tag]) || this.d.story.ending || [];
+      this.result.ending = lines.map((l) => String(l).replace(/\{season\}/g, this.season));
+      this.result.endingTag = tag;
       this.newSeason = true;
     }
     this.phase = 'result';
@@ -204,16 +252,23 @@ export class Deadline extends Emitter {
       const a = 10 + Math.floor(this.ctx.random() * 40), b = 5 + Math.floor(this.ctx.random() * 40);
       this.job = { kind, id, a, b, typed: '', solver: null };
     } else if (kind === 'password') {
-      this.job = { kind, id, typed: '' };
+      const year = new Date(this.now()).getFullYear();
+      this.job = { kind, id, rules: pickRules(this.s.pwRuleCount, this.ctx.random, year), shown: 1, typed: '' };
     } else if (kind === 'captcha') {
       const [target, name, decoys] = this.pick(this.d.captcha);
       const n = this.rank >= 3 ? 4 : 3;
       const cells = this.shuffle([...Array(n).fill(target), ...Array.from({ length: 9 - n }, () => this.pick(decoys))]);
       this.job = { kind, id, target: String(target), name: String(name), cells: cells.map((e) => ({ e: String(e), on: false })) };
     } else if (kind === 'approve') {
+      // mỗi tờ trình kèm hoá đơn: DUYỆT khi ≤ hạn mức VÀ số tiền khớp hoá đơn từng đồng; còn lại TỪ CHỐI
       const names = this.shuffle(this.d.approvals).slice(0, 4);
-      const amts = this.shuffle([11 + Math.floor(this.ctx.random() * 40), 11 + Math.floor(this.ctx.random() * 20), 1 + Math.floor(this.ctx.random() * 10), 1 + Math.floor(this.ctx.random() * 10)]);
-      this.job = { kind, id, items: names.map((name, i) => ({ name: String(name), amount: amts[i], done: false })) };
+      const kinds = this.shuffle(['over', 'mismatch', 'ok', this.ctx.random() < 0.5 ? 'ok' : 'mismatch']);
+      const items = names.map((name, i) => {
+        const k = kinds[i];
+        const amount = k === 'over' ? (APPROVE_LIMIT + 1 + Math.floor(this.ctx.random() * 30)) * 1e6 + Math.floor(this.ctx.random() * 100) * 1e4 : (1 + Math.floor(this.ctx.random() * (APPROVE_LIMIT - 1))) * 1e6 + (1 + Math.floor(this.ctx.random() * 98)) * 1e4;
+        return { name: String(name), amount, invoice: k === 'mismatch' ? this.misprint(amount) : amount, done: false };
+      });
+      this.job = { kind, id, items };
     } else if (kind === 'otp') {
       this.job = { kind, id, code: this.otpCode(), showUntil: this.clock() + this.otpMs(), typed: '' };
     } else if (kind === 'typo') {
@@ -242,13 +297,18 @@ export class Deadline extends Emitter {
     }
   }
 
-  otpCode() { return Array.from({ length: 6 }, () => Math.floor(this.ctx.random() * 10)).join(''); }
-  otpMs() { return this.rank >= 3 ? 2500 : 3500; }
-  pwRules(v) {
-    const t = String(v || '');
-    return [[...t].length >= 8, /\d/.test(t), /\p{Lu}/u.test(t), /[^\p{L}\p{N}\s]/u.test(t)];
+  /** Số tiền "gần giống": đảo 2 chữ số kề nhau hoặc lệch một hàng. */
+  misprint(n) {
+    const d = String(n).split('');
+    for (let tries = 0; tries < 10; tries++) {
+      const i = Math.floor(this.ctx.random() * (d.length - 3));
+      if (d[i] !== d[i + 1]) { const x = d.slice(); [x[i], x[i + 1]] = [x[i + 1], x[i]]; const v = Number(x.join('')); if (v !== n && v <= APPROVE_LIMIT * 1e6) return v; }
+    }
+    return n + (1 + Math.floor(this.ctx.random() * 9)) * 1e4 * (this.ctx.random() < 0.5 ? -1 : 1);
   }
 
+  otpCode() { return Array.from({ length: 6 }, () => Math.floor(this.ctx.random() * 10)).join(''); }
+  otpMs() { return Math.round(this.s.otpSeconds * 1000); }
   resetJob() {
     const j = this.job;
     if (!j) return;
@@ -256,6 +316,7 @@ export class Deadline extends Emitter {
     if (j.cells) for (const c of j.cells) c.on = false;
     if (j.items) for (const it of j.items) it.done = false;
     if (j.words) for (const w of j.words) w.found = false;
+    if (j.kind === 'password') j.shown = 1;
     if (j.icons) { for (const ic of j.icons) ic.done = false; j.pos = 0; }
     if (j.kind === 'otp') { j.code = this.otpCode(); j.showUntil = this.clock() + this.otpMs(); }
     if (j.mails) for (const m of j.mails) m.done = false;
@@ -273,10 +334,10 @@ export class Deadline extends Emitter {
   addStep(n, by = null) {
     if (this.phase !== 'work') return [];
     const before = this.step;
-    this.step = Math.max(0, Math.min(this.s.steps, this.step + n));
+    this.step = Math.max(0, Math.min(this.target, this.step + n));
     if (this.step === before) return [];
-    const fx = [{ type: 'dd_step', step: this.step, steps: this.s.steps, n: this.step - before, by }];
-    if (this.step >= this.s.steps) fx.push(...this.finish(true));
+    const fx = [{ type: 'dd_step', step: this.step, steps: this.target, n: this.step - before, by }];
+    if (this.step >= this.target) fx.push(...this.finish(true));
     return fx;
   }
 
@@ -336,6 +397,14 @@ export class Deadline extends Emitter {
     const id = String(ev.user.id);
     const p = this.pings.find((x) => x.waiting && x.by.id === id);
     if (p) { const text = this.clean(ev.text); return text ? [this.setText(p, text)] : []; }
+    if (this.vote && this.phase === 'brief') {
+      const m = normalize(ev.text).match(/^(1|2)(?!\d)/);
+      if (!m || this.vote.voters[id] != null) return [];
+      if (Object.keys(this.vote.voters).length >= 5000) return [];
+      const i = Number(m[1]) - 1;
+      this.vote.voters[id] = i; this.vote.counts[i]++;
+      return [{ type: 'dd_vote', i, counts: this.vote.counts.slice(), by: pub(ev.user) }];
+    }
     if (!this.desktop) return [];
     const by = pub(ev.user);
     this.remember(by, ev.text);
@@ -377,11 +446,13 @@ export class Deadline extends Emitter {
     // quà đã có link video meme riêng → luôn phát; meme hoạt hình có sẵn chỉ cho quà từ memeMinCoins xu
     const hasClip = /^https?:\/\/\S+$/i.test(String(this.s[`memeClip_${id}`] || '').trim());
     const memeOk = this.s.memes && ev.type === 'gift' && (hasClip || coins >= this.s.memeMinCoins) && this.phase !== 'result';
-    if (this.phase === 'brief') fx.push(...this.startWork()); // quà tới lúc đang giao việc → vào ca luôn, không phí quà
+    if (this.phase === 'brief' && this.vote) { // đang bình chọn: giữ quà lại, vào ca mới áp dụng
+      if (this.queued.length < 20) this.queued.push({ id, by });
+    } else if (this.phase === 'brief') fx.push(...this.startWork()); // quà tới lúc đang giao việc → vào ca luôn, không phí quà
     const t = this.clock();
     const work = this.phase === 'work';
     let sub = '';
-    if (work) { const r = this.applyEffect(id, by); fx.push(...r.fx); sub = r.sub; }
+    if (work) { const r = this.applyEffect(id, by); fx.push(...r.fx); sub = r.sub; } else if (this.phase === 'brief' && this.vote) sub = 'có tác dụng khi vào ca';
     // bảng sếp soi nhất / đồng nghiệp tận tâm + dòng hoạt động
     const board = HARM.includes(id) ? this.bosses : this.helpers;
     const row = (board[by.id] ||= { ...by, points: 0, gifts: 0 });
@@ -499,7 +570,12 @@ export class Deadline extends Emitter {
     if (j?.kind === 'mail') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'mail' }];
     if (j?.kind === 'colleague') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'colleague' }];
     if (j?.kind === 'quiz') return j.typed !== '' && Number(j.typed) === j.a + j.b ? this.completeJob() : [{ type: 'dd_wrong', kind: 'quiz' }];
-    if (j?.kind === 'password') return this.pwRules(j.typed).every(Boolean) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'password' }];
+    if (j?.kind === 'password') {
+      const shown = j.rules.slice(0, j.shown);
+      if (!j.typed || !shown.every((r) => ruleOk(r, j.typed))) return [{ type: 'dd_wrong', kind: 'password' }];
+      if (j.shown < j.rules.length) { j.shown++; return [{ type: 'dd_pw_rule', n: j.shown, total: j.rules.length, text: ruleText(j.rules[j.shown - 1]) }]; }
+      return this.completeJob();
+    }
     if (j?.kind === 'otp') {
       if (j.typed === j.code) return this.completeJob();
       j.code = this.otpCode(); j.showUntil = this.clock() + this.otpMs(); j.typed = ''; // sai → mã mới
@@ -559,7 +635,8 @@ export class Deadline extends Emitter {
     if (j.kind === 'approve' && target === 'approve') {
       const it = j.items[Number(ev.id)];
       if (!it || it.done) return [];
-      if ((ev.value === 'no') !== (it.amount > APPROVE_LIMIT)) return [{ type: 'dd_wrong', kind: 'approve' }];
+      const ok = it.amount <= APPROVE_LIMIT * 1e6 && it.amount === it.invoice;
+      if ((ev.value === 'no') === ok) return [{ type: 'dd_wrong', kind: 'approve' }];
       it.done = true;
       return j.items.every((x) => x.done) ? this.completeJob() : [{ type: 'dd_zap' }];
     }
@@ -628,11 +705,31 @@ export class Deadline extends Emitter {
       else if (t >= this.nextSoiAt) { fx.push(...this.addPing(soi.by, { text: this.pick(this.d.soiLines), soi: true })); this.nextSoiAt = t + SOI_PING_MS; }
     }
     if (this.phase === 'work') fx.push(...this.storyTick(t));
+    if (this.phase === 'work' && this.rival && !this.rival.done) fx.push(...this.rivalTick(t));
     if (this.storyMsgs?.length) this.storyMsgs = this.storyMsgs.filter((m) => m.until > t);
     if (t >= this.endsAt) {
       if (this.phase === 'brief') fx.push(...this.startWork());
       else if (this.phase === 'work') fx.push(...this.finish(false));
       else if (this.phase === 'result') fx.push(...this.startShift());
+    }
+    return fx;
+  }
+
+  /** Trâm, đồng nghiệp đối thủ: tự làm theo thời gian. Về đích trước → sếp khen Trâm, deadline của bạn −20 giây. */
+  rivalTick(t) {
+    const r = this.rival;
+    r.k = Math.max(0, Math.min(1, (t - this.startedAt) / (this.deadlineMs * r.pace)));
+    const R = this.d.story.rival || {};
+    const by = { id: 'npc:rival', name: r.name, avatar: null, npc: true, icon: r.icon };
+    const say = (text) => { this.storyMsgs.push({ id: ++this.uid, by, text, effect: null, until: t + STORY_MSG_MS }); while (this.storyMsgs.length > 3) this.storyMsgs.shift(); };
+    const fx = [];
+    if (!r.taunted && r.k >= 0.5 && r.k * this.target > this.step) { r.taunted = true; const line = this.pick(R.taunts || ['Mình xong nửa rồi nè']); say(line); fx.push({ type: 'dd_story', by, text: line, effect: null, sub: '' }); }
+    if (r.k >= 1) {
+      r.done = true;
+      const line = this.pick(R.won || ['Mình xong rồi nha']);
+      say(line);
+      this.endsAt = Math.max(t + 10_000, this.endsAt - 20_000);
+      fx.push({ type: 'dd_rival_done', by, text: line, sub: 'Sếp khen Trâm: deadline của bạn −20 giây' });
     }
     return fx;
   }
@@ -676,7 +773,7 @@ export class Deadline extends Emitter {
     if (j.kind === 'sign') return { kind: j.kind, id: j.id, need: j.need, signers: j.signers, word: this.s.signWord };
     if (j.kind === 'colleague') return { kind: j.kind, id: j.id, text: j.text, from: j.from, typed: j.typed };
     if (j.kind === 'quiz') return { kind: j.kind, id: j.id, a: j.a, b: j.b, typed: j.typed };
-    if (j.kind === 'password') return { kind: j.kind, id: j.id, typed: j.typed, rules: this.pwRules(j.typed) };
+    if (j.kind === 'password') return { kind: j.kind, id: j.id, typed: j.typed, total: j.rules.length, rules: j.rules.slice(0, j.shown).map((r) => ({ id: r.id, p: r.p, text: ruleText(r), ok: ruleOk(r, j.typed) })) };
     if (j.kind === 'captcha') return { kind: j.kind, id: j.id, target: j.target, name: j.name, cells: j.cells };
     if (j.kind === 'approve') return { kind: j.kind, id: j.id, items: j.items, limit: APPROVE_LIMIT };
     if (j.kind === 'otp') { const left = j.showUntil - this.clock(); return { kind: j.kind, id: j.id, typed: j.typed, code: left > 0 ? j.code : null, showLeftMs: Math.max(0, left), showMs: this.otpMs() }; }
@@ -722,7 +819,7 @@ export class Deadline extends Emitter {
       deadlineMs: this.deadlineMs,
       task: this.task,
       step: this.step,
-      steps: this.s.steps,
+      steps: this.target,
       rank: { i: this.rank, name: this.d.ranks[this.rank], next: this.d.ranks[this.rank + 1] || null, best: this.d.ranks[this.bestRank] },
       streak: this.streak,
       pings: this.pings.map((p) => ({ id: p.id, by: p.by, text: p.text, waiting: p.waiting, soi: p.soi })),
@@ -737,6 +834,9 @@ export class Deadline extends Emitter {
       result: this.result,
       season: this.season,
       chapter: this.chapterView(),
+      vote: this.vote ? { q: this.vote.q, options: this.vote.options, counts: this.vote.counts } : null,
+      choice: this.choice,
+      rival: this.rival ? { name: this.rival.name, icon: this.rival.icon, step: Math.min(this.target, Math.floor(this.rival.k * this.target)), done: this.rival.done } : null,
       story: (this.storyMsgs || []).filter((m) => m.until > t).map((m) => ({ id: m.id, by: m.by, text: m.text, effect: m.effect, leftMs: m.until - t })),
       top: { bosses: this.top(this.bosses), helpers: this.top(this.helpers) },
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger, every: b.every, count: b.every ? Math.min(b.count, b.every) : 0 })),
@@ -749,7 +849,7 @@ export class Deadline extends Emitter {
       feed: this.feed, lastMail: this.lastMail, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, deadlineMs: this.deadlineMs,
       task: this.task, step: this.step, pings: this.pings, recent: this.recent ?? [], lastTickAt: this.lastTickAt ?? null, jobBag: this.jobBag ?? null, lastKind: this.lastKind ?? null, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
       nextSoiAt: this.nextSoiAt, result: this.result,
-      season: this.season, chapterRank: this.chapterRank, seen: this.seen, newSeason: this.newSeason, chapterFresh: this.chapterFresh, storyIdx: this.storyIdx, storyMsgs: this.storyMsgs,
+      season: this.season, chapterRank: this.chapterRank, vote: this.vote, choice: this.choice, queued: this.queued, rival: this.rival, tags: this.tags ?? [], target: this.target, taskTpl: this.taskTpl, seen: this.seen, newSeason: this.newSeason, chapterFresh: this.chapterFresh, storyIdx: this.storyIdx, storyMsgs: this.storyMsgs,
     };
   }
 
@@ -758,7 +858,8 @@ export class Deadline extends Emitter {
     const copy = JSON.parse(JSON.stringify(s));
     for (const k of Object.keys(this.serialize())) if (k in copy) this[k] = copy[k];
     this.rank = Math.max(0, Math.min(this.d.ranks.length - 1, Number(this.rank) || 0));
-    this.step = Math.max(0, Math.min(this.s.steps, Number(this.step) || 0));
+    this.target = Math.max(3, Math.min(40, Number(this.target) || this.s.steps));
+    this.step = Math.max(0, Math.min(this.target, Number(this.step) || 0));
     this.season = Math.max(1, Number(this.season) || 1);
     if (!Array.isArray(this.seen)) this.seen = [];
     if (!Array.isArray(this.storyMsgs)) this.storyMsgs = [];

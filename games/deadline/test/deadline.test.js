@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, fakeClock, seededRandom } from '#sdk';
 import { loadGame } from '#sdk/node';
+import { solvePassword } from '../engine/password.js';
 
 const game = await loadGame(new URL('..', import.meta.url));
 const D = game.data.office;
@@ -90,7 +91,7 @@ test('cốt truyện: chương theo chức, lời dẫn dài khi sang chương m
   const CH = D.story.chapters;
   for (const mode of ['desktop', 'camera']) {
     const clock = fakeClock();
-    const host = createHost(game, { settings: { mode, steps: 3, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 8, resultSeconds: 5, startRank: 0 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+    const host = createHost(game, { settings: { mode, voteSeconds: 0, rival: false, steps: 3, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 8, resultSeconds: 5, startRank: 0 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
     const S = () => host.snapshot();
     const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(Math.min(250, ms - t)); fx.push(...host.tick()); } return fx; };
     // chương 1
@@ -136,7 +137,7 @@ test('cốt truyện: chương theo chức, lời dẫn dài khi sang chương m
 
 test('cốt truyện: NPC khách hàng ping (chế độ máy tính) hiện ngay câu có sẵn, quà người xem vẫn hoạt động; tắt story thì như cũ', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { steps: 5, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 4, startRank: 1 }, data: game.data, now: clock.now, random: seededRandom(8), log: {} });
+  const host = createHost(game, { settings: { voteSeconds: 0, rival: false, steps: 5, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 4, startRank: 1 }, data: game.data, now: clock.now, random: seededRandom(8), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { for (let t = 0; t < ms; t += 250) { clock.advance(250); host.tick(); } };
   step(4000);
@@ -163,18 +164,24 @@ test('mini-việc mới: mật khẩu, robot, ký duyệt, OTP, chính tả, tr�
       case 'sheet': return typeEnter(String(j.nums.reduce((a, x) => a + x, 0)));
       case 'inbox': { const spam = new Set(D.inbox.spam.map((m) => m[1])); return j.mails.flatMap((m, i) => tap('inbox', i, spam.has(m.subject) ? 'spam' : 'keep')); }
       case 'files': { const f = new Map(D.files); return j.files.flatMap((x, i) => [...tap('file', i), ...tap('folder', f.get(x.name))]); }
-      case 'password':
-        assert.equal(typeEnter('matkhau')[0].type, 'dd_wrong'); wrongs.add(j.kind);
-        assert.deepEqual(S().job.rules, [false, false, false, false]);
-        return typeEnter('Deadline@2026');
+      case 'password': {
+        assert.equal(typeEnter('')[0].type, 'dd_wrong'); wrongs.add(j.kind);
+        const rules = host.serialize().job.rules;
+        assert.equal(rules.length, 5); assert.equal(S().job.rules.length, 1, 'ban đầu chỉ hiện 1 luật');
+        const pw = solvePassword(rules);
+        for (let k = 2; k <= 5; k++) { const fx = typeEnter(pw); assert.equal(fx[0].type, 'dd_pw_rule'); assert.equal(S().job.rules.length, k, 'mỗi lần gõ đúng hiện thêm 1 luật'); }
+        return typeEnter(pw);
+      }
       case 'captcha':
         tap('cell', 0); assert.equal(tap('verify')[0].type, 'dd_wrong', 'chọn thiếu ô → sai'); wrongs.add(j.kind);
         j.cells.forEach((c, i) => { if (c.e === j.target) tap('cell', i); });
         return tap('verify');
       case 'approve': {
-        const i = j.items.findIndex((x) => x.amount > j.limit);
-        assert.equal(tap('approve', i, 'ok')[0].type, 'dd_wrong'); wrongs.add(j.kind);
-        return j.items.flatMap((x, k) => tap('approve', k, x.amount > j.limit ? 'no' : 'ok'));
+        const okOf = (x) => x.amount <= j.limit * 1e6 && x.amount === x.invoice;
+        assert.ok(j.items.some((x) => x.amount !== x.invoice), 'có tờ trình lệch hoá đơn');
+        const i = j.items.findIndex((x) => x.amount !== x.invoice);
+        assert.equal(tap('approve', i, 'ok')[0].type, 'dd_wrong', 'lệch hoá đơn mà Duyệt → sai'); wrongs.add(j.kind);
+        return j.items.flatMap((x, k) => tap('approve', k, okOf(x) ? 'ok' : 'no'));
       }
       case 'otp': {
         assert.match(j.code, /^\d{6}$/);
@@ -290,4 +297,51 @@ test('quà mới: mèo chèn ký tự rác, rớt wifi chặn gửi, sếp mời
   assert.equal(S().pings.length, 0); assert.equal(S().status.some((x) => x.kind === 'soi'), false);
   host.handle(gift('f', 'GG', 1)); host.handle(gift('g', 'Rosa', 10));
   assert.ok(['capslock', 'cupdien'].every((k) => S().status.some((x) => x.kind === k)));
+});
+
+test('cốt truyện: người xem bình chọn 1 / 2 (mỗi người 1 phiếu), quà lúc bình chọn được giữ lại; Trâm đua cùng; lời kết theo lựa chọn; OTP theo cài đặt', () => {
+  const CH = D.story.chapters;
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { steps: 4, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 6, voteSeconds: 10, startRank: 0, jobs: ['otp'], otpSeconds: 6 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(Math.min(250, ms - t)); fx.push(...host.tick()); } return fx; };
+  const cm = (id, text) => host.handle({ type: 'comment', user: u(id), text });
+  assert.equal(S().vote.q, CH[0].choice.q);
+  cm('a', '2'); cm('b', '2 nha'); cm('c', '1'); cm('a', '1'); cm('d', '12');
+  assert.deepEqual(S().vote.counts, [1, 2], 'mỗi người 1 phiếu, "12" không tính');
+  host.handle(gift('z', 'Ice Cream Cone', 1));
+  assert.equal(S().phase, 'brief', 'quà lúc bình chọn không cắt ngang');
+  step(6000);
+  assert.equal(S().phase, 'brief');
+  const fx = step(4000);
+  assert.equal(S().phase, 'work');
+  const ch = fx.find((e) => e.type === 'dd_choice');
+  assert.equal(ch.label, CH[0].choice.options[1].label);
+  assert.equal(S().steps, 4 + CH[0].choice.options[1].steps, 'lựa chọn đổi số bước');
+  assert.ok(fx.some((e) => e.type === 'dd_gift' && e.late), 'quà giữ lại được áp dụng khi vào ca');
+  // OTP hiện đúng số giây cài đặt
+  assert.equal(S().job.kind, 'otp'); assert.ok(S().job.code);
+  step(5500); assert.ok(S().job.code); step(750); assert.equal(S().job.code, null);
+  // Trâm về đích trước → deadline −20 giây
+  const pace = (CH[0].rivalPace + CH[0].choice.options[1].rival);
+  const before = S().remainingMs;
+  const rf = step(Math.ceil(100_000 * pace) - 6000 + 500);
+  assert.ok(rf.some((e) => e.type === 'dd_rival_done'));
+  assert.ok(S().rival.done);
+  assert.ok(S().remainingMs <= 15_000, "deadline bị trừ (còn tối thiểu 10 giây)"); void before;
+  host.handle(gift('z', 'Lion', 29999));
+  assert.equal(S().result.rival.beat, false);
+  assert.equal(S().result.next.title, CH[1].title);
+  assert.equal(S().result.choice.tag, 'tham');
+  // chương 2: thắng trước Trâm → beat
+  step(10_000);
+  assert.ok(S().vote);
+  for (let i = 0; i < 3; i++) cm(`v${i}`, '1');
+  step(15_000);
+  host.handle(gift('z', 'Lion', 29999));
+  assert.equal(S().result.rival.beat, true); assert.ok(S().result.rival.line);
+  // các chương sau không ai bình chọn → ngẫu nhiên; tới chủ tịch → đoạn kết theo đa số lựa chọn
+  for (let i = 2; i < CH.length; i++) { step(10_000); step(15_000); host.handle(gift('z', 'Lion', 29999)); }
+  assert.ok(['tot', 'tham'].includes(S().result.endingTag));
+  assert.deepEqual(S().result.ending.slice(0, 1), D.story.endings[S().result.endingTag].slice(0, 1));
 });
