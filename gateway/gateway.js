@@ -143,12 +143,15 @@ class ChannelRuntime {
       case 'save':
         if (isLeader && m.handoff && this.handoffTo) { this.finishHandoff(m.game === this.cfg.active_game && m.state !== undefined ? { game: m.game, state: m.state } : null); break; }
         if (isLeader && m.game === this.cfg.active_game) { this.pendingSave = { game: m.game, state: m.state }; this.scheduleSave(); } break;
-      case 'meme': { // tìm GIF / video meme theo từ khoá (GIPHY, key ở server); mỗi overlay tối đa 20 lượt / phút
+      case 'meme': { // tìm GIF / video meme theo từ khoá (GIPHY, key ở server); mỗi overlay tối đa 60 lượt / phút
         const t = Date.now();
         if (!ws.memeWin || t - ws.memeWin.t > 60_000) ws.memeWin = { t, n: 0 };
-        const id = Number(m.id) || 0;
-        if (!this.gw.memes?.enabled || ++ws.memeWin.n > 20) { send(ws, { t: 'meme', id, items: [] }); break; }
-        this.gw.memes.search(str(m.q, 80)).then((items) => send(ws, { t: 'meme', id, items: items.slice(0, 25), source: this.gw.memes.source })).catch(() => send(ws, { t: 'meme', id, items: [] }));
+        const id = Number(m.id) || 0, q = str(m.q, 80);
+        const tag = `[meme] kênh ${String(this.id).slice(0, 8)}${ws.preview ? ' (xem trước)' : isLeader ? ' (chính)' : ''}: "${q}"`;
+        if (!this.gw.memes?.enabled) { this.gw.log.info?.(`${tag} → tắt (chưa có GIPHY_API_KEY)`); send(ws, { t: 'meme', id, items: [] }); break; }
+        if (++ws.memeWin.n > 60) { this.gw.log.info?.(`${tag} → quá 60 lượt / phút`); send(ws, { t: 'meme', id, items: [] }); break; }
+        this.gw.memes.search(q).then((items) => { this.gw.log.info?.(`${tag} → ${items.length} clip`); send(ws, { t: 'meme', id, items: items.slice(0, 25), source: this.gw.memes.source }); })
+          .catch((e) => { this.gw.log.info?.(`${tag} → lỗi ${e.message}`); send(ws, { t: 'meme', id, items: [] }); });
         break;
       }
       case 'in': { // đầu vào tại chỗ từ overlay phụ → overlay chính (giới hạn 30 tin / giây)

@@ -26,13 +26,23 @@ let tk = null, wsOk = false, offset = 0, bestRtt = Infinity;
 const pending = new Map(); let reqId = 0;
 const memeWait = new Map(); let memeId = 0;
 /** Tìm GIF / video meme theo từ khoá qua gateway (GIPHY) → [{ id, mp4, gif, w, h }] (rỗng nếu tắt / lỗi / quá 3 giây). */
+const memeCache = new Map(); // từ khoá → { at, items } — mỗi từ khoá chỉ hỏi server 1 lần / 30 phút
 function searchMemes(q) {
+  const key = String(q || '').toLowerCase().trim().slice(0, 80);
+  const hit = memeCache.get(key);
+  if (hit && Date.now() - hit.at < 30 * 60_000) return Promise.resolve(hit.items);
   return new Promise((resolve) => {
-    if (ws?.readyState !== 1 || !q) return resolve([]);
+    if (ws?.readyState !== 1 || !key) return resolve([]);
     const id = ++memeId;
-    const timer = setTimeout(() => { memeWait.delete(id); resolve([]); }, 3000);
-    memeWait.set(id, (items) => { clearTimeout(timer); resolve(Array.isArray(items) ? items : []); });
-    send({ t: 'meme', id, q: String(q).slice(0, 80) });
+    const timer = setTimeout(() => { memeWait.delete(id); if (options.debug) console.warn('[meme] quá 3 giây không có trả lời:', key); resolve([]); }, 3000);
+    memeWait.set(id, (items) => {
+      clearTimeout(timer);
+      const list = Array.isArray(items) ? items : [];
+      if (list.length) memeCache.set(key, { at: Date.now(), items: list });
+      if (options.debug) console.log('[meme]', key, '→', list.length, 'clip');
+      resolve(list);
+    });
+    send({ t: 'meme', id, q: key });
   });
 }
 const lat = []; let snapDirty = false, fxOut = [];
