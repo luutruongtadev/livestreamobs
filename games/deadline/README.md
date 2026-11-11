@@ -11,6 +11,33 @@ Game văn phòng: streamer phải xong việc trước deadline. Người xem t�
   - Giữa màn hình để trong suốt cho camera.
   - Mỗi bước xong, bấm **+1 bước** trên dashboard hoặc phím **Space / →** trong cửa sổ chơi (**←** để lùi).
 
+## 📖 Cốt truyện (cài đặt `story`, bật mặc định, áp dụng cho cả 2 chế độ)
+Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi chức là một chương**, tổng cộng 7 chương:
+
+| Chương | Chức | Tên chương | Nhân vật chính |
+|---|---|---|---|
+| 1 | Thực tập sinh | Ngày đầu đi làm | 👩‍💼 Chị Hạnh |
+| 2 | Nhân viên | Khách hàng khó tính | 🧔 Anh Long |
+| 3 | Chuyên viên | Dự án bí mật | 👩‍🔬 Chị Mai |
+| 4 | Trưởng nhóm | Lần đầu làm sếp | 🧑‍🎓 Bin và Na |
+| 5 | Trưởng phòng | Cuộc họp không hồi kết | 👨‍💼 Giám đốc Phương |
+| 6 | Giám đốc | Đối thủ chơi xấu | 🧓 Chủ tịch Bảo |
+| 7 | Chủ tịch | Ghế chủ tịch | 🧐 Hội đồng cổ đông |
+
+- **Sang chương mới:**
+  - Thẻ mở đầu hiện tên chương, nhân vật chính, lời dẫn và nhiệm vụ riêng của chương.
+  - Chế độ máy tính dùng `desktopTask` của chương, chế độ camera dùng `cameraTask`.
+  - Thẻ hiện trong `storyBriefSeconds` giây (mặc định 10).
+  - Làm lại chương cũ thì chỉ hiện thẻ ngắn.
+- **Trong ca:** đến mốc thời gian, các nhân vật (đồng nghiệp, khách hàng, bác bảo vệ…) nhắn tin. Có tin chỉ để kể chuyện, có tin kéo theo một sự kiện:
+  - Gây khó: sếp đến soi, họp đột xuất, virus, máy in kẹt, bắt gõ câu trend, xoá việc đang làm.
+  - Giúp đỡ: cà phê, gia hạn, làm hộ.
+  - Sự kiện chạy giống quà, nhưng nhân vật không được tính vào bảng xếp hạng.
+- **Hết ca:** thẻ kết quả có lời kết riêng của chương, khác nhau khi thắng và khi thua.
+- **Thắng ca ở chức Chủ tịch:** hiện đoạn kết **KẾT THÚC MÙA N**, rồi bắt đầu **mùa mới** từ chức khởi đầu.
+- Sửa nội dung ở `data/office.json` → `story` (`chapters[]`: `title`, `boss`, `intro`, `desktopTask`, `cameraTask`, `events[]` gồm `at` (0–1, theo deadline gốc), `from`, `icon`, `text`, `effect`, `phrase`; `win`, `fail`; `ending[]`).
+- Tắt `story` thì game chạy như bản cũ.
+
 ## Luật
 1. **Mỗi ca** có một nhiệm vụ `steps` bước (mặc định 10) và một deadline `shiftSeconds` (mặc định 5:00). Chức càng cao thì deadline càng ngắn: −8% mỗi bậc, tối thiểu 60%.
 2. **Mini-việc** (chế độ máy tính, xoay vòng; mỗi việc xong là +1 bước):

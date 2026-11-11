@@ -14,6 +14,18 @@
       ],
       "default": "desktop"
     },
+    "story": {
+      "type": "boolean",
+      "title": "Cốt truyện: mỗi chức là một chương (sếp, lời dẫn, nhân vật nhắn tin, sự kiện, đoạn kết sang mùa mới)",
+      "default": true
+    },
+    "storyBriefSeconds": {
+      "type": "integer",
+      "title": "Cốt truyện: thời gian đọc lời dẫn khi sang chương mới (giây)",
+      "minimum": 4,
+      "maximum": 30,
+      "default": 10
+    },
     "steps": {
       "type": "integer",
       "title": "Số bước mỗi nhiệm vụ",

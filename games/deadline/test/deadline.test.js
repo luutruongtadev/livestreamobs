@@ -12,7 +12,7 @@ const gift = (id, giftName, diamonds) => ({ type: 'gift', user: u(id), giftName,
 
 test('ca làm (máy tính): mini-việc, ping lấy bình luận người tặng, virus / trend chặn việc, meme quà ≥ 5 xu, thắng lên chức, trễ thì xuống chức', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { steps: 4, shiftSeconds: 120, briefSeconds: 2, resultSeconds: 5, startRank: 1, memeClip_cafe: 'https://media.tenor.com/x/cafe.gif' }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
+  const host = createHost(game, { settings: { story: false, steps: 4, shiftSeconds: 120, briefSeconds: 2, resultSeconds: 5, startRank: 1, memeClip_cafe: 'https://media.tenor.com/x/cafe.gif' }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { clock.advance(ms); return host.tick(); };
   const doJob = () => {
@@ -84,4 +84,66 @@ test('ca làm (máy tính): mini-việc, ping lấy bình luận người tặng
   assert.equal(S().result.win, false);
   assert.equal(S().rank.name, 'Nhân viên');
   assert.ok(D.punishments.includes(S().result.punishment));
+});
+
+test('cốt truyện: chương theo chức, lời dẫn dài khi sang chương mới, NPC nhắn tin + gây sự kiện theo mốc, kết chương; thắng ở chức cao nhất → đoạn kết, sang mùa mới (cả chế độ camera)', () => {
+  const CH = D.story.chapters;
+  for (const mode of ['desktop', 'camera']) {
+    const clock = fakeClock();
+    const host = createHost(game, { settings: { mode, steps: 3, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 8, resultSeconds: 5, startRank: 0 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+    const S = () => host.snapshot();
+    const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(Math.min(250, ms - t)); fx.push(...host.tick()); } return fx; };
+    // chương 1
+    assert.equal(S().chapter.no, 1); assert.equal(S().chapter.title, CH[0].title); assert.equal(S().chapter.fresh, true);
+    assert.equal(S().task.name, mode === 'desktop' ? CH[0].desktopTask.name : CH[0].cameraTask.replace('{n}', 3));
+    step(2000);
+    assert.equal(S().phase, 'brief', 'chương mới: đọc lời dẫn lâu hơn');
+    step(6000);
+    assert.equal(S().phase, 'work');
+    // mốc 22%: Linh nhắn (không sự kiện); mốc 50%: chị Hạnh đến soi
+    const fx1 = step(23_000);
+    const st = fx1.filter((e) => e.type === 'dd_story');
+    assert.equal(st.length, 1); assert.equal(st[0].by.name, CH[0].events[0].from);
+    assert.equal(S().story[0].text, CH[0].events[0].text);
+    step(27_000);
+    assert.equal(S().status.find((x) => x.kind === 'soi')?.by.name, 'Chị Hạnh');
+    assert.equal(S().top.bosses.length, 0, 'NPC không vào bảng xếp hạng');
+    // thua ca: lời kết thua của chương, ca sau cùng chương nhưng lời dẫn ngắn
+    step(51_000);
+    assert.equal(S().result.win, false); assert.equal(S().result.story, CH[0].fail);
+    step(5000);
+    assert.equal(S().chapter.no, 1); assert.equal(S().chapter.fresh, false);
+    step(2000);
+    assert.equal(S().phase, 'work');
+    // thăng chức thẳng qua các chương tới Chủ tịch, thắng ca cuối → đoạn kết, mùa 2 từ chương 1
+    for (let i = 0; i < CH.length; i++) {
+      if (S().phase === 'brief') step(8000);
+      assert.equal(S().chapter.no, i + 1);
+      host.handle(gift('z', 'Lion', 29999));
+      assert.equal(S().result.story, CH[i].win);
+      if (i < CH.length - 1) { assert.equal(S().result.ending, null); step(5000); }
+    }
+    assert.ok(S().result.ending.length >= 2);
+    assert.ok(S().result.ending.some((l) => l.includes('Mùa 1')));
+    step(Math.max(5, 8 + 4) * 1000);
+    assert.equal(S().season, 2); assert.equal(S().chapter.no, 1); assert.equal(S().chapter.fresh, true);
+    const saved = JSON.parse(JSON.stringify(host.serialize()));
+    const h2 = createHost(game, { settings: { mode }, data: game.data, now: clock.now, random: seededRandom(1), log: {} });
+    h2.restore(saved);
+    assert.equal(h2.snapshot().season, 2);
+  }
+});
+
+test('cốt truyện: NPC khách hàng ping (chế độ máy tính) hiện ngay câu có sẵn, quà người xem vẫn hoạt động; tắt story thì như cũ', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { steps: 5, shiftSeconds: 100, briefSeconds: 2, storyBriefSeconds: 4, startRank: 1 }, data: game.data, now: clock.now, random: seededRandom(8), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { for (let t = 0; t < ms; t += 250) { clock.advance(250); host.tick(); } };
+  step(4000);
+  step(26_000);
+  const p = S().pings.find((x) => x.by.name === 'Khách hàng VIP');
+  assert.ok(p && !p.waiting && p.text.startsWith('Sao chưa trả lời'));
+  const off = createHost(game, { settings: { story: false }, data: game.data, now: clock.now, random: seededRandom(8), log: {} });
+  assert.equal(off.snapshot().chapter, null);
+  assert.ok(D.desktopTasks.some((t) => t.name === off.snapshot().task.name));
 });

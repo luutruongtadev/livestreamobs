@@ -38,7 +38,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let S = null, recvAt = 0, raf = 0, stopped = false, last = performance.now();
-  const anim = { phaseAt: 0, phaseKey: '', title: null, shake: 0, hot: {}, pingAt: new Map(), stepAt: 0, wrongAt: 0, soiAt: 0 };
+  const anim = { phaseAt: 0, phaseKey: '', title: null, shake: 0, hot: {}, pingAt: new Map(), storyAt: new Map(), stepAt: 0, wrongAt: 0, soiAt: 0 };
   const memes = []; let meme = null, clipEl = null;
   const floaters = [], confetti = [];
   let hits = [];
@@ -94,6 +94,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
     const im = user?.avatar ? img(user.avatar) : null;
     if (im) { ctx.save(); ctx.clip(); ctx.drawImage(im, x - r, y - r, r * 2, r * 2); ctx.restore(); }
+    else if (user?.npc) { ctx.fillStyle = '#fff3d6'; ctx.fill(); text(user.icon || '💬', x, y + r * 0.08, Math.round(r * 1.25)); }
     else { const n = user?.name || '?'; let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360; ctx.fillStyle = `hsl(${h},48%,42%)`; ctx.fill(); text([...n][0]?.toUpperCase() || '?', x, y + 1, Math.round(r * 1.05), '#fff', 800); }
     if (ring) { ctx.lineWidth = Math.max(2, r * 0.1); ctx.strokeStyle = ring; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); }
     ctx.restore();
@@ -104,9 +105,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawHud(now) {
     const x = 24, y = TOP, w = 776, h = 156;
     fill(x, y, w, h, 26, C.panel); rr(x, y, w, h, 26); ctx.strokeStyle = C.edge; ctx.lineWidth = 2; ctx.stroke();
-    text('NHIỆM VỤ', x + 30, y + 34, 22, C.pink, 800, 'left');
     const rk = `👔 ${S.rank.name}`;
     const rw = measure(rk, 22, 800) + 28;
+    text(S.chapter ? `CHƯƠNG ${S.chapter.no} · ${S.chapter.title.toUpperCase()}` : 'NHIỆM VỤ', x + 30, y + 34, 22, C.pink, 800, 'left', w - rw - 70);
     fill(x + w - rw - 20, y + 16, rw, 38, 19, 'rgba(255,255,255,.1)');
     text(rk, x + w - rw / 2 - 20, y + 36, 22, '#fde68a', 800);
     text(S.task.name, x + 30, y + 80, 33, C.text, 800, 'left', w - 60);
@@ -213,7 +214,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     fill(x, y, w, h, 18, C.paper); ctx.shadowColor = 'transparent';
     fill(x, y, 9, h, 4, p.soi ? C.red : C.purple);
     avatar(p.by, x + 60, y + h / 2, 34, null);
-    const name = p.soi ? `Sếp ${p.by.name}` : p.by.name;
+    const name = p.soi && !p.by?.npc ? `Sếp ${p.by.name}` : p.by.name;
     const nw = text(name, x + 110, y + 34, 27, C.ink, 800, 'left', w - 230);
     text('vừa xong', x + 122 + nw, y + 36, 19, '#8b8796', 600, 'left');
     if (p.waiting) {
@@ -237,6 +238,31 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       y += 126;
     });
     return y;
+  }
+
+  // ---------------- nhân vật cốt truyện nhắn tin ----------------
+  function storyCard(m, x, y, w, now) {
+    const lines = wrap(m.text, 26, w - 140, 700).slice(0, 2);
+    const h = 66 + lines.length * 34;
+    const at = anim.storyAt.get(m.id) ?? now;
+    const k = reduced ? 1 : back(Math.min(1, (now - at) / 320));
+    const fade = Math.min(1, left(m.leftMs, now) / 400);
+    ctx.save(); ctx.globalAlpha = Math.min(1, k + 0.2) * fade; ctx.translate((1 - k) * -80, 0);
+    ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 6;
+    fill(x, y, w, h, 20, '#fffaf0'); ctx.shadowColor = 'transparent';
+    fill(x, y, 9, h, 4, m.effect && HELP_SET.has(m.effect) ? '#16a34a' : m.effect ? C.red : '#f59e0b');
+    avatar(m.by, x + 52, y + 46, 30, null);
+    text(m.by.name, x + 96, y + 30, 22, '#92400e', 800, 'left', w - 120);
+    lines.forEach((ln, i) => text(ln, x + 96, y + 64 + i * 34, 26, C.ink, 700, 'left', w - 120));
+    ctx.restore();
+    return h;
+  }
+  function drawStory(now, x, y, w, maxN = 2, up = false) {
+    const list = (S.story || []).slice(-maxN);
+    let cy = y;
+    if (up) for (const m of list.slice().reverse()) { const lines = Math.min(2, wrap(m.text, 26, w - 140, 700).length); cy -= 66 + lines * 34 + 12; storyCard(m, x, cy, w, now); }
+    else for (const m of list) cy += storyCard(m, x, cy, w, now) + 12;
+    return cy;
   }
 
   // ---------------- sếp ló đầu ----------------
@@ -476,6 +502,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       fill(hx - 150 - bw, hy - 150, bw, 64, 32, '#fff');
       text(bub, hx - 150 - bw / 2, hy - 117, 28, C.ink, 800);
     }
+    // nhân vật cốt truyện nhắn: thẻ nổi ở đáy cửa sổ (không chặn thao tác)
+    if (S.phase === 'work' && S.story?.length) drawStory(now, x + 40, y + h - 20, w - 80, 2, true);
     // popup sếp ping che lên màn hình (bấm ✕ mới đóng)
     const covers = S.phase === 'work' && S.pings?.length;
     if (covers) { hits = hits.filter(() => false); activeField = null; }
@@ -587,10 +615,37 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawBrief(now) {
     const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 420));
     ctx.save(); ctx.translate(W / 2, 980); ctx.scale(k, k); ctx.translate(-W / 2, -980);
+    const ch = S.chapter;
+    if (ch?.fresh) { // sang chương mới: lời dẫn + sếp của chương
+      const intro = ch.intro.flatMap((l) => wrap(l, 32, 760, 700)).slice(0, 6);
+      const task = wrap(S.task.name, 38, 760, 800, TITLE).slice(0, 2);
+      const chh = 560 + intro.length * 46 + task.length * 48, y0 = 1000 - chh / 2;
+      card(90, y0, 900, chh);
+      text(`MÙA ${S.season} · CHƯƠNG ${ch.no}/${ch.total}`, W / 2, y0 + 56, 26, C.pink, 900);
+      bigText(ch.title, W / 2, y0 + 128, 80, '#fff', '#2a0a12', 820);
+      // sếp của chương
+      const bx = W / 2 - 200, by0 = y0 + 196;
+      fill(bx, by0, 400, 92, 46, 'rgba(255,255,255,.08)');
+      ctx.beginPath(); ctx.arc(bx + 46, by0 + 46, 38, 0, Math.PI * 2); ctx.fillStyle = '#fff3d6'; ctx.fill();
+      text(ch.boss.icon, bx + 46, by0 + 49, 46);
+      text(ch.boss.name, bx + 100, by0 + 32, 28, '#fff', 800, 'left', 290);
+      text(ch.boss.role, bx + 100, by0 + 64, 21, C.dim, 700, 'left', 290);
+      let y = by0 + 136;
+      intro.forEach((ln, i) => text(ln, W / 2, y + i * 46, 32, '#e5e7eb', 700));
+      y += intro.length * 46 + 20;
+      fill(140, y, 800, 54 + task.length * 48, 20, 'rgba(255,255,255,.07)');
+      text('NHIỆM VỤ', W / 2, y + 28, 20, C.pink, 900);
+      task.forEach((ln, i) => text(ln, W / 2, y + 66 + i * 48, 38, '#fff', 800, 'center', 0, TITLE));
+      y += 54 + task.length * 48 + 40;
+      text(`Deadline ${clock(S.deadlineMs)} · ${S.steps} bước · ${S.rank.name}${S.rank.next ? ` → ${S.rank.next}` : ''}`, W / 2, y, 28, C.bar1, 800, 'center', 820);
+      text(`Vào ca sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, y + 46, 22, C.faint, 700);
+      ctx.restore();
+      return;
+    }
     const lines = wrap(S.task.name, 50, 760, 800, TITLE).slice(0, 3);
-    const ch = 330 + lines.length * 62, y0 = 980 - ch / 2;
-    card(110, y0, 860, ch);
-    text(`CA ${S.shift}`, W / 2, y0 + 70, 34, C.pink, 900);
+    const chh = 330 + lines.length * 62, y0 = 980 - chh / 2;
+    card(110, y0, 860, chh);
+    text(ch ? `CA ${S.shift} · CHƯƠNG ${ch.no}: ${ch.title} (làm lại)` : `CA ${S.shift}`, W / 2, y0 + 70, ch ? 28 : 34, C.pink, 900, 'center', 800);
     lines.forEach((ln, i) => text(ln, W / 2, y0 + 140 + i * 62, 50, '#fff', 800, 'center', 0, TITLE));
     const yb = y0 + 140 + lines.length * 62;
     text(`Deadline ${clock(S.deadlineMs)} · ${S.steps} bước`, W / 2, yb + 20, 34, C.bar1, 800);
@@ -607,17 +662,41 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       text(`${fmtN(r.points)} xu`, x + w, y + 52 + i * 62, 22, '#fde68a', 800, 'right');
     });
   }
-  function drawResult(now) {
-    const r = S.result; if (!r) return;
+  function drawEnding(now, r) {
     const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 450));
     ctx.save(); ctx.translate(W / 2, 1000); ctx.scale(k, k); ctx.translate(-W / 2, -1000);
-    card(70, 560, 940, 900);
-    bigText(r.win ? 'XONG VIỆC!' : 'TRỄ DEADLINE!', W / 2, 660, 112, r.win ? '#4ade80' : '#ff4d6d', '#14060a');
-    text(r.win ? (r.how === 'thangchuc' ? 'Được thăng chức thẳng 🏆' : 'Nhân viên xuất sắc tháng') : 'Tăng ca rồi 😭', W / 2, 760, 36, '#fff', 800);
+    card(60, 420, 960, 1160);
+    bigText(`🏆 KẾT THÚC MÙA ${r.season}`, W / 2, 520, 84, '#ffd84d', '#2a1a00');
+    text(r.story || '', W / 2, 616, 32, '#fff', 800, 'center', 900);
+    let y = 690;
+    for (const l of r.ending) for (const ln of wrap(l, 30, 840, 700)) { text(ln, W / 2, y, 30, '#e5e7eb', 700); y += 44; }
+    y += 30;
+    board('👔 Sếp soi nhất', S.top?.bosses, 120, y, 400);
+    board('🤝 Đồng nghiệp tận tâm', S.top?.helpers, 560, y, 400);
+    text(`Mùa ${r.season + 1} bắt đầu sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, 1530, 24, C.faint, 700);
+    ctx.restore();
+  }
+  function drawResult(now) {
+    const r = S.result; if (!r) return;
+    if (r.ending) return drawEnding(now, r);
+    const k = reduced ? 1 : back(Math.min(1, (now - anim.phaseAt) / 450));
+    ctx.save(); ctx.translate(W / 2, 1000); ctx.scale(k, k); ctx.translate(-W / 2, -1000);
+    const storyLines = r.story ? wrap(r.story, 28, 800, 700).slice(0, 3) : [];
+    const extra = storyLines.length ? storyLines.length * 40 + 30 : 0;
+    card(70, 560 - extra / 2, 940, 900 + extra);
+    const top = 560 - extra / 2;
+    bigText(r.win ? 'XONG VIỆC!' : 'TRỄ DEADLINE!', W / 2, top + 100, 112, r.win ? '#4ade80' : '#ff4d6d', '#14060a');
+    text(r.win ? (r.how === 'thangchuc' ? 'Được thăng chức thẳng 🏆' : 'Nhân viên xuất sắc tháng') : 'Tăng ca rồi 😭', W / 2, top + 200, 36, '#fff', 800);
+    let y = top + 248;
+    if (storyLines.length) {
+      fill(120, y, 840, storyLines.length * 40 + 24, 18, 'rgba(255,243,214,.1)');
+      storyLines.forEach((ln, i) => text(ln, W / 2, y + 32 + i * 40, 28, '#fde68a', 700));
+      y += storyLines.length * 40 + 44;
+    }
     const rk = r.rankChange > 0 ? `⬆️ Lên chức: ${r.rankTo}` : r.rankChange < 0 ? `⬇️ Xuống chức: ${r.rankTo}` : `👔 Giữ chức: ${r.rankTo}`;
-    text(rk, W / 2, 822, 32, r.rankChange > 0 ? C.bar1 : r.rankChange < 0 ? C.redSoft : C.dim, 800);
-    text(r.win ? `Còn dư ${clock(r.leftMs)} · ${r.streak} ca liền` : `Làm được ${r.step}/${r.steps} bước`, W / 2, 872, 26, C.dim, 700);
-    let y = 920;
+    text(rk, W / 2, y + 14, 32, r.rankChange > 0 ? C.bar1 : r.rankChange < 0 ? C.redSoft : C.dim, 800);
+    text(r.win ? `Còn dư ${clock(r.leftMs)} · ${r.streak} ca liền` : `Làm được ${r.step}/${r.steps} bước`, W / 2, y + 64, 26, C.dim, 700);
+    y += 112;
     if (r.punishment) {
       fill(130, y, 820, 110, 20, 'rgba(225,29,72,.18)');
       text('Hình phạt tăng ca', W / 2, y + 30, 22, C.redSoft, 800);
@@ -626,9 +705,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     }
     board('👔 Sếp soi nhất', S.top?.bosses, 120, y + 10, 400);
     board('🤝 Đồng nghiệp tận tâm', S.top?.helpers, 560, y + 10, 400);
-    text(`Ca mới sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, 1420, 24, C.faint, 700);
-    // dấu mộc
-    ctx.save(); ctx.translate(820, 640); ctx.rotate(-0.22); ctx.globalAlpha = 0.9;
+    text(`Ca mới sau ${Math.ceil(left(S.remainingMs, now) / 1000)} giây`, W / 2, top + 860 + extra, 24, C.faint, 700);
+    ctx.save(); ctx.translate(820, top + 80); ctx.rotate(-0.22); ctx.globalAlpha = 0.9;
     rr(-150, -46, 300, 92, 14); ctx.strokeStyle = r.win ? '#22c55e' : '#e11d48'; ctx.lineWidth = 7; ctx.stroke();
     text(r.win ? 'ĐÃ DUYỆT' : 'TĂNG CA', 0, 2, 50, r.win ? '#22c55e' : '#e11d48', 900, 'center', 0, TITLE);
     ctx.restore();
@@ -714,7 +792,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       drawTitle(now, 780);
     } else {
       const cy = drawChips(now, 24, TOP + 176, 650);
-      const py = drawCameraPings(now, Math.max(TOP + 186, cy));
+      const sy = S.phase === 'work' ? drawStory(now, 24, Math.max(TOP + 186, cy), 650, 2) : Math.max(TOP + 186, cy);
+      const py = drawCameraPings(now, sy);
       giftList(now, 704, TOP + 176, 352);
       drawCameraExtras(now, Math.max(cy, py));
       drawFeed(now, 24, H - 120);
@@ -741,6 +820,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         if (s.phase === 'result') for (let i = memes.length - 1; i >= 0; i--) if (memes[i].action !== 'thangchuc') memes.splice(i, 1); // hết ca: bỏ meme còn chờ
       }
       for (const p of s.pings || []) if (!anim.pingAt.has(p.id)) anim.pingAt.set(p.id, now);
+      for (const m of s.story || []) if (!anim.storyAt.has(m.id)) anim.storyAt.set(m.id, now);
+      if (anim.storyAt.size > 40) for (const id of [...anim.storyAt.keys()].slice(0, 20)) anim.storyAt.delete(id);
       if (anim.pingAt.size > 60) for (const id of [...anim.pingAt.keys()].slice(0, 30)) anim.pingAt.delete(id);
       const soiNow = !!s.status?.some((x) => x.kind === 'soi');
       const soiBefore = !!S?.status?.some((x) => x.kind === 'soi');
@@ -760,13 +841,19 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
           break;
         }
         case 'dd_ping': sound.play('ping'); break;
+        case 'dd_story': {
+          const a = fx.effect ? ACT[fx.effect] : null;
+          if (a) { anim.title = { text: a.title, by: fx.by?.name, sub: fx.sub, color: a.color, at: now, life: 1.6 }; anim.hot[fx.effect] = now + 1200; sound.play(fx.effect); }
+          else sound.play('ping');
+          break;
+        }
         case 'dd_shake': anim.shake = 1; break;
         case 'dd_step': anim.stepAt = now; sound.play(fx.n > 0 ? 'step' : 'down'); if (fx.n > 0 && fx.by) floaters.push({ text: `+1 bước · ${fx.by.name}`, x: W / 2, y: 520, color: '#86efac', size: 40, life: 1.4, age: 0 }); break;
         case 'dd_wrong': anim.shake = 0.5; sound.play('wrong'); break;
         case 'dd_zap': sound.play('zap'); break;
         case 'dd_cleared': sound.play('cleared'); break;
         case 'dd_ping_close': sound.play('zap'); break;
-        case 'dd_win': burst(260); sound.play('win'); break;
+        case 'dd_win': burst(fx.ending ? 200 : 260); sound.play('win'); break;
         case 'dd_fail': anim.shake = 1; sound.play('fail'); break;
         case 'dd_brief': sound.play('brief'); break;
         default:

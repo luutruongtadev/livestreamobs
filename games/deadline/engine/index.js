@@ -14,6 +14,10 @@ import { Emitter, makePausable, normalize, canon, triggerText, triggerIcon } fro
  * Câu sếp ping = bình luận đầu tiên của chính người tặng quà gõ sau khi tặng (không gõ thì dùng câu có sẵn).
  * Quà từ memeMinCoins xu trở lên kèm meme (hiệu ứng có sẵn hoặc link video streamer dán trong cài đặt).
  *
+ * Cốt truyện (cài đặt story, cả 2 chế độ): mỗi chức là một CHƯƠNG (data/office.json → story.chapters) có tên chương, sếp,
+ * lời dẫn, nhiệm vụ riêng, kết thắng / thua riêng. Trong ca, nhân vật (NPC) nhắn tin theo mốc thời gian và có thể gây sự kiện
+ * (sếp soi, họp, virus… hoặc đồng nghiệp mang cà phê, làm hộ). Thắng ca cuối ở chức cao nhất → đoạn kết, sang MÙA mới từ đầu.
+ *
  * Pha: brief (giao việc) → work → result → brief…
  */
 export function createGame(ctx) { return new Deadline(ctx); }
@@ -24,6 +28,8 @@ export const JOBS = ['mail', 'inbox', 'sheet', 'files'];
 export const FOLDERS = ['anh', 'tailieu', 'rac'];
 const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000 };
 const SOI_PING_MS = 4500;
+const STORY_MSG_MS = 7000;
+const EVENT_EFFECTS = new Set([...HARM, ...HELP.filter((x) => x !== 'thangchuc')]);
 const MAX_BLOCKERS = 4;
 const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn danh').slice(0, 40), avatar: u?.avatar || null });
 
@@ -36,7 +42,7 @@ const FALLBACK = {
   inbox: { keep: [['Sếp', 'Họp giao ban 9 giờ'], ['Kế toán', 'Bảng lương']], spam: [['Quà Tặng', 'Bạn trúng iPhone!!!'], ['Vay Nhanh', 'Vay 50 triệu 5 phút']] },
   files: [['anh.jpg', 'anh'], ['bao_cao.xlsx', 'tailieu'], ['crack.exe', 'rac'], ['logo.png', 'anh']],
   viruses: ['trojan.exe', 'spam_bot.exe', 'keylogger.exe', 'adware.exe', 'worm.exe'],
-  punishments: ['Chống đẩy 10 cái'], memes: {},
+  punishments: ['Chống đẩy 10 cái'], memes: {}, story: { chapters: [], ending: [] },
 };
 
 /** Từ cấm → các regex thay bằng *** (nguyên từ, không phân biệt hoa thường, giữ dấu). */
@@ -63,23 +69,39 @@ export class Deadline extends Emitter {
     this.helpers = {};
     this.feed = [];
     this.lastMail = -1;
+    this.season = 1;
+    this.seen = []; // chương đã xem lời dẫn trong mùa này
+    this.newSeason = false;
     this.startShift();
   }
 
   get desktop() { return this.s.mode !== 'camera'; }
   pick(list) { return list[Math.floor(this.ctx.random() * list.length)]; }
   shuffle(list) { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.ctx.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  /** Chương hiện tại (theo chức) khi bật cốt truyện. */
+  chapter() {
+    if (!this.s.story) return null;
+    const ch = this.d.story?.chapters?.[this.chapterRank ?? this.rank];
+    return ch && typeof ch === 'object' ? ch : null;
+  }
   shiftMs() { return Math.round((this.s.shiftSeconds * Math.max(0.6, 1 - 0.08 * this.rank))) * 1000; }
 
   // ---------------- vòng đời ca làm ----------------
   startShift() {
+    if (this.newSeason) { this.newSeason = false; this.season++; this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1); this.seen = []; this.streak = 0; }
     this.shiftNo++;
     this.phase = 'brief';
     this.startedAt = this.clock();
-    this.endsAt = this.startedAt + this.s.briefSeconds * 1000;
+    this.chapterRank = this.rank; // chương của ca này (giữ nguyên tới hết thẻ kết quả dù đã lên / xuống chức)
+    const ch = this.chapter();
+    const fresh = !!ch && !this.seen.includes(this.rank);
+    if (fresh) this.seen.push(this.rank);
+    this.chapterFresh = fresh;
+    this.endsAt = this.startedAt + (fresh ? Math.max(this.s.briefSeconds, this.s.storyBriefSeconds) : this.s.briefSeconds) * 1000;
     this.deadlineMs = this.shiftMs();
     const custom = !this.desktop && String(this.s.cameraTask || '').trim();
-    const t = custom ? { name: custom.slice(0, 80), file: 'ViecCuaToi_final.docx' } : this.pick(this.desktop ? this.d.desktopTasks : this.d.cameraTasks);
+    const chTask = ch && (this.desktop ? (ch.desktopTask?.name ? ch.desktopTask : null) : (ch.cameraTask ? { name: ch.cameraTask, file: ch.desktopTask?.file } : null));
+    const t = custom ? { name: custom.slice(0, 80), file: 'ViecCuaToi_final.docx' } : chTask || this.pick(this.desktop ? this.d.desktopTasks : this.d.cameraTasks);
     this.task = { name: String(t.name).replace(/\{n\}/g, this.s.steps), file: String(t.file || 'BaoCao_final.docx') };
     this.step = 0;
     this.pings = [];
@@ -89,7 +111,9 @@ export class Deadline extends Emitter {
     this.jobNo = 0;
     this.nextSoiAt = null;
     this.result = null;
-    return [{ type: 'dd_brief', shift: this.shiftNo, task: this.task, rank: this.d.ranks[this.rank] }];
+    this.storyIdx = 0;
+    this.storyMsgs = [];
+    return [{ type: 'dd_brief', shift: this.shiftNo, task: this.task, rank: this.d.ranks[this.rank], chapter: ch ? this.rank + 1 : null }];
   }
 
   startWork() {
@@ -102,6 +126,8 @@ export class Deadline extends Emitter {
 
   finish(win, how = '') {
     const from = this.rank;
+    const ch = this.chapter();
+    const last = this.d.ranks.length - 1;
     if (win) { this.rank = Math.min(this.d.ranks.length - 1, this.rank + 1); this.streak++; }
     else { if (this.s.demoteOnFail) this.rank = Math.max(0, this.rank - 1); this.streak = 0; }
     this.bestRank = Math.max(this.bestRank, this.rank);
@@ -112,11 +138,19 @@ export class Deadline extends Emitter {
       rankFrom: this.d.ranks[from], rankTo: this.d.ranks[this.rank], rankChange: Math.sign(this.rank - from),
       punishment: !win && this.s.punishments ? this.pick(this.d.punishments) : null,
       streak: this.streak,
+      story: ch ? String((win ? ch.win : ch.fail) || '') : null,
+      ending: null, season: this.season,
     };
+    if (ch && win && from === last) { // thắng ca cuối ở chức cao nhất → đoạn kết, ca sau sang mùa mới
+      this.result.ending = (this.d.story.ending || []).map((l) => String(l).replace(/\{season\}/g, this.season));
+      this.newSeason = true;
+    }
     this.phase = 'result';
     this.startedAt = t;
     this.endsAt = t + this.s.resultSeconds * 1000;
-    this.pings = []; this.status = []; this.blockers = []; this.job = null; this.nextSoiAt = null;
+    this.pings = []; this.status = []; this.blockers = []; this.job = null; this.nextSoiAt = null; this.storyMsgs = [];
+    const endMs = this.result.ending ? Math.max(this.s.resultSeconds, this.s.storyBriefSeconds + 4) : this.s.resultSeconds;
+    this.endsAt = t + endMs * 1000;
     this.ctx.report?.round?.({ win, shift: this.shiftNo, step: this.result.step, steps: this.result.steps, rank: this.result.rankTo });
     return [{ type: win ? 'dd_win' : 'dd_fail', ...this.result }];
   }
@@ -245,45 +279,7 @@ export class Deadline extends Emitter {
     const t = this.clock();
     const work = this.phase === 'work';
     let sub = '';
-    if (work) {
-      switch (id) {
-        case 'ping': fx.push(...this.addPing(by)); break;
-        case 'soi': this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
-        case 'ban':
-          if (this.desktop) {
-            const b = this.blockers[0];
-            if (b?.kind === 'buzz') b.typed = b.typed.slice(0, -3);
-            else if (this.job && 'typed' in this.job) this.job.typed = this.job.typed.slice(0, -3);
-          }
-          fx.push({ type: 'dd_shake', by });
-          break;
-        case 'mayin':
-          if (this.desktop) this.addBlocker({ kind: 'jam', left: 8, total: 8, by });
-          this.addStatus('mayin', by);
-          break;
-        case 'buzz': {
-          const phrase = this.pick(this.d.buzz);
-          if (this.desktop) { if (!this.addBlocker({ kind: 'buzz', phrase, typed: '', by })) break; }
-          else this.addStatus('buzz', by, phrase);
-          sub = `“${phrase}”`;
-          break;
-        }
-        case 'hop': this.addStatus('hop', by); break;
-        case 'cattg': fx.push(...this.addStep(-3, by)); sub = '−3 bước'; break;
-        case 'virus':
-          if (this.desktop) this.addBlocker({ kind: 'virus', threats: this.shuffle(this.d.viruses).slice(0, 5).map((name) => ({ name, removed: false })), by });
-          else this.addStatus('virus', by);
-          break;
-        case 'lamlai':
-          if (this.desktop) { this.resetJob(); sub = 'xoá sạch việc đang làm'; } else { fx.push(...this.addStep(-1, by)); sub = '−1 bước'; }
-          break;
-        case 'cafe': this.endsAt += 20_000; sub = '+20 giây'; break;
-        case 'giahan': this.endsAt += 60_000; sub = '+60 giây'; break;
-        case 'intern': fx.push(...(this.desktop && this.job ? this.completeJob(by) : this.addStep(1, by))); sub = '+1 bước'; break;
-        case 'thangchuc': fx.push(...this.finish(true, 'thangchuc')); sub = 'xong ca ngay!'; break;
-        default:
-      }
-    }
+    if (work) { const r = this.applyEffect(id, by); fx.push(...r.fx); sub = r.sub; }
     // bảng sếp soi nhất / đồng nghiệp tận tâm + dòng hoạt động
     const board = HARM.includes(id) ? this.bosses : this.helpers;
     const row = (board[by.id] ||= { ...by, points: 0, gifts: 0 });
@@ -295,6 +291,50 @@ export class Deadline extends Emitter {
     if (ev.type === 'gift') this.ctx.report?.points?.(by, Math.max(1, coins), false);
     const meme = memeOk ? this.memeFor(id) : null;
     return [{ type: 'dd_gift', action: id, by, sub, meme, harm: HARM.includes(id), applied: work }, ...fx];
+  }
+
+  /** Tác dụng của một action trong ca (dùng chung cho quà và sự kiện cốt truyện). */
+  applyEffect(id, by, opt = {}) {
+    const fx = [];
+    let sub = '';
+    switch (id) {
+      case 'ping': fx.push(...this.addPing(by, opt.text ? { text: opt.text } : {})); break;
+      case 'soi': this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
+      case 'ban':
+        if (this.desktop) {
+          const b = this.blockers[0];
+          if (b?.kind === 'buzz') b.typed = b.typed.slice(0, -3);
+          else if (this.job && 'typed' in this.job) this.job.typed = this.job.typed.slice(0, -3);
+        }
+        fx.push({ type: 'dd_shake', by });
+        break;
+      case 'mayin':
+        if (this.desktop) this.addBlocker({ kind: 'jam', left: 8, total: 8, by });
+        this.addStatus('mayin', by);
+        break;
+      case 'buzz': {
+        const phrase = opt.phrase ? String(opt.phrase) : this.pick(this.d.buzz);
+        if (this.desktop) { if (!this.addBlocker({ kind: 'buzz', phrase, typed: '', by })) break; }
+        else this.addStatus('buzz', by, phrase);
+        sub = `“${phrase}”`;
+        break;
+      }
+      case 'hop': this.addStatus('hop', by); break;
+      case 'cattg': fx.push(...this.addStep(-3, by)); sub = '−3 bước'; break;
+      case 'virus':
+        if (this.desktop) this.addBlocker({ kind: 'virus', threats: this.shuffle(this.d.viruses).slice(0, 5).map((name) => ({ name, removed: false })), by });
+        else this.addStatus('virus', by);
+        break;
+      case 'lamlai':
+        if (this.desktop) { this.resetJob(); sub = 'xoá sạch việc đang làm'; } else { fx.push(...this.addStep(-1, by)); sub = '−1 bước'; }
+        break;
+      case 'cafe': this.endsAt += 20_000; sub = '+20 giây'; break;
+      case 'giahan': this.endsAt += 60_000; sub = '+60 giây'; break;
+      case 'intern': fx.push(...(this.desktop && this.job ? this.completeJob(by) : this.addStep(1, by))); sub = '+1 bước'; break;
+      case 'thangchuc': fx.push(...this.finish(true, 'thangchuc')); sub = 'xong ca ngay!'; break;
+      default:
+    }
+    return { fx, sub };
   }
 
   memeFor(id) {
@@ -409,6 +449,8 @@ export class Deadline extends Emitter {
       if (!soi) this.nextSoiAt = null;
       else if (t >= this.nextSoiAt) { fx.push(...this.addPing(soi.by, { text: this.pick(this.d.soiLines), soi: true })); this.nextSoiAt = t + SOI_PING_MS; }
     }
+    if (this.phase === 'work') fx.push(...this.storyTick(t));
+    if (this.storyMsgs?.length) this.storyMsgs = this.storyMsgs.filter((m) => m.until > t);
     if (t >= this.endsAt) {
       if (this.phase === 'brief') fx.push(...this.startWork());
       else if (this.phase === 'work') fx.push(...this.finish(false));
@@ -417,7 +459,30 @@ export class Deadline extends Emitter {
     return fx;
   }
 
+  /** Sự kiện cốt truyện theo mốc thời gian của ca (tính trên deadline gốc, không tính phần được gia hạn). */
+  storyTick(t) {
+    const evs = this.chapter()?.events;
+    if (!Array.isArray(evs)) return [];
+    const fx = [];
+    while (this.phase === 'work' && this.storyIdx < evs.length) {
+      const e = evs[this.storyIdx] || {};
+      if (t < this.startedAt + Math.max(0, Math.min(1, Number(e.at) || 0)) * this.deadlineMs) break;
+      this.storyIdx++;
+      const by = { id: `npc:${e.from || '?'}`, name: String(e.from || 'Đồng nghiệp').slice(0, 40), avatar: null, npc: true, icon: e.icon || '💬' };
+      const text = String(e.text || '').slice(0, 120);
+      const eff = EVENT_EFFECTS.has(e.effect) ? e.effect : null;
+      if (eff !== 'ping' && text) {
+        this.storyMsgs.push({ id: ++this.uid, by, text, effect: eff, until: t + STORY_MSG_MS });
+        while (this.storyMsgs.length > 3) this.storyMsgs.shift();
+      }
+      const r = eff ? this.applyEffect(eff, by, { text: eff === 'ping' ? text : null, phrase: e.phrase }) : { fx: [], sub: '' };
+      fx.push({ type: 'dd_story', by, text, effect: eff, sub: r.sub }, ...r.fx);
+    }
+    return fx;
+  }
+
   onResume(d) {
+    for (const m of this.storyMsgs || []) m.until += d;
     for (const p of this.pings) { p.at += d; p.waitUntil += d; if (p.until != null) p.until += d; }
     for (const s of this.status) s.until += d;
     if (this.nextSoiAt != null) this.nextSoiAt += d;
@@ -440,6 +505,17 @@ export class Deadline extends Emitter {
     if (b.kind === 'virus') return { kind: b.kind, id: b.id, by: b.by, threats: b.threats.map((x) => ({ name: x.name, removed: x.removed })) };
     if (b.kind === 'jam') return { kind: b.kind, id: b.id, by: b.by, left: b.left, total: b.total };
     return { kind: b.kind, id: b.id, by: b.by, phrase: b.phrase, typed: b.typed };
+  }
+
+  chapterView() {
+    const ch = this.chapter();
+    if (!ch) return null;
+    const b = ch.boss || {};
+    return {
+      no: (this.chapterRank ?? this.rank) + 1, total: this.d.ranks.length, title: String(ch.title || ''), fresh: !!this.chapterFresh,
+      boss: { name: String(b.name || 'Sếp'), role: String(b.role || ''), icon: String(b.icon || '👔') },
+      intro: (Array.isArray(ch.intro) ? ch.intro : []).map(String).slice(0, 4),
+    };
   }
 
   top(board, n = 3) { return Object.values(board).sort((a, b) => b.points - a.points).slice(0, n).map((r) => ({ id: r.id, name: r.name, avatar: r.avatar, points: r.points, gifts: r.gifts })); }
@@ -467,6 +543,9 @@ export class Deadline extends Emitter {
       covered: this.phase === 'work' && this.covered(),
       feed: this.feed.map((f) => ({ by: f.by, action: f.action, n: f.n, ageMs: t - f.at })),
       result: this.result,
+      season: this.season,
+      chapter: this.chapterView(),
+      story: (this.storyMsgs || []).filter((m) => m.until > t).map((m) => ({ id: m.id, by: m.by, text: m.text, effect: m.effect, leftMs: m.until - t })),
       top: { bosses: this.top(this.bosses), helpers: this.top(this.helpers) },
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger, every: b.every, count: b.every ? Math.min(b.count, b.every) : 0 })),
     };
@@ -478,6 +557,7 @@ export class Deadline extends Emitter {
       feed: this.feed, lastMail: this.lastMail, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, deadlineMs: this.deadlineMs,
       task: this.task, step: this.step, pings: this.pings, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
       nextSoiAt: this.nextSoiAt, result: this.result,
+      season: this.season, chapterRank: this.chapterRank, seen: this.seen, newSeason: this.newSeason, chapterFresh: this.chapterFresh, storyIdx: this.storyIdx, storyMsgs: this.storyMsgs,
     };
   }
 
@@ -487,6 +567,10 @@ export class Deadline extends Emitter {
     for (const k of Object.keys(this.serialize())) if (k in copy) this[k] = copy[k];
     this.rank = Math.max(0, Math.min(this.d.ranks.length - 1, Number(this.rank) || 0));
     this.step = Math.max(0, Math.min(this.s.steps, Number(this.step) || 0));
+    this.season = Math.max(1, Number(this.season) || 1);
+    if (!Array.isArray(this.seen)) this.seen = [];
+    if (!Array.isArray(this.storyMsgs)) this.storyMsgs = [];
+    this.storyIdx = Math.max(0, Number(this.storyIdx) || 0);
   }
 
   destroy() { this.removeAllListeners(); }
