@@ -16,7 +16,13 @@
     { "name": "Dán {n} tờ giấy nhớ lên màn hình", "file": "GiayNho_todo.txt" },
     { "name": "Gõ {n} dòng báo cáo tuần", "file": "BaoCaoTuan_final.docx" },
     { "name": "Gấp {n} chiếc áo cho gọn", "file": "Ao_quan_chua_gap.jpg" },
-    { "name": "Đọc to {n} email của sếp", "file": "Mail_sep_chua_doc.msg" }
+    { "name": "Đọc to {n} email của sếp", "file": "Mail_sep_chua_doc.msg" },
+    { "name": "Xếp {n} cái cốc thành tháp", "file": "ThapCoc_v3.jpg" },
+    { "name": "Ném {n} cục giấy vào thùng rác", "file": "GiayVun_final.txt" },
+    { "name": "Gấp {n} con hạc giấy", "file": "HacGiay_cau_may.docx" },
+    { "name": "Viết {n} dòng bằng tay trái", "file": "TayTrai_luyen_chu.docx" },
+    { "name": "Bóc {n} viên kẹo bằng một tay", "file": "Keo_giai_lao.xlsx" },
+    { "name": "Dán {n} tờ giấy nhớ thành chữ OK", "file": "GiayNho_OK.png" }
   ],
   "pings": [
     "Xong chưa em?", "Em ơi file đâu rồi?", "Có update gì chưa em?", "Em check mail chưa?", "Gọi anh 5 phút nhé",
@@ -85,6 +91,291 @@
     "cafe": { "mood": "happy", "lines": ["Sống lại rồi ☕✨", "Một ly cà phê, mười cái deadline", "Tỉnh cả người"] },
     "giahan": { "mood": "happy", "lines": ["Được cứu rồi 😭🙏", "Sếp hôm nay hiền thế", "Thêm giờ, thêm hy vọng"] },
     "intern": { "mood": "happy", "lines": ["Thực tập sinh là chân ái 🫶", "Có người gánh team rồi", "Em giỏi quá em ơi"] },
+    "meo": { "mood": "shock", "lines": ["Meo meo… xoá hết rồi 🐱", "Ai cho mèo vào văn phòng?!", "Bàn phím giờ là giường của nó"] },
+    "capslock": { "mood": "dizzy", "lines": ["tẠi SaO cHữ Bị NgƯợC", "Caps Lock phản chủ 😵", "GÕ GÌ CŨNG NHƯ ĐANG HÉT"] },
+    "cupdien": { "mood": "skull", "lines": ["Tối thui luôn 🌑", "Ai rút phích cắm vậy?!", "Chưa kịp lưu file…"] },
+    "wifi": { "mood": "angry", "lines": ["Xoay xoay xoay… 📶", "Wifi công ty lại dỗi", "Gửi mãi không đi!"] },
+    "antrua": { "mood": "happy", "lines": ["Cơm sếp bao ngon nhất 🍱", "Ăn đã, deadline tính sau", "Đồng hồ cũng đi ăn trưa"] },
+    "tainghe": { "mood": "happy", "lines": ["Không nghe, không thấy 🎧", "Chế độ tập trung: BẬT", "Sếp nói gì cũng mặc"] },
     "thangchuc": { "mood": "rich", "lines": ["Giàu rồi!! 💸", "Lên chức rồi mọi người ơi 🎉", "Từ nay gọi em là sếp"] }
+  },
+  "captcha": [["☕","ly cà phê",["🍵","🥤","🧋","🍺"]],["🐱","con mèo",["🐶","🐭","🐰","🦊"]],["📎","kẹp giấy",["✂️","📌","🖇️","📐"]],["🍜","tô mì",["🍚","🍲","🥟","🍱"]],["🖨️","máy in",["💻","🖥️","⌨️","📠"]]],
+  "approvals": ["Mua máy in mới","Tiệc tất niên","Team building Đà Lạt","Thay ghế xoay cả phòng","Quảng cáo TikTok","Mua 100 thùng mì","Thuê ca sĩ hát tất niên","Nâng cấp wifi","Mua cây xanh văn phòng","Đặt áo đồng phục"],
+  "typos": ["Báo cáo *quí* bốn đã *sog*","Em xin *phếp* nghỉ thứ sáu *ạh*","Họp giao ban *dời* sang *chín* giờ","Khách hàng đã *sác* nhận đơn *hàn*","Số liệu tháng này *tăg* nhẹ *xo* với tháng trước","Phiền anh *kí* giúp em tờ *chình*","Mọi người *kiễm* tra mail *giúb* em","Em gửi lại file *đín* kèm *ạ*"],
+  "replies": [{"msg":"Sao đơn của tôi giao chậm vậy???","good":"Dạ em xin lỗi, em kiểm tra ngay cho anh ạ","bad":["Chậm thì chờ thêm đi anh","Em đang bận live, lát rep"]},{"msg":"Sản phẩm bị lỗi, tôi muốn đổi!","good":"Dạ em hỗ trợ đổi mới cho chị liền ạ","bad":["Chắc tại chị dùng sai đó","Hết bảo hành rồi chị ơi 🙂"]},{"msg":"Gọi tổng đài 5 lần không ai nghe!","good":"Dạ em rất tiếc, em gọi lại cho anh ngay ạ","bad":["Tổng đài đi ăn trưa rồi","Anh gọi lần 6 thử xem"]},{"msg":"Giá bên khác rẻ hơn mà?","good":"Dạ bên em có bảo hành 2 năm và giao miễn phí ạ","bad":["Vậy anh mua bên đó đi","Rẻ thì chất lượng kém đó anh"]},{"msg":"Tôi chưa nhận được hoá đơn","good":"Dạ em gửi lại hoá đơn qua mail cho chị ngay ạ","bad":["Chị xem lại hộp thư rác đi","Hoá đơn để làm gì chị?"]},{"msg":"Nhân viên giao hàng thái độ quá!","good":"Dạ em thành thật xin lỗi, em sẽ phản hồi bên giao hàng ạ","bad":["Chắc anh ấy mệt thôi","Thái độ gì đâu anh"]}],
+  "meetings": ["Họp giao ban","Họp với khách","Đào tạo nội bộ","Họp ngân sách","Phỏng vấn ứng viên","Họp team","Gặp sếp tổng","Review dự án"],
+  "icons": ["Báo cáo","Hợp đồng","Lương","Ảnh team","Kế hoạch","Dự án","Tài liệu","Nhạc","Game","Slide","Khách hàng","Ngân sách","Wifi","Quà Tết","Ý tưởng","Việc tồn"],
+  "story": {
+    "company": "Công ty TNHH Deadline Dí",
+    "chapters": [
+      {
+        "title": "Ngày đầu đi làm",
+        "boss": {
+          "name": "Chị Hạnh",
+          "role": "Trưởng nhóm",
+          "icon": "👩‍💼"
+        },
+        "intro": [
+          "Bạn vừa trúng tuyển thực tập sinh ở Công ty TNHH Deadline Dí.",
+          "Chị Hạnh cười hiền: \"Việc dễ thôi em, chiều nộp nha.\""
+        ],
+        "desktopTask": {
+          "name": "Nộp báo cáo đầu tiên cho chị Hạnh",
+          "file": "BaoCao_dau_tien.docx"
+        },
+        "cameraTask": "Gấp {n} chiếc máy bay giấy cho buổi team building",
+        "events": [
+          {
+            "at": 0.22,
+            "from": "Linh · bàn bên",
+            "icon": "👧",
+            "text": "Thực tập sinh mới hả? Chị Hạnh hiền lắm… lúc đầu thôi 🙂"
+          },
+          {
+            "at": 0.5,
+            "from": "Chị Hạnh",
+            "icon": "👩‍💼",
+            "text": "Chị đứng sau xem em làm chút nha",
+            "effect": "soi"
+          },
+          {
+            "at": 0.78,
+            "from": "Bác bảo vệ",
+            "icon": "👴",
+            "text": "Cố lên cháu, 6 giờ bác khoá cổng đó!"
+          }
+        ],
+        "win": "Chị Hạnh gật gù: \"Được đó em!\" Bạn được nhận làm nhân viên chính thức.",
+        "fail": "Chị Hạnh thở dài: \"Mai làm lại nha em…\""
+      },
+      {
+        "title": "Khách hàng khó tính",
+        "boss": {
+          "name": "Anh Long",
+          "role": "Trưởng phòng kinh doanh",
+          "icon": "🧔"
+        },
+        "intro": [
+          "Lên nhân viên chính thức, bạn được giao khách hàng khó nhất công ty.",
+          "Anh Long: \"Khách này làm 3 người trước nghỉ việc rồi đó.\""
+        ],
+        "desktopTask": {
+          "name": "Xử lý khiếu nại của khách hàng khó tính",
+          "file": "KhieuNai_lan_thu_12.msg"
+        },
+        "cameraTask": "Viết tay {n} lời xin lỗi khách hàng",
+        "events": [
+          {
+            "at": 0.25,
+            "from": "Khách hàng VIP",
+            "icon": "😤",
+            "text": "Sao chưa trả lời tôi? Tôi gửi mail lúc 3 giờ sáng mà!",
+            "effect": "ping"
+          },
+          {
+            "at": 0.55,
+            "from": "Linh · bàn bên",
+            "icon": "👧",
+            "text": "Mình pha giúp ly cà phê nè, cố lên ☕",
+            "effect": "cafe"
+          },
+          {
+            "at": 0.8,
+            "from": "Anh Long",
+            "icon": "🧔",
+            "text": "Khách vừa gọi thẳng lên sếp tổng rồi đó em…"
+          }
+        ],
+        "win": "Khách hàng khó tính để lại 5 sao. Anh Long đề xuất bạn lên chuyên viên.",
+        "fail": "Khách hàng đòi gặp \"người có thẩm quyền\". Anh Long nhìn bạn rất lâu."
+      },
+      {
+        "title": "Dự án bí mật",
+        "boss": {
+          "name": "Chị Mai",
+          "role": "Giám đốc dự án",
+          "icon": "👩‍🔬"
+        },
+        "intro": [
+          "Bạn được kéo vào dự án bí mật: ra mắt ứng dụng Dí Pay.",
+          "Chị Mai: \"Hạn chót là hôm nay. Hạn chót lúc nào cũng là hôm nay.\""
+        ],
+        "desktopTask": {
+          "name": "Chuẩn bị tài liệu ra mắt Dí Pay",
+          "file": "DiPay_ra_mat_final_v3.pptx"
+        },
+        "cameraTask": "Dán {n} tờ giấy nhớ ý tưởng lên tường",
+        "events": [
+          {
+            "at": 0.3,
+            "from": "Anh Khoa · IT",
+            "icon": "🧑‍💻",
+            "text": "Server vừa sập… máy in cũng sập theo luôn",
+            "effect": "mayin"
+          },
+          {
+            "at": 0.65,
+            "from": "Chị Mai",
+            "icon": "👩‍🔬",
+            "text": "Sếp tổng muốn thêm câu này vào slide, gõ y nguyên nhé",
+            "effect": "buzz",
+            "phrase": "Dí Pay: trả tiền nhanh hơn deadline"
+          }
+        ],
+        "win": "Dí Pay ra mắt thành công. Chị Mai mời bạn làm trưởng nhóm.",
+        "fail": "Dí Pay ra mắt trễ một ngày. Báo chí viết: \"Dí Pay bị deadline dí\"."
+      },
+      {
+        "title": "Lần đầu làm sếp",
+        "boss": {
+          "name": "Bin và Na",
+          "role": "Hai thực tập sinh",
+          "icon": "🧑‍🎓"
+        },
+        "intro": [
+          "Bạn lên trưởng nhóm, có hai thực tập sinh dưới quyền.",
+          "Một bạn đang ngủ gật, một bạn đang… live TikTok."
+        ],
+        "desktopTask": {
+          "name": "Kèm thực tập sinh và chốt kế hoạch tuần",
+          "file": "KeHoach_tuan_cua_team.xlsx"
+        },
+        "cameraTask": "Xếp {n} cây bút cho thực tập sinh",
+        "events": [
+          {
+            "at": 0.3,
+            "from": "Bin · thực tập sinh",
+            "icon": "👦",
+            "text": "Sếp ơi em lỡ xoá file rồi 😭",
+            "effect": "lamlai"
+          },
+          {
+            "at": 0.62,
+            "from": "Na · thực tập sinh",
+            "icon": "👧",
+            "text": "Em làm hộ một phần nha sếp!",
+            "effect": "intern"
+          },
+          {
+            "at": 0.85,
+            "from": "Chị Hạnh",
+            "icon": "👩‍💼",
+            "text": "Giờ em làm sếp rồi đó, thấy chị khổ chưa 😆"
+          }
+        ],
+        "win": "Team của bạn xong việc sớm nhất phòng. Bạn lên trưởng phòng.",
+        "fail": "Bin và Na xin chuyển team. Bạn ngồi ăn trưa một mình."
+      },
+      {
+        "title": "Cuộc họp không hồi kết",
+        "boss": {
+          "name": "Giám đốc Phương",
+          "role": "Giám đốc khối",
+          "icon": "👨‍💼"
+        },
+        "intro": [
+          "Lên trưởng phòng, lịch của bạn kín họp từ sáng tới tối.",
+          "Giám đốc Phương: \"Họp ngắn thôi, ba tiếng.\""
+        ],
+        "desktopTask": {
+          "name": "Chốt ngân sách năm sau giữa các cuộc họp",
+          "file": "NganSach_2027_ban_cuoi.xlsx"
+        },
+        "cameraTask": "Ký {n} tờ trình ngân sách",
+        "events": [
+          {
+            "at": 0.28,
+            "from": "Giám đốc Phương",
+            "icon": "👨‍💼",
+            "text": "Vào họp gấp 5 phút thôi",
+            "effect": "hop"
+          },
+          {
+            "at": 0.68,
+            "from": "Chị Lan · kế toán",
+            "icon": "👩‍🦰",
+            "text": "Số liệu lệch 1 đồng, anh chị xem lại giúp em",
+            "effect": "ping"
+          }
+        ],
+        "win": "Ngân sách được duyệt ngay lần đầu. Hội đồng bổ nhiệm bạn làm giám đốc.",
+        "fail": "Ngân sách bị trả về kèm 47 bình luận. Cuộc họp tiếp theo: ngày mai, 7 giờ sáng."
+      },
+      {
+        "title": "Đối thủ chơi xấu",
+        "boss": {
+          "name": "Chủ tịch Bảo",
+          "role": "Chủ tịch công ty",
+          "icon": "🧓"
+        },
+        "intro": [
+          "Làm giám đốc chưa lâu, bạn phát hiện công ty đối thủ cài virus vào hệ thống.",
+          "Chủ tịch Bảo: \"Cứu công ty trước giờ họp cổ đông.\""
+        ],
+        "desktopTask": {
+          "name": "Cứu hệ thống trước giờ họp cổ đông",
+          "file": "HeThong_khan_cap.bak"
+        },
+        "cameraTask": "Đọc to {n} email gửi cổ đông",
+        "events": [
+          {
+            "at": 0.22,
+            "from": "Anh Khoa · IT",
+            "icon": "🧑‍💻",
+            "text": "Phát hiện mã độc lạ trong máy giám đốc!",
+            "effect": "virus"
+          },
+          {
+            "at": 0.6,
+            "from": "Linh · giờ là trưởng phòng",
+            "icon": "👧",
+            "text": "Bạn cũ đây! Mình giữ chân cổ đông thêm một phút nhé",
+            "effect": "giahan"
+          }
+        ],
+        "win": "Hệ thống an toàn, đối thủ bị lật tẩy. Chủ tịch Bảo trao lại ghế cho bạn.",
+        "fail": "Cổ đông họp trong khi màn hình vẫn hiện \"Bạn đã bị hack\". Chủ tịch Bảo im lặng."
+      },
+      {
+        "title": "Ghế chủ tịch",
+        "boss": {
+          "name": "Hội đồng cổ đông",
+          "role": "Những người khó tính nhất",
+          "icon": "🧐"
+        },
+        "intro": [
+          "Bạn đã là chủ tịch, nhưng hội đồng cổ đông chưa phục.",
+          "Một ca cuối cùng để chứng minh bạn xứng đáng."
+        ],
+        "desktopTask": {
+          "name": "Thuyết trình chiến lược trước hội đồng cổ đông",
+          "file": "ChienLuoc_10_nam.pptx"
+        },
+        "cameraTask": "Nói {n} câu thuyết phục hội đồng cổ đông",
+        "events": [
+          {
+            "at": 0.3,
+            "from": "Cổ đông lớn",
+            "icon": "🧐",
+            "text": "Doanh thu đâu? Lợi nhuận đâu? Cổ tức đâu?",
+            "effect": "ping"
+          },
+          {
+            "at": 0.6,
+            "from": "Bác bảo vệ",
+            "icon": "👴",
+            "text": "Cháu thành chủ tịch rồi! Bác pha cà phê nè",
+            "effect": "cafe"
+          }
+        ],
+        "win": "Hội đồng cổ đông đứng dậy vỗ tay.",
+        "fail": "Hội đồng cổ đông xin \"suy nghĩ thêm\". Bạn quay về làm giám đốc."
+      }
+    ],
+    "ending": [
+      "Quyết định đầu tiên của chủ tịch: cấm họp sau 5 giờ chiều.",
+      "Chị Hạnh, Linh, Bin, Na và bác bảo vệ mở tiệc mừng.",
+      "Mùa {season} khép lại. Sáng mai, một thực tập sinh mới bước vào cổng…"
+    ]
   }
 }

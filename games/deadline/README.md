@@ -11,13 +11,52 @@ Game văn phòng: streamer phải xong việc trước deadline. Người xem t�
   - Giữa màn hình để trong suốt cho camera.
   - Mỗi bước xong, bấm **+1 bước** trên dashboard hoặc phím **Space / →** trong cửa sổ chơi (**←** để lùi).
 
+## 📖 Cốt truyện (cài đặt `story`, bật mặc định, áp dụng cho cả 2 chế độ)
+Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi chức là một chương**, tổng cộng 7 chương:
+
+| Chương | Chức | Tên chương | Nhân vật chính |
+|---|---|---|---|
+| 1 | Thực tập sinh | Ngày đầu đi làm | 👩‍💼 Chị Hạnh |
+| 2 | Nhân viên | Khách hàng khó tính | 🧔 Anh Long |
+| 3 | Chuyên viên | Dự án bí mật | 👩‍🔬 Chị Mai |
+| 4 | Trưởng nhóm | Lần đầu làm sếp | 🧑‍🎓 Bin và Na |
+| 5 | Trưởng phòng | Cuộc họp không hồi kết | 👨‍💼 Giám đốc Phương |
+| 6 | Giám đốc | Đối thủ chơi xấu | 🧓 Chủ tịch Bảo |
+| 7 | Chủ tịch | Ghế chủ tịch | 🧐 Hội đồng cổ đông |
+
+- **Sang chương mới:**
+  - Thẻ mở đầu hiện tên chương, nhân vật chính, lời dẫn và nhiệm vụ riêng của chương.
+  - Chế độ máy tính dùng `desktopTask` của chương, chế độ camera dùng `cameraTask`.
+  - Thẻ hiện trong `storyBriefSeconds` giây (mặc định 10).
+  - Làm lại chương cũ thì chỉ hiện thẻ ngắn.
+- **Trong ca:** đến mốc thời gian, các nhân vật (đồng nghiệp, khách hàng, bác bảo vệ…) nhắn tin. Có tin chỉ để kể chuyện, có tin kéo theo một sự kiện:
+  - Gây khó: sếp đến soi, họp đột xuất, virus, máy in kẹt, bắt gõ câu trend, xoá việc đang làm.
+  - Giúp đỡ: cà phê, gia hạn, làm hộ.
+  - Sự kiện chạy giống quà, nhưng nhân vật không được tính vào bảng xếp hạng.
+- **Hết ca:** thẻ kết quả có lời kết riêng của chương, khác nhau khi thắng và khi thua.
+- **Thắng ca ở chức Chủ tịch:** hiện đoạn kết **KẾT THÚC MÙA N**, rồi bắt đầu **mùa mới** từ chức khởi đầu.
+- Sửa nội dung ở `data/office.json` → `story` (`chapters[]`: `title`, `boss`, `intro`, `desktopTask`, `cameraTask`, `events[]` gồm `at` (0–1, theo deadline gốc), `from`, `icon`, `text`, `effect`, `phrase`; `win`, `fail`; `ending[]`).
+- Tắt `story` thì game chạy như bản cũ.
+
 ## Luật
 1. **Mỗi ca** có một nhiệm vụ `steps` bước (mặc định 10) và một deadline `shiftSeconds` (mặc định 5:00). Chức càng cao thì deadline càng ngắn: −8% mỗi bậc, tối thiểu 60%.
-2. **Mini-việc** (chế độ máy tính, xoay vòng; mỗi việc xong là +1 bước):
+2. **Mini-việc** (chế độ máy tính). Mỗi việc xong là +1 bước. Mặc định thứ tự việc được xáo ngẫu nhiên, đủ một vòng mới lặp lại và không trùng việc vừa làm. Chọn việc nào được dùng ở cài đặt `jobs`; `shuffleJobs` tắt thì việc chạy đúng theo thứ tự đã chọn.
    - ✉️ **Mail:** gõ lại câu rồi Enter.
    - 📥 **Hộp thư:** bấm Lưu hoặc Spam cho 4 thư.
    - 📊 **Bảng tính:** gõ tổng các ô rồi Enter.
    - 📁 **File:** bấm file, rồi bấm đúng thư mục (Ảnh / Tài liệu / Thùng rác).
+   - 🔐 **Đổi mật khẩu:** gõ mật khẩu đủ 4 điều kiện: ≥ 8 ký tự, có số, có chữ HOA, có ký tự đặc biệt. Mỗi điều kiện đạt thì sáng xanh.
+   - 🤖 **Tôi không phải robot:** chọn hết các ô có món được yêu cầu (☕ / 🐱 / 📎…) rồi bấm Xác minh. Chọn sai thì xoá chọn, làm lại.
+   - ✍️ **Ký duyệt:** 4 tờ trình. Trên 10 triệu thì Từ chối, còn lại thì Duyệt.
+   - 🔢 **Mã OTP:** mã 6 số hiện 3,5 giây (từ Trưởng nhóm trở lên là 2,5 giây) rồi ẩn đi, phải gõ lại theo trí nhớ. Gõ sai sẽ ra mã mới; nút "Gửi lại mã" cho xem lại.
+   - 📝 **Chính tả:** bấm vào các chữ viết sai trong câu.
+   - 💬 **Trả lời khách:** chọn câu lịch sự trong 3 câu.
+   - 📅 **Lịch họp:** bấm giờ bắt đầu sao cho 2 tiếng liền đều trống.
+   - 🧹 **Dọn màn hình:** bấm 6 icon theo thứ tự chữ cái A → Z.
+   - **Việc có người xem tham gia** (người bình luận miễn phí được giúp; mỗi lần giúp +1 điểm ở bảng 🤝 Đồng nghiệp tận tâm; có nút **Bỏ qua** khi ít người xem):
+     - 🗳️ **Xin chữ ký team:** cần `signNeed` người xem (mặc định 5) bình luận từ `signWord` (mặc định "duyệt", không cần dấu). Mỗi người ký 1 lần, tên hiện trên tờ trình.
+     - 📢 **Chép lời đồng nghiệp:** câu cần gõ lại lấy từ một bình luận gần đây của người xem. Bình luận được lọc `bannedWords`, bỏ link, câu quá ngắn / quá dài, câu toàn emoji. Chưa có bình luận hợp lệ thì dùng câu Mail có sẵn.
+     - 🧮 **Hỏi đáp nhanh:** hiện phép cộng. Người xem đầu tiên bình luận đúng đáp án sẽ làm hộ; streamer cũng có thể tự gõ.
 3. **Xong đủ bước:** hiện **XONG VIỆC!** và lên chức (Thực tập sinh → … → Chủ tịch).
 4. **Hết giờ:** hiện **TRỄ DEADLINE!**, kèm hình phạt vui (`punishments`) và xuống 1 chức (`demoteOnFail`).
 5. Thẻ kết quả có hai bảng **👔 Sếp soi nhất** và **🤝 Đồng nghiệp tận tâm** (tính theo số xu).
@@ -45,6 +84,12 @@ Game văn phòng: streamer phải xong việc trước deadline. Người xem t�
 | `cafe` | ☕ +20 giây | Heart Me, 1000 tim |
 | `giahan` | 📅 +60 giây | Hand Hearts (100) |
 | `intern` | 🧑‍💼 Làm hộ việc đang mở / +1 bước | Sunglasses (199) |
+| `meo` | 🐱 Mèo đi qua bàn phím: chèn 5–8 ký tự rác vào ô đang gõ / chip 8 giây | Ice Cream Cone (1) |
+| `capslock` | ⇪ Caps Lock kẹt 15 giây: chữ gõ ra bị đảo hoa / thường / chip | GG (1) |
+| `cupdien` | 🌑 Cúp điện 12 giây: màn tối, chỉ thấy vùng tròn quanh chuột | Rosa (10) |
+| `wifi` | 📶 Rớt wifi 8 giây: không gửi / lưu / xác nhận được (vẫn gõ được) | Paper Crane (99) |
+| `antrua` | 🍱 Sếp mời ăn trưa: đồng hồ đứng 15 giây | Confetti (100) |
+| `tainghe` | 🎧 Tai nghe chống ồn: xoá ping, đuổi sếp soi, miễn ping & soi 30 giây | Mishka Bear (100) |
 | `thangchuc` | 🏆 Xong ca ngay | Lion (29999) |
 
 Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pause` / `resume` do nền tảng cung cấp.
@@ -69,4 +114,4 @@ Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pau
   - Link hỏng thì tự quay về meme có sẵn.
 
 ## Dữ liệu
-`data/office.json`: các chức, nhiệm vụ, câu sếp ping / soi, câu Mail, câu trend văn phòng, thư thường / thư rác, file, virus, hình phạt, câu meme. Sửa trực tiếp file để thêm nội dung.
+`data/office.json`: các chức, nhiệm vụ, câu robot (`captcha`), tờ trình (`approvals`), câu sai chính tả (`typos`, chữ sai đặt giữa hai dấu *), câu trả lời khách (`replies`), tên cuộc họp (`meetings`), tên icon (`icons`), câu sếp ping / soi, câu Mail, câu trend văn phòng, thư thường / thư rác, file, virus, hình phạt, câu meme. Sửa trực tiếp file để thêm nội dung.

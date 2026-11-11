@@ -1,4 +1,4 @@
-import { Emitter, makePausable, normalize, canon, triggerText, triggerIcon } from '#sdk';
+import { Emitter, makePausable, normalize, canon, digitsOf, triggerText, triggerIcon } from '#sdk';
 
 /**
  * Deadline Dí: streamer chạy deadline, quà của người xem là những ông sếp soi việc (hoặc đồng nghiệp cứu).
@@ -14,16 +14,25 @@ import { Emitter, makePausable, normalize, canon, triggerText, triggerIcon } fro
  * Câu sếp ping = bình luận đầu tiên của chính người tặng quà gõ sau khi tặng (không gõ thì dùng câu có sẵn).
  * Quà từ memeMinCoins xu trở lên kèm meme (hiệu ứng có sẵn hoặc link video streamer dán trong cài đặt).
  *
+ * Cốt truyện (cài đặt story, cả 2 chế độ): mỗi chức là một CHƯƠNG (data/office.json → story.chapters) có tên chương, sếp,
+ * lời dẫn, nhiệm vụ riêng, kết thắng / thua riêng. Trong ca, nhân vật (NPC) nhắn tin theo mốc thời gian và có thể gây sự kiện
+ * (sếp soi, họp, virus… hoặc đồng nghiệp mang cà phê, làm hộ). Thắng ca cuối ở chức cao nhất → đoạn kết, sang MÙA mới từ đầu.
+ *
  * Pha: brief (giao việc) → work → result → brief…
  */
 export function createGame(ctx) { return new Deadline(ctx); }
 
-export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai'];
-export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc'];
-export const JOBS = ['mail', 'inbox', 'sheet', 'files'];
+export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai', 'meo', 'capslock', 'cupdien', 'wifi'];
+export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc', 'antrua', 'tainghe'];
+export const JOBS = ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop', 'sign', 'colleague', 'quiz'];
+export const VIEWER_JOBS = ['sign', 'colleague', 'quiz']; // việc cần người xem bình luận (có nút Bỏ qua)
+const JUNK = '#$%&@!?*~^qzxjwkfv';
+export const APPROVE_LIMIT = 10; // triệu: tờ trình trên mức này thì Từ chối
 export const FOLDERS = ['anh', 'tailieu', 'rac'];
-const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000 };
+const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000, meo: 8000, capslock: 15000, cupdien: 12000, wifi: 8000, antrua: 15000, tainghe: 30000 };
 const SOI_PING_MS = 4500;
+const STORY_MSG_MS = 7000;
+const EVENT_EFFECTS = new Set([...HARM, ...HELP.filter((x) => x !== 'thangchuc')]);
 const MAX_BLOCKERS = 4;
 const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn danh').slice(0, 40), avatar: u?.avatar || null });
 
@@ -37,6 +46,10 @@ const FALLBACK = {
   files: [['anh.jpg', 'anh'], ['bao_cao.xlsx', 'tailieu'], ['crack.exe', 'rac'], ['logo.png', 'anh']],
   viruses: ['trojan.exe', 'spam_bot.exe', 'keylogger.exe', 'adware.exe', 'worm.exe'],
   punishments: ['Chống đẩy 10 cái'], memes: {},
+  captcha: [['☕', 'ly cà phê', ['🍵', '🥤', '🧋', '🍺']]], approvals: ['Mua máy in mới', 'Tiệc tất niên', 'Nâng cấp wifi', 'Đặt áo đồng phục'],
+  typos: ['Báo cáo *quí* bốn đã *sog*'], replies: [{ msg: 'Sao đơn của tôi giao chậm vậy???', good: 'Dạ em xin lỗi, em kiểm tra ngay ạ', bad: ['Chậm thì chờ thêm đi', 'Lát rep'] }],
+  meetings: ['Họp giao ban', 'Họp với khách', 'Họp team', 'Gặp sếp tổng'], icons: ['Báo cáo', 'Hợp đồng', 'Lương', 'Ảnh team', 'Kế hoạch', 'Dự án'],
+  story: { chapters: [], ending: [] },
 };
 
 /** Từ cấm → các regex thay bằng *** (nguyên từ, không phân biệt hoa thường, giữ dấu). */
@@ -54,6 +67,7 @@ export class Deadline extends Emitter {
     const d = ctx.data?.office || {};
     this.d = Object.fromEntries(Object.entries(FALLBACK).map(([k, v]) => [k, (Array.isArray(v) ? d[k]?.length : d[k] && typeof d[k] === 'object') ? d[k] : v]));
     this.banned = bannedRegexes(this.s.bannedWords);
+    this.signWord = normalize(this.s.signWord || '');
     this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1);
     this.bestRank = this.rank;
     this.streak = 0;
@@ -63,23 +77,39 @@ export class Deadline extends Emitter {
     this.helpers = {};
     this.feed = [];
     this.lastMail = -1;
+    this.season = 1;
+    this.seen = []; // chương đã xem lời dẫn trong mùa này
+    this.newSeason = false;
     this.startShift();
   }
 
   get desktop() { return this.s.mode !== 'camera'; }
   pick(list) { return list[Math.floor(this.ctx.random() * list.length)]; }
   shuffle(list) { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.ctx.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  /** Chương hiện tại (theo chức) khi bật cốt truyện. */
+  chapter() {
+    if (!this.s.story) return null;
+    const ch = this.d.story?.chapters?.[this.chapterRank ?? this.rank];
+    return ch && typeof ch === 'object' ? ch : null;
+  }
   shiftMs() { return Math.round((this.s.shiftSeconds * Math.max(0.6, 1 - 0.08 * this.rank))) * 1000; }
 
   // ---------------- vòng đời ca làm ----------------
   startShift() {
+    if (this.newSeason) { this.newSeason = false; this.season++; this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1); this.seen = []; this.streak = 0; }
     this.shiftNo++;
     this.phase = 'brief';
     this.startedAt = this.clock();
-    this.endsAt = this.startedAt + this.s.briefSeconds * 1000;
+    this.chapterRank = this.rank; // chương của ca này (giữ nguyên tới hết thẻ kết quả dù đã lên / xuống chức)
+    const ch = this.chapter();
+    const fresh = !!ch && !this.seen.includes(this.rank);
+    if (fresh) this.seen.push(this.rank);
+    this.chapterFresh = fresh;
+    this.endsAt = this.startedAt + (fresh ? Math.max(this.s.briefSeconds, this.s.storyBriefSeconds) : this.s.briefSeconds) * 1000;
     this.deadlineMs = this.shiftMs();
     const custom = !this.desktop && String(this.s.cameraTask || '').trim();
-    const t = custom ? { name: custom.slice(0, 80), file: 'ViecCuaToi_final.docx' } : this.pick(this.desktop ? this.d.desktopTasks : this.d.cameraTasks);
+    const chTask = ch && (this.desktop ? (ch.desktopTask?.name ? ch.desktopTask : null) : (ch.cameraTask ? { name: ch.cameraTask, file: ch.desktopTask?.file } : null));
+    const t = custom ? { name: custom.slice(0, 80), file: 'ViecCuaToi_final.docx' } : chTask || this.pick(this.desktop ? this.d.desktopTasks : this.d.cameraTasks);
     this.task = { name: String(t.name).replace(/\{n\}/g, this.s.steps), file: String(t.file || 'BaoCao_final.docx') };
     this.step = 0;
     this.pings = [];
@@ -89,7 +119,9 @@ export class Deadline extends Emitter {
     this.jobNo = 0;
     this.nextSoiAt = null;
     this.result = null;
-    return [{ type: 'dd_brief', shift: this.shiftNo, task: this.task, rank: this.d.ranks[this.rank] }];
+    this.storyIdx = 0;
+    this.storyMsgs = [];
+    return [{ type: 'dd_brief', shift: this.shiftNo, task: this.task, rank: this.d.ranks[this.rank], chapter: ch ? this.rank + 1 : null }];
   }
 
   startWork() {
@@ -102,6 +134,8 @@ export class Deadline extends Emitter {
 
   finish(win, how = '') {
     const from = this.rank;
+    const ch = this.chapter();
+    const last = this.d.ranks.length - 1;
     if (win) { this.rank = Math.min(this.d.ranks.length - 1, this.rank + 1); this.streak++; }
     else { if (this.s.demoteOnFail) this.rank = Math.max(0, this.rank - 1); this.streak = 0; }
     this.bestRank = Math.max(this.bestRank, this.rank);
@@ -112,18 +146,39 @@ export class Deadline extends Emitter {
       rankFrom: this.d.ranks[from], rankTo: this.d.ranks[this.rank], rankChange: Math.sign(this.rank - from),
       punishment: !win && this.s.punishments ? this.pick(this.d.punishments) : null,
       streak: this.streak,
+      story: ch ? String((win ? ch.win : ch.fail) || '') : null,
+      ending: null, season: this.season,
     };
+    if (ch && win && from === last) { // thắng ca cuối ở chức cao nhất → đoạn kết, ca sau sang mùa mới
+      this.result.ending = (this.d.story.ending || []).map((l) => String(l).replace(/\{season\}/g, this.season));
+      this.newSeason = true;
+    }
     this.phase = 'result';
     this.startedAt = t;
     this.endsAt = t + this.s.resultSeconds * 1000;
-    this.pings = []; this.status = []; this.blockers = []; this.job = null; this.nextSoiAt = null;
+    this.pings = []; this.status = []; this.blockers = []; this.job = null; this.nextSoiAt = null; this.storyMsgs = [];
+    const endMs = this.result.ending ? Math.max(this.s.resultSeconds, this.s.storyBriefSeconds + 4) : this.s.resultSeconds;
+    this.endsAt = t + endMs * 1000;
     this.ctx.report?.round?.({ win, shift: this.shiftNo, step: this.result.step, steps: this.result.steps, rank: this.result.rankTo });
     return [{ type: win ? 'dd_win' : 'dd_fail', ...this.result }];
   }
 
   // ---------------- mini-việc (chế độ máy tính) ----------------
+  /** Danh sách mini-việc đang bật (cài đặt jobs). Xáo kiểu túi: đủ một vòng mới lặp lại, không trùng việc vừa làm. */
+  nextKind() {
+    const list = (Array.isArray(this.s.jobs) ? this.s.jobs : []).filter((k) => JOBS.includes(k));
+    const kinds = list.length ? list : JOBS.slice(0, 4);
+    if (!this.s.shuffleJobs) return kinds[this.jobNo % kinds.length];
+    if (!Array.isArray(this.jobBag) || !this.jobBag.length || this.jobBag.some((k) => !kinds.includes(k))) {
+      this.jobBag = this.shuffle(kinds);
+      if (this.jobBag.length > 1 && this.jobBag[0] === this.lastKind) this.jobBag.push(this.jobBag.shift());
+    }
+    return this.jobBag.shift();
+  }
+
   newJob() {
-    const kind = JOBS[this.jobNo % JOBS.length];
+    const kind = this.nextKind();
+    this.lastKind = kind;
     this.jobNo++;
     const id = ++this.uid;
     if (kind === 'mail') {
@@ -138,6 +193,48 @@ export class Deadline extends Emitter {
     } else if (kind === 'sheet') {
       const n = this.rank >= 3 ? 4 : 3;
       this.job = { kind, id, nums: Array.from({ length: n }, () => 10 + Math.floor(this.ctx.random() * 90)), typed: '' };
+    } else if (kind === 'sign') {
+      this.job = { kind, id, need: this.s.signNeed, signers: [] };
+    } else if (kind === 'colleague') {
+      const pool = (this.recent || []).filter((c) => c.text !== this.lastColleague);
+      const c = pool.length ? pool[Math.floor(this.ctx.random() * pool.length)] : null;
+      this.lastColleague = c?.text ?? null;
+      this.job = c ? { kind, id, text: c.text, from: c.by, typed: '' } : { kind, id, text: this.pick(this.d.mail), from: null, typed: '' };
+    } else if (kind === 'quiz') {
+      const a = 10 + Math.floor(this.ctx.random() * 40), b = 5 + Math.floor(this.ctx.random() * 40);
+      this.job = { kind, id, a, b, typed: '', solver: null };
+    } else if (kind === 'password') {
+      this.job = { kind, id, typed: '' };
+    } else if (kind === 'captcha') {
+      const [target, name, decoys] = this.pick(this.d.captcha);
+      const n = this.rank >= 3 ? 4 : 3;
+      const cells = this.shuffle([...Array(n).fill(target), ...Array.from({ length: 9 - n }, () => this.pick(decoys))]);
+      this.job = { kind, id, target: String(target), name: String(name), cells: cells.map((e) => ({ e: String(e), on: false })) };
+    } else if (kind === 'approve') {
+      const names = this.shuffle(this.d.approvals).slice(0, 4);
+      const amts = this.shuffle([11 + Math.floor(this.ctx.random() * 40), 11 + Math.floor(this.ctx.random() * 20), 1 + Math.floor(this.ctx.random() * 10), 1 + Math.floor(this.ctx.random() * 10)]);
+      this.job = { kind, id, items: names.map((name, i) => ({ name: String(name), amount: amts[i], done: false })) };
+    } else if (kind === 'otp') {
+      this.job = { kind, id, code: this.otpCode(), showUntil: this.clock() + this.otpMs(), typed: '' };
+    } else if (kind === 'typo') {
+      const raw = String(this.pick(this.d.typos));
+      const words = raw.split(/\s+/).filter(Boolean).map((w) => ({ w: w.replace(/\*/g, ''), bad: /^\*.+\*$/.test(w), found: false }));
+      this.job = { kind, id, words };
+    } else if (kind === 'reply') {
+      const r = this.pick(this.d.replies);
+      const opts = this.shuffle([String(r.good), ...(r.bad || []).slice(0, 2).map(String)]);
+      this.job = { kind, id, msg: String(r.msg), opts, answer: opts.indexOf(String(r.good)) };
+    } else if (kind === 'calendar') {
+      let busy;
+      do {
+        busy = new Set(this.shuffle([0, 1, 2, 3, 4, 5, 6, 7]).slice(0, this.rank >= 3 ? 5 : 4));
+      } while (![0, 1, 2, 3, 4, 5, 6].some((i) => !busy.has(i) && !busy.has(i + 1)));
+      const names = this.shuffle(this.d.meetings);
+      let k = 0;
+      this.job = { kind, id, slots: Array.from({ length: 8 }, (_, i) => ({ h: 8 + i, busy: busy.has(i) ? String(names[k++ % names.length]) : null })) };
+    } else if (kind === 'desktop') {
+      const names = this.shuffle(this.d.icons).slice(0, 6).map(String);
+      this.job = { kind, id, icons: names.map((name) => ({ name, done: false })), order: names.slice().sort((a, b) => a.localeCompare(b, 'vi')), pos: 0 };
     } else {
       let files;
       do { files = this.shuffle(this.d.files).slice(0, 4); } while (new Set(files.map((f) => f[1])).size < 2 && this.d.files.length > 4);
@@ -145,15 +242,28 @@ export class Deadline extends Emitter {
     }
   }
 
+  otpCode() { return Array.from({ length: 6 }, () => Math.floor(this.ctx.random() * 10)).join(''); }
+  otpMs() { return this.rank >= 3 ? 2500 : 3500; }
+  pwRules(v) {
+    const t = String(v || '');
+    return [[...t].length >= 8, /\d/.test(t), /\p{Lu}/u.test(t), /[^\p{L}\p{N}\s]/u.test(t)];
+  }
+
   resetJob() {
     const j = this.job;
     if (!j) return;
     if ('typed' in j) j.typed = '';
+    if (j.cells) for (const c of j.cells) c.on = false;
+    if (j.items) for (const it of j.items) it.done = false;
+    if (j.words) for (const w of j.words) w.found = false;
+    if (j.icons) { for (const ic of j.icons) ic.done = false; j.pos = 0; }
+    if (j.kind === 'otp') { j.code = this.otpCode(); j.showUntil = this.clock() + this.otpMs(); }
     if (j.mails) for (const m of j.mails) m.done = false;
     if (j.files) { for (const f of j.files) f.done = false; j.sel = null; }
   }
 
   completeJob(by = null) {
+    if (this.job?.kind === 'colleague' && this.job.from && !by) this.helped(this.job.from);
     this.job = null;
     const fx = this.addStep(1, by);
     if (this.phase === 'work' && this.desktop) this.newJob();
@@ -225,10 +335,36 @@ export class Deadline extends Emitter {
     if (this.paused || ev?.type !== 'comment' || !ev.user) return [];
     const id = String(ev.user.id);
     const p = this.pings.find((x) => x.waiting && x.by.id === id);
-    if (!p) return [];
-    const text = this.clean(ev.text);
-    if (!text) return [];
-    return [this.setText(p, text)];
+    if (p) { const text = this.clean(ev.text); return text ? [this.setText(p, text)] : []; }
+    if (!this.desktop) return [];
+    const by = pub(ev.user);
+    this.remember(by, ev.text);
+    const j = this.job;
+    if (this.phase !== 'work' || !j) return [];
+    if (j.kind === 'sign' && this.signWord && ` ${normalize(ev.text)} `.includes(` ${this.signWord} `) && !j.signers.some((x) => x.id === by.id)) {
+      j.signers.push(by);
+      this.helped(by);
+      return j.signers.length >= j.need ? this.completeJob(by) : [{ type: 'dd_sign', by, n: j.signers.length, need: j.need }];
+    }
+    if (j.kind === 'quiz' && digitsOf(ev.text) === String(j.a + j.b)) { this.helped(by); return this.completeJob(by); }
+    return [];
+  }
+
+  /** Bình luận gần đây (đã lọc) để làm câu "Chép lời đồng nghiệp". */
+  remember(by, raw) {
+    const text = this.clean(raw);
+    const cps = [...text];
+    if (cps.length < 8 || cps.length > 60 || text.endsWith('…') || /\*\*\*|https?:|@/.test(text)) return;
+    const letters = (text.match(/\p{L}/gu) || []).length;
+    if (letters < cps.length * 0.6 || text.split(' ').length < 2) return;
+    (this.recent ||= []).push({ by, text });
+    if (this.recent.length > 20) this.recent.shift();
+  }
+
+  helped(by) {
+    const row = (this.helpers[by.id] ||= { ...by, points: 0, gifts: 0 });
+    Object.assign(row, { name: by.name, avatar: by.avatar });
+    row.points += 1;
   }
 
   action(id, ev = {}, binding = null) {
@@ -245,45 +381,7 @@ export class Deadline extends Emitter {
     const t = this.clock();
     const work = this.phase === 'work';
     let sub = '';
-    if (work) {
-      switch (id) {
-        case 'ping': fx.push(...this.addPing(by)); break;
-        case 'soi': this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
-        case 'ban':
-          if (this.desktop) {
-            const b = this.blockers[0];
-            if (b?.kind === 'buzz') b.typed = b.typed.slice(0, -3);
-            else if (this.job && 'typed' in this.job) this.job.typed = this.job.typed.slice(0, -3);
-          }
-          fx.push({ type: 'dd_shake', by });
-          break;
-        case 'mayin':
-          if (this.desktop) this.addBlocker({ kind: 'jam', left: 8, total: 8, by });
-          this.addStatus('mayin', by);
-          break;
-        case 'buzz': {
-          const phrase = this.pick(this.d.buzz);
-          if (this.desktop) { if (!this.addBlocker({ kind: 'buzz', phrase, typed: '', by })) break; }
-          else this.addStatus('buzz', by, phrase);
-          sub = `“${phrase}”`;
-          break;
-        }
-        case 'hop': this.addStatus('hop', by); break;
-        case 'cattg': fx.push(...this.addStep(-3, by)); sub = '−3 bước'; break;
-        case 'virus':
-          if (this.desktop) this.addBlocker({ kind: 'virus', threats: this.shuffle(this.d.viruses).slice(0, 5).map((name) => ({ name, removed: false })), by });
-          else this.addStatus('virus', by);
-          break;
-        case 'lamlai':
-          if (this.desktop) { this.resetJob(); sub = 'xoá sạch việc đang làm'; } else { fx.push(...this.addStep(-1, by)); sub = '−1 bước'; }
-          break;
-        case 'cafe': this.endsAt += 20_000; sub = '+20 giây'; break;
-        case 'giahan': this.endsAt += 60_000; sub = '+60 giây'; break;
-        case 'intern': fx.push(...(this.desktop && this.job ? this.completeJob(by) : this.addStep(1, by))); sub = '+1 bước'; break;
-        case 'thangchuc': fx.push(...this.finish(true, 'thangchuc')); sub = 'xong ca ngay!'; break;
-        default:
-      }
-    }
+    if (work) { const r = this.applyEffect(id, by); fx.push(...r.fx); sub = r.sub; }
     // bảng sếp soi nhất / đồng nghiệp tận tâm + dòng hoạt động
     const board = HARM.includes(id) ? this.bosses : this.helpers;
     const row = (board[by.id] ||= { ...by, points: 0, gifts: 0 });
@@ -295,6 +393,71 @@ export class Deadline extends Emitter {
     if (ev.type === 'gift') this.ctx.report?.points?.(by, Math.max(1, coins), false);
     const meme = memeOk ? this.memeFor(id) : null;
     return [{ type: 'dd_gift', action: id, by, sub, meme, harm: HARM.includes(id), applied: work }, ...fx];
+  }
+
+  /** Tác dụng của một action trong ca (dùng chung cho quà và sự kiện cốt truyện). */
+  applyEffect(id, by, opt = {}) {
+    const fx = [];
+    let sub = '';
+    switch (id) {
+      case 'ping': if (this.active('tainghe')) { sub = '🎧 đeo tai nghe, không thấy'; break; } fx.push(...this.addPing(by, opt.text ? { text: opt.text } : {})); break;
+      case 'soi': if (this.active('tainghe')) { sub = '🎧 đeo tai nghe, mặc kệ'; break; } this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
+      case 'ban':
+        if (this.desktop) {
+          const b = this.blockers[0];
+          if (b?.kind === 'buzz') b.typed = b.typed.slice(0, -3);
+          else if (this.job && 'typed' in this.job) this.job.typed = this.job.typed.slice(0, -3);
+        }
+        fx.push({ type: 'dd_shake', by });
+        break;
+      case 'mayin':
+        if (this.desktop) this.addBlocker({ kind: 'jam', left: 8, total: 8, by });
+        this.addStatus('mayin', by);
+        break;
+      case 'buzz': {
+        const phrase = opt.phrase ? String(opt.phrase) : this.pick(this.d.buzz);
+        if (this.desktop) { if (!this.addBlocker({ kind: 'buzz', phrase, typed: '', by })) break; }
+        else this.addStatus('buzz', by, phrase);
+        sub = `“${phrase}”`;
+        break;
+      }
+      case 'hop': this.addStatus('hop', by); break;
+      case 'cattg': fx.push(...this.addStep(-3, by)); sub = '−3 bước'; break;
+      case 'virus':
+        if (this.desktop) this.addBlocker({ kind: 'virus', threats: this.shuffle(this.d.viruses).slice(0, 5).map((name) => ({ name, removed: false })), by });
+        else this.addStatus('virus', by);
+        break;
+      case 'lamlai':
+        if (this.desktop) { this.resetJob(); sub = 'xoá sạch việc đang làm'; } else { fx.push(...this.addStep(-1, by)); sub = '−1 bước'; }
+        break;
+      case 'cafe': this.endsAt += 20_000; sub = '+20 giây'; break;
+      case 'giahan': this.endsAt += 60_000; sub = '+60 giây'; break;
+      case 'intern': fx.push(...(this.desktop && this.job ? this.completeJob(by) : this.addStep(1, by))); sub = '+1 bước'; break;
+      case 'thangchuc': fx.push(...this.finish(true, 'thangchuc')); sub = 'xong ca ngay!'; break;
+      case 'meo': {
+        if (this.desktop) {
+          const junk = Array.from({ length: 5 + Math.floor(this.ctx.random() * 4) }, () => JUNK[Math.floor(this.ctx.random() * JUNK.length)]).join('');
+          const b = this.blockers[0];
+          if (b?.kind === 'buzz') b.typed += junk;
+          else if (this.job && 'typed' in this.job) this.job.typed = (this.job.typed + junk).slice(0, 200);
+          sub = `chèn “${junk}”`;
+        } else sub = 'nằm lên bàn phím';
+        this.addStatus('meo', by);
+        fx.push({ type: 'dd_shake', by });
+        break;
+      }
+      case 'capslock': this.addStatus('capslock', by); sub = 'gõ ra chữ hoa / thường đảo ngược'; break;
+      case 'cupdien': this.addStatus('cupdien', by); sub = 'màn hình tối om'; break;
+      case 'wifi': this.addStatus('wifi', by); sub = 'không gửi / lưu được'; break;
+      case 'antrua': this.addStatus('antrua', by); sub = 'đồng hồ đứng 15 giây'; break;
+      case 'tainghe':
+        this.addStatus('tainghe', by);
+        this.pings = []; this.status = this.status.filter((x) => x.kind !== 'soi'); this.nextSoiAt = null;
+        sub = 'miễn ping & sếp soi 30 giây';
+        break;
+      default:
+    }
+    return { fx, sub };
   }
 
   memeFor(id) {
@@ -314,7 +477,7 @@ export class Deadline extends Emitter {
         if (!this.desktop || this.covered()) return [];
         const b = this.blockers[0];
         if (b) { if (b.kind === 'buzz') b.typed = v; return []; }
-        if (this.job && 'typed' in this.job) this.job.typed = this.job.kind === 'sheet' ? v.replace(/[^\d]/g, '').slice(0, 6) : v;
+        if (this.job && 'typed' in this.job) this.job.typed = this.job.kind === 'sheet' || this.job.kind === 'otp' || this.job.kind === 'quiz' ? v.replace(/[^\d]/g, '').slice(0, 6) : this.job.kind === 'password' ? v.slice(0, 30) : v;
         return [];
       }
       case 'enter': return this.desktop ? this.submit() : [];
@@ -325,6 +488,7 @@ export class Deadline extends Emitter {
 
   submit() {
     if (this.covered()) return [];
+    if (this.active('wifi')) return [{ type: 'dd_wifi' }];
     const b = this.blockers[0];
     if (b) {
       if (b.kind !== 'buzz') return [];
@@ -333,6 +497,14 @@ export class Deadline extends Emitter {
     }
     const j = this.job;
     if (j?.kind === 'mail') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'mail' }];
+    if (j?.kind === 'colleague') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'colleague' }];
+    if (j?.kind === 'quiz') return j.typed !== '' && Number(j.typed) === j.a + j.b ? this.completeJob() : [{ type: 'dd_wrong', kind: 'quiz' }];
+    if (j?.kind === 'password') return this.pwRules(j.typed).every(Boolean) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'password' }];
+    if (j?.kind === 'otp') {
+      if (j.typed === j.code) return this.completeJob();
+      j.code = this.otpCode(); j.showUntil = this.clock() + this.otpMs(); j.typed = ''; // sai → mã mới
+      return [{ type: 'dd_wrong', kind: 'otp' }];
+    }
     if (j?.kind === 'sheet') return Number(j.typed) === j.nums.reduce((a, x) => a + x, 0) && j.typed !== '' ? this.completeJob() : [{ type: 'dd_wrong', kind: 'sheet' }];
     return [];
   }
@@ -366,12 +538,55 @@ export class Deadline extends Emitter {
     const j = this.job;
     if (!j) return [];
     if (target === 'send') return this.submit();
+    if (target === 'skip' && VIEWER_JOBS.includes(j.kind)) { this.newJob(); return [{ type: 'dd_zap' }]; }
+    if (this.active('wifi') && !['cell', 'file', 'word'].includes(target)) return [{ type: 'dd_wifi' }];
     if (j.kind === 'inbox' && target === 'inbox') {
       const m = j.mails[Number(ev.id)];
       if (!m || m.done) return [];
       if ((ev.value === 'spam') !== m.spam) return [{ type: 'dd_wrong', kind: 'inbox' }];
       m.done = true;
       return j.mails.every((x) => x.done) ? this.completeJob() : [{ type: 'dd_zap' }];
+    }
+    if (j.kind === 'captcha') {
+      if (target === 'cell') { const c = j.cells[Number(ev.id)]; if (c) c.on = !c.on; return c ? [{ type: 'dd_zap' }] : []; }
+      if (target === 'verify') {
+        if (j.cells.every((c) => c.on === (c.e === j.target))) return this.completeJob();
+        for (const c of j.cells) c.on = false;
+        return [{ type: 'dd_wrong', kind: 'captcha' }];
+      }
+      return [];
+    }
+    if (j.kind === 'approve' && target === 'approve') {
+      const it = j.items[Number(ev.id)];
+      if (!it || it.done) return [];
+      if ((ev.value === 'no') !== (it.amount > APPROVE_LIMIT)) return [{ type: 'dd_wrong', kind: 'approve' }];
+      it.done = true;
+      return j.items.every((x) => x.done) ? this.completeJob() : [{ type: 'dd_zap' }];
+    }
+    if (j.kind === 'otp' && target === 'resend') { j.code = this.otpCode(); j.showUntil = this.clock() + this.otpMs(); j.typed = ''; return [{ type: 'dd_zap' }]; }
+    if (j.kind === 'typo' && target === 'word') {
+      const w = j.words[Number(ev.id)];
+      if (!w || w.found) return [];
+      if (!w.bad) return [{ type: 'dd_wrong', kind: 'typo' }];
+      w.found = true;
+      return j.words.every((x) => !x.bad || x.found) ? this.completeJob() : [{ type: 'dd_zap' }];
+    }
+    if (j.kind === 'reply' && target === 'reply') {
+      const i = Number(ev.id);
+      if (!(i >= 0 && i < j.opts.length)) return [];
+      return i === j.answer ? this.completeJob() : [{ type: 'dd_wrong', kind: 'reply' }];
+    }
+    if (j.kind === 'calendar' && target === 'slot') {
+      const i = Number(ev.id);
+      if (!(i >= 0 && i < j.slots.length)) return [];
+      return i < j.slots.length - 1 && !j.slots[i].busy && !j.slots[i + 1].busy ? this.completeJob() : [{ type: 'dd_wrong', kind: 'calendar' }];
+    }
+    if (j.kind === 'desktop' && target === 'icon') {
+      const ic = j.icons[Number(ev.id)];
+      if (!ic || ic.done) return [];
+      if (ic.name !== j.order[j.pos]) return [{ type: 'dd_wrong', kind: 'desktop' }];
+      ic.done = true; j.pos++;
+      return j.pos >= j.order.length ? this.completeJob() : [{ type: 'dd_zap' }];
     }
     if (j.kind === 'files') {
       if (target === 'file') { const f = j.files[Number(ev.id)]; if (f && !f.done) j.sel = Number(ev.id); return []; }
@@ -399,6 +614,9 @@ export class Deadline extends Emitter {
     if (this.paused) return [];
     const t = this.clock();
     const fx = [];
+    const dt = Math.max(0, Math.min(2000, t - (this.lastTickAt ?? t)));
+    this.lastTickAt = t;
+    if (this.phase === 'work' && this.active('antrua')) this.endsAt += dt; // sếp mời ăn trưa: đồng hồ đứng
     for (const p of this.pings) if (p.waiting && t >= p.waitUntil) fx.push(this.setText(p, this.pick(this.d.pings)));
     if (!this.desktop) this.pings = this.pings.filter((p) => p.until == null || p.until > t);
     const before = this.status.length;
@@ -409,6 +627,8 @@ export class Deadline extends Emitter {
       if (!soi) this.nextSoiAt = null;
       else if (t >= this.nextSoiAt) { fx.push(...this.addPing(soi.by, { text: this.pick(this.d.soiLines), soi: true })); this.nextSoiAt = t + SOI_PING_MS; }
     }
+    if (this.phase === 'work') fx.push(...this.storyTick(t));
+    if (this.storyMsgs?.length) this.storyMsgs = this.storyMsgs.filter((m) => m.until > t);
     if (t >= this.endsAt) {
       if (this.phase === 'brief') fx.push(...this.startWork());
       else if (this.phase === 'work') fx.push(...this.finish(false));
@@ -417,7 +637,30 @@ export class Deadline extends Emitter {
     return fx;
   }
 
+  /** Sự kiện cốt truyện theo mốc thời gian của ca (tính trên deadline gốc, không tính phần được gia hạn). */
+  storyTick(t) {
+    const evs = this.chapter()?.events;
+    if (!Array.isArray(evs)) return [];
+    const fx = [];
+    while (this.phase === 'work' && this.storyIdx < evs.length) {
+      const e = evs[this.storyIdx] || {};
+      if (t < this.startedAt + Math.max(0, Math.min(1, Number(e.at) || 0)) * this.deadlineMs) break;
+      this.storyIdx++;
+      const by = { id: `npc:${e.from || '?'}`, name: String(e.from || 'Đồng nghiệp').slice(0, 40), avatar: null, npc: true, icon: e.icon || '💬' };
+      const text = String(e.text || '').slice(0, 120);
+      const eff = EVENT_EFFECTS.has(e.effect) ? e.effect : null;
+      if (eff !== 'ping' && text) {
+        this.storyMsgs.push({ id: ++this.uid, by, text, effect: eff, until: t + STORY_MSG_MS });
+        while (this.storyMsgs.length > 3) this.storyMsgs.shift();
+      }
+      const r = eff ? this.applyEffect(eff, by, { text: eff === 'ping' ? text : null, phrase: e.phrase }) : { fx: [], sub: '' };
+      fx.push({ type: 'dd_story', by, text, effect: eff, sub: r.sub }, ...r.fx);
+    }
+    return fx;
+  }
+
   onResume(d) {
+    for (const m of this.storyMsgs || []) m.until += d;
     for (const p of this.pings) { p.at += d; p.waitUntil += d; if (p.until != null) p.until += d; }
     for (const s of this.status) s.until += d;
     if (this.nextSoiAt != null) this.nextSoiAt += d;
@@ -430,9 +673,22 @@ export class Deadline extends Emitter {
     if (!j) return null;
     if (j.kind === 'mail') return { kind: j.kind, id: j.id, text: j.text, typed: j.typed };
     if (j.kind === 'sheet') return { kind: j.kind, id: j.id, nums: j.nums, typed: j.typed };
+    if (j.kind === 'sign') return { kind: j.kind, id: j.id, need: j.need, signers: j.signers, word: this.s.signWord };
+    if (j.kind === 'colleague') return { kind: j.kind, id: j.id, text: j.text, from: j.from, typed: j.typed };
+    if (j.kind === 'quiz') return { kind: j.kind, id: j.id, a: j.a, b: j.b, typed: j.typed };
+    if (j.kind === 'password') return { kind: j.kind, id: j.id, typed: j.typed, rules: this.pwRules(j.typed) };
+    if (j.kind === 'captcha') return { kind: j.kind, id: j.id, target: j.target, name: j.name, cells: j.cells };
+    if (j.kind === 'approve') return { kind: j.kind, id: j.id, items: j.items, limit: APPROVE_LIMIT };
+    if (j.kind === 'otp') { const left = j.showUntil - this.clock(); return { kind: j.kind, id: j.id, typed: j.typed, code: left > 0 ? j.code : null, showLeftMs: Math.max(0, left), showMs: this.otpMs() }; }
+    if (j.kind === 'typo') return { kind: j.kind, id: j.id, words: j.words.map((w) => ({ w: w.w, found: w.found })), need: j.words.filter((w) => w.bad).length };
+    if (j.kind === 'reply') return { kind: j.kind, id: j.id, msg: j.msg, opts: j.opts };
+    if (j.kind === 'calendar') return { kind: j.kind, id: j.id, slots: j.slots };
+    if (j.kind === 'desktop') return { kind: j.kind, id: j.id, icons: j.icons, pos: j.pos };
     if (j.kind === 'inbox') return { kind: j.kind, id: j.id, mails: j.mails.map((m) => ({ from: m.from, subject: m.subject, done: m.done })) };
     return { kind: j.kind, id: j.id, files: j.files.map((f) => ({ name: f.name, done: f.done })), sel: j.sel };
   }
+
+  enabledJobs() { const l = (Array.isArray(this.s.jobs) ? this.s.jobs : []).filter((k) => JOBS.includes(k)); return l.length ? l : JOBS.slice(0, 4); }
 
   blockerView() {
     const b = this.blockers[0];
@@ -440,6 +696,17 @@ export class Deadline extends Emitter {
     if (b.kind === 'virus') return { kind: b.kind, id: b.id, by: b.by, threats: b.threats.map((x) => ({ name: x.name, removed: x.removed })) };
     if (b.kind === 'jam') return { kind: b.kind, id: b.id, by: b.by, left: b.left, total: b.total };
     return { kind: b.kind, id: b.id, by: b.by, phrase: b.phrase, typed: b.typed };
+  }
+
+  chapterView() {
+    const ch = this.chapter();
+    if (!ch) return null;
+    const b = ch.boss || {};
+    return {
+      no: (this.chapterRank ?? this.rank) + 1, total: this.d.ranks.length, title: String(ch.title || ''), fresh: !!this.chapterFresh,
+      boss: { name: String(b.name || 'Sếp'), role: String(b.role || ''), icon: String(b.icon || '👔') },
+      intro: (Array.isArray(ch.intro) ? ch.intro : []).map(String).slice(0, 4),
+    };
   }
 
   top(board, n = 3) { return Object.values(board).sort((a, b) => b.points - a.points).slice(0, n).map((r) => ({ id: r.id, name: r.name, avatar: r.avatar, points: r.points, gifts: r.gifts })); }
@@ -464,9 +731,13 @@ export class Deadline extends Emitter {
       queued: Math.max(0, this.blockers.length - 1),
       job: this.jobView(),
       jobNo: this.jobNo,
+      jobs: this.enabledJobs(),
       covered: this.phase === 'work' && this.covered(),
       feed: this.feed.map((f) => ({ by: f.by, action: f.action, n: f.n, ageMs: t - f.at })),
       result: this.result,
+      season: this.season,
+      chapter: this.chapterView(),
+      story: (this.storyMsgs || []).filter((m) => m.until > t).map((m) => ({ id: m.id, by: m.by, text: m.text, effect: m.effect, leftMs: m.until - t })),
       top: { bosses: this.top(this.bosses), helpers: this.top(this.helpers) },
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger, every: b.every, count: b.every ? Math.min(b.count, b.every) : 0 })),
     };
@@ -476,8 +747,9 @@ export class Deadline extends Emitter {
     return {
       rank: this.rank, bestRank: this.bestRank, streak: this.streak, shiftNo: this.shiftNo, uid: this.uid, bosses: this.bosses, helpers: this.helpers,
       feed: this.feed, lastMail: this.lastMail, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, deadlineMs: this.deadlineMs,
-      task: this.task, step: this.step, pings: this.pings, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
+      task: this.task, step: this.step, pings: this.pings, recent: this.recent ?? [], lastTickAt: this.lastTickAt ?? null, jobBag: this.jobBag ?? null, lastKind: this.lastKind ?? null, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
       nextSoiAt: this.nextSoiAt, result: this.result,
+      season: this.season, chapterRank: this.chapterRank, seen: this.seen, newSeason: this.newSeason, chapterFresh: this.chapterFresh, storyIdx: this.storyIdx, storyMsgs: this.storyMsgs,
     };
   }
 
@@ -487,6 +759,10 @@ export class Deadline extends Emitter {
     for (const k of Object.keys(this.serialize())) if (k in copy) this[k] = copy[k];
     this.rank = Math.max(0, Math.min(this.d.ranks.length - 1, Number(this.rank) || 0));
     this.step = Math.max(0, Math.min(this.s.steps, Number(this.step) || 0));
+    this.season = Math.max(1, Number(this.season) || 1);
+    if (!Array.isArray(this.seen)) this.seen = [];
+    if (!Array.isArray(this.storyMsgs)) this.storyMsgs = [];
+    this.storyIdx = Math.max(0, Number(this.storyIdx) || 0);
   }
 
   destroy() { this.removeAllListeners(); }
