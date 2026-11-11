@@ -222,7 +222,7 @@ async function loadGame(ch) {
     const canvas = document.createElement('canvas');
     canvas.width = manifest.canvas.width; canvas.height = manifest.canvas.height;
     stage.replaceChildren(canvas, ...(studio ? [studio.el] : []), memeLayer.el, ...(sceneLayer ? [sceneLayer.el] : []));
-    sceneLayer?.setGame(manifest.name);
+    sceneLayer?.setGame(manifest.name, manifest.id);
     const view = render.mount(stage, { canvas, options, sound: null, input: preview ? null : sendInput, memes: { search: (q) => searchMemes(q, 'gif'), source: 'giphy', covered: (action) => memeLayer.covers(ch.game, `action:${action}`) } });
     game = { id: ch.game, manifest, view, canvas, host: null, cfgKey: cfgKeyOf(ch) };
     applyPanels();

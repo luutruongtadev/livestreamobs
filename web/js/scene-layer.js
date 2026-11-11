@@ -11,7 +11,7 @@ export const THEMES = {
 };
 // giống mặc định ở gateway (studio.js → SCENE_DEFAULTS): kênh chưa lưu cấu hình vẫn hiện đủ
 const DEFAULTS = {
-  intro: { title: 'LIVE SẮP BẮT ĐẦU', subtitle: 'Chờ chút nhé, mình đang chuẩn bị 💖', countdownMin: 5, autoLive: false, theme: 'tim', image: '', showChat: true },
+  intro: { title: 'LIVE SẮP BẮT ĐẦU', subtitle: 'Chờ chút nhé, mình đang chuẩn bị 💖', countdownMin: 5, autoLive: false, theme: 'tim', image: '', showChat: true, trailer: true },
   outro: { title: 'CẢM ƠN MỌI NGƯỜI!', subtitle: 'Hẹn gặp lại ở buổi live sau nha 👋', warnMin: 5, pauseGame: true, theme: 'dem', image: '', showTop: true },
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,9 +47,24 @@ const CSS = `
 .sc-warn { position:absolute; left:50%; top:170px; transform:translateX(-50%); z-index:2; display:none; font-weight:900; font-size:40px; padding:16px 40px; border-radius:50px; background:rgba(127,29,29,.92); border:3px solid #fca5a5; box-shadow:0 10px 40px rgba(0,0,0,.45); white-space:nowrap; }
 .sc-warn.on { display:block; animation:sc-pulse 1s ease-in-out infinite; }
 @keyframes sc-pulse { 50% { transform:translateX(-50%) scale(1.05); } }
+/* có trailer: tiêu đề gọn ở trên, hàng dưới = khung điện thoại chạy demo game (trái) + đếm ngược, chip, bình luận (phải) */
+.sc-tr .sc-body { width:980px; gap:20px; margin-top:0; }
+.sc-tr .sc-title { font-size:76px; }
+.sc-tr .sc-sub { font-size:34px; }
+.sc-row2 { display:flex; gap:36px; align-items:center; width:100%; margin-top:14px; }
+.sc-phone { position:relative; flex:none; box-sizing:border-box; width:450px; height:775px; border-radius:46px; padding:12px; background:#0b0b10; border:4px solid rgba(255,255,255,.35); box-shadow:0 30px 70px rgba(0,0,0,.55); }
+.sc-screen { position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden; background:#000; }
+.sc-screen iframe { position:absolute; left:0; top:0; width:1080px; height:1920px; border:0; transform-origin:0 0; pointer-events:none; }
+.sc-tag { position:absolute; left:50%; top:-22px; transform:translateX(-50%); z-index:1; white-space:nowrap; font-weight:900; font-size:26px; letter-spacing:2px; padding:8px 22px; border-radius:30px; background:#ef4444; box-shadow:0 6px 20px rgba(0,0,0,.4); }
+.sc-side { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:20px; }
+.sc-tr .sc-count { font-size:116px; }
+.sc-tr .sc-label { margin-bottom:-14px; }
+.sc-game { font-weight:900; font-size:46px; line-height:1.15; text-shadow:0 6px 20px rgba(0,0,0,.4); }
+.sc-tr .sc-chat { position:static; width:100%; margin-top:10px; }
+.sc-tr .sc-msg { font-size:26px; }
 `;
 
-/** createSceneLayer({ now }) → { el, set(studio), setStats(st), setGame(name), event(e), preview(mode|null), modeNow(), fit(scale), destroy() } */
+/** createSceneLayer({ now }) → { el, set(studio), setStats(st), setGame(name, id), event(e), preview(mode|null), modeNow(), fit(scale), destroy() } */
 export function createSceneLayer({ now = () => Date.now(), onMode = null } = {}) {
   const el = document.createElement('div');
   el.className = 'sc-root';
@@ -58,7 +73,7 @@ export function createSceneLayer({ now = () => Date.now(), onMode = null } = {})
   const full = document.createElement('div'); full.className = 'sc-full';
   const warn = document.createElement('div'); warn.className = 'sc-warn';
   el.append(full, warn);
-  let cfg = { intro: { ...DEFAULTS.intro }, outro: { ...DEFAULTS.outro } }, scene = { mode: 'live' }, stats = null, gameName = '', forced = null, shown = '', lastMode = 'live';
+  let cfg = { intro: { ...DEFAULTS.intro }, outro: { ...DEFAULTS.outro } }, scene = { mode: 'live' }, stats = null, gameName = '', gameId = '', forced = null, shown = '', lastMode = 'live';
   const chat = []; // { name, text, join }
 
   function bg(c) {
@@ -79,6 +94,27 @@ export function createSceneLayer({ now = () => Date.now(), onMode = null } = {})
   function renderIntro() {
     const c = cfg.intro;
     const startAt = (forced ? now() : scene.at || now()) + (c.countdownMin || 0) * 60_000;
+    const trailer = c.trailer !== false && /^[a-z][a-z0-9-]{1,31}$/.test(gameId);
+    full.classList.toggle('sc-tr', trailer);
+    if (trailer) {
+      full.innerHTML = `${bg(c)}<div class="sc-body">
+      <div class="sc-kicker">🔴 LIVE</div>
+      <div class="sc-title">${esc(c.title || 'LIVE SẮP BẮT ĐẦU')}</div>
+      ${c.subtitle ? `<div class="sc-sub">${esc(c.subtitle)}</div>` : ''}
+      <div class="sc-row2">
+        <div class="sc-phone"><span class="sc-tag">▶ TRAILER</span><div class="sc-screen"><iframe src="/demo?game=${encodeURIComponent(gameId)}" title="Trailer" tabindex="-1" style="transform:scale(${418 / 1080})"></iframe></div></div>
+        <div class="sc-side">
+          <div class="sc-label" style="margin-bottom:-10px">🎮 Hôm nay chơi</div>
+          <div class="sc-game">${esc(gameName || gameId)}</div>
+          ${c.countdownMin > 0 ? `<div class="sc-label">Bắt đầu sau</div><div class="sc-count" data-to="${startAt}">${clock(startAt - now())}</div>` : ''}
+          <div class="sc-chips"><div class="sc-chip" data-k="likes">❤️ ${fmtN(stats?.likes)}</div></div>
+          ${c.showChat !== false ? '<div class="sc-chat"></div>' : ''}
+        </div>
+      </div>
+    </div>`;
+      paintChat();
+      return;
+    }
     full.innerHTML = `${bg(c)}<div class="sc-body">
       <div class="sc-kicker">🔴 LIVE</div>
       <div class="sc-title">${esc(c.title || 'LIVE SẮP BẮT ĐẦU')}</div>
@@ -102,14 +138,15 @@ export function createSceneLayer({ now = () => Date.now(), onMode = null } = {})
   function paintChat() {
     const box = full.querySelector('.sc-chat');
     if (!box) return;
-    box.innerHTML = chat.slice(-5).map((m) => `<div class="sc-msg">${m.join ? `👋 <b>${esc(m.name)}</b>vừa vào live` : `<b>${esc(m.name)}</b>${esc(m.text)}`}</div>`).join('');
+    box.innerHTML = chat.slice(full.classList.contains('sc-tr') ? -4 : -5).map((m) => `<div class="sc-msg">${m.join ? `👋 <b>${esc(m.name)}</b>vừa vào live` : `<b>${esc(m.name)}</b>${esc(m.text)}`}</div>`).join('');
   }
   function paint() {
     const m = modeNow();
     if (m !== lastMode) { lastMode = m; onMode?.(m); }
-    const key = m === 'live' ? 'live' : `${m}|${JSON.stringify(cfg[m === 'intro' ? 'intro' : 'outro'])}|${scene.at}|${forced}|${gameName}|${m === 'outro' ? JSON.stringify(stats?.gifters?.slice(0, 5)) : ''}`;
+    const key = m === 'live' ? 'live' : `${m}|${JSON.stringify(cfg[m === 'intro' ? 'intro' : 'outro'])}|${scene.at}|${forced}|${gameName}|${gameId}|${m === 'outro' ? JSON.stringify(stats?.gifters?.slice(0, 5)) : ''}`;
     if (key !== shown) {
       shown = key;
+      full.classList.remove('sc-tr');
       if (m === 'intro') renderIntro(); else if (m === 'outro') renderOutro(); else full.innerHTML = '';
       full.classList.toggle('on', m !== 'live');
     }
@@ -135,7 +172,7 @@ export function createSceneLayer({ now = () => Date.now(), onMode = null } = {})
       paint();
     },
     setStats(st) { stats = st; },
-    setGame(name) { gameName = String(name || ''); },
+    setGame(name, id) { gameName = String(name || ''); gameId = String(id || ''); },
     event(e) {
       if (e?.type === 'comment' && e.text) chat.push({ name: e.user?.name || 'Ẩn danh', text: String(e.text).slice(0, 80) });
       else if (e?.type === 'member') chat.push({ name: e.user?.name || 'Ai đó', join: true });

@@ -179,7 +179,7 @@ test('checkStudio: bảng của game (vị trí / cỡ / ẩn) chỉ nhận game
 test('màn chuẩn bị / kết thúc live: cấu hình làm sạch (thiếu → mặc định, ảnh chỉ https), trạng thái màn + hẹn giờ tắt trong 24 giờ', async () => {
   const { cleanScenes, checkScene } = await import('../gateway/studio.js');
   const s = checkStudio({ scenes: { intro: { title: 'Sắp live', countdownMin: 999, image: 'http://x.test/a.jpg', theme: 'la' }, outro: { warnMin: 3, pauseGame: false } } }, widgets);
-  assert.equal(s.scenes.intro.title, 'Sắp live'); assert.equal(s.scenes.intro.countdownMin, 180); assert.equal(s.scenes.intro.image, ''); assert.equal(s.scenes.intro.theme, 'tim');
+  assert.equal(s.scenes.intro.title, 'Sắp live'); assert.equal(s.scenes.intro.countdownMin, 180); assert.equal(s.scenes.intro.image, ''); assert.equal(s.scenes.intro.theme, 'tim'); assert.equal(s.scenes.intro.trailer, true, 'mặc định chiếu trailer');
   assert.equal(s.scenes.outro.warnMin, 3); assert.equal(s.scenes.outro.pauseGame, false); assert.equal(s.scenes.outro.title, 'CẢM ƠN MỌI NGƯỜI!');
   assert.equal(cleanScenes({ intro: { image: 'https://cdn.test/bg.jpg' } }).intro.image, 'https://cdn.test/bg.jpg');
   const now = 1_000_000_000;

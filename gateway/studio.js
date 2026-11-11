@@ -116,7 +116,7 @@ export function checkStudio(input, widgets = [], games = []) {
 
 export const SCENE_THEMES = ['tim', 'dem', 'cam', 'xanh', 'hong'];
 export const SCENE_DEFAULTS = {
-  intro: { title: 'LIVE SẮP BẮT ĐẦU', subtitle: 'Chờ chút nhé, mình đang chuẩn bị 💖', countdownMin: 5, autoLive: false, theme: 'tim', image: '', showChat: true },
+  intro: { title: 'LIVE SẮP BẮT ĐẦU', subtitle: 'Chờ chút nhé, mình đang chuẩn bị 💖', countdownMin: 5, autoLive: false, theme: 'tim', image: '', showChat: true, trailer: true },
   outro: { title: 'CẢM ƠN MỌI NGƯỜI!', subtitle: 'Hẹn gặp lại ở buổi live sau nha 👋', warnMin: 5, pauseGame: true, theme: 'dem', image: '', showTop: true },
 };
 const httpsUrl = (v) => { const u = str(v, 500).trim(); return /^https:\/\/[^\s"'<>]+$/i.test(u) ? u : ''; };
@@ -128,7 +128,7 @@ export function cleanScenes(input) {
   return {
     intro: {
       title: str(a.title, 60), subtitle: str(a.subtitle, 160), countdownMin: Math.round(num(a.countdownMin, 0, 180, 5)), autoLive: a.autoLive === true,
-      theme: SCENE_THEMES.includes(a.theme) ? a.theme : 'tim', image: httpsUrl(a.image), showChat: a.showChat !== false,
+      theme: SCENE_THEMES.includes(a.theme) ? a.theme : 'tim', image: httpsUrl(a.image), showChat: a.showChat !== false, trailer: a.trailer !== false,
     },
     outro: {
       title: str(b.title, 60), subtitle: str(b.subtitle, 160), warnMin: Math.round(num(b.warnMin, 0, 60, 5)), pauseGame: b.pauseGame !== false,

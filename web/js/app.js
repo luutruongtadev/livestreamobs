@@ -416,6 +416,7 @@ const SCENE_SCH = {
     countdownMin: { type: 'integer', title: 'Đếm ngược (phút, 0 = không đếm)', minimum: 0, maximum: 180, default: 5 },
     autoLive: { type: 'boolean', title: 'Hết đếm ngược thì tự vào live', default: false },
     showChat: { type: 'boolean', title: 'Hiện bình luận / người vừa vào', default: true },
+    trailer: { type: 'boolean', title: 'Chiếu trailer game sắp chơi (demo như trang chủ)', default: true },
     theme: { ...THEME_SCH, default: 'tim' }, image: { ...IMG_SCH, default: '' },
   },
   outro: {
