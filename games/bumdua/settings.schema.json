@@ -75,9 +75,9 @@
     },
     "popSeconds": {
       "type": "integer",
-      "title": "Ăn mừng dưa nổ bao nhiêu giây rồi lên trái mới",
-      "minimum": 3,
-      "maximum": 15,
+      "title": "Thời gian chờ qua trái mới sau khi dưa nổ (giây)",
+      "minimum": 2,
+      "maximum": 60,
       "default": 5
     },
     "showBoard": {
