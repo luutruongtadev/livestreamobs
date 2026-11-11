@@ -1,6 +1,6 @@
 # 🍉 Bùm Dưa (`bumdua`)
 
-Cô Ba ở sạp dưa ngoài chợ quấn dây thun quanh trái dưa hấu. Mỗi bình luận là một sợi dây có mặt người xem. Không ai biết sợi nào làm dưa nổ tung. Người có sợi cuối cùng được vào **Bảng Bùm**.
+Cô Ba ở vườn dưa quấn dây thun quanh trái dưa hấu. Mỗi bình luận là một sợi dây có mặt người xem. Không ai biết sợi nào làm dưa nổ tung. Người có sợi cuối cùng được vào **Bảng Bùm**.
 
 ## Luật
 - **Bình luận** (nội dung gì cũng được): thêm 1 sợi vào hàng chờ, cô Ba quấn lần lượt.
@@ -30,5 +30,5 @@ Cô Ba ở sạp dưa ngoài chợ quấn dây thun quanh trái dưa hấu. Mỗ
 Lệnh: `pop` (cho nổ ngay), `next` (dưa mới), `clear-board`. `pause` / `resume` do nền tảng cung cấp.
 
 ## Studio
-- **Bảng kéo được:** Bảng quà, Bảng Bùm (kéo, phóng to / thu nhỏ, ẩn trong Studio).
+- **Bảng kéo được:** Bảng quà (dưới cùng), bảng Nhiều dây nhất + Bảng Bùm + dòng sự kiện (góc trên trái); kéo, phóng to / thu nhỏ, ẩn trong Studio.
 - **Sự kiện cho meme:** Dưa nổ, Dao bổ đôi, Thớt chặn dao. Có bộ meme mặc định.
