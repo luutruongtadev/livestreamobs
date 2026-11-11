@@ -1,14 +1,15 @@
 // Renderer canvas của game Đoán cờ vòng quanh thế giới (khung dọc 1080×1920, chừa ~260px trên cho giao diện TikTok).
-// Motif hàng không: bản đồ đêm + đường bay, dải chặng có điểm mốc, "thẻ lên máy bay" giấy kem cho lá cờ, tem hộ chiếu khi tới nơi.
+// Motif hàng không, tông kem / nâu đất: bản đồ giấy + đường bay, dải chặng có điểm mốc, "thẻ lên máy bay" giấy kem cho lá cờ, tem hộ chiếu khi tới nơi.
 // Không đụng DOM khi import; ảnh cờ / bản đồ nạp theo đường dẫn tương đối với file này.
 import { drawPanel } from '#sdk';
 import { createScene } from './lowpoly.js';
 
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
-const C = {
-  sea0: '#071a26', sea1: '#0c2a3b', grid: 'rgba(160,210,220,.06)', land: '#1d4b5c', landEdge: '#0a2230', lit: '#f2b83b', litEdge: '#a8761a',
-  paper: '#f5eedf', paperEdge: '#e2d6bd', ink: '#1c1a17', inkSoft: '#6b6355', stamp: '#c8402a', teal: '#17a398', tealDark: '#0e6f68',
-  text: '#eef6f7', dim: 'rgba(214,234,238,.72)', faint: 'rgba(214,234,238,.4)', gold: '#f2b83b', red: '#e5533d', sky: '#7dd3e8',
+const C = { // tông kem / nâu đất: nền giấy kem, chữ nâu espresso, điểm nhấn đỏ gạch + ô liu + xanh xô thơm
+  sea0: '#e0d0b1', sea1: '#f1e7d3', hole: '#e7d9bf', grid: 'rgba(59,42,32,.07)', land: '#c2b88f', landEdge: '#8f8767', lit: '#b5593c', litEdge: '#7c3d2a',
+  paper: '#fbf5e8', paperEdge: '#d9c9a8', ink: '#3b2a20', inkSoft: '#7a6553', stamp: '#b5593c', teal: '#6f7f4a', tealDark: '#55632f',
+  text: '#3b2a20', dim: 'rgba(59,42,32,.72)', faint: 'rgba(59,42,32,.42)', gold: '#a8672c', red: '#b23a2a', sky: '#3f737a',
+  panel: 'rgba(251,245,232,.94)', panelEdge: 'rgba(138,69,48,.32)', veil: 'rgba(59,42,32,.55)',
 };
 const REGION_BOX = { // khung gần đúng (kinh độ, vĩ độ) để chỉ châu lục trên bản đồ
   'chau-a': [25, -11, 150, 55], 'chau-au': [-25, 35, 45, 71], 'chau-phi': [-18, -35, 52, 37],
@@ -130,9 +131,9 @@ export function mount(el, { canvas, options = {} } = {}) {
   function drawMap(now) {
     const { x, y, w, h } = MAP;
     ctx.save();
-    rr(x - 2, y - 2, w + 4, h + 4, 26); ctx.fillStyle = 'rgba(4,14,22,.6)'; ctx.fill();
+    rr(x - 3, y - 3, w + 6, h + 6, 27); ctx.fillStyle = 'rgba(59,42,32,.4)'; ctx.fill();
     rr(x, y, w, h, 24); ctx.clip();
-    const sea = ctx.createLinearGradient(0, y, 0, y + h); sea.addColorStop(0, '#0d3245'); sea.addColorStop(1, '#09202e');
+    const sea = ctx.createLinearGradient(0, y, 0, y + h); sea.addColorStop(0, '#a9c3c0'); sea.addColorStop(1, '#8fb0b0');
     ctx.fillStyle = sea; ctx.fillRect(x, y, w, h);
     const sc = sceneState(now);
     ctx.save();
@@ -150,7 +151,7 @@ export function mount(el, { canvas, options = {} } = {}) {
       if (b) {
         const [x0, y0] = proj(b[0], b[3]), [x1, y1] = proj(b[2], b[1]);
         const pulse = 0.5 + 0.5 * Math.sin(now / 300);
-        ctx.fillStyle = `rgba(125,211,232,${0.1 + pulse * 0.1})`; ctx.strokeStyle = C.sky; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+        ctx.fillStyle = `rgba(63,115,122,${0.12 + pulse * 0.12})`; ctx.strokeStyle = C.sky; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
         rr(x + x0, y + y0, x1 - x0, y1 - y0, 18); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
         text(`🧭 ${S.regionName}`, x + (x0 + x1) / 2, y + y0 + 26, 28, C.sky, 900);
       }
@@ -162,7 +163,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     if (t.from && flyK < 1) {
       const [ax, ay] = proj(t.from.lon, t.from.lat), [bx, by] = proj(t.at.lon, t.at.lat);
       const cx = (ax + bx) / 2, cy = Math.min(ay, by) - Math.max(40, Math.abs(bx - ax) * 0.18);
-      ctx.strokeStyle = 'rgba(242,184,59,.85)'; ctx.lineWidth = 3; ctx.setLineDash([2, 10]); ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(124,61,42,.9)'; ctx.lineWidth = 3; ctx.setLineDash([2, 10]); ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(x + ax, y + ay); ctx.quadraticCurveTo(x + cx, y + cy, x + bx, y + by); ctx.stroke(); ctx.setLineDash([]);
       const q = (k) => [(1 - k) ** 2 * ax + 2 * (1 - k) * k * cx + k * k * bx, (1 - k) ** 2 * ay + 2 * (1 - k) * k * cy + k * k * by];
       [px, py] = q(flyK);
@@ -171,7 +172,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     } else {
       [px, py] = proj(t.at.lon, t.at.lat);
       const pulse = 0.5 + 0.5 * Math.sin(now / 400);
-      ctx.beginPath(); ctx.arc(x + px, y + py, 14 + pulse * 10, 0, Math.PI * 2); ctx.fillStyle = `rgba(242,184,59,${0.25 - pulse * 0.15})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(x + px, y + py, 14 + pulse * 10, 0, Math.PI * 2); ctx.fillStyle = `rgba(181,89,60,${0.32 - pulse * 0.18})`; ctx.fill();
       drawPlane(x + px, y + py, -Math.PI / 4);
     }
     ctx.restore();
@@ -180,18 +181,18 @@ export function mount(el, { canvas, options = {} } = {}) {
     // nhãn vị trí
     const label = S.phase === 'landed' ? '🏠 Về nhà: Hà Nội' : `📍 ${t.at.name}`;
     const lw = measure(label, 24, 800) + 36;
-    rr(x + 18, y + h - 58, lw, 42, 21); ctx.fillStyle = 'rgba(4,14,22,.82)'; ctx.fill();
+    rr(x + 18, y + h - 58, lw, 42, 21); ctx.fillStyle = C.panel; ctx.fill();
     text(label, x + 18 + lw / 2, y + h - 37, 24, C.text, 800);
     const vc = `🗺️ ${fmtN(S.visitedCount)} nước đã ghé`;
     const vw = measure(vc, 22, 700) + 32;
-    rr(x + w - 18 - vw, y + h - 56, vw, 38, 19); ctx.fillStyle = 'rgba(4,14,22,.82)'; ctx.fill();
+    rr(x + w - 18 - vw, y + h - 56, vw, 38, 19); ctx.fillStyle = C.panel; ctx.fill();
     text(vc, x + w - 18 - vw / 2, y + h - 37, 22, C.gold, 700);
     return y + h;
   }
   function drawPlane(x, y, ang) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang + Math.PI / 4);
     ctx.font = `44px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(59,42,32,.5)'; ctx.shadowBlur = 8;
     ctx.fillText('✈️', 0, 0);
     ctx.restore();
   }
@@ -205,7 +206,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     if (!(sc.a > 0) || !scene?.obj) return;
     const { x, y, w } = MAP, hh = MAP.h + (SCENE_H - MAP.h) * sc.grow;
     ctx.save();
-    if (sc.grow > 0) { ctx.shadowColor = `rgba(0,0,0,${0.5 * sc.a})`; ctx.shadowBlur = 34; ctx.shadowOffsetY = 12; rr(x, y, w, hh, 24); ctx.fillStyle = `rgba(4,14,22,${sc.a})`; ctx.fill(); ctx.shadowColor = 'transparent'; }
+    if (sc.grow > 0) { ctx.shadowColor = `rgba(0,0,0,${0.5 * sc.a})`; ctx.shadowBlur = 34; ctx.shadowOffsetY = 12; rr(x, y, w, hh, 24); ctx.fillStyle = `rgba(59,42,32,${sc.a})`; ctx.fill(); ctx.shadowColor = 'transparent'; }
     rr(x, y, w, hh, 24); ctx.clip();
     scene.obj.draw(ctx, x, y, sc.t, sc.a, { viewH: hh, grow: sc.grow });
     drawSceneCard(x + 20, y + SCENE_H - 322, w - 40, 290, sc, now);
@@ -215,7 +216,7 @@ export function mount(el, { canvas, options = {} } = {}) {
   /** Thẻ thông tin của cảnh: tấm bảng kem dày (mặt trên sáng, cạnh dưới sẫm), lá cờ thành khối có bề dày, chữ nâu espresso. */
   function drawSceneCard(x, y, w, h, sc, now) {
     const a = scene.info;
-    const k = reduced ? (sc.t > 0 ? 1 : 0) : back((sc.t - 1.7) / 0.55);
+    const k = reduced ? (sc.t > 0 ? 1 : 0) : back((sc.t - 2.2) / 0.55);
     if (!a || k <= 0) return;
     ctx.save(); ctx.globalAlpha = sc.a * Math.min(1, k * 1.4); ctx.translate(0, (1 - k) * 110);
     // bóng đổ + khối bảng
@@ -251,7 +252,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     if (i < words.length) text(words.slice(i).join(' '), tx, y + 254, 21, L.ink, 600, 'left', tw);
     // con dấu hộ chiếu + chặng
     ctx.save(); ctx.translate(x + w - 122, y + 78); ctx.rotate(-0.16);
-    const sk = reduced ? 1 : back((sc.t - 2.4) / 0.35);
+    const sk = reduced ? 1 : back((sc.t - 2.9) / 0.35);
     if (sk > 0) {
       ctx.scale(2 - sk, 2 - sk); ctx.globalAlpha *= Math.min(1, sk) * 0.9; ctx.strokeStyle = L.terra; ctx.lineWidth = 5;
       rr(-92, -42, 184, 84, 12); ctx.stroke(); ctx.lineWidth = 2; rr(-84, -34, 168, 68, 8); ctx.stroke();
@@ -294,7 +295,7 @@ export function mount(el, { canvas, options = {} } = {}) {
   function drawLegs(y) {
     const t = S.trip, n = t.length, x0 = 60, x1 = W - 60;
     const step = (x1 - x0) / n;
-    ctx.strokeStyle = 'rgba(214,234,238,.18)'; ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(59,42,32,.18)'; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
     ctx.strokeStyle = C.gold; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + step * t.pos, y); ctx.stroke();
@@ -302,10 +303,10 @@ export function mount(el, { canvas, options = {} } = {}) {
       const cx = x0 + step * i, cp = i % t.every === 0, done = i <= t.pos;
       if (cp) {
         ctx.save(); ctx.translate(cx, y); ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = done ? C.gold : C.sea1; ctx.strokeStyle = done ? C.gold : 'rgba(214,234,238,.5)'; ctx.lineWidth = 3;
+        ctx.fillStyle = done ? C.gold : C.sea1; ctx.strokeStyle = done ? C.gold : 'rgba(59,42,32,.45)'; ctx.lineWidth = 3;
         ctx.fillRect(-11, -11, 22, 22); ctx.strokeRect(-11, -11, 22, 22); ctx.restore();
       } else if (n <= 40) {
-        ctx.beginPath(); ctx.arc(cx, y, done ? 7 : 5, 0, Math.PI * 2); ctx.fillStyle = done ? C.gold : 'rgba(214,234,238,.35)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, y, done ? 7 : 5, 0, Math.PI * 2); ctx.fillStyle = done ? C.gold : 'rgba(59,42,32,.3)'; ctx.fill();
       }
     }
     text('🏠', x1 + 2, y - 2, 28);
@@ -324,11 +325,11 @@ export function mount(el, { canvas, options = {} } = {}) {
     const shake = anim.shake > 0 ? Math.sin(now / 30) * 10 * anim.shake : 0;
     ctx.save(); ctx.translate(shake, 0);
     // giấy + lỗ bấm vé
-    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+    ctx.shadowColor = 'rgba(59,42,32,.3)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
     rr(x, y0, w, h, 28); ctx.fillStyle = C.paper; ctx.fill();
     ctx.shadowColor = 'transparent';
     const cut = x + 560;
-    ctx.fillStyle = C.sea0;
+    ctx.fillStyle = C.hole;
     ctx.beginPath(); ctx.arc(cut, y0, 22, 0, Math.PI * 2); ctx.arc(cut, y0 + h, 22, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = C.paperEdge; ctx.lineWidth = 3; ctx.setLineDash([10, 10]);
     ctx.beginPath(); ctx.moveTo(cut, y0 + 30); ctx.lineTo(cut, y0 + h - 30); ctx.stroke(); ctx.setLineDash([]);
@@ -436,7 +437,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     if (h < 120) return;
     // phi hành đoàn
     const bw = 600;
-    rr(40, y, bw, h, 26); ctx.fillStyle = 'rgba(4,14,22,.72)'; ctx.fill(); ctx.strokeStyle = 'rgba(242,184,59,.35)'; ctx.lineWidth = 2; ctx.stroke();
+    rr(40, y, bw, h, 26); ctx.fillStyle = C.panel; ctx.fill(); ctx.strokeStyle = C.panelEdge; ctx.lineWidth = 2; ctx.stroke();
     text('🧑‍✈️ PHI HÀNH ĐOÀN', 68, y + 36, 24, C.gold, 900, 'left');
     const rows = (S.board || []).slice(0, 5);
     if (!rows.length) text('Đoán đúng để vào phi hành đoàn!', 40 + bw / 2, y + h / 2 + 10, 24, C.faint, 700);
@@ -452,7 +453,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     // quà → tác dụng (bảng streamer chỉnh được trong Studio)
     studioPanel('gifts', { x: 660, y }, () => {
     const px = 660, pw = W - 40 - px;
-    rr(px, y, pw, h, 26); ctx.fillStyle = 'rgba(4,14,22,.72)'; ctx.fill(); ctx.strokeStyle = 'rgba(125,211,232,.3)'; ctx.lineWidth = 2; ctx.stroke();
+    rr(px, y, pw, h, 26); ctx.fillStyle = C.panel; ctx.fill(); ctx.strokeStyle = C.panelEdge; ctx.lineWidth = 2; ctx.stroke();
     text('🎁 TẶNG QUÀ ĐỂ…', px + 24, y + 36, 22, C.sky, 900, 'left');
     // mỗi quà một dòng (2 dòng nếu đủ chỗ) — không bao giờ chồng chữ
     const prow = Math.max(1, Math.floor((h - 62) / 34));
@@ -474,9 +475,9 @@ export function mount(el, { canvas, options = {} } = {}) {
   function drawRescue(now) {
     const rem = remaining(now);
     const pulse = 0.5 + 0.5 * Math.sin(now / 160);
-    ctx.fillStyle = `rgba(200,64,42,${0.12 + pulse * 0.1})`; ctx.fillRect(0, MAP.y, W, MAP.h);
+    ctx.fillStyle = `rgba(178,58,42,${0.14 + pulse * 0.12})`; ctx.fillRect(0, MAP.y, W, MAP.h);
     const y = MAP.y + MAP.h / 2 - 90;
-    rr(80, y, W - 160, 180, 30); ctx.fillStyle = 'rgba(28,10,8,.93)'; ctx.fill(); ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.stroke();
+    rr(80, y, W - 160, 180, 30); ctx.fillStyle = 'rgba(251,245,232,.97)'; ctx.fill(); ctx.strokeStyle = C.red; ctx.lineWidth = 4; ctx.stroke();
     text('⚠️ MÁY BAY GẶP NẠN!', W / 2, y + 52, 48, C.red, 900);
     const shield = (S.powerups || []).find((p) => p.action === 'shield');
     text(shield ? `Tặng ${shield.icon} ${shield.text} để cứu — còn ${Math.ceil(rem / 1000)}s` : `Còn ${Math.ceil(rem / 1000)}s trước khi rơi về điểm mốc`, W / 2, y + 108, 28, C.text, 800, 'center', W - 220);
@@ -484,7 +485,7 @@ export function mount(el, { canvas, options = {} } = {}) {
   }
   function drawLanded(now) {
     const sm = S.summary || { stamps: 0, crew: [] };
-    ctx.fillStyle = 'rgba(4,10,16,.6)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = C.veil; ctx.fillRect(0, 0, W, H);
     const k = reduced ? 1 : back((now - anim.phaseAt) / 600);
     const y = 560;
     ctx.save(); ctx.translate(W / 2, y + 300); ctx.scale(k, k); ctx.translate(-W / 2, -(y + 300));
@@ -504,7 +505,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.restore();
   }
   function drawPaused() {
-    ctx.fillStyle = 'rgba(4,10,16,.6)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = C.veil; ctx.fillRect(0, 0, W, H);
     rr(W / 2 - 340, H / 2 - 100, 680, 200, 34); ctx.fillStyle = C.paper; ctx.fill();
     text('⏸ TẠM DỪNG', W / 2, H / 2 - 24, 60, C.ink, 900);
     text('Máy bay đang chờ ở sân bay', W / 2, H / 2 + 46, 28, C.inkSoft, 700);
@@ -529,7 +530,7 @@ export function mount(el, { canvas, options = {} } = {}) {
       ctx.save(); ctx.globalAlpha = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.6) / 0.4);
       ctx.lineJoin = 'round'; ctx.font = `900 ${f.size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const yy = f.y - ease(k) * 100;
-      ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(4,10,16,.85)'; ctx.strokeText(f.text, f.x, yy); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, yy);
+      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(59,42,32,.92)'; ctx.strokeText(f.text, f.x, yy); ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, yy);
       ctx.restore();
     }
     if (anim.banner) {
@@ -539,7 +540,7 @@ export function mount(el, { canvas, options = {} } = {}) {
         const a = b.age < 0.2 ? b.age / 0.2 : 1 - Math.max(0, (b.age - b.life + 0.4) / 0.4);
         ctx.save(); ctx.globalAlpha = a;
         const bw = Math.min(W - 120, measure(b.text, 36, 900) + 80);
-        rr((W - bw) / 2, MAP.y + 24, bw, 70, 35); ctx.fillStyle = 'rgba(4,14,22,.92)'; ctx.fill(); ctx.strokeStyle = b.color; ctx.lineWidth = 3; ctx.stroke();
+        rr((W - bw) / 2, MAP.y + 24, bw, 70, 35); ctx.fillStyle = 'rgba(251,245,232,.97)'; ctx.fill(); ctx.strokeStyle = b.color; ctx.lineWidth = 3; ctx.stroke();
         text(b.text, W / 2, MAP.y + 60, 36, b.color, 900, 'center', bw - 40);
         ctx.restore();
       }
@@ -550,7 +551,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     const live = floaters.filter((f) => f.ok);
     if (live.length >= 4) floaters.splice(floaters.indexOf(live[0]), 1);
     const used = new Set(floaters.filter((f) => f.ok).map((f) => f.slot)); let slot = 0; while (used.has(slot)) slot++;
-    floaters.push({ text: label, x: W / 2, y: MAP.y + MAP.h - 40 - slot * 58, slot, ok: true, color: '#9ff0e6', size: 40, life: 1.8, age: 0 });
+    floaters.push({ text: label, x: W / 2, y: MAP.y + MAP.h - 40 - slot * 58, slot, ok: true, color: '#f3f6cf', size: 40, life: 1.8, age: 0 });
   }
   void okSlots;
 
