@@ -121,6 +121,50 @@
       ]
     },
     {
+      "id": "meo",
+      "label": "Mèo đi qua bàn phím",
+      "icon": "🐱",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Ice Cream Cone"
+        }
+      ]
+    },
+    {
+      "id": "capslock",
+      "label": "Caps Lock kẹt",
+      "icon": "⇪",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "GG"
+        }
+      ]
+    },
+    {
+      "id": "cupdien",
+      "label": "Cúp điện",
+      "icon": "🌑",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rosa"
+        }
+      ]
+    },
+    {
+      "id": "wifi",
+      "label": "Rớt wifi",
+      "icon": "📶",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Paper Crane"
+        }
+      ]
+    },
+    {
       "id": "cafe",
       "label": "Cà phê sữa đá",
       "icon": "☕",
@@ -154,6 +198,28 @@
         {
           "type": "gift",
           "giftName": "Sunglasses"
+        }
+      ]
+    },
+    {
+      "id": "antrua",
+      "label": "Sếp mời ăn trưa",
+      "icon": "🍱",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Confetti"
+        }
+      ]
+    },
+    {
+      "id": "tainghe",
+      "label": "Tai nghe chống ồn",
+      "icon": "🎧",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Mishka Bear"
         }
       ]
     },

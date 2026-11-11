@@ -91,6 +91,12 @@
     "cafe": { "mood": "happy", "lines": ["Sống lại rồi ☕✨", "Một ly cà phê, mười cái deadline", "Tỉnh cả người"] },
     "giahan": { "mood": "happy", "lines": ["Được cứu rồi 😭🙏", "Sếp hôm nay hiền thế", "Thêm giờ, thêm hy vọng"] },
     "intern": { "mood": "happy", "lines": ["Thực tập sinh là chân ái 🫶", "Có người gánh team rồi", "Em giỏi quá em ơi"] },
+    "meo": { "mood": "shock", "lines": ["Meo meo… xoá hết rồi 🐱", "Ai cho mèo vào văn phòng?!", "Bàn phím giờ là giường của nó"] },
+    "capslock": { "mood": "dizzy", "lines": ["tẠi SaO cHữ Bị NgƯợC", "Caps Lock phản chủ 😵", "GÕ GÌ CŨNG NHƯ ĐANG HÉT"] },
+    "cupdien": { "mood": "skull", "lines": ["Tối thui luôn 🌑", "Ai rút phích cắm vậy?!", "Chưa kịp lưu file…"] },
+    "wifi": { "mood": "angry", "lines": ["Xoay xoay xoay… 📶", "Wifi công ty lại dỗi", "Gửi mãi không đi!"] },
+    "antrua": { "mood": "happy", "lines": ["Cơm sếp bao ngon nhất 🍱", "Ăn đã, deadline tính sau", "Đồng hồ cũng đi ăn trưa"] },
+    "tainghe": { "mood": "happy", "lines": ["Không nghe, không thấy 🎧", "Chế độ tập trung: BẬT", "Sếp nói gì cũng mặc"] },
     "thangchuc": { "mood": "rich", "lines": ["Giàu rồi!! 💸", "Lên chức rồi mọi người ơi 🎉", "Từ nay gọi em là sếp"] }
   },
   "captcha": [["☕","ly cà phê",["🍵","🥤","🧋","🍺"]],["🐱","con mèo",["🐶","🐭","🐰","🦊"]],["📎","kẹp giấy",["✂️","📌","🖇️","📐"]],["🍜","tô mì",["🍚","🍲","🥟","🍱"]],["🖨️","máy in",["💻","🖥️","⌨️","📠"]]],

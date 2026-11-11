@@ -50,7 +50,10 @@
           "typo",
           "reply",
           "calendar",
-          "desktop"
+          "desktop",
+          "sign",
+          "colleague",
+          "quiz"
         ],
         "enumNames": [
           "✉️ Mail: gõ lại câu",
@@ -64,7 +67,10 @@
           "📝 Bắt lỗi chính tả",
           "💬 Trả lời khách lịch sự",
           "📅 Xếp lịch họp 2 tiếng",
-          "🧹 Dọn màn hình A→Z"
+          "🧹 Dọn màn hình A→Z",
+          "🗳️ Xin chữ ký team (người xem bình luận “duyệt”)",
+          "📢 Chép lời đồng nghiệp (gõ lại bình luận người xem)",
+          "🧮 Hỏi đáp nhanh (người xem trả lời đúng là làm hộ)"
         ]
       },
       "minItems": 1,
@@ -81,13 +87,29 @@
         "typo",
         "reply",
         "calendar",
-        "desktop"
+        "desktop",
+        "sign",
+        "colleague",
+        "quiz"
       ]
     },
     "shuffleJobs": {
       "type": "boolean",
       "title": "Chế độ máy tính: xáo ngẫu nhiên thứ tự mini-việc (tắt = theo đúng thứ tự trong danh sách)",
       "default": true
+    },
+    "signWord": {
+      "type": "string",
+      "title": "Việc “Xin chữ ký team”: từ người xem bình luận để ký",
+      "maxLength": 20,
+      "default": "duyệt"
+    },
+    "signNeed": {
+      "type": "integer",
+      "title": "Việc “Xin chữ ký team”: cần bao nhiêu người ký",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5
     },
     "shiftSeconds": {
       "type": "integer",
@@ -252,6 +274,42 @@
     "memeClip_thangchuc": {
       "type": "string",
       "title": "Link video meme cho “Thăng chức” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_meo": {
+      "type": "string",
+      "title": "Link video meme cho “Mèo đi qua bàn phím” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_capslock": {
+      "type": "string",
+      "title": "Link video meme cho “Caps Lock kẹt” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_cupdien": {
+      "type": "string",
+      "title": "Link video meme cho “Cúp điện” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_wifi": {
+      "type": "string",
+      "title": "Link video meme cho “Rớt wifi” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_antrua": {
+      "type": "string",
+      "title": "Link video meme cho “Sếp mời ăn trưa” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
+    },
+    "memeClip_tainghe": {
+      "type": "string",
+      "title": "Link video meme cho “Tai nghe chống ồn” (mp4 / webm / gif, để trống = meme hoạt hình)",
       "maxLength": 500,
       "default": ""
     }

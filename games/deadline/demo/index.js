@@ -22,6 +22,9 @@ export function bot(s, rand, data) {
   if (!j) return null;
   if (j.kind === 'mail') return type(j.text, j.typed);
   if (j.kind === 'sheet') return type(String(j.nums.reduce((a, x) => a + x, 0)), j.typed);
+  if (j.kind === 'sign') return rand() < 0.6 ? { type: 'comment', text: rand() < 0.5 ? (j.word || 'duyệt') : `${j.word || 'duyệt'} luôn` } : null;
+  if (j.kind === 'quiz') return rand() < 0.5 ? { type: 'comment', text: String(rand() < 0.7 ? j.a + j.b : j.a + j.b + 1) } : null;
+  if (j.kind === 'colleague') return type(j.text, j.typed);
   if (j.kind === 'password') return type('Deadline@2026', j.typed);
   if (j.kind === 'otp') return j.code ? type(j.code, j.typed) : { input: { type: 'click', target: 'resend' } };
   if (j.kind === 'captcha') { const i = j.cells.findIndex((c) => (c.e === j.target) !== c.on); return { input: i < 0 ? { type: 'click', target: 'verify' } : { type: 'click', target: 'cell', id: i } }; }

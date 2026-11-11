@@ -150,7 +150,7 @@ test('cốt truyện: NPC khách hàng ping (chế độ máy tính) hiện ngay
 
 test('mini-việc mới: mật khẩu, robot, ký duyệt, OTP, chính tả, trả lời khách, lịch họp, dọn màn hình — làm sai bị chặn, làm đúng +1 bước; xáo không trùng, đủ vòng', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { story: false, steps: 30, shiftSeconds: 900, briefSeconds: 2 }, data: game.data, now: clock.now, random: seededRandom(11), log: {} });
+  const host = createHost(game, { settings: { story: false, jobs: ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop'], steps: 30, shiftSeconds: 900, briefSeconds: 2 }, data: game.data, now: clock.now, random: seededRandom(11), log: {} });
   const S = () => host.snapshot();
   const tap = (target, id, value) => host.input({ type: 'click', target, id, value });
   const typeEnter = (v) => { host.input({ type: 'text', value: v }); return host.input({ type: 'enter' }); };
@@ -223,4 +223,71 @@ test('mini-việc mới: mật khẩu, robot, ký duyệt, OTP, chính tả, tr�
   clock.advance(2000); h2.tick();
   assert.ok(['otp', 'captcha'].includes(h2.snapshot().job.kind));
   assert.deepEqual(h2.snapshot().jobs, ['otp', 'captcha']);
+});
+
+test('việc có người xem: xin chữ ký (bình luận "duyệt", mỗi người 1 lần), chép lời đồng nghiệp, hỏi đáp nhanh (người xem trả lời đúng làm hộ), nút Bỏ qua', () => {
+  const clock = fakeClock();
+  const mk = (jobs) => createHost(game, { settings: { story: false, jobs, shuffleJobs: false, signNeed: 3, steps: 10, shiftSeconds: 600, briefSeconds: 2 }, data: game.data, now: clock.now, random: seededRandom(6), log: {} });
+  const cm = (h, id, text) => h.handle({ type: 'comment', user: u(id), text });
+  // xin chữ ký
+  let h = mk(['sign', 'quiz', 'colleague']);
+  clock.advance(2000); h.tick();
+  assert.equal(h.snapshot().job.kind, 'sign');
+  assert.equal(cm(h, 'a', 'Duyệt nha')[0].type, 'dd_sign');
+  assert.deepEqual(cm(h, 'a', 'duyet'), [], 'một người chỉ ký 1 lần');
+  cm(h, 'b', 'ok duyệt');
+  assert.ok(cm(h, 'c', 'DUYET').some((e) => e.type === 'dd_step'));
+  assert.equal(h.snapshot().step, 1);
+  // hỏi đáp: người xem trả lời đúng đầu tiên làm hộ
+  const q = h.snapshot().job;
+  assert.equal(q.kind, 'quiz');
+  assert.deepEqual(cm(h, 'd', String(q.a + q.b + 1)), []);
+  assert.ok(cm(h, 'e', `là ${q.a + q.b} nha`).some((e) => e.type === 'dd_step' && e.by.name === 'Người e'));
+  assert.equal(h.serialize().helpers.e.points, 1, 'người trả lời đúng vào bảng đồng nghiệp');
+  // chép lời đồng nghiệp: lấy bình luận người xem (đã lọc), gõ lại → người đó được cộng điểm
+  const c = h.snapshot().job;
+  assert.equal(c.kind, 'colleague');
+  assert.ok(['Duyệt nha', 'ok duyệt', 'là ' + (q.a + q.b) + ' nha'].includes(c.text) || D.mail.includes(c.text));
+  h.input({ type: 'text', value: c.text }); h.input({ type: 'enter' });
+  assert.equal(h.snapshot().step, 3);
+  // bỏ qua việc chờ người xem
+  assert.equal(h.snapshot().job.kind, 'sign');
+  h.input({ type: 'click', target: 'skip' });
+  assert.equal(h.snapshot().job.kind, 'quiz'); assert.equal(h.snapshot().step, 3);
+  // bình luận rác / từ cấm không thành câu chép
+  h = mk(['colleague']);
+  clock.advance(2000); h.tick();
+  cm(h, 'x', 'đm'); cm(h, 'y', '😂😂😂😂😂😂😂😂'); cm(h, 'z', 'Chị Lan ơi gửi em bảng lương');
+  h.input({ type: 'text', value: h.snapshot().job.text }); h.input({ type: 'enter' });
+  assert.equal(h.snapshot().job.text, 'Chị Lan ơi gửi em bảng lương');
+  assert.equal(h.snapshot().job.from.name, 'Người z');
+});
+
+test('quà mới: mèo chèn ký tự rác, rớt wifi chặn gửi, sếp mời ăn trưa đứng đồng hồ, tai nghe miễn ping / soi, caps lock + cúp điện là trạng thái', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { story: false, jobs: ['mail'], steps: 10, shiftSeconds: 300, briefSeconds: 2 }, data: game.data, now: clock.now, random: seededRandom(9), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { for (let t = 0; t < ms; t += 250) { clock.advance(250); host.tick(); } };
+  step(2000);
+  host.input({ type: 'text', value: 'abc' });
+  host.handle(gift('a', 'Ice Cream Cone', 1));
+  assert.ok(S().job.typed.startsWith('abc') && S().job.typed.length >= 8);
+  host.handle(gift('b', 'Paper Crane', 99));
+  host.input({ type: 'text', value: S().job.text });
+  assert.equal(host.input({ type: 'enter' })[0].type, 'dd_wifi');
+  step(8000);
+  assert.ok(host.input({ type: 'enter' }).some((e) => e.type === 'dd_step'));
+  const left = S().remainingMs;
+  host.handle(gift('c', 'Confetti', 100));
+  step(10_000);
+  assert.ok(Math.abs(S().remainingMs - left) <= 300, 'ăn trưa: đồng hồ đứng');
+  step(6000);
+  assert.ok(S().remainingMs < left - 500);
+  host.handle(gift('d', 'Rose', 1));
+  host.handle(gift('e', 'Mishka Bear', 100));
+  assert.equal(S().pings.length, 0, 'đeo tai nghe: xoá ping');
+  host.handle(gift('d', 'Rose', 1)); host.handle(gift('d', 'Finger Heart', 5));
+  assert.equal(S().pings.length, 0); assert.equal(S().status.some((x) => x.kind === 'soi'), false);
+  host.handle(gift('f', 'GG', 1)); host.handle(gift('g', 'Rosa', 10));
+  assert.ok(['capslock', 'cupdien'].every((k) => S().status.some((x) => x.kind === k)));
 });

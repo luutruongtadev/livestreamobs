@@ -53,6 +53,10 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
    - 💬 **Trả lời khách:** chọn câu lịch sự trong 3 câu.
    - 📅 **Lịch họp:** bấm giờ bắt đầu sao cho 2 tiếng liền đều trống.
    - 🧹 **Dọn màn hình:** bấm 6 icon theo thứ tự chữ cái A → Z.
+   - **Việc có người xem tham gia** (người bình luận miễn phí được giúp; mỗi lần giúp +1 điểm ở bảng 🤝 Đồng nghiệp tận tâm; có nút **Bỏ qua** khi ít người xem):
+     - 🗳️ **Xin chữ ký team:** cần `signNeed` người xem (mặc định 5) bình luận từ `signWord` (mặc định "duyệt", không cần dấu). Mỗi người ký 1 lần, tên hiện trên tờ trình.
+     - 📢 **Chép lời đồng nghiệp:** câu cần gõ lại lấy từ một bình luận gần đây của người xem. Bình luận được lọc `bannedWords`, bỏ link, câu quá ngắn / quá dài, câu toàn emoji. Chưa có bình luận hợp lệ thì dùng câu Mail có sẵn.
+     - 🧮 **Hỏi đáp nhanh:** hiện phép cộng. Người xem đầu tiên bình luận đúng đáp án sẽ làm hộ; streamer cũng có thể tự gõ.
 3. **Xong đủ bước:** hiện **XONG VIỆC!** và lên chức (Thực tập sinh → … → Chủ tịch).
 4. **Hết giờ:** hiện **TRỄ DEADLINE!**, kèm hình phạt vui (`punishments`) và xuống 1 chức (`demoteOnFail`).
 5. Thẻ kết quả có hai bảng **👔 Sếp soi nhất** và **🤝 Đồng nghiệp tận tâm** (tính theo số xu).
@@ -80,6 +84,12 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
 | `cafe` | ☕ +20 giây | Heart Me, 1000 tim |
 | `giahan` | 📅 +60 giây | Hand Hearts (100) |
 | `intern` | 🧑‍💼 Làm hộ việc đang mở / +1 bước | Sunglasses (199) |
+| `meo` | 🐱 Mèo đi qua bàn phím: chèn 5–8 ký tự rác vào ô đang gõ / chip 8 giây | Ice Cream Cone (1) |
+| `capslock` | ⇪ Caps Lock kẹt 15 giây: chữ gõ ra bị đảo hoa / thường / chip | GG (1) |
+| `cupdien` | 🌑 Cúp điện 12 giây: màn tối, chỉ thấy vùng tròn quanh chuột | Rosa (10) |
+| `wifi` | 📶 Rớt wifi 8 giây: không gửi / lưu / xác nhận được (vẫn gõ được) | Paper Crane (99) |
+| `antrua` | 🍱 Sếp mời ăn trưa: đồng hồ đứng 15 giây | Confetti (100) |
+| `tainghe` | 🎧 Tai nghe chống ồn: xoá ping, đuổi sếp soi, miễn ping & soi 30 giây | Mishka Bear (100) |
 | `thangchuc` | 🏆 Xong ca ngay | Lion (29999) |
 
 Lệnh: `step` (+1 bước), `undo-step`, `next` (ca mới), `clear-board`. `pause` / `resume` do nền tảng cung cấp.

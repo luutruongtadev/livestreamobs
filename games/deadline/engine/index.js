@@ -1,4 +1,4 @@
-import { Emitter, makePausable, normalize, canon, triggerText, triggerIcon } from '#sdk';
+import { Emitter, makePausable, normalize, canon, digitsOf, triggerText, triggerIcon } from '#sdk';
 
 /**
  * Deadline Dí: streamer chạy deadline, quà của người xem là những ông sếp soi việc (hoặc đồng nghiệp cứu).
@@ -22,12 +22,14 @@ import { Emitter, makePausable, normalize, canon, triggerText, triggerIcon } fro
  */
 export function createGame(ctx) { return new Deadline(ctx); }
 
-export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai'];
-export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc'];
-export const JOBS = ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop'];
+export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai', 'meo', 'capslock', 'cupdien', 'wifi'];
+export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc', 'antrua', 'tainghe'];
+export const JOBS = ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop', 'sign', 'colleague', 'quiz'];
+export const VIEWER_JOBS = ['sign', 'colleague', 'quiz']; // việc cần người xem bình luận (có nút Bỏ qua)
+const JUNK = '#$%&@!?*~^qzxjwkfv';
 export const APPROVE_LIMIT = 10; // triệu: tờ trình trên mức này thì Từ chối
 export const FOLDERS = ['anh', 'tailieu', 'rac'];
-const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000 };
+const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000, meo: 8000, capslock: 15000, cupdien: 12000, wifi: 8000, antrua: 15000, tainghe: 30000 };
 const SOI_PING_MS = 4500;
 const STORY_MSG_MS = 7000;
 const EVENT_EFFECTS = new Set([...HARM, ...HELP.filter((x) => x !== 'thangchuc')]);
@@ -65,6 +67,7 @@ export class Deadline extends Emitter {
     const d = ctx.data?.office || {};
     this.d = Object.fromEntries(Object.entries(FALLBACK).map(([k, v]) => [k, (Array.isArray(v) ? d[k]?.length : d[k] && typeof d[k] === 'object') ? d[k] : v]));
     this.banned = bannedRegexes(this.s.bannedWords);
+    this.signWord = normalize(this.s.signWord || '');
     this.rank = Math.min(this.s.startRank, this.d.ranks.length - 1);
     this.bestRank = this.rank;
     this.streak = 0;
@@ -190,6 +193,16 @@ export class Deadline extends Emitter {
     } else if (kind === 'sheet') {
       const n = this.rank >= 3 ? 4 : 3;
       this.job = { kind, id, nums: Array.from({ length: n }, () => 10 + Math.floor(this.ctx.random() * 90)), typed: '' };
+    } else if (kind === 'sign') {
+      this.job = { kind, id, need: this.s.signNeed, signers: [] };
+    } else if (kind === 'colleague') {
+      const pool = (this.recent || []).filter((c) => c.text !== this.lastColleague);
+      const c = pool.length ? pool[Math.floor(this.ctx.random() * pool.length)] : null;
+      this.lastColleague = c?.text ?? null;
+      this.job = c ? { kind, id, text: c.text, from: c.by, typed: '' } : { kind, id, text: this.pick(this.d.mail), from: null, typed: '' };
+    } else if (kind === 'quiz') {
+      const a = 10 + Math.floor(this.ctx.random() * 40), b = 5 + Math.floor(this.ctx.random() * 40);
+      this.job = { kind, id, a, b, typed: '', solver: null };
     } else if (kind === 'password') {
       this.job = { kind, id, typed: '' };
     } else if (kind === 'captcha') {
@@ -250,6 +263,7 @@ export class Deadline extends Emitter {
   }
 
   completeJob(by = null) {
+    if (this.job?.kind === 'colleague' && this.job.from && !by) this.helped(this.job.from);
     this.job = null;
     const fx = this.addStep(1, by);
     if (this.phase === 'work' && this.desktop) this.newJob();
@@ -321,10 +335,36 @@ export class Deadline extends Emitter {
     if (this.paused || ev?.type !== 'comment' || !ev.user) return [];
     const id = String(ev.user.id);
     const p = this.pings.find((x) => x.waiting && x.by.id === id);
-    if (!p) return [];
-    const text = this.clean(ev.text);
-    if (!text) return [];
-    return [this.setText(p, text)];
+    if (p) { const text = this.clean(ev.text); return text ? [this.setText(p, text)] : []; }
+    if (!this.desktop) return [];
+    const by = pub(ev.user);
+    this.remember(by, ev.text);
+    const j = this.job;
+    if (this.phase !== 'work' || !j) return [];
+    if (j.kind === 'sign' && this.signWord && ` ${normalize(ev.text)} `.includes(` ${this.signWord} `) && !j.signers.some((x) => x.id === by.id)) {
+      j.signers.push(by);
+      this.helped(by);
+      return j.signers.length >= j.need ? this.completeJob(by) : [{ type: 'dd_sign', by, n: j.signers.length, need: j.need }];
+    }
+    if (j.kind === 'quiz' && digitsOf(ev.text) === String(j.a + j.b)) { this.helped(by); return this.completeJob(by); }
+    return [];
+  }
+
+  /** Bình luận gần đây (đã lọc) để làm câu "Chép lời đồng nghiệp". */
+  remember(by, raw) {
+    const text = this.clean(raw);
+    const cps = [...text];
+    if (cps.length < 8 || cps.length > 60 || text.endsWith('…') || /\*\*\*|https?:|@/.test(text)) return;
+    const letters = (text.match(/\p{L}/gu) || []).length;
+    if (letters < cps.length * 0.6 || text.split(' ').length < 2) return;
+    (this.recent ||= []).push({ by, text });
+    if (this.recent.length > 20) this.recent.shift();
+  }
+
+  helped(by) {
+    const row = (this.helpers[by.id] ||= { ...by, points: 0, gifts: 0 });
+    Object.assign(row, { name: by.name, avatar: by.avatar });
+    row.points += 1;
   }
 
   action(id, ev = {}, binding = null) {
@@ -360,8 +400,8 @@ export class Deadline extends Emitter {
     const fx = [];
     let sub = '';
     switch (id) {
-      case 'ping': fx.push(...this.addPing(by, opt.text ? { text: opt.text } : {})); break;
-      case 'soi': this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
+      case 'ping': if (this.active('tainghe')) { sub = '🎧 đeo tai nghe, không thấy'; break; } fx.push(...this.addPing(by, opt.text ? { text: opt.text } : {})); break;
+      case 'soi': if (this.active('tainghe')) { sub = '🎧 đeo tai nghe, mặc kệ'; break; } this.addStatus('soi', by); sub = 'đứng sau lưng'; break;
       case 'ban':
         if (this.desktop) {
           const b = this.blockers[0];
@@ -394,6 +434,27 @@ export class Deadline extends Emitter {
       case 'giahan': this.endsAt += 60_000; sub = '+60 giây'; break;
       case 'intern': fx.push(...(this.desktop && this.job ? this.completeJob(by) : this.addStep(1, by))); sub = '+1 bước'; break;
       case 'thangchuc': fx.push(...this.finish(true, 'thangchuc')); sub = 'xong ca ngay!'; break;
+      case 'meo': {
+        if (this.desktop) {
+          const junk = Array.from({ length: 5 + Math.floor(this.ctx.random() * 4) }, () => JUNK[Math.floor(this.ctx.random() * JUNK.length)]).join('');
+          const b = this.blockers[0];
+          if (b?.kind === 'buzz') b.typed += junk;
+          else if (this.job && 'typed' in this.job) this.job.typed = (this.job.typed + junk).slice(0, 200);
+          sub = `chèn “${junk}”`;
+        } else sub = 'nằm lên bàn phím';
+        this.addStatus('meo', by);
+        fx.push({ type: 'dd_shake', by });
+        break;
+      }
+      case 'capslock': this.addStatus('capslock', by); sub = 'gõ ra chữ hoa / thường đảo ngược'; break;
+      case 'cupdien': this.addStatus('cupdien', by); sub = 'màn hình tối om'; break;
+      case 'wifi': this.addStatus('wifi', by); sub = 'không gửi / lưu được'; break;
+      case 'antrua': this.addStatus('antrua', by); sub = 'đồng hồ đứng 15 giây'; break;
+      case 'tainghe':
+        this.addStatus('tainghe', by);
+        this.pings = []; this.status = this.status.filter((x) => x.kind !== 'soi'); this.nextSoiAt = null;
+        sub = 'miễn ping & sếp soi 30 giây';
+        break;
       default:
     }
     return { fx, sub };
@@ -416,7 +477,7 @@ export class Deadline extends Emitter {
         if (!this.desktop || this.covered()) return [];
         const b = this.blockers[0];
         if (b) { if (b.kind === 'buzz') b.typed = v; return []; }
-        if (this.job && 'typed' in this.job) this.job.typed = this.job.kind === 'sheet' || this.job.kind === 'otp' ? v.replace(/[^\d]/g, '').slice(0, 6) : this.job.kind === 'password' ? v.slice(0, 30) : v;
+        if (this.job && 'typed' in this.job) this.job.typed = this.job.kind === 'sheet' || this.job.kind === 'otp' || this.job.kind === 'quiz' ? v.replace(/[^\d]/g, '').slice(0, 6) : this.job.kind === 'password' ? v.slice(0, 30) : v;
         return [];
       }
       case 'enter': return this.desktop ? this.submit() : [];
@@ -427,6 +488,7 @@ export class Deadline extends Emitter {
 
   submit() {
     if (this.covered()) return [];
+    if (this.active('wifi')) return [{ type: 'dd_wifi' }];
     const b = this.blockers[0];
     if (b) {
       if (b.kind !== 'buzz') return [];
@@ -435,6 +497,8 @@ export class Deadline extends Emitter {
     }
     const j = this.job;
     if (j?.kind === 'mail') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'mail' }];
+    if (j?.kind === 'colleague') return this.same(j.typed, j.text) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'colleague' }];
+    if (j?.kind === 'quiz') return j.typed !== '' && Number(j.typed) === j.a + j.b ? this.completeJob() : [{ type: 'dd_wrong', kind: 'quiz' }];
     if (j?.kind === 'password') return this.pwRules(j.typed).every(Boolean) ? this.completeJob() : [{ type: 'dd_wrong', kind: 'password' }];
     if (j?.kind === 'otp') {
       if (j.typed === j.code) return this.completeJob();
@@ -474,6 +538,8 @@ export class Deadline extends Emitter {
     const j = this.job;
     if (!j) return [];
     if (target === 'send') return this.submit();
+    if (target === 'skip' && VIEWER_JOBS.includes(j.kind)) { this.newJob(); return [{ type: 'dd_zap' }]; }
+    if (this.active('wifi') && !['cell', 'file', 'word'].includes(target)) return [{ type: 'dd_wifi' }];
     if (j.kind === 'inbox' && target === 'inbox') {
       const m = j.mails[Number(ev.id)];
       if (!m || m.done) return [];
@@ -548,6 +614,9 @@ export class Deadline extends Emitter {
     if (this.paused) return [];
     const t = this.clock();
     const fx = [];
+    const dt = Math.max(0, Math.min(2000, t - (this.lastTickAt ?? t)));
+    this.lastTickAt = t;
+    if (this.phase === 'work' && this.active('antrua')) this.endsAt += dt; // sếp mời ăn trưa: đồng hồ đứng
     for (const p of this.pings) if (p.waiting && t >= p.waitUntil) fx.push(this.setText(p, this.pick(this.d.pings)));
     if (!this.desktop) this.pings = this.pings.filter((p) => p.until == null || p.until > t);
     const before = this.status.length;
@@ -604,6 +673,9 @@ export class Deadline extends Emitter {
     if (!j) return null;
     if (j.kind === 'mail') return { kind: j.kind, id: j.id, text: j.text, typed: j.typed };
     if (j.kind === 'sheet') return { kind: j.kind, id: j.id, nums: j.nums, typed: j.typed };
+    if (j.kind === 'sign') return { kind: j.kind, id: j.id, need: j.need, signers: j.signers, word: this.s.signWord };
+    if (j.kind === 'colleague') return { kind: j.kind, id: j.id, text: j.text, from: j.from, typed: j.typed };
+    if (j.kind === 'quiz') return { kind: j.kind, id: j.id, a: j.a, b: j.b, typed: j.typed };
     if (j.kind === 'password') return { kind: j.kind, id: j.id, typed: j.typed, rules: this.pwRules(j.typed) };
     if (j.kind === 'captcha') return { kind: j.kind, id: j.id, target: j.target, name: j.name, cells: j.cells };
     if (j.kind === 'approve') return { kind: j.kind, id: j.id, items: j.items, limit: APPROVE_LIMIT };
@@ -675,7 +747,7 @@ export class Deadline extends Emitter {
     return {
       rank: this.rank, bestRank: this.bestRank, streak: this.streak, shiftNo: this.shiftNo, uid: this.uid, bosses: this.bosses, helpers: this.helpers,
       feed: this.feed, lastMail: this.lastMail, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, deadlineMs: this.deadlineMs,
-      task: this.task, step: this.step, pings: this.pings, jobBag: this.jobBag ?? null, lastKind: this.lastKind ?? null, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
+      task: this.task, step: this.step, pings: this.pings, recent: this.recent ?? [], lastTickAt: this.lastTickAt ?? null, jobBag: this.jobBag ?? null, lastKind: this.lastKind ?? null, status: this.status, blockers: this.blockers, job: this.job, jobNo: this.jobNo,
       nextSoiAt: this.nextSoiAt, result: this.result,
       season: this.season, chapterRank: this.chapterRank, seen: this.seen, newSeason: this.newSeason, chapterFresh: this.chapterFresh, storyIdx: this.storyIdx, storyMsgs: this.storyMsgs,
     };
