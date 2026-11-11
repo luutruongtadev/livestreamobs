@@ -157,6 +157,44 @@ test('LayeredScorer: giới hạn số request Claude cùng lúc, lô quá lớn
   assert.ok(peak <= 2, `tối đa 2 request cùng lúc (thực tế ${peak})`);
 });
 
+test('LayeredScorer Lớp 4 stream: từ nào chấm xong trả điểm ngay, không chờ cả lô; dùng judgeModel nhanh, Haiku bỏ fallback beta', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const reqs = [];
+  const client = { beta: { messages: { create: async (req) => {
+    reqs.push(req);
+    assert.equal(req.stream, true);
+    const json = JSON.stringify({ results: [
+      { guess: 'giảng viên', category: 'VERY_CLOSE', confidence: 0.9 },
+      { guess: 'ô tô', category: 'UNRELATED', confidence: 0.9 },
+    ] });
+    const cut = json.indexOf('},') + 2; // object đầu xong thì dừng tới khi mở cổng
+    return (async function* () {
+      yield { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } };
+      yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: json.slice(0, cut) } };
+      await gate;
+      yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: json.slice(cut) } };
+      yield { type: 'message_delta', delta: { stop_reason: 'end_turn' } };
+    })();
+  } } } };
+  const s = new LayeredScorer({ client, batchMs: 1, judgeModel: 'claude-haiku-5-5' });
+  const a = s.score('đại học', 'giảng viên');
+  const b = s.score('đại học', 'ô tô');
+  let bDone = false;
+  b.then(() => { bDone = true; });
+  const ra = await a; // xong trước khi stream kết thúc
+  assert.equal(ra.source, 'claude');
+  assert.ok(inBand(ra.score, 'VERY_CLOSE'));
+  assert.equal(bDone, false);
+  release();
+  const rb = await b;
+  assert.equal(rb.source, 'claude');
+  assert.equal(reqs[0].model, 'claude-haiku-5-5');
+  assert.equal(reqs[0].fallbacks, undefined);
+  const s2 = new LayeredScorer({ client: fakeClient() });
+  assert.equal(s2.judgeModel, 'claude-sonnet-5-5');
+});
+
 test('WordGame: đầu vòng gọi prepare() soạn pack; chấm truyền cách gọi khác (aliases); từ có điểm ngay không tính vào độ trễ', async () => {
   const prepared = [];
   const scorer = {

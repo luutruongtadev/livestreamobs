@@ -23,6 +23,7 @@ export function createServer({ secrets = {}, dataDir = null, log = console, conf
   const scorer = new LayeredScorer({
     model: config.model || 'claude-opus-5-5',
     packModel: config.packModel || null,
+    judgeModel: config.judgeModel || 'claude-sonnet-5-5', // Lớp 4 chấm từ đoán: model nhanh (đường đi nóng)
     bands: config.scoreBands || {},
     batchMs: config.batchMs ?? 100, // đường đi nóng: gom lô ngắn
     cachePath: file('wordscore-cache.json'),

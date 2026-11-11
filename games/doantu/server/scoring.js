@@ -78,10 +78,12 @@ const JUDGE_SCHEMA = {
  * prepare(secret, ctx): soạn Knowledge Pack trước khi người xem đoán (gọi ở đầu vòng).
  */
 export class LayeredScorer {
-  constructor({ model = 'claude-opus-5-5', packModel = null, batchMs = 400, maxBatch = 25, maxInflight = 2, timeoutMs = 20_000,
+  constructor({ model = 'claude-opus-5-5', packModel = null, judgeModel = 'claude-sonnet-5-5', batchMs = 400, maxBatch = 12, maxInflight = 6, timeoutMs = 20_000,
     cachePath = null, packPath = null, seedPackPath = null, client = null, bands = SCORE_BANDS, embedder = null, embed = {}, log = console } = {}) {
     this.model = model;
     this.packModel = packModel || model;
+    // Lớp 4 chạy trên đường đi nóng (người xem chờ điểm) → model nhanh; Knowledge Pack soạn trước nên giữ model mạnh
+    this.judgeModel = judgeModel || model;
     this.batchMs = batchMs;
     this.maxBatch = maxBatch;
     this.maxInflight = maxInflight;
@@ -189,13 +191,13 @@ export class LayeredScorer {
   }
 
   /** Thêm từ vào hàng chờ (Lớp 3 hoặc Lớp 4) và hẹn xử lý lô. */
-  enqueue(queue, key, w, resolvers) {
+  enqueue(queue, key, w, resolvers, delay = this.batchMs) {
     if (!queue.has(key)) queue.set(key, new Map());
     const q = queue.get(key);
     if (!q.has(w)) q.set(w, []);
     q.get(w).push(...resolvers);
-    if (queue === this.embedQueue) { if (!this.embedTimer) this.embedTimer = setTimeout(() => this.flushEmbed(), this.batchMs); }
-    else if (!this.timer) this.timer = setTimeout(() => this.flush(), this.batchMs);
+    if (queue === this.embedQueue) { if (!this.embedTimer) this.embedTimer = setTimeout(() => this.flushEmbed(), delay); }
+    else if (!this.timer) this.timer = setTimeout(() => this.flush(), delay);
   }
 
   /** Lớp 3: lấy vector các từ đoán (1 lần gọi cho cả lô), xếp nhóm; từ mơ hồ → hàng chờ Claude. */
@@ -223,7 +225,7 @@ export class LayeredScorer {
           neighbors: st.entries.map((e) => ({ sim: cosine(v, e.vec), category: e.category, strength: e.strength })),
           calib: st.calib, cfg: this.embedCfg,
         }) : null;
-        if (!r) { this.enqueue(this.queue, key, w, resolvers); continue; }
+        if (!r) { this.enqueue(this.queue, key, w, resolvers, 0); continue; } // đã chờ gom lô ở Lớp 3 → gửi Claude ngay
         const score = scoreOf(r.category, r.strength, this.bands);
         this.cache.set(`${key}|${w}|${EMBED_V}`, score);
         this.cacheDirty = true;
@@ -269,29 +271,31 @@ export class LayeredScorer {
     if (!q.size) this.queue.delete(key);
     if (this.queue.size && !this.timer) this.timer = setTimeout(() => this.flush(), 0);
     this.inflight++;
-    let results = {};
-    try { if (this.client) results = await this.callJudge(this.secretOf(key), words, this.contexts.get(key)); } catch (e) {
-      this.log.warn?.(`[scoring] Claude phân loại lỗi (${e?.status || ''} ${e?.message || e}) — tạm coi là không rõ nghĩa`);
-    } finally { this.inflight--; }
-    for (const [w, resolvers] of chunk) {
-      const r = results[w];
-      let out;
-      if (r) {
-        const score = scoreOf(r.category, (r.confidence - 0.5) / 0.5, this.bands);
-        this.cache.set(`${key}|${w}|${JUDGE_V}`, score);
-        this.cacheDirty = true;
-        out = { score, source: 'claude', category: r.category };
-      } else out = this.unknown();
+    // stream: từ nào Claude chấm xong thì trả điểm ngay, không chờ cả lô
+    const settle = (w, out) => {
+      const resolvers = chunk.get(w);
+      if (!resolvers) return;
+      chunk.delete(w);
       this.counts[out.source]++;
       for (const res of resolvers) res(out);
-    }
+    };
+    const onItem = (w, r) => {
+      if (!chunk.has(w)) return;
+      const score = scoreOf(r.category, (r.confidence - 0.5) / 0.5, this.bands);
+      this.cache.set(`${key}|${w}|${JUDGE_V}`, score);
+      this.cacheDirty = true;
+      settle(w, { score, source: 'claude', category: r.category });
+    };
+    try { if (this.client) await this.callJudge(this.secretOf(key), words, this.contexts.get(key), onItem); } catch (e) {
+      this.log.warn?.(`[scoring] Claude phân loại lỗi (${e?.status || ''} ${e?.message || e}) — tạm coi là không rõ nghĩa`);
+    } finally { this.inflight--; }
+    for (const w of [...chunk.keys()]) settle(w, this.unknown());
   }
 
   async create(body) {
-    return this.client.beta.messages.create({
-      ...body,
-      betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-    }, { timeout: this.timeoutMs });
+    // Haiku không có server-side fallback
+    const fb = /haiku/.test(body.model) ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' };
+    return this.client.beta.messages.create({ ...body, ...fb }, { timeout: this.timeoutMs });
   }
 
   textOf(response) {
@@ -313,19 +317,47 @@ export class LayeredScorer {
     return JSON.parse(this.textOf(res));
   }
 
-  async callJudge(secret, words, context = '') {
+  /**
+   * Lớp 4. Gọi stream: mỗi object {guess, category, confidence} đóng ngoặc xong là báo onItem(word, r) ngay.
+   * Client không trả stream (mock test) → đọc cả response như cũ.
+   */
+  async callJudge(secret, words, context = '', onItem = () => {}) {
     this.counts.judgeCalls++;
+    const out = {};
+    const take = (it) => {
+      const w = canon(it?.guess);
+      if (!words.includes(w) || w in out || !CATEGORIES.includes(it.category)) return;
+      out[w] = { category: it.category, confidence: clamp(Number(it.confidence) || 0.5, 0, 1) };
+      onItem(w, out[w]);
+    };
     const res = await this.create({
-      model: this.model, max_tokens: 4000,
+      model: this.judgeModel, max_tokens: 2000, stream: true,
       output_config: { effort: 'low', format: { type: 'json_schema', schema: JUDGE_SCHEMA } },
       system: JUDGE_SYSTEM,
       messages: [{ role: 'user', content: `${context ? `NGỮ CẢNH: ${context}\n` : ''}TỪ BÍ MẬT: ${JSON.stringify(secret)}\nTỪ ĐOÁN: ${JSON.stringify(words)}` }],
     });
-    const out = {};
-    for (const it of JSON.parse(this.textOf(res)).results || []) {
-      const w = canon(it.guess);
-      if (words.includes(w) && CATEGORIES.includes(it.category)) out[w] = { category: it.category, confidence: clamp(Number(it.confidence) || 0.5, 0, 1) };
+    if (!res?.[Symbol.asyncIterator]) {
+      for (const it of JSON.parse(this.textOf(res)).results || []) take(it);
+      return out;
     }
+    let text = '';
+    let pos = 0;
+    let refused = false;
+    const scan = () => {
+      const re = /\{[^{}]*\}/g; // object con trong mảng results (object ngoài chứa ngoặc con nên không khớp)
+      re.lastIndex = pos;
+      let m;
+      while ((m = re.exec(text))) {
+        try { take(JSON.parse(m[0])); } catch { /* chưa phải object hoàn chỉnh */ }
+        pos = re.lastIndex;
+      }
+    };
+    for await (const ev of res) {
+      if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') { text += ev.delta.text; scan(); }
+      else if (ev.type === 'content_block_start' && ev.content_block?.type === 'text') { text = ''; pos = 0; } // fallback: model sau viết lại từ đầu
+      else if (ev.type === 'message_delta' && ev.delta?.stop_reason === 'refusal') refused = true;
+    }
+    if (refused && !Object.keys(out).length) throw new Error('refusal');
     return out;
   }
 }
