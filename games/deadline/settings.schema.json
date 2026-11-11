@@ -218,13 +218,6 @@
       "title": "Phát meme khi có quà lớn",
       "default": true
     },
-    "memeMinCoins": {
-      "type": "integer",
-      "title": "Meme hoạt hình có sẵn: quà từ bao nhiêu xu thì phát (quà đã dán link video thì luôn phát)",
-      "minimum": 1,
-      "maximum": 100000,
-      "default": 5
-    },
     "memeSearch": {
       "type": "boolean",
       "title": "Tự tìm GIF meme trên GIPHY theo từ khoá của từng quà (cần GIPHY_API_KEY trên server; quà đã dán link riêng thì dùng link đó)",

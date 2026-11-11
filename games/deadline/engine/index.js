@@ -13,7 +13,7 @@ import { pickRules, ruleText, ruleOk } from './password.js';
  *  - camera: streamer làm việc thật trước camera, bấm +1 bước (dashboard / phím Space trong cửa sổ chơi);
  *    quà hiện thông báo, chữ lớn, chip trạng thái để streamer diễn theo.
  * Câu sếp ping = bình luận đầu tiên của chính người tặng quà gõ sau khi tặng (không gõ thì dùng câu có sẵn).
- * Quà từ memeMinCoins xu trở lên kèm meme (hiệu ứng có sẵn hoặc link video streamer dán trong cài đặt).
+ * Mỗi quà kèm meme (link streamer dán, GIF tự tìm trên GIPHY, hoặc hiệu ứng có sẵn).
  *
  * Cốt truyện (cài đặt story, cả 2 chế độ): mỗi chức là một CHƯƠNG (data/office.json → story.chapters) có tên chương, sếp,
  * lời dẫn, nhiệm vụ riêng, kết thắng / thua riêng. Trong ca, nhân vật (NPC) nhắn tin theo mốc thời gian và có thể gây sự kiện
@@ -443,9 +443,8 @@ export class Deadline extends Emitter {
     const by = pub(ev.user);
     const coins = ev.type === 'gift' ? Math.max(0, Number(ev.diamonds) || 0) : 0;
     const fx = [];
-    // quà đã có link video meme riêng → luôn phát; meme hoạt hình có sẵn chỉ cho quà từ memeMinCoins xu
-    const hasClip = /^https?:\/\/\S+$/i.test(String(this.s[`memeClip_${id}`] || '').trim());
-    const memeOk = this.s.memes && ev.type === 'gift' && (hasClip || coins >= this.s.memeMinCoins) && this.phase !== 'result';
+    // quà nào (kể cả 1 xu) cũng phát meme
+    const memeOk = this.s.memes && ev.type === 'gift' && this.phase !== 'result';
     if (this.phase === 'brief' && this.vote) { // đang bình chọn: giữ quà lại, vào ca mới áp dụng
       if (this.queued.length < 20) this.queued.push({ id, by });
     } else if (this.phase === 'brief') fx.push(...this.startWork()); // quà tới lúc đang giao việc → vào ca luôn, không phí quà

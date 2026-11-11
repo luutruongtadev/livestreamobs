@@ -37,7 +37,7 @@ test('ca làm (máy tính): mini-việc, ping lấy bình luận người tặng
 
   // sếp ping (1 xu, không meme): popup chờ câu → bình luận kế tiếp của chính người tặng thành nội dung (lọc từ cấm)
   const [g1, p1] = host.handle(gift('a', 'Rose', 1));
-  assert.equal(g1.type, 'dd_gift'); assert.equal(g1.meme, null);
+  assert.equal(g1.type, 'dd_gift'); assert.ok(g1.meme?.line, 'quà 1 xu cũng có meme');
   assert.equal(host.handle(gift('z', 'Heart Me', 1))[0].meme?.clip, 'https://media.tenor.com/x/cafe.gif', 'quà 1 xu nhưng có link video riêng → vẫn phát');
   assert.equal(p1.type, 'dd_ping'); assert.equal(S().pings[0].waiting, true);
   assert.deepEqual(host.handle({ type: 'comment', user: u('b'), text: 'không phải tôi' }), [], 'người khác bình luận không lấp ping');
