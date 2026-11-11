@@ -345,3 +345,20 @@ test('cốt truyện: người xem bình chọn 1 / 2 (mỗi người 1 phiếu)
   assert.ok(['tot', 'tham'].includes(S().result.endingTag));
   assert.deepEqual(S().result.ending.slice(0, 1), D.story.endings[S().result.endingTag].slice(0, 1));
 });
+
+test('quà "Claude hết limit": khoá màn hình 15 giây (gõ / bấm không ăn), hết giờ làm tiếp được', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { story: false, jobs: ['mail'], briefSeconds: 2 }, data: game.data, now: clock.now, random: seededRandom(2), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { for (let t = 0; t < ms; t += 250) { clock.advance(250); host.tick(); } };
+  step(2000);
+  const g = host.handle(gift('a', 'TikTok', 1))[0];
+  assert.equal(g.action, 'hetlimit');
+  assert.ok(S().status.some((s) => s.kind === 'hetlimit')); assert.equal(S().covered, true);
+  host.input({ type: 'text', value: S().job.text });
+  assert.deepEqual(host.input({ type: 'enter' }), [], 'đang hết limit: không gửi được');
+  step(15_000);
+  assert.equal(S().covered, false);
+  host.input({ type: 'text', value: S().job.text });
+  assert.ok(host.input({ type: 'enter' }).some((e) => e.type === 'dd_step'));
+});

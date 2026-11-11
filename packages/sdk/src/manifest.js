@@ -69,6 +69,20 @@ export function validateManifest(m) {
   if (m.data != null && (typeof m.data !== 'object' || Object.values(m.data).some((p) => typeof p !== 'string' || p.includes('..') || p.startsWith('/')))) errs.push('data: { tên: "đường-dẫn-trong-thư-mục-game" }');
   if (m.server != null && typeof m.server !== 'boolean') errs.push('server: true | false');
   if (m.secrets != null && !(Array.isArray(m.secrets) && m.secrets.every((x) => /^[A-Z][A-Z0-9_]*$/.test(x)))) errs.push('secrets: mảng tên biến môi trường (CHỮ_HOA)');
+  if (m.panels != null) {
+    if (!Array.isArray(m.panels)) errs.push('panels: phải là mảng');
+    else {
+      const seen = new Set();
+      m.panels.forEach((p, i) => {
+        if (!/^[a-z][a-zA-Z0-9_-]{0,31}$/.test(p?.id || '') || seen.has(p.id)) errs.push(`panels[${i}].id không hợp lệ hoặc trùng`);
+        seen.add(p?.id);
+        if (!String(p?.label || '').trim()) errs.push(`panels[${i}].label bắt buộc`);
+        const r = p?.rect;
+        if (!r || ![r.x, r.y, r.w, r.h].every(Number.isFinite) || !(r.w > 0 && r.h > 0)) errs.push(`panels[${i}].rect: { x, y, w, h } (số)`);
+        if (p?.when != null && (typeof p.when !== 'object' || Array.isArray(p.when))) errs.push(`panels[${i}].when: { tênCàiĐặt: giá trị }`);
+      });
+    }
+  }
   if (m.restore != null && !['full', 'partial'].includes(m.restore)) errs.push('restore: "full" (khôi phục nguyên ván) | "partial" (chỉ giữ dữ liệu bền, ván mới bắt đầu lại)');
   return errs;
 }

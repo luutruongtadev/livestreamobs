@@ -91,6 +91,7 @@ Streamer là nhân viên mới của **Công ty TNHH Deadline Dí**. **Mỗi ch�
 | `capslock` | ⇪ Caps Lock kẹt 15 giây: chữ gõ ra bị đảo hoa / thường / chip | GG (1) |
 | `cupdien` | 🌑 Cúp điện 12 giây: màn tối, chỉ thấy vùng tròn quanh chuột | Rosa (10) |
 | `wifi` | 📶 Rớt wifi 8 giây: không gửi / lưu / xác nhận được (vẫn gõ được) | Paper Crane (99) |
+| `hetlimit` | 🤖 Claude hết limit: màn hình chat AI báo hết lượt, khoá mọi thao tác 15 giây (camera: chip đếm ngược) | TikTok (1) |
 | `antrua` | 🍱 Sếp mời ăn trưa: đồng hồ đứng 15 giây | Confetti (100) |
 | `tainghe` | 🎧 Tai nghe chống ồn: xoá ping, đuổi sếp soi, miễn ping & soi 30 giây | Mishka Bear (100) |
 | `thangchuc` | 🏆 Xong ca ngay | Lion (29999) |

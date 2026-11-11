@@ -57,7 +57,7 @@ test('checkStudio: toạ độ kẹp trong khung, config theo schema (sai → de
   assert.throws(() => checkStudio({ sounds: [{ when: { type: 'follow' }, sound: 'url', url: 'http://x.test/a.mp3' }] }, widgets), /https/);
   assert.throws(() => checkStudio({ sounds: [{ when: { type: 'gift' }, sound: 'coin' }] }, widgets), /gift/i);
   assert.throws(() => checkStudio({ widgets: Array.from({ length: STUDIO_LIMITS.widgets + 1 }, () => ({ type: 'text' })) }, widgets), /Tối đa/);
-  assert.deepEqual(checkStudio(null, widgets), { widgets: [], sounds: [] });
+  assert.deepEqual(checkStudio(null, widgets), { widgets: [], sounds: [], panels: {} });
 });
 
 test('SessionStats: xu = xu × số món, top người tặng, tim / follow / share / bình luận, đặt lại', () => {
@@ -162,3 +162,14 @@ test('gateway: lưu studio → overlay nhận {t:studio} (không nạp lại gam
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('checkStudio: bảng của game (vị trí / cỡ / ẩn) chỉ nhận game và bảng có trong manifest, kẹp toạ độ và tỉ lệ', () => {
+  const games = [{ id: 'g1', canvas: { width: 1080, height: 1920 }, panels: [{ id: 'gifts', label: 'Bảng quà', rect: { x: 24, y: 1200, w: 1000, h: 400 } }] }];
+  const s = checkStudio({ panels: { g1: { gifts: { x: 5000, y: 300.4, s: 9, hidden: true }, la: { x: 1 } }, khongco: { gifts: { x: 1 } } } }, widgets, games);
+  assert.deepEqual(Object.keys(s.panels), ['g1']);
+  assert.deepEqual(Object.keys(s.panels.g1), ['gifts']);
+  assert.equal(s.panels.g1.gifts.s, 2, 'tỉ lệ tối đa 2');
+  assert.equal(s.panels.g1.gifts.x, 1080 - 1000, 'không kéo ra hẳn ngoài khung (giữ được nửa bảng)');
+  assert.equal(s.panels.g1.gifts.y, 300);
+  assert.equal(s.panels.g1.gifts.hidden, true);
+});

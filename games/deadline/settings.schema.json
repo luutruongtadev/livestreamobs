@@ -338,6 +338,12 @@
       "title": "Link video meme cho “Tai nghe chống ồn” (mp4 / webm / gif, để trống = meme hoạt hình)",
       "maxLength": 500,
       "default": ""
+    },
+    "memeClip_hetlimit": {
+      "type": "string",
+      "title": "Link video meme cho “Claude hết limit” (mp4 / webm / gif, để trống = meme hoạt hình)",
+      "maxLength": 500,
+      "default": ""
     }
   }
 }

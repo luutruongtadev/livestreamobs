@@ -8,3 +8,4 @@ export { Emitter } from './emitter.js';
 export { PausableMixin, makePausable } from './pause.js';
 export { seededRandom, fakeClock, systemNow, systemRandom } from './random.js';
 export { normalize, canon, compact, sameWord, digitsOf } from './text.js';
+export { panelOf, withPanel, drawPanel, activePanels, cleanPanels, PANEL_SCALE } from './panels.js';

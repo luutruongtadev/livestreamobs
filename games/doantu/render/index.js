@@ -1,6 +1,7 @@
 // Renderer canvas của game Đoán từ (chuyển từ public/js/wordgame.js của server đơn).
 // Không đụng DOM khi import; mọi thứ nằm trong mount(). Nền tảng lo kết nối, nút bật âm thanh, chế độ điện thoại.
 import { SoundBoard } from './sound.js';
+import { drawPanel } from '#sdk';
 
 const W = 1080, H = 1920;
 
@@ -9,6 +10,8 @@ const W = 1080, H = 1920;
  * options: { mute, debug, tts } (từ tham số URL của overlay: ?mute=1 ?debug=1 ?tts=0)
  */
 export function mount(el, mctx = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const o = mctx.options || {};
   const opt = { mute: !!o.mute, debug: !!o.debug, tts: o.tts !== false && !o.mute, phone: false };
   const canvas = mctx.canvas;
@@ -1557,7 +1560,7 @@ export function mount(el, mctx = {}) {
     drawSecret(t);
     drawRanking(t);
     drawGuide();
-    drawFeed();
+    studioPanel('feed', { x: 40, y: L.feedY - 64 }, () => drawFeed());
     drawChampions();
     drawFloaters(dt);
     drawEnd(t);
@@ -1605,6 +1608,7 @@ export function mount(el, mctx = {}) {
     effect(e) { try { handle(e); } catch (err) { console.warn('[doantu] hiệu ứng lỗi:', err?.message || err); } },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() { stopped = true; cancelAnimationFrame(raf); try { sound.mute?.(true); } catch { /* bỏ qua */ } },
   };
 }

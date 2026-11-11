@@ -23,14 +23,14 @@ import { pickRules, ruleText, ruleOk } from './password.js';
  */
 export function createGame(ctx) { return new Deadline(ctx); }
 
-export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai', 'meo', 'capslock', 'cupdien', 'wifi'];
+export const HARM = ['ping', 'soi', 'ban', 'mayin', 'buzz', 'hop', 'cattg', 'virus', 'lamlai', 'meo', 'capslock', 'cupdien', 'wifi', 'hetlimit'];
 export const HELP = ['cafe', 'giahan', 'intern', 'thangchuc', 'antrua', 'tainghe'];
 export const JOBS = ['mail', 'inbox', 'sheet', 'files', 'password', 'captcha', 'approve', 'otp', 'typo', 'reply', 'calendar', 'desktop', 'sign', 'colleague', 'quiz'];
 export const VIEWER_JOBS = ['sign', 'colleague', 'quiz']; // việc cần người xem bình luận (có nút Bỏ qua)
 const JUNK = '#$%&@!?*~^qzxjwkfv';
 export const APPROVE_LIMIT = 10; // triệu: tờ trình trên mức này thì Từ chối (và phải khớp hoá đơn)
 export const FOLDERS = ['anh', 'tailieu', 'rac'];
-const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000, meo: 8000, capslock: 15000, cupdien: 12000, wifi: 8000, antrua: 15000, tainghe: 30000 };
+const STATUS_MS = { soi: 15000, mayin: 12000, hop: 20000, buzz: 15000, virus: 10000, meo: 8000, capslock: 15000, cupdien: 12000, wifi: 8000, hetlimit: 15000, antrua: 15000, tainghe: 30000 };
 const SOI_PING_MS = 4500;
 const STORY_MSG_MS = 7000;
 const EVENT_EFFECTS = new Set([...HARM, ...HELP.filter((x) => x !== 'thangchuc')]);
@@ -381,7 +381,7 @@ export class Deadline extends Emitter {
   }
 
   active(kind) { const t = this.clock(); return this.status.some((s) => s.kind === kind && s.until > t); }
-  covered() { return this.active('hop') || (this.desktop && this.pings.length > 0); }
+  covered() { return this.active('hop') || this.active('hetlimit') || (this.desktop && this.pings.length > 0); }
 
   addBlocker(b) {
     const same = this.blockers.find((x) => x.kind === b.kind);
@@ -520,6 +520,7 @@ export class Deadline extends Emitter {
       case 'capslock': this.addStatus('capslock', by); sub = 'gõ ra chữ hoa / thường đảo ngược'; break;
       case 'cupdien': this.addStatus('cupdien', by); sub = 'màn hình tối om'; break;
       case 'wifi': this.addStatus('wifi', by); sub = 'không gửi / lưu được'; break;
+      case 'hetlimit': this.addStatus('hetlimit', by); sub = 'chờ 15 giây mới làm tiếp'; break;
       case 'antrua': this.addStatus('antrua', by); sub = 'đồng hồ đứng 15 giây'; break;
       case 'tainghe':
         this.addStatus('tainghe', by);

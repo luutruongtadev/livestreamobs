@@ -2,6 +2,7 @@
 // Bố cục theo kiểu game văn phòng: thẻ NHIỆM VỤ + ô DEADLINE ở trên; chế độ camera để trống giữa màn hình cho camera
 // (thông báo sếp ping bên trái, bảng quà bên phải); chế độ máy tính vẽ một cửa sổ máy tính giả để streamer gõ / bấm.
 // Không đụng DOM khi import. mount() nhận thêm input(ev) (đầu vào tại chỗ) — có thì bật gõ phím / bấm chuột.
+import { drawPanel } from '#sdk';
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const TITLE = "'Baloo 2', 'Be Vietnam Pro', system-ui, sans-serif";
 const MONO = "ui-monospace, 'Cascadia Mono', Consolas, monospace";
@@ -29,10 +30,11 @@ export const ACT = {
   capslock: { icon: '⇪', name: 'Caps Lock kẹt', title: 'CAPS LOCK KẸT!', color: '#ff6b5e' },
   cupdien: { icon: '🌑', name: 'Cúp điện', title: 'CÚP ĐIỆN!', color: '#ff6b5e' },
   wifi: { icon: '📶', name: 'Rớt wifi', title: 'RỚT WIFI!', color: '#ff6b5e' },
+  hetlimit: { icon: '🤖', name: 'Claude hết limit', title: 'CLAUDE HẾT LIMIT!', color: '#ff6b5e' },
   antrua: { icon: '🍱', name: 'Sếp mời ăn trưa', title: 'SẾP MỜI ĂN TRƯA!', color: '#5eea8f' },
   tainghe: { icon: '🎧', name: 'Tai nghe chống ồn', title: 'TAI NGHE CHỐNG ỒN!', color: '#5eea8f' },
 };
-const STATUS = { meo: ['🐱', 'Mèo trên bàn phím'], capslock: ['⇪', 'Caps Lock kẹt'], cupdien: ['🌑', 'Cúp điện'], wifi: ['📶', 'Rớt wifi'], antrua: ['🍱', 'Đồng hồ đứng'], tainghe: ['🎧', 'Đeo tai nghe'], soi: ['👀', 'Sếp đang soi'], mayin: ['🖨️', 'Máy in kẹt'], hop: ['🚨', 'Đang họp'], buzz: ['🗣️', 'Đọc to câu sếp'], virus: ['👾', 'Máy dính virus'] };
+const STATUS = { meo: ['🐱', 'Mèo trên bàn phím'], capslock: ['⇪', 'Caps Lock kẹt'], cupdien: ['🌑', 'Cúp điện'], wifi: ['📶', 'Rớt wifi'], hetlimit: ['🤖', 'Claude hết limit'], antrua: ['🍱', 'Đồng hồ đứng'], tainghe: ['🎧', 'Đeo tai nghe'], soi: ['👀', 'Sếp đang soi'], mayin: ['🖨️', 'Máy in kẹt'], hop: ['🚨', 'Đang họp'], buzz: ['🗣️', 'Đọc to câu sếp'], virus: ['👾', 'Máy dính virus'] };
 const COINS = { rose: 1, 'finger heart': 5, doughnut: 30, perfume: 20, 'hat and mustache': 99, 'money gun': 500, galaxy: 1000, corgi: 299, cap: 99, 'heart me': 1, 'hand hearts': 100, sunglasses: 199, lion: 29999, 'ice cream cone': 1, tiktok: 1, gg: 1, rosa: 10, 'paper crane': 99, confetti: 100, 'mishka bear': 100 };
 const MOOD = { shock: '😱', cry: '😭', dizzy: '😵', angry: '😤', skull: '💀', happy: '🥳', rich: '🤑' };
 const APPS = { mail: ['✉️', 'Mail'], inbox: ['📥', 'Hộp thư'], sheet: ['📊', 'Bảng tính'], files: ['📁', 'File'], password: ['🔐', 'Đổi mật khẩu'], sign: ['🗳️', 'Xin chữ ký'], colleague: ['📢', 'Chat team'], quiz: ['🧮', 'Hỏi đáp nhanh'], captcha: ['🤖', 'Xác minh'], approve: ['✍️', 'Ký duyệt'], otp: ['🔢', 'Mã OTP'], typo: ['📝', 'Soát chính tả'], reply: ['💬', 'Chat khách hàng'], calendar: ['📅', 'Lịch họp'], desktop: ['🧹', 'Dọn màn hình'] };
@@ -40,6 +42,8 @@ const FOLDER = [['anh', '🖼️', 'Ảnh'], ['tailieu', '📄', 'Tài liệu'],
 const TOP = 150;
 
 export function mount(el, { canvas, options = {}, input = null } = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -577,6 +581,31 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     if (S.queued) text(`+${S.queued} việc sếp giao đang chờ`, x + w - 6, y + h + 15, 20, '#fff', 800, 'right');
   }
 
+  // Claude hết limit: màn chat AI báo hết lượt, đếm ngược 15 giây
+  function drawLimit(now, x, y, w, h) {
+    const st = statusOf('hetlimit');
+    const sec = Math.ceil(left(st?.leftMs || 0, now) / 1000);
+    fill(x, y, w, h, 0, '#f5f2ea');
+    text('✳ Claude', x + 40, y + 50, 34, '#c2410c', 900, 'left');
+    ctx.fillStyle = '#e7e2d6'; ctx.fillRect(x, y + 92, w, 2);
+    // bong bóng người dùng
+    const q = 'Làm giúp em cái báo cáo này với, gấp lắm!!!';
+    const qw = Math.min(w - 160, measure(q, 28, 600) + 60);
+    fill(x + w - 40 - qw, y + 130, qw, 76, 22, '#e9e4d8');
+    text(q, x + w - 40 - qw / 2, y + 169, 28, C.ink, 600, 'center', qw - 40);
+    // thông báo hết lượt
+    const by = y + 250, bh = 300;
+    fill(x + 40, by, w - 80, bh, 20, '#fff7ed'); rr(x + 40, by, w - 80, bh, 20); ctx.strokeStyle = '#fdba74'; ctx.lineWidth = 3; ctx.stroke();
+    text('⏳ Bạn đã dùng hết giới hạn tin nhắn', x + w / 2, by + 60, 34, '#9a3412', 900, 'center', w - 140);
+    text(`Thử lại sau ${sec} giây`, x + w / 2, by + 118, 30, '#7c2d12', 700);
+    const k = Math.max(0, Math.min(1, (st?.leftMs || 0) / (st?.totalMs || 15000)));
+    fill(x + 100, by + 170, w - 200, 18, 9, '#fde3c7');
+    fill(x + 100, by + 170, Math.max(18, (w - 200) * k), 18, 9, '#ea580c');
+    text(`bởi ${st?.by?.name || 'ai đó'} · không làm gì được tới khi hết giờ 😭`, x + w / 2, by + 238, 22, '#9a3412', 700, 'center', w - 140);
+    const dots = '•••'.slice(0, 1 + Math.floor(now / 400) % 3);
+    text(`Claude đang nghỉ ${dots}`, x + 40, y + h - 50, 24, '#a8a29e', 700, 'left');
+  }
+
   function drawMeeting(now, x, y, w, h) {
     fill(x, y, w, h, 0, '#14141b');
     const st = statusOf('hop');
@@ -623,7 +652,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     ctx.fillStyle = g; ctx.fillRect(ix, iy, iw, ih);
     const cx = ix + 30, cy = iy + 28, cw = iw - 60, ch = ih - 56;
     if (S.phase === 'work') {
-      if (statusOf('hop')) drawMeeting(now, ix, iy, iw, ih);
+      if (statusOf('hetlimit')) drawLimit(now, ix, iy, iw, ih);
+      else if (statusOf('hop')) drawMeeting(now, ix, iy, iw, ih);
       else {
         ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.2)'; ctx.shadowBlur = 20; fill(cx, cy, cw, ch, 18, '#fff'); ctx.restore();
         if (S.blocker) { ctx.save(); ctx.globalAlpha = 0.25; drawJob(now, cx, cy, cw, ch); ctx.restore(); hits = hits.filter((hh) => hh.ev.target === 'ping'); activeField = null; drawBlocker(now, cx, cy, cw, ch); }
@@ -994,16 +1024,19 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     drawHud(now);
     if (desktop) {
       drawDesktop(now);
-      const gb = giftGrid(now, 24, WIN.y + WIN.h + 24, 1032);
-      drawFeed(now, 24, Math.min(H - 40, gb + 260));
+      const gy = WIN.y + WIN.h + 24;
+      let gb = gy;
+      studioPanel('gifts', { x: 24, y: gy }, () => { gb = giftGrid(now, 24, gy, 1032); });
+      const fb = Math.min(H - 40, Math.max(gb, gy + 436) + 260);
+      studioPanel('feed', { x: 24, y: fb - 222 }, () => drawFeed(now, 24, fb));
       drawTitle(now, 780);
     } else {
       const cy = drawChips(now, 24, TOP + 176, 650);
       const sy = S.phase === 'work' ? drawStory(now, 24, Math.max(TOP + 186, cy), 650, 2) : Math.max(TOP + 186, cy);
       const py = drawCameraPings(now, sy);
-      giftList(now, 704, TOP + 176, 352);
+      studioPanel('giftsCam', { x: 704, y: TOP + 176 }, () => giftList(now, 704, TOP + 176, 352));
       drawCameraExtras(now, Math.max(cy, py));
-      drawFeed(now, 24, H - 120);
+      studioPanel('feedCam', { x: 24, y: H - 120 - 222 }, () => drawFeed(now, 24, H - 120));
       drawTitle(now, 1240);
     }
     if (S.phase === 'work' && statusOf('cupdien')) drawBlackout(now, desktop);
@@ -1075,6 +1108,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() {
       stopped = true; cancelAnimationFrame(raf); sound.close();
       typing?.remove(); clipEl?.remove();
@@ -1102,6 +1136,7 @@ function makeSound(muted) {
     ban: () => { tone(220, 0.08, { vol: 0.3, slide: 0.4 }); tone(900, 0.06, { type: 'square', vol: 0.06, at: 0.05 }); },
     mayin: () => [0, 0.12, 0.24, 0.36].forEach((at) => tone(140, 0.1, { type: 'sawtooth', vol: 0.08, at, slide: 1.4 })),
     buzz: () => [0, 0.14, 0.28].forEach((at, i) => tone(300 + i * 60, 0.12, { type: 'square', vol: 0.05, at })),
+    hetlimit: () => { tone(520, 0.25, { type: 'triangle', vol: 0.12 }); tone(390, 0.4, { type: 'triangle', vol: 0.12, at: 0.25, slide: 0.8 }); },
     hop: () => [0, 0.3, 0.6].forEach((at) => tone(880, 0.22, { type: 'sawtooth', vol: 0.06, at, slide: 0.7 })),
     cattg: () => tone(600, 0.9, { type: 'sawtooth', vol: 0.07, slide: 0.15 }),
     virus: () => [0, 0.06, 0.12, 0.18, 0.24].forEach((at, i) => tone(i % 2 ? 1500 : 400, 0.05, { type: 'square', vol: 0.05, at })),

@@ -190,5 +190,29 @@
       "id": "clear-board",
       "label": "Xoá bảng điểm"
     }
+  ],
+  "panels": [
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 24,
+        "y": 1326,
+        "w": 1032,
+        "h": 356
+      }
+    },
+    {
+      "id": "feed",
+      "label": "Dòng quà vừa tặng",
+      "icon": "🧾",
+      "rect": {
+        "x": 24,
+        "y": 1684,
+        "w": 660,
+        "h": 216
+      }
+    }
   ]
 }

@@ -1,6 +1,7 @@
 // Renderer canvas của game Đoán cờ vòng quanh thế giới (khung dọc 1080×1920, chừa ~260px trên cho giao diện TikTok).
 // Motif hàng không: bản đồ đêm + đường bay, dải chặng có điểm mốc, "thẻ lên máy bay" giấy kem cho lá cờ, tem hộ chiếu khi tới nơi.
 // Không đụng DOM khi import; ảnh cờ / bản đồ nạp theo đường dẫn tương đối với file này.
+import { drawPanel } from '#sdk';
 const FONT = "'Be Vietnam Pro', system-ui, sans-serif";
 const C = {
   sea0: '#071a26', sea1: '#0c2a3b', grid: 'rgba(160,210,220,.06)', land: '#1d4b5c', landEdge: '#0a2230', lit: '#f2b83b', litEdge: '#a8761a',
@@ -26,6 +27,8 @@ export function decodeTopo(topo) {
 }
 
 export function mount(el, { canvas, options = {} } = {}) {
+  let LAYOUT = {}; // vị trí / cỡ / ẩn các bảng do streamer chỉnh trong Studio
+  const studioPanel = (id, def, fn) => drawPanel(ctx, LAYOUT, id, def, fn);
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -343,7 +346,8 @@ export function mount(el, { canvas, options = {} } = {}) {
       text(`🏳️ ${r.flags}`, 40 + bw - 130, yy + 1, 20, C.dim, 700, 'right');
       text(fmtN(r.points), 40 + bw - 26, yy + 1, 26, C.gold, 900, 'right');
     });
-    // quà → tác dụng
+    // quà → tác dụng (bảng streamer chỉnh được trong Studio)
+    studioPanel('gifts', { x: 660, y }, () => {
     const px = 660, pw = W - 40 - px;
     rr(px, y, pw, h, 26); ctx.fillStyle = 'rgba(4,14,22,.72)'; ctx.fill(); ctx.strokeStyle = 'rgba(125,211,232,.3)'; ctx.lineWidth = 2; ctx.stroke();
     text('🎁 TẶNG QUÀ ĐỂ…', px + 24, y + 36, 22, C.sky, 900, 'left');
@@ -359,6 +363,7 @@ export function mount(el, { canvas, options = {} } = {}) {
         text(p.text, px + 64, yy - 10, 19, C.text, 800, 'left', pw - 80);
         text(`→ ${ACTION_TEXT[p.action] || p.action}`, px + 64, yy + 12, 16, C.dim, 600, 'left', pw - 80);
       } else text(`${p.text} → ${ACTION_TEXT[p.action] || p.action}`, px + 62, yy + 1, 17, C.text, 700, 'left', pw - 76);
+    });
     });
   }
 
@@ -508,6 +513,7 @@ export function mount(el, { canvas, options = {} } = {}) {
     },
     resumeAudio() { sound.resume(); },
     resize() {},
+    layout(m) { LAYOUT = m && typeof m === 'object' ? m : {}; },
     destroy() { stopped = true; cancelAnimationFrame(raf); sound.close(); },
   };
 }
