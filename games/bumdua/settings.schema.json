@@ -1,0 +1,89 @@
+{
+  "type": "object",
+  "properties": {
+    "wrapSeconds": {
+      "type": "number",
+      "title": "Cô Ba quấn 1 sợi mất bao nhiêu giây",
+      "minimum": 0.2,
+      "maximum": 3,
+      "default": 0.9
+    },
+    "perUserQueue": {
+      "type": "integer",
+      "title": "Mỗi người tối đa bao nhiêu sợi đang chờ quấn",
+      "enum": [
+        1,
+        3,
+        5,
+        10
+      ],
+      "default": 3
+    },
+    "likesPerBand": {
+      "type": "integer",
+      "title": "Bao nhiêu tim thì thêm 1 sợi",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 20
+    },
+    "followBands": {
+      "type": "integer",
+      "title": "Follow mới: ném một nắm bao nhiêu sợi (0 = tắt)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 5
+    },
+    "selfBandSeconds": {
+      "type": "integer",
+      "title": "Không ai bình luận: cô Ba tự quấn 1 sợi mỗi bao nhiêu giây",
+      "minimum": 2,
+      "maximum": 120,
+      "default": 6
+    },
+    "breakMin": {
+      "type": "integer",
+      "title": "Ngưỡng nổ bí mật của dưa thường: ít nhất bao nhiêu sợi",
+      "minimum": 5,
+      "maximum": 2000,
+      "default": 40
+    },
+    "breakMax": {
+      "type": "integer",
+      "title": "Ngưỡng nổ bí mật của dưa thường: nhiều nhất bao nhiêu sợi",
+      "minimum": 5,
+      "maximum": 3000,
+      "default": 110
+    },
+    "growth": {
+      "type": "boolean",
+      "title": "Dưa lớn dần: cứ 5 trái có 1 trái to, 10 trái có 1 trái khổng lồ",
+      "default": true
+    },
+    "knifeSeconds": {
+      "type": "integer",
+      "title": "Dao chặt: đếm ngược bao nhiêu giây",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 15
+    },
+    "turboSeconds": {
+      "type": "integer",
+      "title": "Cô Ba tăng tốc: mỗi lần bao nhiêu giây (tối đa cộng dồn 2 phút)",
+      "minimum": 10,
+      "maximum": 120,
+      "default": 30
+    },
+    "popSeconds": {
+      "type": "integer",
+      "title": "Ăn mừng dưa nổ bao nhiêu giây rồi lên trái mới",
+      "minimum": 3,
+      "maximum": 15,
+      "default": 5
+    },
+    "showBoard": {
+      "type": "boolean",
+      "title": "Hiện Bảng Bùm (ai làm nổ nhiều nhất)",
+      "default": true
+    }
+  }
+}

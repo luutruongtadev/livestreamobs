@@ -1,0 +1,220 @@
+{
+  "id": "bumdua",
+  "name": "Bùm Dưa",
+  "description": "Cô Ba ở sạp dưa quấn dây thun quanh trái dưa hấu: mỗi bình luận là một sợi có mặt người xem. Không ai biết sợi nào làm dưa nổ tung. Quà ném cả bó dây, dao chặt, thớt chắn, kéo cắt.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "casual",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment",
+    "like",
+    "follow"
+  ],
+  "restore": "full",
+  "server": false,
+  "actions": [
+    {
+      "id": "nam",
+      "label": "Nắm dây (3 sợi)",
+      "icon": "🤏",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rose"
+        }
+      ]
+    },
+    {
+      "id": "boc",
+      "label": "Bó dây (10 sợi)",
+      "icon": "✊",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        }
+      ]
+    },
+    {
+      "id": "cuon",
+      "label": "Cuộn dây to (25 sợi)",
+      "icon": "🧶",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Doughnut"
+        }
+      ]
+    },
+    {
+      "id": "thung",
+      "label": "Thùng dây (50 sợi)",
+      "icon": "📦",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hand Hearts"
+        }
+      ]
+    },
+    {
+      "id": "sung",
+      "label": "Súng bắn dây (150 sợi)",
+      "icon": "🔫",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Money Gun"
+        }
+      ]
+    },
+    {
+      "id": "turbo",
+      "label": "Cô Ba tăng tốc ×4 (30 giây)",
+      "icon": "⚡",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Corgi"
+        }
+      ]
+    },
+    {
+      "id": "dao",
+      "label": "Dao chặt dưa (đếm ngược rồi bổ)",
+      "icon": "🔪",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Galaxy"
+        }
+      ]
+    },
+    {
+      "id": "thot",
+      "label": "Thớt chắn dao",
+      "icon": "🪵",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Cap"
+        }
+      ]
+    },
+    {
+      "id": "keo",
+      "label": "Kéo cắt 10 sợi",
+      "icon": "✂️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Perfume"
+        }
+      ]
+    },
+    {
+      "id": "vang",
+      "label": "Dưa vàng (cứng hơn)",
+      "icon": "🌟",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Sunglasses"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "pop",
+      "label": "Cho nổ ngay"
+    },
+    {
+      "id": "next",
+      "label": "Dưa mới"
+    },
+    {
+      "id": "clear-board",
+      "label": "Xoá Bảng Bùm"
+    }
+  ],
+  "panels": [
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 40,
+        "y": 1500,
+        "w": 1000,
+        "h": 250
+      }
+    },
+    {
+      "id": "hall",
+      "label": "Bảng Bùm",
+      "icon": "💥",
+      "rect": {
+        "x": 700,
+        "y": 300,
+        "w": 340,
+        "h": 360
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "pop",
+      "label": "Dưa nổ",
+      "fx": "bd_pop"
+    },
+    {
+      "id": "knife",
+      "label": "Dao bổ đôi trái dưa",
+      "fx": "bd_pop",
+      "where": {
+        "how": "dao"
+      }
+    },
+    {
+      "id": "block",
+      "label": "Thớt chặn dao",
+      "fx": "bd_block"
+    }
+  ],
+  "memes": [
+    {
+      "event": "pop",
+      "q": "watermelon explode",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "BÙM!!|Nổ rồi mọi người ơi 🍉|Ai làm nổ vậy?!"
+    },
+    {
+      "event": "knife",
+      "q": "samurai slice",
+      "sound": {
+        "mode": "lib",
+        "id": "dramatic"
+      },
+      "text": "Một nhát bổ đôi 🔪|Chém gió thật luôn"
+    },
+    {
+      "event": "block",
+      "q": "blocked nope",
+      "sound": {
+        "mode": "lib",
+        "id": "nopenope"
+      },
+      "text": "Chặn được rồi!|Không qua được đâu 🪵"
+    }
+  ]
+}
