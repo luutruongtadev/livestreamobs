@@ -145,7 +145,7 @@ export function createGame(ctx) {
     scorer: makeScorer(ctx),
     now: ctx.now,
     random: ctx.random,
-    persist: { read: () => ctx.storage.get('state') || null, write: (v) => ctx.storage.set('state', v) },
+    persist: { read: () => { const v = ctx.storage.get('state'); if (!v || typeof v !== 'object') return null; const { settings: _old, ...rest } = v; return rest; }, write: (v) => ctx.storage.set('state', v) },
     wordBank: makeWordBank(ctx, modeWords.meaning),
     attrStore: makeAttrStore(ctx, data, serverOk),
     englishStore: makeEnglishStore(ctx, data, serverOk),
@@ -222,10 +222,12 @@ export function createGame(ctx) {
       return s;
     },
     // Ván đang chơi không lưu (restore "partial"): reload overlay thì giữ người thắng, từ đã chơi, chuỗi, đội — vòng mới bắt đầu lại.
-    serialize: () => ({ state: wg.state(), used: ctx.storage.get('used') || [] }),
+    // Kiểu chơi / số vòng luân phiên KHÔNG lưu theo ván: cài đặt trên dashboard là chuẩn (bản lưu cũ từng ghi đè cài đặt mới).
+    serialize: () => { const { settings: _drop, ...state } = wg.state(); return { state, used: ctx.storage.get('used') || [] }; },
     restore(saved) {
       if (!saved || typeof saved !== 'object' || !saved.state || typeof saved.state !== 'object') return;
-      ctx.storage.set('state', saved.state);
+      const { settings: _old, ...state } = saved.state;
+      ctx.storage.set('state', state);
       if (Array.isArray(saved.used)) ctx.storage.set('used', saved.used);
       wg.load();
     },
