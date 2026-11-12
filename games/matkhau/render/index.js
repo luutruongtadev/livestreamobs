@@ -413,7 +413,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     if (r.by) { chip(`🏆 ${r.by.name} phá đảo!`, 0, y, 30, C.yellow, C.ink, 'center'); y += 70; }
     const stats = r.win ? `⏱ Còn ${mmss(r.leftMs)} · 🔁 ${r.attempts} lần thử` : `🔁 ${r.attempts} lần thử`;
     text(stats, 0, y, 30, C.ink, 800); y += 56;
-    if (r.punishment) { chip(`Hình phạt: ${r.punishment}`, 0, y, 26, C.orange, C.ink, 'center'); y += 64; }
+    if (r.punishment) { chip(`${r.punishmentKind === 'voice' ? '🎤 Phạt' : '⚖️ Án phạt'}: ${r.punishment}`, 0, y, 26, C.orange, C.ink, 'center'); y += 64; }
     if (tor) { text(`😈 Phá nhiều nhất: ${tor.name}`, 0, y, 26, C.dim, 800, 'center', 820); y += 40; }
     if (hel) { text(`😇 Cứu nhiều nhất: ${hel.name}`, 0, y, 26, C.dim, 800, 'center', 820); y += 40; }
     const sec = Math.ceil(S.remainingMs / 1000);
@@ -583,6 +583,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         case 'mk_fail': anim.shake = 1; anim.flashAt = now; anim.flashColor = C.red; sound.play('fail'); break;
         case 'mk_intro': sound.play('brief'); break;
         case 'mk_start': sound.play('start'); break;
+        case 'mk_penalty': title('⚖️ ÁN PHẠT!', null, fx.kind === 'time' ? 'Bớt 20 giây vì thua màn trước' : fx.kind === 'forbid' ? 'Cấm sẵn 1 chữ cái' : 'Tặng kèm 1 luật siêu khó', C.orange, 2.2); sound.play('harm'); break;
         default:
       }
     },

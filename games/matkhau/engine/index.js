@@ -22,7 +22,7 @@ export const HELP = ['goiy', 'themgio', 'xoaluat', 'khien', 'qualuon'];
 const HOST_ONLY = new Set(['hacker', 'meo', 'capslock']);
 const MAX_RULES = 20;
 const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn danh').slice(0, 40), avatar: u?.avatar || null });
-const FALLBACK = { bot: {}, strength: ['Yếu', 'Vừa', 'Mạnh'], punishments: ['Chống đẩy 10 cái'], junk: ['meo'] };
+const FALLBACK = { bot: {}, strength: ['Yếu', 'Vừa', 'Mạnh'], punishments: ['Hát 1 câu'], penalties: [{ kind: 'time', text: 'Màn sau bị bớt 20 giây' }], junk: ['meo'] };
 
 export class MatKhau extends Emitter {
   constructor(ctx) {
@@ -78,7 +78,27 @@ export class MatKhau extends Emitter {
     this.startedAt = this.clock();
     this.endsAt = this.startedAt + this.totalMs;
     this.lastTickAt = this.startedAt;
-    return [{ type: 'mk_start', level: this.level }, ...this.reveal(null)];
+    const fx = [{ type: 'mk_start', level: this.level }, ...this.reveal(null)];
+    fx.push(...this.applyPenalty());
+    return fx;
+  }
+
+  /** Án phạt trong game từ lần thua trước: áp vào đầu màn này. */
+  applyPenalty() {
+    const kind = this.penalty;
+    this.penalty = null;
+    if (!kind || this.phase !== 'play') return [];
+    const env = this.env();
+    const by = { id: 'npc:bot', name: 'Án phạt', avatar: null };
+    let r = null;
+    if (kind === 'time') this.endsAt = Math.max(this.clock() + 20_000, this.endsAt - 20_000);
+    else if (kind === 'hard') r = nextRule(this.rules, 3, this.ctx.random, env);
+    else if (kind === 'forbid') { const c = FORBID_LETTERS.find((x) => solve([...this.rules, { id: 'forbid', p: x }], env)); r = c ? { id: 'forbid', p: c } : null; }
+    this.say('penalty', 'evil');
+    if (!r) return [{ type: 'mk_penalty', kind }];
+    this.target = Math.min(MAX_RULES + 6, this.target + 1);
+    const rule = this.addRule(r, { by });
+    return [{ type: 'mk_penalty', kind }, this.ruleFx(rule, 'án phạt')];
   }
 
   tierFor(pos) {
@@ -161,7 +181,9 @@ export class MatKhau extends Emitter {
   }
 
   fail() {
-    this.result = { win: false, level: this.level, rules: this.rules.length, password: this.hostMode ? this.typed : this.bestTry?.text || '', by: null, leftMs: 0, attempts: this.attempts, punishment: this.hostMode && this.s.punishments ? this.pick(this.d.punishments) : null, line: this.say('fail', 'angry') };
+    this.result = { win: false, level: this.level, rules: this.rules.length, password: this.hostMode ? this.typed : this.bestTry?.text || '', by: null, leftMs: 0, attempts: this.attempts, punishment: null, punishmentKind: null, line: this.say('fail', 'angry') };
+    if (this.s.punishment === 'game') { const pen = this.pick(this.d.penalties); this.penalty = pen?.kind || null; this.result.punishment = pen?.text || null; this.result.punishmentKind = 'game'; }
+    else if (this.s.punishment === 'voice' && this.hostMode) { this.result.punishment = this.pick(this.d.punishments); this.result.punishmentKind = 'voice'; }
     if (this.s.dropLevelOnFail) this.level = Math.max(1, this.level - 1);
     return this.endRound(false);
   }
@@ -507,7 +529,7 @@ export class MatKhau extends Emitter {
       level: this.level, best: this.best, wins: this.wins, uid: this.uid, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt ?? null,
       target: this.target, totalMs: this.totalMs, rules: this.rules, typed: this.typed, rev: this.rev, latest: this.latest, bestTry: this.bestTry,
       vote: this.vote, voteReady: this.voteReady, wantNext: this.wantNext, pending: this.pending, status: this.status, shield: this.shield,
-      attempts: this.attempts, result: this.result, torment: this.torment, helpers: this.helpers, players: this.players, feed: this.feed, words: this.words, bot: this.bot,
+      attempts: this.attempts, result: this.result, penalty: this.penalty ?? null, torment: this.torment, helpers: this.helpers, players: this.players, feed: this.feed, words: this.words, bot: this.bot,
     };
   }
 

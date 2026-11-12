@@ -157,6 +157,12 @@ test('hết giờ: khoá tài khoản, hình phạt, lùi màn; lưu / khôi ph�
   clock.advance(60 * 60_000);
   const fx = host.tick();
   assert.equal(fx[0].type, 'mk_fail');
+  assert.equal(fx[0].punishmentKind, 'game', 'mặc định: án phạt trong game, không bắt host làm gì trước camera');
   assert.ok(fx[0].punishment);
   assert.equal(host.snapshot().level, 2);
+  const before = host.snapshot().total;
+  clock.advance(60_000); host.tick(); // hết màn kết quả → giới thiệu
+  clock.advance(60_000); const start = host.tick();
+  assert.ok(start.some((f) => f.type === 'mk_penalty'), 'màn sau bị áp án phạt');
+  assert.ok(host.snapshot().total >= before);
 });

@@ -37,6 +37,6 @@ Lệnh của streamer: Xoá 1 luật · +30 giây · Màn tiếp / bắt đầu 
 
 ## Màn chơi
 
-Số luật = `baseRules` + (màn − 1) × `rulesPerLevel` (tối đa `maxRules`); thời gian = `baseSeconds` + `secondsPerRule` × số luật. Hết giờ: tài khoản bị khoá, có hình phạt vui cho host (`punishments`), lùi 1 màn (`dropLevelOnFail`).
+Số luật = `baseRules` + (màn − 1) × `rulesPerLevel` (tối đa `maxRules`); thời gian = `baseSeconds` + `secondsPerRule` × số luật. Hết giờ: tài khoản bị khoá, bị phạt theo cài đặt `punishment`: mặc định **án phạt trong game** cho màn sau (thêm 1 luật siêu khó / bớt 20 giây / cấm sẵn 1 chữ, không cần camera), hoặc phạt bằng giọng nói qua micro (hát, đọc to…), hoặc tắt, lùi 1 màn (`dropLevelOnFail`).
 
 Bảng có thể kéo / phóng / ẩn trong Studio: Bảng quà, Bình chọn luật, Bảng xếp hạng (chế độ người xem).

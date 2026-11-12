@@ -130,10 +130,20 @@
       "title": "Hết giờ thì lùi 1 màn",
       "default": true
     },
-    "punishments": {
-      "type": "boolean",
-      "title": "Hết giờ có hình phạt vui cho host",
-      "default": true
+    "punishment": {
+      "type": "string",
+      "title": "Hết giờ thì phạt gì",
+      "enum": [
+        "game",
+        "voice",
+        "off"
+      ],
+      "enumNames": [
+        "Án phạt trong game: màn sau khó hơn (không cần camera)",
+        "Phạt bằng giọng nói qua micro (hát, đọc to…)",
+        "Không phạt"
+      ],
+      "default": "game"
     },
     "bannedWords": {
       "type": "string",

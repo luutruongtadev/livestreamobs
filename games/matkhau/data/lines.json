@@ -1,30 +1,162 @@
 {
   "bot": {
-    "intro": ["Chào sếp. Mật khẩu cũ “123456” đã bị cả phòng live biết. Đổi gấp!", "Hệ thống bảo mật phiên bản 9.9 khó tính xin chào.", "Đặt mật khẩu mới đi. Lần này đừng dùng ngày sinh người yêu cũ.", "Tôi là Bé Bảo Mật. Tôi không có cảm xúc, chỉ có LUẬT.", "Màn mới, luật mới, nỗi đau mới."],
-    "rule": ["Hay đó. Nhưng chưa đủ đâu.", "Tạm được. Thêm luật nè!", "Ừm… qua. Giờ thử cái này xem.", "Tưởng xong rồi hả? Hehe.", "Tốt. Bây giờ mới là phần vui.", "Máy kiểm tra xong. Máy muốn thêm.", "Đẹp đấy. Nhưng máy khó tính lắm."],
-    "wrong": ["Sai rồi. Máy đã báo cáo với sếp.", "Mật khẩu gì mà yếu như người yêu cũ vậy?", "Không. Đọc lại luật đi bạn ơi.", "Máy từ chối trong 0,001 giây.", "Cái này mà gọi là mật khẩu á?", "Sai nữa là máy kể với mẹ bạn đó.", "Ủa? Luật ghi rõ vậy mà…", "Bình tĩnh. Hít thở. Đọc luật."],
-    "almost": ["Gần lắm rồi! Chỉ còn chút xíu.", "Còn 1 luật nữa thôi, cố lên!", "Nóng rồi đó, sắp được rồi!"],
-    "win": ["Đổi mật khẩu thành công! Máy… hơi nể bạn.", "Hệ thống chấp nhận. Lần này đừng dán lên màn hình nha.", "Được! Mật khẩu này hacker nhìn cũng khóc.", "Chúc mừng! Bạn vừa tạo ra mật khẩu khó nhớ nhất lịch sử."],
-    "fail": ["Hết giờ! Tài khoản bị khoá. Liên hệ IT… à IT nghỉ phép rồi.", "Khoá tài khoản. Lý do: chậm.", "Hết giờ rồi. Mật khẩu vẫn là 123456.", "Toang. Máy đã đổi mật khẩu thành “thualuon”."],
-    "vote": ["Khán giả đang chọn luật tiếp theo. Run chưa?", "Quyền lực thuộc về nhân dân: gõ 1 hoặc 2!"],
-    "voteWait": ["Đợi khán giả chọn luật đã!", "Từ từ, phòng live đang bỏ phiếu."],
-    "viewerRule": ["Có người xem ra luật nè. Máy duyệt!", "Luật này do khán giả đặt. Máy không chịu trách nhiệm."],
-    "luatac": ["Ôi, có người tặng luật SIÊU KHÓ. Máy vui quá.", "Một vị khán giả muốn bạn khổ hơn."],
-    "hacker": ["CẢNH BÁO: HACKER! Mật khẩu bay màu rồi.", "Hacker vào xoá sạch. Máy không cản kịp (máy cũng không muốn cản)."],
-    "meo": ["Meo meo… mèo vừa đạp lên bàn phím.", "Có mèo đi ngang qua. Mật khẩu có thêm lông."],
-    "camchu": ["Từ giờ cấm chữ này. Đừng hỏi tại sao.", "Chữ này bị khán giả cấm cửa."],
-    "rutgio": ["Đồng hồ bị rút bớt thời gian. Nhanh tay lên!", "Tick tock… ít giờ hơn rồi đó."],
-    "capslock": ["Caps Lock kẹt! gÕ gÌ cŨnG nGưỢc.", "Bàn phím đang dỗi."],
-    "doiluat": ["Luật cũ chán rồi, đổi luật mới cho vui.", "Cập nhật chính sách bảo mật: áp dụng ngay."],
-    "goiy": ["Thôi được, máy gợi ý chút nè.", "Khán giả thương bạn đó. Gợi ý đây."],
-    "themgio": ["Được thêm giờ. Đừng phí nha.", "Thời gian +30. Máy vẫn chờ."],
-    "xoaluat": ["Một luật bị xoá. Máy tiếc lắm.", "Khán giả cứu bạn một luật."],
-    "khien": ["Bật khiên bảo vệ! Quà phá tiếp theo vô hiệu.", "Khiên lên. Hacker cũng phải chào thua."],
-    "blocked": ["Khiên chặn rồi! Hehe.", "Đỡ! Quà phá vô tác dụng."],
-    "qualuon": ["Đại gia xuất hiện! Qua màn luôn.", "Có tiền là có mật khẩu. Duyệt!"],
-    "unlock": ["{name} mở được luật mới!", "{name} đi đầu nè!", "Giỏi! {name} vừa qua luật."]
+    "intro": [
+      "Chào sếp. Mật khẩu cũ “123456” đã bị cả phòng live biết. Đổi gấp!",
+      "Hệ thống bảo mật phiên bản 9.9 khó tính xin chào.",
+      "Đặt mật khẩu mới đi. Lần này đừng dùng ngày sinh người yêu cũ.",
+      "Tôi là Bé Bảo Mật. Tôi không có cảm xúc, chỉ có LUẬT.",
+      "Màn mới, luật mới, nỗi đau mới."
+    ],
+    "rule": [
+      "Hay đó. Nhưng chưa đủ đâu.",
+      "Tạm được. Thêm luật nè!",
+      "Ừm… qua. Giờ thử cái này xem.",
+      "Tưởng xong rồi hả? Hehe.",
+      "Tốt. Bây giờ mới là phần vui.",
+      "Máy kiểm tra xong. Máy muốn thêm.",
+      "Đẹp đấy. Nhưng máy khó tính lắm."
+    ],
+    "wrong": [
+      "Sai rồi. Máy đã báo cáo với sếp.",
+      "Mật khẩu gì mà yếu như người yêu cũ vậy?",
+      "Không. Đọc lại luật đi bạn ơi.",
+      "Máy từ chối trong 0,001 giây.",
+      "Cái này mà gọi là mật khẩu á?",
+      "Sai nữa là máy kể với mẹ bạn đó.",
+      "Ủa? Luật ghi rõ vậy mà…",
+      "Bình tĩnh. Hít thở. Đọc luật."
+    ],
+    "almost": [
+      "Gần lắm rồi! Chỉ còn chút xíu.",
+      "Còn 1 luật nữa thôi, cố lên!",
+      "Nóng rồi đó, sắp được rồi!"
+    ],
+    "win": [
+      "Đổi mật khẩu thành công! Máy… hơi nể bạn.",
+      "Hệ thống chấp nhận. Lần này đừng dán lên màn hình nha.",
+      "Được! Mật khẩu này hacker nhìn cũng khóc.",
+      "Chúc mừng! Bạn vừa tạo ra mật khẩu khó nhớ nhất lịch sử."
+    ],
+    "fail": [
+      "Hết giờ! Tài khoản bị khoá. Liên hệ IT… à IT nghỉ phép rồi.",
+      "Khoá tài khoản. Lý do: chậm.",
+      "Hết giờ rồi. Mật khẩu vẫn là 123456.",
+      "Toang. Máy đã đổi mật khẩu thành “thualuon”."
+    ],
+    "vote": [
+      "Khán giả đang chọn luật tiếp theo. Run chưa?",
+      "Quyền lực thuộc về nhân dân: gõ 1 hoặc 2!"
+    ],
+    "voteWait": [
+      "Đợi khán giả chọn luật đã!",
+      "Từ từ, phòng live đang bỏ phiếu."
+    ],
+    "viewerRule": [
+      "Có người xem ra luật nè. Máy duyệt!",
+      "Luật này do khán giả đặt. Máy không chịu trách nhiệm."
+    ],
+    "luatac": [
+      "Ôi, có người tặng luật SIÊU KHÓ. Máy vui quá.",
+      "Một vị khán giả muốn bạn khổ hơn."
+    ],
+    "hacker": [
+      "CẢNH BÁO: HACKER! Mật khẩu bay màu rồi.",
+      "Hacker vào xoá sạch. Máy không cản kịp (máy cũng không muốn cản)."
+    ],
+    "meo": [
+      "Meo meo… mèo vừa đạp lên bàn phím.",
+      "Có mèo đi ngang qua. Mật khẩu có thêm lông."
+    ],
+    "camchu": [
+      "Từ giờ cấm chữ này. Đừng hỏi tại sao.",
+      "Chữ này bị khán giả cấm cửa."
+    ],
+    "rutgio": [
+      "Đồng hồ bị rút bớt thời gian. Nhanh tay lên!",
+      "Tick tock… ít giờ hơn rồi đó."
+    ],
+    "capslock": [
+      "Caps Lock kẹt! gÕ gÌ cŨnG nGưỢc.",
+      "Bàn phím đang dỗi."
+    ],
+    "doiluat": [
+      "Luật cũ chán rồi, đổi luật mới cho vui.",
+      "Cập nhật chính sách bảo mật: áp dụng ngay."
+    ],
+    "goiy": [
+      "Thôi được, máy gợi ý chút nè.",
+      "Khán giả thương bạn đó. Gợi ý đây."
+    ],
+    "themgio": [
+      "Được thêm giờ. Đừng phí nha.",
+      "Thời gian +30. Máy vẫn chờ."
+    ],
+    "xoaluat": [
+      "Một luật bị xoá. Máy tiếc lắm.",
+      "Khán giả cứu bạn một luật."
+    ],
+    "khien": [
+      "Bật khiên bảo vệ! Quà phá tiếp theo vô hiệu.",
+      "Khiên lên. Hacker cũng phải chào thua."
+    ],
+    "blocked": [
+      "Khiên chặn rồi! Hehe.",
+      "Đỡ! Quà phá vô tác dụng."
+    ],
+    "qualuon": [
+      "Đại gia xuất hiện! Qua màn luôn.",
+      "Có tiền là có mật khẩu. Duyệt!"
+    ],
+    "unlock": [
+      "{name} mở được luật mới!",
+      "{name} đi đầu nè!",
+      "Giỏi! {name} vừa qua luật."
+    ],
+    "penalty": [
+      "Án phạt đã có hiệu lực. Máy rất công bằng (và hơi ác).",
+      "Còn nhớ màn trước không? Máy nhớ đó."
+    ]
   },
-  "strength": ["Yếu như cọng bún", "Yếu như người yêu cũ", "Tàm tạm", "Khá đó", "Mạnh như sếp", "Bất khả xâm phạm", "Hacker khóc thét"],
-  "punishments": ["Hát 1 câu bài hát khán giả chọn", "Chống đẩy 10 cái", "Đọc to mật khẩu cuối cùng 3 lần", "Nói “em xin lỗi máy” thật thành khẩn", "Nhảy 10 giây không nhạc", "Kể 1 chuyện xấu hổ hồi đi học", "Làm mặt xấu 5 giây"],
-  "junk": ["meo", "~~", "fff", "zzz", "!!", "^^", "mmm"]
+  "strength": [
+    "Yếu như cọng bún",
+    "Yếu như người yêu cũ",
+    "Tàm tạm",
+    "Khá đó",
+    "Mạnh như sếp",
+    "Bất khả xâm phạm",
+    "Hacker khóc thét"
+  ],
+  "punishments": [
+    "Hát 1 câu bài hát khán giả chọn",
+    "Đọc to mật khẩu cuối cùng 3 lần thật diễn cảm",
+    "Nói “em xin lỗi máy” thật thành khẩn",
+    "Nói giọng robot cho tới hết màn sau",
+    "Khen khán giả 3 câu thật sến",
+    "Giả tiếng mèo kêu 5 giây",
+    "Kể 1 chuyện xấu hổ hồi đi học",
+    "Đọc to luật khó nhất màn vừa rồi bằng giọng MC thời sự"
+  ],
+  "junk": [
+    "meo",
+    "~~",
+    "fff",
+    "zzz",
+    "!!",
+    "^^",
+    "mmm"
+  ],
+  "penalties": [
+    {
+      "kind": "hard",
+      "text": "Màn sau tặng kèm 1 luật siêu khó"
+    },
+    {
+      "kind": "time",
+      "text": "Màn sau bị bớt 20 giây"
+    },
+    {
+      "kind": "forbid",
+      "text": "Màn sau cấm sẵn 1 chữ cái"
+    }
+  ]
 }
