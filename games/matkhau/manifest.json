@@ -1,0 +1,315 @@
+{
+  "id": "matkhau",
+  "name": "Mật Khẩu Lầy",
+  "description": "Đặt mật khẩu mới thoả một chuỗi luật oái oăm hiện dần (cộng số, tên món ăn, giờ hiện tại, cấm chữ…). Host tự gõ hoặc người xem tự chơi bằng bình luận. Khán giả bình chọn luật, ra luật bằng bình luận, tặng quà để phá (hacker, mèo, cấm chữ) hoặc cứu (gợi ý, thêm giờ, xoá luật).",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "party",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment"
+  ],
+  "restore": "full",
+  "server": false,
+  "play": true,
+  "data": {
+    "lines": "data/lines.json"
+  },
+  "actions": [
+    {
+      "id": "raluat",
+      "label": "Ra luật bằng bình luận",
+      "icon": "📝",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rose"
+        }
+      ]
+    },
+    {
+      "id": "luatac",
+      "label": "Luật siêu khó",
+      "icon": "😈",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        }
+      ]
+    },
+    {
+      "id": "hacker",
+      "label": "Hacker xoá sạch (host gõ)",
+      "icon": "💻",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Doughnut"
+        }
+      ]
+    },
+    {
+      "id": "meo",
+      "label": "Mèo đạp bàn phím (host gõ)",
+      "icon": "🐱",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Ice Cream Cone"
+        }
+      ]
+    },
+    {
+      "id": "camchu",
+      "label": "Cấm 1 chữ cái",
+      "icon": "🚫",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Perfume"
+        }
+      ]
+    },
+    {
+      "id": "rutgio",
+      "label": "Rút bớt giờ",
+      "icon": "⏰",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "GG"
+        }
+      ]
+    },
+    {
+      "id": "capslock",
+      "label": "Caps Lock kẹt (host gõ)",
+      "icon": "⇪",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "TikTok"
+        }
+      ]
+    },
+    {
+      "id": "doiluat",
+      "label": "Đổi 1 luật đã qua",
+      "icon": "🔁",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hat and Mustache"
+        }
+      ]
+    },
+    {
+      "id": "goiy",
+      "label": "Gợi ý luật đang sai",
+      "icon": "💡",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Heart Me"
+        },
+        {
+          "type": "like",
+          "every": 800
+        }
+      ]
+    },
+    {
+      "id": "themgio",
+      "label": "Thêm giờ",
+      "icon": "⏳",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rosa"
+        }
+      ]
+    },
+    {
+      "id": "xoaluat",
+      "label": "Xoá 1 luật",
+      "icon": "🧽",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hand Hearts"
+        }
+      ]
+    },
+    {
+      "id": "khien",
+      "label": "Khiên chặn quà phá",
+      "icon": "🛡️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Sunglasses"
+        }
+      ]
+    },
+    {
+      "id": "qualuon",
+      "label": "Qua màn luôn",
+      "icon": "🏆",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Galaxy"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "skip-rule",
+      "label": "Xoá 1 luật"
+    },
+    {
+      "id": "add-time",
+      "label": "+30 giây"
+    },
+    {
+      "id": "next",
+      "label": "Màn tiếp / bắt đầu"
+    },
+    {
+      "id": "restart",
+      "label": "Chơi lại từ màn đầu"
+    },
+    {
+      "id": "clear-board",
+      "label": "Xoá bảng điểm"
+    }
+  ],
+  "panels": [
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 24,
+        "y": 1500,
+        "w": 1032,
+        "h": 300
+      }
+    },
+    {
+      "id": "vote",
+      "label": "Bình chọn luật",
+      "icon": "🗳️",
+      "rect": {
+        "x": 60,
+        "y": 1220,
+        "w": 960,
+        "h": 250
+      }
+    },
+    {
+      "id": "board",
+      "label": "Bảng xếp hạng",
+      "icon": "🏅",
+      "rect": {
+        "x": 24,
+        "y": 1384,
+        "w": 1032,
+        "h": 96
+      },
+      "when": {
+        "mode": "viewer"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "rule",
+      "label": "Hiện luật mới",
+      "fx": "mk_rule"
+    },
+    {
+      "id": "wrong",
+      "label": "Gõ sai (host)",
+      "fx": "mk_wrong"
+    },
+    {
+      "id": "win",
+      "label": "Qua màn",
+      "fx": "mk_win"
+    },
+    {
+      "id": "fail",
+      "label": "Hết giờ, khoá tài khoản",
+      "fx": "mk_fail"
+    },
+    {
+      "id": "hacked",
+      "label": "Bị hacker xoá",
+      "fx": "mk_hacked"
+    }
+  ],
+  "memes": [
+    {
+      "event": "action:hacker",
+      "q": "hacker typing",
+      "sound": {
+        "mode": "lib",
+        "id": "vineboom"
+      },
+      "text": "Hacker vào nhà rồi 💻|Mật khẩu bay màu|Ai cho hacker vào đây?!"
+    },
+    {
+      "event": "action:luatac",
+      "q": "evil laugh",
+      "sound": {
+        "mode": "lib",
+        "id": "dramatic"
+      },
+      "text": "Luật này ác quá 😈|Ai nghĩ ra luật này vậy?!|Máy cười khẩy"
+    },
+    {
+      "event": "action:meo",
+      "q": "cat on keyboard",
+      "sound": {
+        "mode": "lib",
+        "id": "boing"
+      },
+      "text": "Meo meo… 🐱|Mèo cũng muốn đặt mật khẩu|Bàn phím giờ là giường của nó"
+    },
+    {
+      "event": "action:qualuon",
+      "q": "money rain rich",
+      "sound": {
+        "mode": "lib",
+        "id": "cash"
+      },
+      "text": "Đại gia đây rồi 💸|Có tiền là có mật khẩu|Qua màn trong một nốt nhạc"
+    },
+    {
+      "event": "win",
+      "q": "hacker man celebration",
+      "sound": {
+        "mode": "lib",
+        "id": "tada"
+      },
+      "text": "Đổi mật khẩu thành công!|Hacker cũng phải nể|Bảo mật cấp quốc gia 🏆"
+    },
+    {
+      "event": "fail",
+      "q": "access denied",
+      "sound": {
+        "mode": "lib",
+        "id": "sadtrombone"
+      },
+      "text": "ACCESS DENIED 🔒|Tài khoản bị khoá|Mật khẩu vẫn là 123456"
+    }
+  ]
+}

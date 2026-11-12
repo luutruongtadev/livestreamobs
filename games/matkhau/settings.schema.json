@@ -1,0 +1,145 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "title": "Ai chơi",
+      "enum": [
+        "host",
+        "viewer"
+      ],
+      "enumNames": [
+        "Host tự gõ trong cửa sổ chơi",
+        "Người xem tự chơi: gõ mật khẩu vào bình luận"
+      ],
+      "default": "host"
+    },
+    "startLevel": {
+      "type": "integer",
+      "title": "Màn bắt đầu",
+      "minimum": 1,
+      "maximum": 30,
+      "default": 1
+    },
+    "baseRules": {
+      "type": "integer",
+      "title": "Số luật ở màn 1",
+      "minimum": 3,
+      "maximum": 14,
+      "default": 6
+    },
+    "rulesPerLevel": {
+      "type": "integer",
+      "title": "Mỗi màn thêm mấy luật",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 1
+    },
+    "maxRules": {
+      "type": "integer",
+      "title": "Tối đa số luật / màn",
+      "minimum": 4,
+      "maximum": 20,
+      "default": 14
+    },
+    "baseSeconds": {
+      "type": "integer",
+      "title": "Thời gian gốc mỗi màn (giây)",
+      "minimum": 30,
+      "maximum": 900,
+      "default": 90
+    },
+    "secondsPerRule": {
+      "type": "integer",
+      "title": "Thêm giây cho mỗi luật",
+      "minimum": 0,
+      "maximum": 120,
+      "default": 20
+    },
+    "introSeconds": {
+      "type": "integer",
+      "title": "Thời gian giới thiệu màn (giây)",
+      "minimum": 2,
+      "maximum": 30,
+      "default": 6
+    },
+    "resultSeconds": {
+      "type": "integer",
+      "title": "Thời gian màn kết quả (giây)",
+      "minimum": 3,
+      "maximum": 60,
+      "default": 10
+    },
+    "voteEvery": {
+      "type": "integer",
+      "title": "Cứ mấy luật thì khán giả bình chọn 1 luật (0 = tắt)",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 4
+    },
+    "voteSeconds": {
+      "type": "integer",
+      "title": "Thời gian bình chọn (giây)",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 12
+    },
+    "viewerRuleEvery": {
+      "type": "integer",
+      "title": "Cứ mấy luật thì lấy 1 từ trong bình luận làm luật (0 = tắt)",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 3
+    },
+    "raluatSeconds": {
+      "type": "integer",
+      "title": "Quà Ra luật: thời gian chờ người tặng gõ từ (giây)",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 20
+    },
+    "cutSeconds": {
+      "type": "integer",
+      "title": "Quà Rút giờ: bớt mấy giây",
+      "minimum": 5,
+      "maximum": 120,
+      "default": 20
+    },
+    "addSeconds": {
+      "type": "integer",
+      "title": "Quà Thêm giờ: thêm mấy giây",
+      "minimum": 5,
+      "maximum": 180,
+      "default": 30
+    },
+    "hostName": {
+      "type": "string",
+      "title": "Tên chủ phòng (dùng cho luật “có tên chủ phòng”, để trống = không dùng)",
+      "maxLength": 30,
+      "default": ""
+    },
+    "tzOffset": {
+      "type": "integer",
+      "title": "Múi giờ cho luật giờ / thứ / năm (giờ lệch UTC)",
+      "minimum": -12,
+      "maximum": 14,
+      "default": 7
+    },
+    "dropLevelOnFail": {
+      "type": "boolean",
+      "title": "Hết giờ thì lùi 1 màn",
+      "default": true
+    },
+    "punishments": {
+      "type": "boolean",
+      "title": "Hết giờ có hình phạt vui cho host",
+      "default": true
+    },
+    "bannedWords": {
+      "type": "string",
+      "title": "Từ cấm khi lấy từ bình luận làm luật (cách nhau dấu phẩy)",
+      "maxLength": 1000,
+      "default": "đm, dm, địt, đjt, lồn, cặc, đéo, vcl, vkl, clm, đĩ, óc chó"
+    }
+  }
+}

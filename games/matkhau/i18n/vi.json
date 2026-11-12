@@ -1,0 +1,17 @@
+{
+  "title": "Mật Khẩu Lầy",
+  "howTo": "Đặt mật khẩu thoả hết các luật đang hiện. Host gõ trong cửa sổ chơi, hoặc người xem gõ mật khẩu vào bình luận. Gõ 1 / 2 để chọn luật tiếp theo.",
+  "actions.raluat": "Bình luận kế tiếp của bạn thành luật bắt buộc",
+  "actions.luatac": "Thêm ngay 1 luật siêu khó",
+  "actions.hacker": "Xoá sạch mật khẩu host đang gõ",
+  "actions.meo": "Chèn ký tự lung tung vào mật khẩu",
+  "actions.camchu": "Cấm 1 chữ cái (ưu tiên chữ đang có trong mật khẩu)",
+  "actions.rutgio": "Bớt thời gian",
+  "actions.capslock": "15 giây gõ gì cũng ngược hoa / thường",
+  "actions.doiluat": "Đổi 1 luật đã qua thành luật mới",
+  "actions.goiy": "Hiện gợi ý cho luật đang sai",
+  "actions.themgio": "Thêm thời gian",
+  "actions.xoaluat": "Xoá 1 luật đang sai",
+  "actions.khien": "Chặn quà phá tiếp theo (tối đa 3)",
+  "actions.qualuon": "Qua màn ngay"
+}
