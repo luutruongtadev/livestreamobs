@@ -18,7 +18,7 @@ import { cleanSpec } from './custom.js';
  */
 export function createGame(ctx) { return new MatKhau(ctx); }
 
-export const HARM = ['raluat', 'luatac', 'hacker', 'meo', 'camchu', 'rutgio', 'capslock', 'doiluat'];
+export const HARM = ['raluat', 'luatai', 'luatac', 'hacker', 'meo', 'camchu', 'rutgio', 'capslock', 'doiluat'];
 export const HELP = ['goiy', 'themgio', 'xoaluat', 'khien', 'qualuon'];
 const HOST_ONLY = new Set(['hacker', 'meo', 'capslock']);
 const MAX_RULES = 20;
@@ -231,7 +231,7 @@ export class MatKhau extends Emitter {
     // người vừa tặng "Ra luật": bình luận kế tiếp thành luật
     const pi = this.pending.findIndex((p) => p.by.id === by.id);
     if (pi >= 0 && this.phase === 'play') {
-      if (this.ai && cps(raw).length >= 2 && !/^\s*[12]\s*$/.test(raw)) { this.pending.splice(pi, 1); return this.propose(raw.replace(RULE_PREFIX, ''), by, 'gift'); }
+      if (this.pending[pi].kind === 'ai' && this.ai && cps(raw).length >= 2 && !/^\s*[12]\s*$/.test(raw)) { this.pending.splice(pi, 1); return this.propose(raw.replace(RULE_PREFIX, ''), by, 'gift'); }
       const w = this.pickWord(raw);
       if (w) { this.pending.splice(pi, 1); return this.viewerLaw(w, by); }
     }
@@ -239,6 +239,12 @@ export class MatKhau extends Emitter {
     const lm = RULE_PREFIX.exec(raw);
     if (lm) {
       if (!this.ai || !this.s.freeRules || this.phase !== 'play') return [];
+      if (this.s.aiRuleNeedsGift) { // đặt luật bằng AI phải tặng quà: nhắc (mỗi người 1 lần / 30 giây)
+        const t = this.clock(), last = (this.nagAt ||= {})[by.id] || -Infinity;
+        if (t - last < 30_000) return [];
+        this.nagAt[by.id] = t;
+        return [{ type: 'mk_rule_rejected', by, reason: 'Tặng quà “Đặt luật AI” rồi gõ luật nha' }];
+      }
       return this.freeRule(raw.slice(lm[0].length), by);
     }
     if (this.vote) {
@@ -407,7 +413,7 @@ export class MatKhau extends Emitter {
     if (this.phase === 'intro') fx.push(...this.startPlay()); // quà tới lúc giới thiệu → vào chơi luôn, không phí quà
     const harm = HARM.includes(id);
     let r;
-    if (harm && this.shield > 0 && id !== 'raluat') {
+    if (harm && this.shield > 0 && id !== 'raluat' && id !== 'luatai') {
       this.shield--;
       this.say('blocked', 'happy');
       r = { fx: [], sub: '🛡️ Khiên đã chặn!', blocked: true };
@@ -437,9 +443,16 @@ export class MatKhau extends Emitter {
     switch (id) {
       case 'raluat': {
         if (this.pending.length >= 3) return false;
-        this.pending.push({ by, until: t + this.s.raluatSeconds * 1000 });
+        this.pending.push({ by, kind: 'word', until: t + this.s.raluatSeconds * 1000 });
         this.say('viewerRule', 'smug');
-        return { fx, sub: `${by.name} gõ 1 từ vào bình luận → thành luật!` };
+        return { fx, sub: `${by.name} gõ 1 từ vào bình luận → luật “Có chữ …”` };
+      }
+      case 'luatai': {
+        if (this.pending.length >= 3) return false;
+        const ai = this.ai;
+        this.pending.push({ by, kind: ai ? 'ai' : 'word', until: t + this.s.raluatSeconds * 1000 * (ai ? 1.5 : 1) });
+        this.say('viewerRule', 'smug');
+        return { fx, sub: ai ? `${by.name} gõ luật BẤT KỲ vào bình luận → AI duyệt` : `${by.name} gõ 1 từ vào bình luận → thành luật (AI chưa bật)` };
       }
       case 'luatac': {
         const r = nextRule(this.rules, 3, this.ctx.random, env);
@@ -634,7 +647,8 @@ export class MatKhau extends Emitter {
       bestTry: this.bestTry ? { text: this.bestTry.text, by: this.bestTry.by, passed: this.bestTry.passed } : null,
       vote: this.vote ? { options: this.vote.options.map((o) => ruleText(o, env)), counts: this.vote.counts.slice(), leftMs: Math.max(0, this.vote.until - t), totalMs: this.vote.until - this.vote.at } : null,
       waiting: !!this.wantNext,
-      pending: this.pending.map((p) => ({ by: p.by, leftMs: Math.max(0, p.until - t) })),
+      pending: this.pending.map((p) => ({ by: p.by, kind: p.kind || 'word', leftMs: Math.max(0, p.until - t) })),
+      aiGift: this.ai && !!this.s.aiRuleNeedsGift,
       status: this.status.map((s) => ({ kind: s.kind, by: s.by, leftMs: Math.max(0, s.until - t), totalMs: s.total })),
       shield: this.shield,
       bot: this.bot,

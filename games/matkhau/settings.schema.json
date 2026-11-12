@@ -103,6 +103,11 @@
       "title": "Người xem đặt luật bằng lời bất kỳ, AI duyệt và tự kiểm tra (cần ANTHROPIC_API_KEY trên máy chủ; tắt = luật chỉ là 1 từ)",
       "default": true
     },
+    "aiRuleNeedsGift": {
+      "type": "boolean",
+      "title": "Đặt luật bằng AI phải tặng quà “Đặt luật AI” (mặc định Tim tay 5 xu); tắt = ai cũng đặt bằng bình luận “luật: …”",
+      "default": true
+    },
     "freeRules": {
       "type": "boolean",
       "title": "Ai cũng ra luật được: bình luận bắt đầu bằng “luật:” (không cần quà)",

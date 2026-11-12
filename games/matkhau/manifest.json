@@ -23,12 +23,23 @@
   "actions": [
     {
       "id": "raluat",
-      "label": "Ra luật bằng bình luận",
+      "label": "Ra luật “có chữ …” (1 từ)",
       "icon": "📝",
       "defaultTriggers": [
         {
           "type": "gift",
           "giftName": "Rose"
+        }
+      ]
+    },
+    {
+      "id": "luatai",
+      "label": "Đặt luật AI (luật bất kỳ)",
+      "icon": "🤖",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
         }
       ]
     },
@@ -39,7 +50,7 @@
       "defaultTriggers": [
         {
           "type": "gift",
-          "giftName": "Finger Heart"
+          "giftName": "Cap"
         }
       ]
     },

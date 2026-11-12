@@ -12,7 +12,8 @@ const C = {
   okBg: '#e3fbf1', badBg: '#ffe7ea', hint: '#fff3bf',
 };
 export const ACT = {
-  raluat: { icon: '📝', name: 'Ra luật', title: 'KHÁN GIẢ RA LUẬT!' },
+  raluat: { icon: '📝', name: 'Ra luật “có chữ”', title: 'KHÁN GIẢ RA LUẬT!' },
+  luatai: { icon: '🤖', name: 'Đặt luật AI', title: 'ĐẶT LUẬT BẰNG AI!' },
   luatac: { icon: '😈', name: 'Luật siêu khó', title: 'LUẬT SIÊU KHÓ!' },
   hacker: { icon: '💻', name: 'Hacker xoá sạch', title: 'HACKER TẤN CÔNG!' },
   meo: { icon: '🐱', name: 'Mèo đạp phím', title: 'MÈO ĐẠP BÀN PHÍM!' },
@@ -351,11 +352,13 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function drawPending(now, y) {
     const p = S.pending?.[0], c = S.compiling?.[0];
     if (!p && !c) {
-      if (S.phase === 'play' && S.ruleSlots > 0) chip(`📝 Bình luận “luật: …” để tự đặt luật (còn ${S.ruleSlots})`, 540, y, 20, 'rgba(255,253,247,.85)', C.ink, 'center');
+      const g = (a) => S.powerups?.find((x) => x.action === a && !x.every);
+      if (S.phase === 'play' && S.aiGift && g('luatai')) chip(`🤖 Tặng ${g('luatai').text} rồi gõ luật bất kỳ${g('raluat') ? ` · ${g('raluat').text} → luật “có chữ”` : ''}`, 540, y, 20, 'rgba(255,253,247,.85)', C.ink, 'center');
+      else if (S.phase === 'play' && S.ruleSlots > 0) chip(`📝 Bình luận “luật: …” để tự đặt luật (còn ${S.ruleSlots})`, 540, y, 20, 'rgba(255,253,247,.85)', C.ink, 'center');
       return;
     }
     const s = c ? `🤖 Máy đang duyệt luật của ${c.by?.name || ''}: “${[...c.text].slice(0, 34).join('')}${[...c.text].length > 34 ? '…' : ''}”`
-      : `📝 ${p.by.name} đang ra luật… gõ ${S.ai ? 'luật' : '1 từ'} vào bình luận! (${Math.ceil(p.leftMs / 1000)}s)`;
+      : p.kind === 'ai' ? `🤖 ${p.by.name} đang đặt luật… gõ luật BẤT KỲ vào bình luận! (${Math.ceil(p.leftMs / 1000)}s)` : `📝 ${p.by.name} đang ra luật… gõ 1 từ vào bình luận! (${Math.ceil(p.leftMs / 1000)}s)`;
     const sc = reduced ? 1 : 1 + Math.sin(now / 160) * 0.02;
     ctx.save(); ctx.translate(540, y); ctx.scale(sc, sc);
     chip(s, 0, 0, 22, C.yellow, C.ink, 'center');
@@ -391,7 +394,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     outline(`MÀN ${S.level}`, 0, -190, 120, C.yellow, C.ink, C.pink, 16);
     text(`Qua ${S.total} luật trong ${mmss(S.roundMs)}`, 0, -70, 44, C.ink, 800, 'center', 820, TITLE);
     text(S.mode === 'viewer' ? 'Người xem: gõ mật khẩu vào bình luận!' : 'Host gõ mật khẩu · khán giả phá hoặc cứu', 0, -14, 30, C.dim, 800, 'center', 820);
-    const tips = S.mode === 'viewer' ? ['💬 Thoả hết luật đang hiện → mở luật mới, +điểm', S.ai ? '📝 Gõ “luật: …” để tự đặt luật · 1 / 2 để bình chọn' : '🗳️ Gõ 1 / 2 để chọn luật tiếp theo', '🎁 Tặng quà để thêm luật khó hoặc gợi ý'] : ['🗳️ Khán giả gõ 1 / 2 để chọn luật tiếp theo', S.ai ? '📝 Bình luận “luật: …” để tự đặt luật!' : '📝 Một từ bạn bình luận có thể thành luật!', '🎁 Quà phá: hacker, mèo, cấm chữ… Quà cứu: gợi ý, thêm giờ'];
+    const tips = S.mode === 'viewer' ? ['💬 Thoả hết luật đang hiện → mở luật mới, +điểm', S.aiGift ? '🤖 Quà “Đặt luật AI” → luật bất kỳ · 1 / 2 để bình chọn' : S.ai ? '📝 Gõ “luật: …” để tự đặt luật · 1 / 2 để bình chọn' : '🗳️ Gõ 1 / 2 để chọn luật tiếp theo', '🎁 Tặng quà để thêm luật khó hoặc gợi ý'] : ['🗳️ Khán giả gõ 1 / 2 để chọn luật tiếp theo', S.aiGift ? '🤖 Tặng quà “Đặt luật AI” để đặt luật bất kỳ!' : S.ai ? '📝 Bình luận “luật: …” để tự đặt luật!' : '📝 Một từ bạn bình luận có thể thành luật!', '🎁 Quà phá: hacker, mèo, cấm chữ… Quà cứu: gợi ý, thêm giờ'];
     tips.forEach((s, i) => text(s, -380, 60 + i * 52, 28, C.ink, 800, 'left', 780));
     const sec = Math.ceil(S.remainingMs / 1000);
     chip(input && S.mode !== 'viewer' ? `Bắt đầu sau ${sec}s · bấm Enter để vào luôn` : `Bắt đầu sau ${sec}s`, 0, 238, 26, C.mint, C.ink, 'center');

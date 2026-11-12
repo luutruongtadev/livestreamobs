@@ -121,7 +121,7 @@ test('quà: Ra luật (bình luận kế tiếp thành luật), luật siêu kh�
   assert.equal(s.rules.at(-1).id, 'viewer');
   assert.equal(s.rules.at(-1).p.w, 'trà');
   assert.equal(s.total, 7);
-  host.handle(gift('e', 'Finger Heart'));
+  host.handle(gift('e', 'Cap'));
   s = host.snapshot();
   assert.equal(s.rules.at(-1).tier, 3);
   host.input({ type: 'text', value: 'abc' });
@@ -237,7 +237,7 @@ function mkAi(settings = {}) {
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 test('“luật: …” → AI duyệt rồi thêm vào màn đang chơi; bị loại / mâu thuẫn thì báo; giới hạn mỗi màn', async () => {
-  const { host, clock, fx } = mkAi({ freeRulesPerLevel: 2, ruleCooldownSeconds: 0 });
+  const { host, clock, fx } = mkAi({ freeRulesPerLevel: 2, ruleCooldownSeconds: 0, aiRuleNeedsGift: false });
   await flush();
   play(host, clock);
   const n = host.snapshot().rules.length, total = host.snapshot().total;
@@ -269,7 +269,7 @@ test('luật cảm tính: host Enter → AI chấm mật khẩu rồi mới qua;
   const { host, clock, fx, replies } = mkAi({ baseRules: 3 });
   await flush();
   play(host, clock);
-  host.handle({ type: 'gift', user: u('g'), giftName: 'Rose', diamonds: 1, count: 1 });
+  host.handle({ type: 'gift', user: u('g'), giftName: 'Finger Heart', diamonds: 5, count: 1 });
   host.handle({ type: 'comment', user: u('g'), text: 'mật khẩu phải nghe dễ thương' });
   await flush(); await flush();
   const s = host.snapshot();
@@ -287,4 +287,26 @@ test('luật cảm tính: host Enter → AI chấm mật khẩu rồi mới qua;
   host.input({ type: 'enter' });
   await flush(); await flush();
   assert.ok(['mk_rule', 'mk_win', 'mk_vote_start'].includes(fx.at(-1).type) || host.snapshot().rules.length > s.rules.length, 'AI chấm đạt → qua luật');
+});
+
+test('mặc định: Hoa hồng → luật “có chữ” (1 từ, không gọi AI); quà 5 xu → luật bất kỳ qua AI; “luật:” miễn phí bị nhắc tặng quà', async () => {
+  const { host, clock, fx, replies } = mkAi({});
+  await flush();
+  play(host, clock);
+  host.handle({ type: 'gift', user: u('r'), giftName: 'Rose', diamonds: 1, count: 1 });
+  host.handle({ type: 'comment', user: u('r'), text: 'mèo béo quá' });
+  let s = host.snapshot();
+  assert.equal(s.rules.at(-1).id, 'viewer');
+  assert.equal(s.rules.at(-1).p.w, 'mèo');
+  assert.ok(!replies.some(([op]) => op === 'compile'), 'hoa hồng không gọi AI');
+  assert.equal(host.handle({ type: 'comment', user: u('x'), text: 'luật: có chữ z' })[0].type, 'mk_rule_rejected');
+  assert.deepEqual(host.handle({ type: 'comment', user: u('x'), text: 'luật: có chữ z' }), [], 'nhắc 1 lần / 30 giây');
+  host.handle({ type: 'gift', user: u('f'), giftName: 'Finger Heart', diamonds: 5, count: 1 });
+  assert.equal(host.snapshot().pending[0].kind, 'ai');
+  host.handle({ type: 'comment', user: u('f'), text: 'phải có con mèo' });
+  await flush(); await flush();
+  s = host.snapshot();
+  assert.equal(s.rules.at(-1).id, 'custom');
+  assert.ok(replies.some(([op]) => op === 'compile'));
+  assert.equal(s.aiGift, true);
 });

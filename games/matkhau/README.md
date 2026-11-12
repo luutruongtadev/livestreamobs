@@ -13,7 +13,7 @@ Luật luôn có lời giải: bộ giải (`engine/rules.js` → `solve`) dựn
 
 ## Tương tác của người xem
 
-- **Tự đặt luật bằng lời (AI duyệt)**: bình luận `luật: <gì cũng được>` — vd `luật: phải có tên cầu thủ VN`, `luật: đúng 3 chữ a`, `luật: nghe phải dễ thương`.
+- **Tự đặt luật bằng lời (AI duyệt)**: mặc định phải tặng quà **Đặt luật AI** (Tim tay, 5 xu) rồi bình luận luật; tắt `aiRuleNeedsGift` thì ai cũng đặt được bằng bình luận `luật: <gì cũng được>` — vd `luật: phải có tên cầu thủ VN`, `luật: đúng 3 chữ a`, `luật: nghe phải dễ thương`.
   Phần server (`server/index.js`, Claude Haiku, không suy nghĩ) dịch câu đó thành **spec kiểm tra an toàn** (`engine/custom.js`: chứa / không chứa / bắt đầu / kết thúc / một trong danh sách / đếm ký tự / độ dài / tổng chữ số / regex đã lọc an toàn) — engine tự kiểm tra tại chỗ, không gọi API mỗi lần gõ. Kết quả cache theo nội dung luật (bỏ dấu, hoa thường) trong `rule-cache.json`, dùng chung mọi kênh.
   Luật không kiểm tra bằng máy được → **AI chấm** khi host Enter / khi một lượt thử của người xem đã thoả hết luật khác (cache theo luật + mật khẩu).
   AI loại luật tục tĩu, xúc phạm, đòi thông tin cá nhân, không nói về mật khẩu; engine loại thêm luật có từ cấm, trùng hoặc mâu thuẫn với luật đang có (bộ giải không dựng được mật khẩu).
@@ -25,8 +25,9 @@ Luật luôn có lời giải: bộ giải (`engine/rules.js` → `solve`) dựn
 
 | Action | Mặc định | Tác dụng |
 |---|---|---|
-| 📝 `raluat` | Rose | Bình luận kế tiếp của người tặng thành luật bắt buộc |
-| 😈 `luatac` | Finger Heart | Thêm ngay 1 luật siêu khó |
+| 📝 `raluat` | Rose (1 xu) | Bình luận kế tiếp (1 từ) của người tặng thành luật “Có chữ …” — không gọi AI |
+| 🤖 `luatai` | Finger Heart (5 xu) | Bình luận kế tiếp là luật BẤT KỲ, AI duyệt và tự kiểm tra |
+| 😈 `luatac` | Cap | Thêm ngay 1 luật siêu khó |
 | 💻 `hacker` | Doughnut | Xoá sạch mật khẩu host đang gõ (chỉ chế độ host) |
 | 🐱 `meo` | Ice Cream Cone | Chèn ký tự lung tung (chỉ chế độ host) |
 | 🚫 `camchu` | Perfume | Cấm 1 chữ cái (ưu tiên chữ đang có trong mật khẩu) |
