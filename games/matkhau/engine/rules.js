@@ -29,6 +29,27 @@ const LAUGHS = ['haha', 'hihi', 'hehe', 'kaka'];
 const GENZ = ['khum', 'xiu', 'slay', 'flex', 'chill', 'keo'];
 const LOVE = ['love', 'crush', 'baby', 'honey'];
 const ACCENTS = ['ơ', 'ê', 'ă', 'ư', 'đ', 'ô'];
+const ZODIAC = ['bachduong', 'kimnguu', 'songtu', 'cugiai', 'sutu', 'xunu', 'thienbinh', 'bocap', 'nhanma', 'maket', 'baobinh', 'songngu'];
+const FRUITS = ['xoai', 'mit', 'oi', 'chuoi', 'cam', 'duahau', 'saurieng', 'nho', 'tao', 'buoi'];
+const SPORTS = ['bongda', 'caulong', 'bongro', 'boi', 'golf', 'vovinam', 'pickleball', 'tennis'];
+const COLORS = ['xanh', 'vang', 'tim', 'hong', 'den', 'trang', 'do', 'cam', 'nau', 'xam'];
+const JOBS = ['bacsi', 'giaovien', 'kysu', 'casi', 'dev', 'shipper', 'daubep', 'phicong', 'luatsu', 'streamer'];
+const APPS = ['tiktok', 'zalo', 'youtube', 'facebook', 'insta', 'threads', 'shopee', 'grab'];
+const NUMBERS_EN = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const PLANETS = ['mars', 'venus', 'earth', 'pluto', 'jupiter', 'saturn', 'mercury', 'uranus', 'neptune'];
+const HOLIDAYS = ['tet', 'trungthu', 'noel', 'giangsinh', 'halloween', 'valentine'];
+const TOONS = ['doraemon', 'nobita', 'conan', 'pikachu', 'shin', 'mickey', 'elsa', 'tom', 'jerry'];
+const FLOWERS = ['sen', 'lan', 'cuc', 'tulip', 'mai', 'dao', 'hong', 'ly', 'huongduong'];
+const DRINKS = ['trasua', 'caphe', 'cafe', 'nuocmia', 'sinhto', 'coca', 'pepsi', 'matcha'];
+const MONTHS_EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+const CHEM = [['vàng', 'Au'], ['bạc', 'Ag'], ['sắt', 'Fe'], ['đồng', 'Cu'], ['muối ăn', 'NaCl'], ['nước', 'H2O'], ['khí oxy', 'O2'], ['chì', 'Pb']];
+const CAPITALS = [['Nhật Bản', ['tokyo']], ['Pháp', ['paris']], ['Hàn Quốc', ['seoul']], ['Thái Lan', ['bangkok']], ['Anh', ['london', 'luandon']], ['Ai Cập', ['cairo']], ['Nga', ['moscow', 'matxcova']], ['Đức', ['berlin']], ['Trung Quốc', ['beijing', 'backinh']], ['Lào', ['vientiane', 'vienchan']], ['Ý', ['rome', 'roma']]];
+const EMOJI_SET = ['😎', '🐧', '🔥', '🍀', '🌈'];
+const VOWEL_BAN = ['e', 'u', 'i', 'y'];
+const emojiCount = (t) => cps(t).filter((c) => /\p{Extended_Pictographic}/u.test(c)).length;
+const ddmm = (env) => { const d = local(env); return [d.getUTCDate(), d.getUTCMonth() + 1]; };
+const correctOp = (t, re, f) => [...String(t).matchAll(re)].some((m) => f(Number(m[1]), Number(m[2])) === Number(m[3]));
 export const FORBID_LETTERS = ['k', 'm', 'n', 't', 'h', 'g', 'c', 's', 'b', 'l'];
 
 export const RULES = {
@@ -67,6 +88,38 @@ export const RULES = {
   firstlast: { tier: 3, text: () => 'Ký tự đầu và ký tự cuối giống nhau (không tính hoa thường)', ok: (t) => { const a = cps(t); return a.length > 1 && a[0].toLowerCase() === a[a.length - 1].toLowerCase(); } },
   nguoc: { tier: 3, text: () => 'Có chữ “matkhau” viết NGƯỢC lại', ok: (t) => flat(t).includes('uahktam'), piece: () => ['uahktam'] },
   hetlen: { tier: 3, text: () => 'Kết thúc bằng dấu chấm than “!” — hét lên!!', ok: (t) => /!$/.test(t) },
+  // ---------- vừa (bổ sung) ----------
+  cung: { tier: 2, text: () => 'Có một cung hoàng đạo (Bạch Dương, Sư Tử, Xử Nữ, Song Ngư…)', ok: anyOf(ZODIAC), piece: () => ['sutu', 'bocap', 'maket', 'xunu'] },
+  traicay: { tier: 2, text: () => 'Có tên một loại trái cây (xoài, mít, ổi, sầu riêng…)', ok: anyOf(FRUITS), piece: () => ['xoai', 'mit', 'oi', 'cam', 'nho'] },
+  thethao: { tier: 2, text: () => 'Có tên một môn thể thao (bóng đá, cầu lông, bơi, pickleball…)', ok: anyOf(SPORTS), piece: () => ['bongda', 'caulong', 'boi', 'golf'] },
+  mau: { tier: 2, text: () => 'Có tên một màu (xanh, vàng, tím, hồng, đen…)', ok: anyOf(COLORS), piece: () => ['xanh', 'vang', 'tim', 'den', 'nau'] },
+  nghe: { tier: 2, text: () => 'Có tên một nghề (bác sĩ, giáo viên, ca sĩ, đầu bếp…) — mơ ước hồi bé', ok: anyOf(JOBS), piece: () => ['bacsi', 'casi', 'kysu', 'dev', 'daubep'] },
+  app: { tier: 2, text: () => 'Có tên một app (TikTok, Zalo, YouTube, Shopee…)', ok: anyOf(APPS), piece: () => ['tiktok', 'zalo', 'youtube', 'grab'] },
+  sodem: { tier: 2, text: () => 'Có một số đếm bằng tiếng Anh (one, two, three…)', ok: anyOf(NUMBERS_EN), piece: () => ['two', 'six', 'one', 'ten', 'five'] },
+  hanhtinh: { tier: 2, text: () => 'Có tên một hành tinh bằng tiếng Anh (Mars, Venus, Earth…)', ok: anyOf(PLANETS), piece: () => ['mars', 'venus', 'pluto', 'earth'] },
+  ngayle: { tier: 2, text: () => 'Có tên một ngày lễ (Tết, Trung Thu, Noel, Valentine…)', ok: anyOf(HOLIDAYS), piece: () => ['tet', 'noel', 'trungthu'] },
+  sodep: { tier: 2, text: () => 'Có một dãy số lộc phát: 6868 hoặc 8386', ok: (t) => /6868|8386/.test(t), piece: () => ['6868', '8386'] },
+  hashtag: { tier: 2, text: () => 'Có một hashtag, vd #xinh', ok: (t) => /#[\p{L}\d_]{2,}/u.test(t), piece: () => ['#xinh', '#vui', '#top'] },
+  tag: { tier: 2, text: () => 'Có tag một người: @ + tên, vd @sep', ok: (t) => /@[\p{L}\d_]{2,}/u.test(t), piece: () => ['@sep', '@bff', '@crush'] },
+  hoathinh: { tier: 2, text: () => 'Có tên một nhân vật hoạt hình (Doraemon, Conan, Pikachu…)', ok: anyOf(TOONS), piece: () => ['nobita', 'conan', 'pikachu', 'shin', 'tom'] },
+  hoa: { tier: 2, text: () => 'Có tên một loài hoa (sen, lan, cúc, tulip…)', ok: anyOf(FLOWERS), piece: () => ['sen', 'lan', 'cuc', 'tulip'] },
+  douong: { tier: 2, text: () => 'Có tên một đồ uống (trà sữa, cà phê, nước mía…) — máy khát', ok: anyOf(DRINKS), piece: () => ['caphe', 'trasua', 'sinhto', 'coca', 'matcha'] },
+  thang: { tier: 2, text: () => 'Có tên THÁNG NÀY bằng tiếng Anh (viết tắt 3 chữ cũng được)', ok: (t, p, env) => flat(t).includes(MONTHS_EN[local(env).getUTCMonth()]), piece: (p, env) => [MONTHS_EN[local(env).getUTCMonth()]] },
+  // ---------- khó (bổ sung) ----------
+  emojiN: { tier: 3, make: (r) => 2 + Math.floor(r() * 3), text: (p) => `Có ĐÚNG ${p} emoji (tim ❤ cũng tính)`, ok: (t, p) => emojiCount(t) === p, piece: (p) => [EMOJI_SET.slice(0, p).join('')] },
+  bienso: { tier: 3, text: () => 'Có một biển số xe kiểu 29A1 (2 số + 1 chữ IN HOA + 1 số)', ok: (t) => /\d{2}[A-Z]\d/.test(t), piece: () => ['29A1', '51F2', '43B7'] },
+  ngaynay: { tier: 3, text: () => 'Có ngày HÔM NAY dạng ngày/tháng, vd 12/11', ok: (t, p, env) => { const [d, m] = ddmm(env); const s = String(t); return s.includes(`${d}/${m}`) || s.includes(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`); }, piece: (p, env) => { const [d, m] = ddmm(env); return [`${d}/${m}`, `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`]; } },
+  hexcolor: { tier: 3, text: () => 'Có một mã màu HEX 6 ký tự, vd #a1b2c3', ok: (t) => /#[0-9a-f]{6}/i.test(t), piece: () => ['#a1b2c3', '#c0ffe0', '#f0a5b7'] },
+  kotkit: { tier: 3, text: () => 'Có chữ “tiktok” viết NGƯỢC lại', ok: (t) => flat(t).includes('kotkit'), piece: () => ['kotkit'] },
+  morse: { tier: 3, text: () => 'Có tín hiệu cầu cứu SOS bằng mã Morse (chấm và gạch)', ok: (t) => String(t).includes('...---...'), piece: () => ['...---...'] },
+  roman: { tier: 3, text: () => 'Có số La Mã của THÁNG NÀY (viết IN HOA)', ok: (t, p, env) => String(t).includes(ROMAN[local(env).getUTCMonth()]), piece: (p, env) => [ROMAN[local(env).getUTCMonth()]] },
+  hoahoc: { tier: 3, make: (r) => Math.floor(r() * CHEM.length), text: (p) => `Có ký hiệu hoá học của ${CHEM[p]?.[0]} (đúng hoa / thường)`, ok: (t, p) => String(t).includes(CHEM[p]?.[1] ?? '\u0000'), piece: (p) => [CHEM[p]?.[1] ?? ''] },
+  thudo: { tier: 3, make: (r) => Math.floor(r() * CAPITALS.length), text: (p) => `Có tên thủ đô của ${CAPITALS[p]?.[0]}`, ok: (t, p) => (CAPITALS[p]?.[1] || []).some((w) => flat(t).includes(w)), piece: (p) => [CAPITALS[p]?.[1]?.[0] ?? ''] },
+  phepnhan: { tier: 3, text: () => 'Có một phép nhân ĐÚNG, vd 3x4=12', ok: (t) => correctOp(t, /(\d+)[x*×](\d+)=(\d+)/g, (a, b) => a * b), piece: () => ['2x3=6', '2x4=8', '3x3=9'] },
+  novowel: { tier: 3, make: (r) => pickOf(r, VOWEL_BAN), text: (p) => `CẤM nguyên âm “${p}” (kể cả có dấu, kể cả in hoa)`, ok: (t, p) => !normalize(t).includes(p) },
+  firstlower: { tier: 3, text: () => 'Ký tự ĐẦU TIÊN phải là chữ thường', ok: (t) => /^\p{Ll}/u.test(t) },
+  khoangtrang: { tier: 3, text: () => 'Có ĐÚNG 1 dấu cách (khoảng trắng)', ok: (t) => cps(t).filter((c) => /\s/.test(c)).length === 1, piece: () => [' '] },
+  ngoacso: { tier: 3, text: () => 'Có một con số nằm trong ngoặc, vd (7)', ok: (t) => /\(\d+\)/.test(t), piece: () => ['(7)', '(5)'] },
   // luật do người xem ra (bình luận / quà Ra luật): p = { w: từ gốc, by }
   viewer: { tier: 0, text: (p) => `Có chữ “${p?.w}” — luật của ${p?.by?.name || 'người xem'}`, ok: (t, p) => flat(t).includes(flat(p?.w)), piece: (p) => [flat(p?.w)] },
   // luật người xem tự đặt bằng lời, Claude dịch thành spec (engine/custom.js). p = { label, spec, example, judge, jid, by }
@@ -88,7 +141,7 @@ const okLoose = (r, t, env) => isJudge(r) || ruleOk(r, t, env);
 export function solve(rules, env) {
   const has = (id) => rules.filter((r) => r.id === id);
   const one = (id) => has(id)[0];
-  const forbid = new Set(has('forbid').map((r) => r.p));
+  const forbid = new Set([...has('forbid'), ...has('novowel')].map((r) => r.p));
   const clean = (s) => ![...normalize(s).replace(/ /g, '')].some((c) => forbid.has(c));
   const noDouble = !!one('nodouble');
   const pieces = [];
@@ -101,11 +154,12 @@ export function solve(rules, env) {
   }
   for (let i = 0; i < (one('hearts')?.p ?? 0); i++) pieces.push(HEART);
   const fillers = ['q', 'z', 'w', 'x', 'j', 'v', 'y', 'f', 'p', 'r'].filter((c) => !forbid.has(c));
+  const fillersLower = () => fillers[fillers.length - 1];
   if (fillers.length < 3) return null;
   // chữ IN HOA: luật số lượng chính xác / ít nhất 1
   const upperNeed = one('upperN')?.p ?? (one('upper') ? 1 : 0);
   const start = one('start')?.p;
-  const lowerStart = start ? (clean(start) ? start.toLowerCase() : null) : '';
+  const lowerStart = start ? (clean(start) ? start.toLowerCase() : null) : one('firstlower') ? fillersLower() : '';
   if (lowerStart === null) return null;
   const join = (list) => {
     let s = '';
@@ -147,7 +201,7 @@ export function solve(rules, env) {
       const s = build(pad, padUpper);
       if (s == null) return null;
       const n = cps(s).length;
-      if (n < len) continue;
+      if (n < Math.max(len, 1)) continue; // mật khẩu ít nhất 1 ký tự
       if (rules.every((r) => okLoose(r, s, env))) return s;
       if (one('max') && n > one('max').p) return null;
     }
@@ -189,7 +243,11 @@ export function makeRule(id, existing, rand, env, p) {
 
 /** Ví dụ cho một luật đứng riêng (gợi ý). */
 export function exampleFor(r, env) {
-  if (r.id === 'forbid') return `bỏ hết chữ “${r.p}”`;
+  if (r.id === 'forbid' || r.id === 'novowel') return `bỏ hết chữ “${r.p}”`;
+  if (r.id === 'even') return 'thêm hoặc bớt 1 ký tự';
+  if (r.id === 'nodouble') return 'chèn 1 ký tự vào giữa 2 chữ giống nhau';
+  if (r.id === 'max') return `xoá bớt cho còn ≤ ${r.p} ký tự`;
+  if (r.id === 'firstlower') return 'thêm 1 chữ thường lên đầu';
   if (r.id === 'sum') return `vd ${r.p >= 9 ? `9 và ${r.p - 9}` : r.p} → các số cộng lại = ${r.p}`;
   const def = RULES[r.id];
   if (def?.piece) return `thử thêm “${def.piece(r.p, env)[0]}”`;

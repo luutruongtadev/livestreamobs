@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, fakeClock, seededRandom } from '#sdk';
 import { loadGame } from '#sdk/node';
-import { RULE_IDS, nextRule, solve, ruleOk } from '../engine/rules.js';
+import { RULE_IDS, nextRule, solve, ruleOk, makeRule, exampleFor } from '../engine/rules.js';
 
 const game = await loadGame(new URL('..', import.meta.url));
 const u = (id) => ({ id, name: `Người ${id}` });
@@ -26,7 +26,12 @@ test('bộ luật: tổ hợp ngẫu nhiên nào cũng giải được', () => {
     const s = solve(rules, env);
     assert.ok(s && rules.every((r) => ruleOk(r, s, env)), `seed ${seed}: ${JSON.stringify(rules)} → ${s}`);
   }
-  assert.ok(RULE_IDS.length >= 30);
+  assert.ok(RULE_IDS.length >= 62);
+  for (const id of RULE_IDS) {
+    const r = makeRule(id, [], seededRandom(2), { now: Date.UTC(2026, 10, 12, 14, 5), tz: 7, host: 'Jey' });
+    assert.ok(r, `luật ${id} tạo được`);
+    assert.ok(exampleFor(r, { now: Date.UTC(2026, 10, 12, 14, 5), tz: 7 }) !== undefined);
+  }
 });
 
 test('luật theo thời gian thật: giờ hiện tại, thứ hôm nay', () => {
@@ -38,6 +43,14 @@ test('luật theo thời gian thật: giờ hiện tại, thứ hôm nay', () =>
   assert.ok(ruleOk({ id: 'sum', p: 12 }, 'a93', env));
   assert.ok(ruleOk({ id: 'forbid', p: 'e' }, 'abc', env) && !ruleOk({ id: 'forbid', p: 'e' }, 'mÊo', env));
   assert.ok(ruleOk({ id: 'math' }, 'x2+3=5', env) && !ruleOk({ id: 'math' }, 'x2+3=6', env));
+  assert.ok(ruleOk({ id: 'ngaynay' }, 'a12/11', env) && ruleOk({ id: 'ngaynay' }, 'a12/11', env) && !ruleOk({ id: 'ngaynay' }, 'a13/11', env));
+  assert.ok(ruleOk({ id: 'thang' }, 'NOVember', env) && ruleOk({ id: 'roman' }, 'xXI', env) && !ruleOk({ id: 'roman' }, 'xxi', env));
+  assert.ok(ruleOk({ id: 'phepnhan' }, '3x4=12', env) && !ruleOk({ id: 'phepnhan' }, '3x4=13', env));
+  assert.ok(ruleOk({ id: 'hoahoc', p: 0 }, 'xAu', env) && !ruleOk({ id: 'hoahoc', p: 0 }, 'xau', env));
+  assert.ok(ruleOk({ id: 'thudo', p: 2 }, 'Seoul!', env));
+  assert.ok(ruleOk({ id: 'emojiN', p: 2 }, '😎a❤', env) && !ruleOk({ id: 'emojiN', p: 2 }, '😎', env));
+  assert.ok(ruleOk({ id: 'khoangtrang' }, 'a b', env) && !ruleOk({ id: 'khoangtrang' }, 'a b c', env));
+  assert.ok(ruleOk({ id: 'bienso' }, 'xe29A1', env) && !ruleOk({ id: 'bienso' }, 'xe29a1', env));
 });
 
 test('host: giới thiệu → chơi; Enter khi còn sai → bị chê; đúng hết → hiện luật mới; qua luật cuối → qua màn', () => {
