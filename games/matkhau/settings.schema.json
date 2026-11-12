@@ -14,6 +14,11 @@
       ],
       "default": "host"
     },
+    "superHard": {
+      "type": "boolean",
+      "title": "Chế độ SIÊU KHÓ: luật hiện bằng tiếng Anh, không có ví dụ / gợi ý trong câu luật",
+      "default": false
+    },
     "startLevel": {
       "type": "integer",
       "title": "Màn bắt đầu",

@@ -115,7 +115,12 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     text(String(S.level), 0, 16, 50, C.ink, 800, 'center', 0, TITLE);
     ctx.restore();
     outline('MẬT KHẨU LẦY', 540, 206, 66);
-    chip(S.mode === 'viewer' ? '💬 Người xem tự chơi' : '⌨️ Host đang gõ', 540, 272, 22, S.mode === 'viewer' ? C.sky : C.mint, C.ink, 'center');
+    if (S.superHard) {
+      const w1 = measure(S.mode === 'viewer' ? '💬 Người xem tự chơi' : '⌨️ Host đang gõ', 22, 800) + 24, w2 = measure('🔥 SIÊU KHÓ · EN', 22, 800) + 24;
+      const x0 = 540 - (w1 + w2 + 12) / 2;
+      chip(S.mode === 'viewer' ? '💬 Người xem tự chơi' : '⌨️ Host đang gõ', x0, 272, 22, S.mode === 'viewer' ? C.sky : C.mint, C.ink);
+      chip('🔥 SIÊU KHÓ · EN', x0 + w1 + 12, 272, 22, C.red, '#fff');
+    } else chip(S.mode === 'viewer' ? '💬 Người xem tự chơi' : '⌨️ Host đang gõ', 540, 272, 22, S.mode === 'viewer' ? C.sky : C.mint, C.ink, 'center');
     // đồng hồ
     const cx = 968, cy = 224, R = 66;
     const play = S.phase === 'play';

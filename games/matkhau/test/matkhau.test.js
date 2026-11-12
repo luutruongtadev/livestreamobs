@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHost, fakeClock, seededRandom } from '#sdk';
 import { loadGame } from '#sdk/node';
-import { RULE_IDS, nextRule, solve, ruleOk, makeRule, exampleFor } from '../engine/rules.js';
+import { RULE_IDS, nextRule, solve, ruleOk, makeRule, exampleFor, ruleText } from '../engine/rules.js';
 
 const game = await loadGame(new URL('..', import.meta.url));
 const u = (id) => ({ id, name: `Người ${id}` });
@@ -322,4 +322,20 @@ test('mặc định: Hoa hồng → luật “có chữ” (1 từ, không gọi
   assert.equal(s.rules.at(-1).id, 'custom');
   assert.ok(replies.some(([op]) => op === 'compile'));
   assert.equal(s.aiGift, true);
+});
+
+test('chế độ siêu khó: luật tiếng Anh, không ví dụ trong ngoặc; luật nào cũng có bản tiếng Anh', () => {
+  const env = { now: Date.UTC(2026, 10, 12, 14, 5), tz: 7, en: true, host: 'Jey' };
+  for (const id of RULE_IDS) {
+    const r = makeRule(id, [], seededRandom(4), env);
+    const en = ruleText(r, env);
+    assert.ok(en && !/[ăâđêôơưàáạảãèéẹẻẽìíịỉĩòóọỏõùúụủũỳýỵỷỹ]/i.test(en), `${id}: “${en}” phải là tiếng Anh`);
+    assert.ok(!/vd |\(.*,.*…\)/.test(en), `${id}: không có ví dụ`);
+  }
+  assert.ok(!ruleText({ id: 'host', p: 'Jey' }, env).includes('Jey'), 'không lộ tên chủ phòng');
+  const { host, clock } = mk({ superHard: true });
+  play(host, clock);
+  const s = host.snapshot();
+  assert.equal(s.superHard, true);
+  assert.match(s.rules[0].text, /^[\x20-\x7e“”’—]+$/);
 });

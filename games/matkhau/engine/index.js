@@ -54,7 +54,7 @@ export class MatKhau extends Emitter {
   }
 
   get hostMode() { return this.s.mode !== 'viewer'; }
-  env() { return { now: this.clock(), tz: this.s.tzOffset, host: this.s.hostName, judged: (jid, t) => this.judged[`${jid}|${t}`] ?? null }; }
+  env() { return { now: this.clock(), tz: this.s.tzOffset, host: this.s.hostName, en: !!this.s.superHard, judged: (jid, t) => this.judged[`${jid}|${t}`] ?? null }; }
   get ai() { return this.llm && this.s.aiRules; }
   pick(list) { return list?.length ? list[Math.floor(this.ctx.random() * list.length)] : ''; }
   say(key, mood = 'idle', vars = {}) {
@@ -639,6 +639,7 @@ export class MatKhau extends Emitter {
       compiling: this.compiling.map((j) => ({ by: j.by, text: j.text })),
       checking: !!(this.checking || this.tryJudging),
       ai: this.ai,
+      superHard: !!this.s.superHard,
       ruleSlots: this.ai && this.s.freeRules ? Math.max(0, this.s.freeRulesPerLevel - (this.freeUsed || 0)) : 0,
       passed,
       typed: this.typed,
