@@ -1,4 +1,5 @@
 import { normalize } from '#sdk';
+import { evalSpec } from './custom.js';
 
 /**
  * Bộ luật đặt mật khẩu của "Mật Khẩu Lầy".
@@ -68,11 +69,18 @@ export const RULES = {
   hetlen: { tier: 3, text: () => 'Kết thúc bằng dấu chấm than “!” — hét lên!!', ok: (t) => /!$/.test(t) },
   // luật do người xem ra (bình luận / quà Ra luật): p = { w: từ gốc, by }
   viewer: { tier: 0, text: (p) => `Có chữ “${p?.w}” — luật của ${p?.by?.name || 'người xem'}`, ok: (t, p) => flat(t).includes(flat(p?.w)), piece: (p) => [flat(p?.w)] },
+  // luật người xem tự đặt bằng lời, Claude dịch thành spec (engine/custom.js). p = { label, spec, example, judge, jid, by }
+  // judge: không kiểm tra bằng máy được → env.judged(jid, mật khẩu) = true / false / null (chưa chấm)
+  custom: { tier: 0, text: (p) => String(p?.label || ''), ok: (t, p, env) => (p?.judge ? env?.judged?.(p.jid, t) === true : evalSpec(p?.spec, t)), piece: (p) => (p?.example ? [String(p.example)] : []) },
 };
 export const RULE_IDS = Object.keys(RULES).filter((id) => RULES[id].tier > 0);
 
 export const ruleText = (r, env) => RULES[r.id]?.text(r.p, env) ?? '';
 export const ruleOk = (r, t, env) => { try { return !!RULES[r.id]?.ok(String(t ?? ''), r.p, env); } catch { return false; } };
+/** Luật do AI chấm (không kiểm tra tại chỗ được). */
+export const isJudge = (r) => r?.id === 'custom' && !!r.p?.judge;
+/** Như ruleOk nhưng coi luật AI chấm là đạt (bộ giải không biết AI sẽ chấm thế nào). */
+const okLoose = (r, t, env) => isJudge(r) || ruleOk(r, t, env);
 
 /**
  * Dựng một mật khẩu thoả mọi luật (null nếu bộ giải không dựng được). Dùng để kiểm tra luật mới, gợi ý, người chơi ảo.
@@ -89,7 +97,7 @@ export function solve(rules, env) {
     if (!def?.piece) continue;
     const opts = def.piece(r.p, env).filter((x) => clean(x) && (!noDouble || !cps(x).some((c, i, a) => i > 0 && c.toLowerCase() === a[i - 1].toLowerCase())));
     if (!opts.length) return null;
-    if (!pieces.some((x) => ruleOk(r, x, env))) pieces.push(opts[0]);
+    if (isJudge(r) || !pieces.some((x) => okLoose(r, x, env))) pieces.push(opts[0]);
   }
   for (let i = 0; i < (one('hearts')?.p ?? 0); i++) pieces.push(HEART);
   const fillers = ['q', 'z', 'w', 'x', 'j', 'v', 'y', 'f', 'p', 'r'].filter((c) => !forbid.has(c));
@@ -140,7 +148,7 @@ export function solve(rules, env) {
       if (s == null) return null;
       const n = cps(s).length;
       if (n < len) continue;
-      if (rules.every((r) => ruleOk(r, s, env))) return s;
+      if (rules.every((r) => okLoose(r, s, env))) return s;
       if (one('max') && n > one('max').p) return null;
     }
   }

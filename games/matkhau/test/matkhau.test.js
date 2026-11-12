@@ -166,3 +166,125 @@ test('hết giờ: khoá tài khoản, hình phạt, lùi màn; lưu / khôi ph�
   assert.ok(start.some((f) => f.type === 'mk_penalty'), 'màn sau bị áp án phạt');
   assert.ok(host.snapshot().total >= before);
 });
+
+// ---------------- luật người xem tự đặt (AI duyệt) ----------------
+import { cleanSpec, evalSpec, safeRegex } from '../engine/custom.js';
+import { createServer } from '../server/index.js';
+
+test('spec luật tự đặt: đếm, chứa, danh sách, độ dài, tổng số; regex nguy hiểm bị loại', () => {
+  const s = cleanSpec({ mode: 'all', checks: [{ type: 'count', cls: 'char', chars: 'a', op: 'eq', n: 3 }, { type: 'contains_any', list: ['quanghai', 'congphuong'] }] });
+  assert.ok(evalSpec(s, 'Quang Hải ăn banana') === false, 'có dấu cách thì không khớp "quanghai"');
+  assert.ok(evalSpec(s, 'QuangHải-ba'), 'không dấu, không hoa thường: quanghai + đúng 3 chữ a (kể cả có dấu)');
+  assert.ok(!evalSpec(s, 'quanghai-banana'));
+  assert.ok(evalSpec(cleanSpec({ checks: [{ type: 'length', op: 'lte', n: 5 }] }), 'abcde'));
+  assert.ok(evalSpec(cleanSpec({ checks: [{ type: 'digit_sum', op: 'eq', n: 10 }] }), 'a55'));
+  assert.ok(evalSpec(cleanSpec({ checks: [{ type: 'starts_with', text: 'Đ', accentSensitive: true }] }), 'đẹp'));
+  assert.equal(safeRegex('(a+)+$'), null);
+  assert.equal(safeRegex('(\\w)\\1'), null);
+  assert.ok(safeRegex('^[A-Z].*\\d$'));
+  assert.equal(cleanSpec({ checks: [{ type: 'regex', pattern: '(x*)*y' }] }), null);
+  assert.equal(cleanSpec({ checks: [{ type: 'eval', code: 'process.exit()' }] }), null);
+});
+
+function fakeClaude(reply) {
+  const calls = [];
+  return { calls, beta: { messages: { create: async (req) => { calls.push(req); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(reply(req)) }] }; } } } };
+}
+
+test('server: dịch luật bằng Haiku (không suy nghĩ), làm sạch, cache theo nội dung luật; chấm luật cảm tính', async () => {
+  const client = fakeClaude((req) => (req.messages[0].content.startsWith('LUẬT CỦA')
+    ? { ok: true, reason: '', label: 'Có tên một cầu thủ Việt Nam', judge: false, example: 'quanghai', mode: 'all', checks: [{ type: 'contains_any', text: null, list: ['quanghai', 'congphuong'], cls: null, chars: null, op: null, n: null, pattern: null, caseSensitive: false, accentSensitive: false }] }
+    : { ok: true, why: 'nghe dễ thương' }));
+  const srv = createServer({ client, log: {} });
+  const a = await srv.ops.compile({ text: 'phải có tên cầu thủ VN' });
+  assert.equal(a.ok, true);
+  assert.equal(a.example, 'quanghai');
+  assert.equal(client.calls[0].model, 'claude-haiku-5-5');
+  assert.deepEqual(client.calls[0].thinking, { type: 'disabled' });
+  const b = await srv.ops.compile({ text: 'Phải có tên cầu thủ vn' });
+  assert.equal(b.cached, true, 'cùng luật (khác dấu / hoa thường) → cache');
+  assert.equal(client.calls.length, 1);
+  const j = await srv.ops.judge({ rule: 'Nghe phải dễ thương', password: 'meomeo' });
+  assert.equal(j.ok, true);
+  await srv.ops.judge({ rule: 'Nghe phải dễ thương', password: 'meomeo' });
+  assert.equal(client.calls.length, 2, 'chấm lại cùng mật khẩu → cache');
+  const off = createServer({ client: null, log: {} });
+  assert.equal((await off.ops.compile({ text: 'có chữ a' })).offline, true);
+});
+
+/** Server giả cho engine: luật "mèo" → spec chứa "meo"; luật "dễ thương" → AI chấm. */
+function mkAi(settings = {}) {
+  const clock = fakeClock(1_794_372_000_000);
+  const fx = [];
+  const replies = [];
+  const server = {
+    request: async (op, p) => {
+      replies.push([op, p]);
+      if (op === 'caps') return { llm: true };
+      if (op === 'compile') {
+        if (/thương/.test(p.text)) return { ok: true, label: 'Nghe phải dễ thương', judge: true, spec: null, example: 'cute' };
+        if (/chửi/.test(p.text)) return { ok: false, reason: 'Luật không lịch sự' };
+        if (/không có chữ m/.test(p.text)) return { ok: true, label: 'Không có chữ m', judge: false, spec: { mode: 'all', checks: [{ type: 'not_contains', text: 'm' }] }, example: '' };
+        return { ok: true, label: 'Có chữ mèo', judge: false, spec: { mode: 'all', checks: [{ type: 'contains', text: 'meo' }] }, example: 'meo' };
+      }
+      if (op === 'judge') return { ok: /cute/.test(p.password), why: '' };
+      return {};
+    },
+  };
+  const host = createHost(game, { settings: { voteEvery: 0, viewerRuleEvery: 0, ...settings }, data: game.data, now: clock.now, random: seededRandom(3), server, log: {}, onEffects: (e) => fx.push(...e) });
+  return { host, clock, fx, replies };
+}
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+test('“luật: …” → AI duyệt rồi thêm vào màn đang chơi; bị loại / mâu thuẫn thì báo; giới hạn mỗi màn', async () => {
+  const { host, clock, fx } = mkAi({ freeRulesPerLevel: 2, ruleCooldownSeconds: 0 });
+  await flush();
+  play(host, clock);
+  const n = host.snapshot().rules.length, total = host.snapshot().total;
+  assert.equal(host.handle({ type: 'comment', user: u('a'), text: 'luật: phải có con mèo' })[0].type, 'mk_propose');
+  assert.equal(host.snapshot().compiling.length, 1);
+  await flush(); await flush();
+  let s = host.snapshot();
+  assert.equal(s.rules.length, n + 1);
+  assert.equal(s.total, total + 1);
+  assert.equal(s.rules.at(-1).text, 'Có chữ mèo');
+  assert.equal(s.rules.at(-1).by.id, 'a');
+  assert.ok(fx.some((f) => f.type === 'mk_rule'));
+  host.handle({ type: 'comment', user: u('b'), text: 'Luật: không có chữ m' });
+  await flush(); await flush();
+  assert.equal(fx.at(-1).type, 'mk_rule_rejected');
+  assert.match(fx.at(-1).reason, /Mâu thuẫn/);
+  host.handle({ type: 'comment', user: u('c'), text: 'luat: chửi người' });
+  await flush(); await flush();
+  assert.equal(fx.at(-1).reason, 'Luật không lịch sự');
+  assert.equal(host.snapshot().ruleSlots, 1, 'luật bị loại không tính vào giới hạn');
+  host.handle({ type: 'comment', user: u('d'), text: 'luật: có con mèo nữa' });
+  await flush(); await flush();
+  assert.equal(fx.at(-1).reason, 'Luật này có rồi');
+  s = host.snapshot();
+  assert.ok(s.rules.every((r) => r.id !== 'custom' || r.by), 'luật tự đặt ghi tên người đặt');
+});
+
+test('luật cảm tính: host Enter → AI chấm mật khẩu rồi mới qua; người xem tự chơi cũng vậy', async () => {
+  const { host, clock, fx, replies } = mkAi({ baseRules: 3 });
+  await flush();
+  play(host, clock);
+  host.handle({ type: 'gift', user: u('g'), giftName: 'Rose', diamonds: 1, count: 1 });
+  host.handle({ type: 'comment', user: u('g'), text: 'mật khẩu phải nghe dễ thương' });
+  await flush(); await flush();
+  const s = host.snapshot();
+  const j = s.rules.find((r) => r.judge);
+  assert.ok(j, 'luật AI chấm đã vào màn');
+  const base = solve(s.rules.filter((r) => !r.judge), s.env);
+  host.input({ type: 'text', value: base.includes('cute') ? base.replace(/cute/g, '') + 'x' : base });
+  assert.equal(host.input({ type: 'enter' })[0].type, 'mk_checking');
+  await flush(); await flush();
+  assert.ok(replies.some(([op]) => op === 'judge'));
+  assert.equal(fx.at(-1).type, 'mk_wrong', 'AI chấm không đạt → sai');
+  const good = solve(s.rules, s.env);
+  assert.ok(good.includes('cute'), 'bộ giải dùng ví dụ của luật AI');
+  host.input({ type: 'text', value: good });
+  host.input({ type: 'enter' });
+  await flush(); await flush();
+  assert.ok(['mk_rule', 'mk_win', 'mk_vote_start'].includes(fx.at(-1).type) || host.snapshot().rules.length > s.rules.length, 'AI chấm đạt → qua luật');
+});

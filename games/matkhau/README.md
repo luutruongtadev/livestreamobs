@@ -13,6 +13,12 @@ Luật luôn có lời giải: bộ giải (`engine/rules.js` → `solve`) dựn
 
 ## Tương tác của người xem
 
+- **Tự đặt luật bằng lời (AI duyệt)**: bình luận `luật: <gì cũng được>` — vd `luật: phải có tên cầu thủ VN`, `luật: đúng 3 chữ a`, `luật: nghe phải dễ thương`.
+  Phần server (`server/index.js`, Claude Haiku, không suy nghĩ) dịch câu đó thành **spec kiểm tra an toàn** (`engine/custom.js`: chứa / không chứa / bắt đầu / kết thúc / một trong danh sách / đếm ký tự / độ dài / tổng chữ số / regex đã lọc an toàn) — engine tự kiểm tra tại chỗ, không gọi API mỗi lần gõ. Kết quả cache theo nội dung luật (bỏ dấu, hoa thường) trong `rule-cache.json`, dùng chung mọi kênh.
+  Luật không kiểm tra bằng máy được → **AI chấm** khi host Enter / khi một lượt thử của người xem đã thoả hết luật khác (cache theo luật + mật khẩu).
+  AI loại luật tục tĩu, xúc phạm, đòi thông tin cá nhân, không nói về mật khẩu; engine loại thêm luật có từ cấm, trùng hoặc mâu thuẫn với luật đang có (bộ giải không dựng được mật khẩu).
+  Giới hạn `freeRulesPerLevel` luật miễn phí mỗi màn, mỗi người chờ `ruleCooldownSeconds`. Quà **Ra luật** đặt thêm không giới hạn. Không có `ANTHROPIC_API_KEY` (hoặc tắt `aiRules`) → luật của người xem chỉ là 1 từ như cũ.
+
 - **Bình chọn luật**: cứ `voteEvery` luật, hai luật ứng viên hiện ra — gõ `1` hoặc `2`.
 - **Từ bình luận thành luật**: cứ `viewerRuleEvery` luật, một từ ngắn ai đó vừa bình luận thành luật “Có chữ …” (lọc `bannedWords`).
 - **Quà** (gán lại trong dashboard):

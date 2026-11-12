@@ -15,7 +15,7 @@
     "comment"
   ],
   "restore": "full",
-  "server": false,
+  "server": true,
   "play": true,
   "data": {
     "lines": "data/lines.json"
@@ -311,5 +311,9 @@
       },
       "text": "ACCESS DENIED 🔒|Tài khoản bị khoá|Mật khẩu vẫn là 123456"
     }
+  ],
+  "secrets": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN"
   ]
 }

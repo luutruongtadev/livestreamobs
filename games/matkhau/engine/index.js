@@ -1,5 +1,6 @@
 import { Emitter, makePausable, normalize, triggerText, triggerIcon } from '#sdk';
-import { RULES, ruleText, ruleOk, solve, nextRule, makeRule, exampleFor, cps, FORBID_LETTERS } from './rules.js';
+import { RULES, ruleText, ruleOk, solve, nextRule, makeRule, exampleFor, cps, FORBID_LETTERS, isJudge } from './rules.js';
+import { cleanSpec } from './custom.js';
 
 /**
  * Mật Khẩu Lầy: đặt mật khẩu mới thoả một chuỗi luật hiện dần, càng về sau càng oái oăm.
@@ -22,6 +23,7 @@ export const HELP = ['goiy', 'themgio', 'xoaluat', 'khien', 'qualuon'];
 const HOST_ONLY = new Set(['hacker', 'meo', 'capslock']);
 const MAX_RULES = 20;
 const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn danh').slice(0, 40), avatar: u?.avatar || null });
+const RULE_PREFIX = /^\s*(luật|luat|rule)\s*[:：\-]\s*/iu;
 const FALLBACK = { bot: {}, strength: ['Yếu', 'Vừa', 'Mạnh'], punishments: ['Hát 1 câu'], penalties: [{ kind: 'time', text: 'Màn sau bị bớt 20 giây' }], junk: ['meo'] };
 
 export class MatKhau extends Emitter {
@@ -41,11 +43,19 @@ export class MatKhau extends Emitter {
     this.feed = [];
     this.words = []; // từ ngắn người xem bình luận gần đây (làm luật của người xem)
     this.bot = { id: 0, text: '', mood: 'idle' };
+    this.round = 0;
+    this.judged = {}; // `${jid}|${mật khẩu}` → true / false (AI chấm luật cảm tính)
+    this.judging = {};
+    this.compiling = [];
+    this.llm = false;
     this.startLevel();
+    // phần server có AI duyệt luật không (không có thì luật người xem = 1 từ trong bình luận như cũ)
+    try { Promise.resolve(this.ctx.server?.request?.('caps', {})).then((c) => { this.llm = !!c?.llm; }).catch(() => {}); } catch { /* không có server */ }
   }
 
   get hostMode() { return this.s.mode !== 'viewer'; }
-  env() { return { now: this.clock(), tz: this.s.tzOffset, host: this.s.hostName }; }
+  env() { return { now: this.clock(), tz: this.s.tzOffset, host: this.s.hostName, judged: (jid, t) => this.judged[`${jid}|${t}`] ?? null }; }
+  get ai() { return this.llm && this.s.aiRules; }
   pick(list) { return list?.length ? list[Math.floor(this.ctx.random() * list.length)] : ''; }
   say(key, mood = 'idle', vars = {}) {
     const line = String(this.pick(this.d.bot[key]) || '').replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
@@ -56,7 +66,10 @@ export class MatKhau extends Emitter {
   // ---------------- vòng đời màn ----------------
   startLevel() {
     this.phase = 'intro';
+    this.round = (this.round || 0) + 1;
     this.rules = [];
+    this.compiling = [];
+    this.freeUsed = 0;
     this.target = Math.min(MAX_RULES, this.s.baseRules + (this.level - 1) * this.s.rulesPerLevel, this.s.maxRules);
     this.totalMs = (this.s.baseSeconds + this.s.secondsPerRule * this.target) * 1000;
     this.startedAt = this.clock();
@@ -218,8 +231,15 @@ export class MatKhau extends Emitter {
     // người vừa tặng "Ra luật": bình luận kế tiếp thành luật
     const pi = this.pending.findIndex((p) => p.by.id === by.id);
     if (pi >= 0 && this.phase === 'play') {
+      if (this.ai && cps(raw).length >= 2 && !/^\s*[12]\s*$/.test(raw)) { this.pending.splice(pi, 1); return this.propose(raw.replace(RULE_PREFIX, ''), by, 'gift'); }
       const w = this.pickWord(raw);
       if (w) { this.pending.splice(pi, 1); return this.viewerLaw(w, by); }
+    }
+    // "luật: …" — ai cũng ra luật được (giới hạn số luật / màn, mỗi người chờ một lúc)
+    const lm = RULE_PREFIX.exec(raw);
+    if (lm) {
+      if (!this.ai || !this.s.freeRules || this.phase !== 'play') return [];
+      return this.freeRule(raw.slice(lm[0].length), by);
     }
     if (this.vote) {
       const m = /^\s*([12])\s*$/.exec(raw);
@@ -243,7 +263,23 @@ export class MatKhau extends Emitter {
     if (t - last < 1500) return [];
     this.lastTry[by.id] = t;
     if (Object.keys(this.lastTry).length > 3000) this.lastTry = {};
+    return this.judgeTry(text, by);
+  }
+
+  /** Chấm một lượt thử của người xem (gọi lại sau khi AI chấm xong các luật cảm tính). */
+  judgeTry(text, by) {
+    const t = this.clock();
     const env = this.env();
+    // thoả hết luật kiểm tra được mà còn luật AI chưa chấm → nhờ AI chấm (mỗi lúc 1 lượt) rồi xét lại
+    const unknown = this.rules.filter((r) => isJudge(r) && env.judged(r.p.jid, text) == null);
+    if (unknown.length && this.rules.every((r) => isJudge(r) || ruleOk(r, text, env))) {
+      if (!this.tryJudging) {
+        this.tryJudging = true;
+        this.askJudges(text, unknown, () => { this.tryJudging = false; if (this.phase === 'play' && !this.hostMode) this.emit('effects', this.judgeTry(text, by)); });
+        return [{ type: 'mk_checking', by }];
+      }
+      return [];
+    }
     const passed = this.rules.filter((r) => ruleOk(r, text, env)).length;
     this.attempts++;
     this.latest = { text, by, passed, at: t };
@@ -255,6 +291,80 @@ export class MatKhau extends Emitter {
     const fx = [{ type: 'mk_unlock', by, no: this.rules.length }];
     if (this.vote) { this.wantNext = { by }; return fx; }
     return [...fx, ...this.reveal(by)];
+  }
+
+  /** AI chấm mật khẩu cho các luật cảm tính; xong hết thì gọi done(). Máy chấm lỗi / không có AI → coi như đạt (không kẹt ván). */
+  askJudges(text, rules, done) {
+    let left = rules.length;
+    const round = this.round;
+    for (const r of rules) {
+      const key = `${r.p.jid}|${text}`;
+      Promise.resolve(this.ctx.server?.request?.('judge', { rule: r.p.label, password: text }))
+        .then((v) => (v && !v.offline ? v.ok === true : true), () => true)
+        .then((ok) => {
+          if (round !== this.round) return;
+          this.judged[key] = ok;
+          const keys = Object.keys(this.judged);
+          if (keys.length > 400) for (const k of keys.slice(0, 100)) delete this.judged[k];
+          if (--left === 0) done();
+        });
+    }
+  }
+
+  freeRule(text, by) {
+    const t = this.clock();
+    if (this.freeUsed >= this.s.freeRulesPerLevel) return [{ type: 'mk_rule_rejected', by, reason: `Màn này đủ ${this.s.freeRulesPerLevel} luật của khán giả rồi — tặng quà Ra luật để đặt thêm` }];
+    const last = (this.ruleAt ||= {})[by.id] || -Infinity;
+    if (t - last < this.s.ruleCooldownSeconds * 1000) return [];
+    this.ruleAt[by.id] = t;
+    this.freeUsed++;
+    return this.propose(text, by, 'free');
+  }
+
+  /** Gửi luật người xem đặt cho AI duyệt; duyệt xong thì thêm vào màn đang chơi (emit). */
+  propose(raw, by, src) {
+    const text = String(raw ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().slice(0, 140);
+    const flat = normalize(text).replace(/ /g, '');
+    if (flat.length < 2) return [];
+    if (this.banned.some((b) => flat.includes(b))) { if (src === 'free') this.freeUsed--; return [{ type: 'mk_rule_rejected', by, reason: 'Luật có từ cấm' }]; }
+    if (this.compiling.length >= 4) { if (src === 'free') this.freeUsed--; return [{ type: 'mk_rule_rejected', by, reason: 'Máy đang duyệt nhiều luật quá, đợi chút' }]; }
+    const job = { id: ++this.uid, by, text, src, round: this.round };
+    this.compiling.push(job);
+    Promise.resolve(this.ctx.server.request('compile', { text }))
+      .then((res) => res, () => ({ ok: false, offline: true, reason: 'Máy đang bận' }))
+      .then((res) => { const fx = this.compiled(job, res); if (fx.length) this.emit('effects', fx); });
+    this.say('reviewing', 'smug', { name: by.name });
+    return [{ type: 'mk_propose', by, text }];
+  }
+
+  compiled(job, res) {
+    const i = this.compiling.findIndex((j) => j.id === job.id);
+    if (i < 0 || job.round !== this.round) return [];
+    this.compiling.splice(i, 1);
+    if (this.phase !== 'play') return [];
+    const by = job.by;
+    const reject = (reason) => {
+      if (job.src === 'free') this.freeUsed = Math.max(0, this.freeUsed - 1);
+      this.say('rejected', 'smug', { name: by.name });
+      return [{ type: 'mk_rule_rejected', by, text: job.text, reason }];
+    };
+    if (!res?.ok) {
+      if (res?.offline && job.src === 'gift') { const w = this.pickWord(job.text); if (w) return this.viewerLaw(w, by); }
+      return reject(String(res?.reason || 'Máy không duyệt luật này').slice(0, 80));
+    }
+    const label = String(res.label || '').slice(0, 90);
+    const flat = normalize(label).replace(/ /g, '');
+    if (!label || this.banned.some((b) => flat.includes(b))) return reject('Luật có từ cấm');
+    if (this.rules.some((r) => normalize(ruleText(r, this.env())) === normalize(label))) return reject('Luật này có rồi');
+    const judge = res.judge === true;
+    const spec = judge ? null : cleanSpec(res.spec);
+    if (!judge && !spec) return reject('Máy không biết kiểm tra luật này');
+    const r = { id: 'custom', p: { label, spec, judge, example: String(res.example || '').slice(0, 25), jid: `j${++this.uid}`, by } };
+    if (!solve([...this.rules, r], this.env())) return reject('Mâu thuẫn với luật đang có');
+    this.target = Math.min(MAX_RULES + 6, this.target + 1);
+    const rule = this.addRule(r, { by });
+    this.say('viewerRule', 'smug');
+    return [this.ruleFx(rule, judge ? 'AI chấm' : 'luật của khán giả')];
   }
 
   /** Lấy một từ dùng làm luật: 2–10 chữ cái, không số, không từ cấm. */
@@ -434,6 +544,16 @@ export class MatKhau extends Emitter {
   submit() {
     if (!cps(this.typed).length) return [];
     this.attempts++;
+    const env = this.env();
+    const text = this.typed;
+    const mech = this.rules.filter((r) => !isJudge(r) && !ruleOk(r, text, env));
+    const unknown = this.rules.filter((r) => isJudge(r) && env.judged(r.p.jid, text) == null);
+    if (!mech.length && unknown.length) {
+      if (this.checking) return [];
+      this.checking = true;
+      this.askJudges(text, unknown, () => { this.checking = false; if (this.phase === 'play' && this.typed === text) { this.attempts--; this.emit('effects', this.submit()); } });
+      return [{ type: 'mk_checking' }];
+    }
     const bad = this.failing(this.typed);
     if (bad.length) {
       this.say(bad.length === 1 && this.rules.length >= this.target ? 'almost' : 'wrong', 'angry');
@@ -502,7 +622,11 @@ export class MatKhau extends Emitter {
       totalMs: this.phase === 'play' ? this.totalMs : this.phase === 'intro' ? this.s.introSeconds * 1000 : this.s.resultSeconds * 1000,
       roundMs: this.totalMs,
       total: this.target,
-      rules: this.rules.map((r) => ({ no: r.no, uid: r.uid, id: r.id, p: r.p ?? null, tier: RULES[r.id]?.tier ?? 0, text: ruleText(r, env), ok: ruleOk(r, cur, env), by: r.by || null, hint: r.hint || null })),
+      rules: this.rules.map((r) => ({ no: r.no, uid: r.uid, id: r.id, p: r.p ?? null, tier: RULES[r.id]?.tier ?? 0, text: ruleText(r, env), ok: ruleOk(r, cur, env), judge: isJudge(r), verdict: isJudge(r) ? env.judged(r.p.jid, cur) : null, by: r.by || null, hint: r.hint || null })),
+      compiling: this.compiling.map((j) => ({ by: j.by, text: j.text })),
+      checking: !!(this.checking || this.tryJudging),
+      ai: this.ai,
+      ruleSlots: this.ai && this.s.freeRules ? Math.max(0, this.s.freeRulesPerLevel - (this.freeUsed || 0)) : 0,
       passed,
       typed: this.typed,
       rev: this.rev,
@@ -529,7 +653,7 @@ export class MatKhau extends Emitter {
       level: this.level, best: this.best, wins: this.wins, uid: this.uid, phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt ?? null,
       target: this.target, totalMs: this.totalMs, rules: this.rules, typed: this.typed, rev: this.rev, latest: this.latest, bestTry: this.bestTry,
       vote: this.vote, voteReady: this.voteReady, wantNext: this.wantNext, pending: this.pending, status: this.status, shield: this.shield,
-      attempts: this.attempts, result: this.result, penalty: this.penalty ?? null, torment: this.torment, helpers: this.helpers, players: this.players, feed: this.feed, words: this.words, bot: this.bot,
+      attempts: this.attempts, result: this.result, penalty: this.penalty ?? null, round: this.round, judged: this.judged, freeUsed: this.freeUsed ?? 0, ruleAt: this.ruleAt ?? {}, torment: this.torment, helpers: this.helpers, players: this.players, feed: this.feed, words: this.words, bot: this.bot,
     };
   }
 
@@ -544,6 +668,12 @@ export class MatKhau extends Emitter {
     for (const k of ['pending', 'status', 'feed', 'words']) if (!Array.isArray(this[k])) this[k] = [];
     for (const k of ['torment', 'helpers', 'players']) if (!this[k] || typeof this[k] !== 'object') this[k] = {};
     if (!this.bot || typeof this.bot !== 'object') this.bot = { id: 0, text: '', mood: 'idle' };
+    if (!this.judged || typeof this.judged !== 'object') this.judged = {};
+    if (!this.ruleAt || typeof this.ruleAt !== 'object') this.ruleAt = {};
+    this.round = Number(this.round) || 1;
+    this.compiling = []; this.checking = false; this.tryJudging = false; // yêu cầu AI đang chờ đã mất khi tải lại
+    for (const r of this.rules) if (r.id === 'custom') { r.p = r.p && typeof r.p === 'object' ? r.p : {}; if (!r.p.judge) r.p.spec = cleanSpec(r.p.spec); }
+    this.rules = this.rules.filter((r) => r.id !== 'custom' || r.p.judge || r.p.spec);
   }
 
   destroy() { this.removeAllListeners(); }

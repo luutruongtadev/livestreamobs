@@ -115,6 +115,14 @@
     "penalty": [
       "Án phạt đã có hiệu lực. Máy rất công bằng (và hơi ác).",
       "Còn nhớ màn trước không? Máy nhớ đó."
+    ],
+    "reviewing": [
+      "Máy đang duyệt luật của {name}… để xem nào.",
+      "Luật mới từ {name}? Máy đọc kỹ đã."
+    ],
+    "rejected": [
+      "Luật của {name} bị máy loại. Thử luật khác nha.",
+      "Máy không duyệt luật này đâu {name} ơi."
     ]
   },
   "strength": [

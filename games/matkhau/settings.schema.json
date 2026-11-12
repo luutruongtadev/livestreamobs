@@ -98,6 +98,30 @@
       "maximum": 60,
       "default": 20
     },
+    "aiRules": {
+      "type": "boolean",
+      "title": "Người xem đặt luật bằng lời bất kỳ, AI duyệt và tự kiểm tra (cần ANTHROPIC_API_KEY trên máy chủ; tắt = luật chỉ là 1 từ)",
+      "default": true
+    },
+    "freeRules": {
+      "type": "boolean",
+      "title": "Ai cũng ra luật được: bình luận bắt đầu bằng “luật:” (không cần quà)",
+      "default": true
+    },
+    "freeRulesPerLevel": {
+      "type": "integer",
+      "title": "Tối đa luật “luật:” miễn phí mỗi màn",
+      "minimum": 0,
+      "maximum": 10,
+      "default": 3
+    },
+    "ruleCooldownSeconds": {
+      "type": "integer",
+      "title": "Mỗi người chờ bao lâu mới ra luật miễn phí tiếp (giây)",
+      "minimum": 0,
+      "maximum": 600,
+      "default": 90
+    },
     "cutSeconds": {
       "type": "integer",
       "title": "Quà Rút giờ: bớt mấy giây",

@@ -257,7 +257,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (const r of list) {
       if (!seen.has(r.uid)) { seen.set(r.uid, now); if (seen.size > 200) seen.delete(seen.keys().next().value); }
       const lines = wrap(r.text, 30, 760, 800).slice(0, 2);
-      const hasMeta = !!(r.hint || r.by);
+      const hasMeta = !!(r.hint || r.by || r.judge);
       const h = 34 + lines.length * 38 + (hasMeta ? 34 : 0);
       if (y + h > bottom) { hidden++; continue; }
       const age = (now - seen.get(r.uid)) / 650;
@@ -271,13 +271,14 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       ctx.beginPath(); ctx.arc(88, y + 34, 26, 0, Math.PI * 2); ctx.fillStyle = r.ok ? C.mint : C.red; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = C.ink; ctx.stroke();
       text(String(r.no), 88, y + 36, 26, r.ok ? C.ink : '#fff', 800, 'center', 0, TITLE);
       lines.forEach((ln, i) => text(ln, 132, y + 34 + i * 38, 30, C.ink, 800, 'left', 790));
-      text(r.ok ? '✅' : '❌', 1000, y + 34, 38, C.ink, 800, 'center');
+      text(r.ok ? '✅' : r.judge && r.verdict == null ? (S.checking && Math.floor(now / 300) % 2 ? '⏳' : '🤖') : '❌', 1000, y + 34, 38, C.ink, 800, 'center');
       // độ khó
       for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(1000 - 14 + i * 14, y + h - 20, 5, 0, Math.PI * 2); ctx.fillStyle = i < (r.tier || 3) ? C.ink : 'rgba(27,21,48,.15)'; ctx.fill(); }
       if (hasMeta) {
         let mx = 132;
         const my = y + 34 + lines.length * 38 + 2;
         if (r.by) mx += chip(`👤 ${r.by.name}`, mx, my, 18, C.sky, C.ink) + 10;
+        if (r.judge) mx += chip(r.verdict == null ? '🤖 AI chấm khi nộp' : '🤖 AI đã chấm', mx, my, 18, C.purple, '#fff') + 10;
         if (r.hint) { const hk = anim.hintAt.get(r.no) ?? 0; const glow = now - hk < 1500; chip(`💡 ${r.hint}`.slice(0, 60), mx, my, 18, glow ? C.yellow : C.hint, C.ink); }
       }
       ctx.restore();
@@ -348,9 +349,13 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   }
 
   function drawPending(now, y) {
-    const p = S.pending?.[0];
-    if (!p) return;
-    const s = `📝 ${p.by.name} đang ra luật… gõ 1 từ vào bình luận! (${Math.ceil(p.leftMs / 1000)}s)`;
+    const p = S.pending?.[0], c = S.compiling?.[0];
+    if (!p && !c) {
+      if (S.phase === 'play' && S.ruleSlots > 0) chip(`📝 Bình luận “luật: …” để tự đặt luật (còn ${S.ruleSlots})`, 540, y, 20, 'rgba(255,253,247,.85)', C.ink, 'center');
+      return;
+    }
+    const s = c ? `🤖 Máy đang duyệt luật của ${c.by?.name || ''}: “${[...c.text].slice(0, 34).join('')}${[...c.text].length > 34 ? '…' : ''}”`
+      : `📝 ${p.by.name} đang ra luật… gõ ${S.ai ? 'luật' : '1 từ'} vào bình luận! (${Math.ceil(p.leftMs / 1000)}s)`;
     const sc = reduced ? 1 : 1 + Math.sin(now / 160) * 0.02;
     ctx.save(); ctx.translate(540, y); ctx.scale(sc, sc);
     chip(s, 0, 0, 22, C.yellow, C.ink, 'center');
@@ -386,7 +391,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     outline(`MÀN ${S.level}`, 0, -190, 120, C.yellow, C.ink, C.pink, 16);
     text(`Qua ${S.total} luật trong ${mmss(S.roundMs)}`, 0, -70, 44, C.ink, 800, 'center', 820, TITLE);
     text(S.mode === 'viewer' ? 'Người xem: gõ mật khẩu vào bình luận!' : 'Host gõ mật khẩu · khán giả phá hoặc cứu', 0, -14, 30, C.dim, 800, 'center', 820);
-    const tips = S.mode === 'viewer' ? ['💬 Thoả hết luật đang hiện → mở luật mới, +điểm', '🗳️ Gõ 1 / 2 để chọn luật tiếp theo', '🎁 Tặng quà để thêm luật khó hoặc gợi ý'] : ['🗳️ Khán giả gõ 1 / 2 để chọn luật tiếp theo', '📝 Một từ bạn bình luận có thể thành luật!', '🎁 Quà phá: hacker, mèo, cấm chữ… Quà cứu: gợi ý, thêm giờ'];
+    const tips = S.mode === 'viewer' ? ['💬 Thoả hết luật đang hiện → mở luật mới, +điểm', S.ai ? '📝 Gõ “luật: …” để tự đặt luật · 1 / 2 để bình chọn' : '🗳️ Gõ 1 / 2 để chọn luật tiếp theo', '🎁 Tặng quà để thêm luật khó hoặc gợi ý'] : ['🗳️ Khán giả gõ 1 / 2 để chọn luật tiếp theo', S.ai ? '📝 Bình luận “luật: …” để tự đặt luật!' : '📝 Một từ bạn bình luận có thể thành luật!', '🎁 Quà phá: hacker, mèo, cấm chữ… Quà cứu: gợi ý, thêm giờ'];
     tips.forEach((s, i) => text(s, -380, 60 + i * 52, 28, C.ink, 800, 'left', 780));
     const sec = Math.ceil(S.remainingMs / 1000);
     chip(input && S.mode !== 'viewer' ? `Bắt đầu sau ${sec}s · bấm Enter để vào luôn` : `Bắt đầu sau ${sec}s`, 0, 238, 26, C.mint, C.ink, 'center');
@@ -529,7 +534,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     drawRules(now, top, bottom);
     if (S.vote) panel('vote', { x: 60, y: 1220 }, () => drawVote(now));
     else if (viewer) panel('board', { x: 24, y: 1384 }, () => drawBoard());
-    drawPending(now, 1490);
+    drawPending(now, 1474);
     panel('gifts', { x: 24, y: 1500 }, () => drawGifts(now));
     ctx.restore();
     if (S.phase === 'intro') drawIntro(now);
@@ -569,6 +574,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         case 'mk_hacked': anim.hackAt = now; sound.play('hack'); break;
         case 'mk_meo': anim.meoAt = now; sound.play('meo'); break;
         case 'mk_hint': anim.hintAt.set(fx.no, now); break;
+        case 'mk_propose': sound.play('tap'); break;
+        case 'mk_checking': floaters.push({ text: '🤖 AI đang chấm…', x: W / 2, y: 1160, size: 24, life: 1.4, age: 0, bg: C.purple }); break;
+        case 'mk_rule_rejected': floaters.push({ text: `❌ Luật của ${fx.by?.name || ''}: ${fx.reason || 'bị loại'}`.slice(0, 70), x: W / 2, y: 1160, size: 22, life: 2.6, age: 0, bg: C.badBg }); sound.play('wrong'); break;
         case 'mk_gift': {
           const a = ACT[fx.action];
           if (!a) break;
