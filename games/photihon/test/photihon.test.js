@@ -9,7 +9,7 @@ const gift = (id, giftName) => ({ type: 'gift', user: u(id), giftName, diamonds:
 
 test('phá phố: sét toà cao nhất, bình luận sửa nhà (giãn cách), khiên chặn, thợ xây, lốc đi xuyên phố, phố sập → vinh danh → phố mới, quà để dành', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { wipePercent: 60, resultSeconds: 5, repairPerComment: 10, commentCooldown: 2, disasterScale: 0.5 }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
+  const host = createHost(game, { settings: { wipePercent: 60, resultSeconds: 5, repairPerComment: 10, commentCooldown: 2, disasterScale: 0.5, slowmo: false }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
   const n = S().buildings.length;
@@ -62,7 +62,7 @@ test('phá phố: sét toà cao nhất, bình luận sửa nhà (giãn cách), k
 
 test('chế độ streamer: sửa nhà, bắn hạ, đuổi lốc tốn năng lượng (tự hồi), hết giờ phố còn đứng → streamer thắng; sập trước → người xem thắng; khôi phục', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 40, hostEnergy: 2, energyRegenSeconds: 5, ambientSeconds: 0, resultSeconds: 3, wipePercent: 60 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 40, hostEnergy: 2, energyRegenSeconds: 5, ambientSeconds: 0, resultSeconds: 3, wipePercent: 60, slowmo: false }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
   assert.equal(S().mode, 'host'); assert.equal(S().energy, 2); assert.ok(S().hostLeftMs > 39000);
@@ -123,4 +123,36 @@ test('Ông Trời thả thảm hoạ nhẹ định kỳ ở chế độ streamer
   assert.ok(s.strikes.length + s.buildings.filter((b) => b.hp < 1).length > 0);
   assert.equal(s.top.length, 0);
   assert.equal(s.cam.zoom, true);
+});
+
+test('dừng thời gian: toà lớn sập → mọi đồng hồ đứng yên slowmoSeconds rồi chạy tiếp; có thời gian chờ; nhà nhỏ không dừng', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { slowmo: true, slowmoSeconds: 2, slowmoCooldown: 10, disasterScale: 3 }, data: game.data, now: clock.now, random: seededRandom(5), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { for (let t = 0; t < ms; t += 100) { clock.advance(100); host.tick(); } };
+  // bản đồ chữ nhật: mọi toà nằm trong đảo
+  assert.ok(S().buildings.every((b) => Math.abs(b.x) < 6.2 && Math.abs(b.z) < 8.6));
+  host.handle(gift('a', 'Doughnut')); // lốc đang chạy
+  host.handle(gift('b', 'Finger Heart')); // sét đánh toà cao nhất (chung cư) → sập
+  step(700);
+  const sm = S().slowmo;
+  assert.ok(sm, 'đang chiếu chậm'); assert.equal(sm.kind, 'tower'); assert.equal(sm.by.id, 'b');
+  const lockDone = S().hazards[0].doneMs, el = S().elapsedMs;
+  step(1500);
+  assert.equal(S().hazards[0].doneMs, lockDone, 'lốc đứng yên'); assert.equal(S().elapsedMs, el, 'đồng hồ đứng yên');
+  step(700);
+  assert.equal(S().slowmo, null);
+  step(500);
+  assert.ok(S().hazards[0].doneMs > lockDone, 'thời gian chạy lại');
+  // trong thời gian chờ: toà lớn khác sập cũng không dừng nữa
+  host.handle(gift('c', 'Finger Heart')); step(700);
+  assert.equal(S().slowmo, null);
+  // khôi phục giữa lúc dừng
+  step(10000);
+  host.handle(gift('d', 'Finger Heart')); step(600);
+  if (S().slowmo) {
+    const h2 = createHost(game, { settings: { slowmo: true }, data: game.data, now: clock.now, random: seededRandom(1), log: {} });
+    h2.restore(JSON.parse(JSON.stringify(host.serialize())));
+    assert.ok(h2.snapshot().slowmo);
+  }
 });

@@ -121,6 +121,25 @@
       "minimum": 0.5,
       "maximum": 10,
       "default": 1.5
+    },
+    "slowmo": {
+      "type": "boolean",
+      "title": "Dừng thời gian, chiếu chậm khi toà lớn sập (chung cư, đình, cây xăng, nổ dây chuyền, toà cuối)",
+      "default": true
+    },
+    "slowmoSeconds": {
+      "type": "number",
+      "title": "Cảnh chiếu chậm dài bao nhiêu giây (game đứng yên trong lúc đó)",
+      "minimum": 0.5,
+      "maximum": 6,
+      "default": 2.4
+    },
+    "slowmoCooldown": {
+      "type": "number",
+      "title": "Hai lần chiếu chậm cách nhau ít nhất bao nhiêu giây",
+      "minimum": 0,
+      "maximum": 120,
+      "default": 10
     }
   }
 }

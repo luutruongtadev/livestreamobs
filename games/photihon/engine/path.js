@@ -8,6 +8,6 @@ export function pathAt(path, p) {
   return { x: path.x0 + dx * q - (dz / len) * s, z: path.z0 + dz * q + (dx / len) * s, dir: Math.atan2(dx, dz) };
 }
 
-/** Hình đảo (elip): điểm (x,z) có nằm trên đảo không. */
-export const ISLAND = { rx: 6.6, rz: 8.8, riverZ: 0.2, riverW: 1.5 };
-export const onIsland = (x, z, pad = 0) => (x / (ISLAND.rx - pad)) ** 2 + (z / (ISLAND.rz - pad)) ** 2 <= 1;
+/** Hình đảo (chữ nhật, rx / rz là nửa bề ngang / nửa bề dọc): điểm (x,z) có nằm trên đảo không. */
+export const ISLAND = { rx: 6.2, rz: 8.6, riverZ: 0.2, riverW: 1.5 };
+export const onIsland = (x, z, pad = 0) => Math.abs(x) <= ISLAND.rx - pad && Math.abs(z) <= ISLAND.rz - pad;

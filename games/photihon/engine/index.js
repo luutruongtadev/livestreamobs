@@ -14,6 +14,10 @@ import { pathAt, ISLAND, onIsland } from './path.js';
  * bấm thiên thạch / mây sét / UFO đang rơi để bắn hạ, bấm lốc / trâu để đuổi bớt (tốn năng lượng, tự hồi).
  * Người xem tặng quà phá phố. Hết giờ phố còn đứng → streamer thắng; sập trước → người đánh sập thắng.
  * Ông Trời thả thảm hoạ nhẹ định kỳ (ambientSeconds) để lúc vắng quà streamer vẫn có việc.
+ *
+ * Dừng thời gian (slowmo): toà lớn (chung cư, đình, cây xăng), nổ dây chuyền hoặc toà cuối cùng làm sập phố do người xem gây ra
+ * → mọi đồng hồ trong game đứng yên slowmoSeconds giây (thảm hoạ treo giữa không trung, giờ giữ phố không chạy) để overlay
+ * chiếu cảnh toà sập chậm. Cách nhau ít nhất slowmoCooldown giây.
  */
 export function createGame(ctx) { return new PhoTiHon(ctx); }
 
@@ -42,6 +46,7 @@ const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn da
 const NATURE = { id: 'npc:troi', name: 'Ông Trời', avatar: null, npc: true };
 const STREAMER = { id: 'host', name: 'Streamer', avatar: null, npc: true };
 const SHOOTABLE = new Set(['thienthach', 'set', 'ufo', 'mua', 'no']);
+const BIG = new Set(['tower', 'pagoda', 'tank']);
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class PhoTiHon extends Emitter {
@@ -60,6 +65,9 @@ export class PhoTiHon extends Emitter {
     this.carry = []; // quà tặng lúc đang vinh danh → dùng cho phố mới
     this.hostWins = 0;
     this.viewerWins = 0;
+    this.freeze = null; // cảnh dừng thời gian đang chiếu
+    this.freezeUntil = 0;
+    this.nextSlowmoAt = 0;
     this.newTown();
   }
 
@@ -82,6 +90,7 @@ export class PhoTiHon extends Emitter {
     this.fixBy = {}; // sửa trong phố này
     this.wipedBy = null;
     this.winner = null; // 'host' | 'viewers' (chế độ host)
+    this.wipeMs = 0;
     this.seq = 0;
     // chế độ host: giờ giữ phố, năng lượng, thống kê
     this.hostEndsAt = this.hostMode ? t + this.s.hostSeconds * 1000 : 0;
@@ -138,6 +147,8 @@ export class PhoTiHon extends Emitter {
       row.downs++; row.dmg += (10 + K.bonus) * (chain ? 2 : 1);
       this.ctx.report?.points?.(by, (2 + K.bonus / 5) * (chain ? 2 : 1));
     }
+    const willWipe = (this.downPct() * 100 >= this.s.wipePercent);
+    if (this.s.slowmo && !by.npc && (BIG.has(b.kind) || chain || willWipe)) this.slowmo(b, by, chain, willWipe);
     if (b.kind === 'tank') this.strikes.push({ id: ++this.seq, kind: 'no', by, at: this.clock() + HZ.no.delay, x: b.x, z: b.z, chain: true });
     if (this.downPct() * 100 >= this.s.wipePercent) fx.push(...this.wipe(by));
     return fx;
@@ -176,6 +187,26 @@ export class PhoTiHon extends Emitter {
     return [{ type: 'ph_wipe', by, ms, town: this.townNo }];
   }
 
+  /** Dừng thời gian để chiếu cảnh toà b sập chậm (nếu đã hết thời gian chờ). */
+  slowmo(b, by, chain, final) {
+    const t = this.clock();
+    if (t < this.nextSlowmoAt && !final) return;
+    if (t < this.freezeUntil) return;
+    const ms = Math.round(this.s.slowmoSeconds * 1000);
+    this.freeze = { id: b.id, kind: b.kind, x: b.x, z: b.z, h: b.h, by, chain: !!chain, final: !!final, ms };
+    this.freezeUntil = t + ms;
+    this.nextSlowmoAt = this.freezeUntil + this.s.slowmoCooldown * 1000;
+  }
+
+  /** Dời mọi mốc thời gian đi d ms (tạm dừng / dừng thời gian). */
+  shift(d) {
+    for (const h of this.hazards) { h.startAt += d; h.endsAt += d; }
+    for (const s of this.strikes) s.at += d;
+    if (this.shieldUntil) this.shieldUntil += d;
+    if (this.hostEndsAt) this.hostEndsAt += d;
+    this.energyAt += d; this.nextAmbientAt += d;
+  }
+
   /** Chế độ host: hết giờ mà phố còn đứng → streamer thắng. */
   survive() {
     const t = this.clock();
@@ -203,6 +234,7 @@ export class PhoTiHon extends Emitter {
   input(ev = {}) {
     if (this.paused || !this.hostMode || !ev || typeof ev !== 'object' || this.phase !== 'play') return [];
     const t = this.clock();
+    if (t < this.freezeUntil) return [];
     this.regen(t);
     if (ev.type === 'fix') {
       const b = this.buildings.find((x) => x.id === ev.id);
@@ -346,6 +378,14 @@ export class PhoTiHon extends Emitter {
     if (this.paused) return [];
     const t = this.clock();
     const fx = [];
+    if (t < this.freezeUntil) { // dừng thời gian: mọi đồng hồ đứng yên
+      const d = Math.max(0, t - this.lastTickAt);
+      this.lastTickAt = t;
+      this.shift(d); this.startedAt += d;
+      if (this.phase === 'wiped') this.endsAt += d;
+      return fx;
+    }
+    if (this.freeze) { this.freeze = null; this.lastTickAt = t; }
     if (this.phase === 'wiped') {
       if (t >= this.endsAt) fx.push(...this.newTown());
       return fx;
@@ -392,11 +432,8 @@ export class PhoTiHon extends Emitter {
   }
 
   onResume(d) {
-    for (const h of this.hazards) { h.startAt += d; h.endsAt += d; }
-    for (const s of this.strikes) s.at += d;
-    if (this.shieldUntil) this.shieldUntil += d;
-    if (this.hostEndsAt) this.hostEndsAt += d;
-    this.energyAt += d; this.nextAmbientAt += d;
+    this.shift(d);
+    if (this.freezeUntil) this.freezeUntil += d;
   }
 
   snapshot() {
@@ -434,6 +471,7 @@ export class PhoTiHon extends Emitter {
       hostStats: this.hostStats,
       score: { host: this.hostWins, viewers: this.viewerWins },
       cam: { zoom: this.s.cameraZoom !== false, hold: this.s.zoomSeconds },
+      slowmo: this.freeze && t < this.freezeUntil ? { ...this.freeze, leftMs: this.freezeUntil - t } : null,
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger })),
     };
   }
@@ -444,7 +482,7 @@ export class PhoTiHon extends Emitter {
       phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt, hazards: this.hazards, strikes: this.strikes,
       shieldUntil: this.shieldUntil, dmgBy: this.dmgBy,
       winner: this.winner, hostWins: this.hostWins, viewerWins: this.viewerWins, hostEndsAt: this.hostEndsAt, energy: this.energy, energyAt: this.energyAt,
-      nextAmbientAt: this.nextAmbientAt, hostStats: this.hostStats, fixBy: this.fixBy, wipedBy: this.wipedBy, wipeMs: this.wipeMs, seq: this.seq, buildings: this.buildings,
+      nextAmbientAt: this.nextAmbientAt, hostStats: this.hostStats, freeze: this.freeze, freezeUntil: this.freezeUntil, nextSlowmoAt: this.nextSlowmoAt, fixBy: this.fixBy, wipedBy: this.wipedBy, wipeMs: this.wipeMs, seq: this.seq, buildings: this.buildings,
     };
   }
 
@@ -462,6 +500,8 @@ export class PhoTiHon extends Emitter {
     if (!Number.isFinite(this.energyAt)) this.energyAt = t;
     if (!Number.isFinite(this.nextAmbientAt)) this.nextAmbientAt = t + this.s.ambientSeconds * 1000;
     if (!Number.isFinite(this.hostEndsAt)) this.hostEndsAt = 0;
+    if (!Number.isFinite(this.freezeUntil)) { this.freezeUntil = 0; this.freeze = null; }
+    if (!Number.isFinite(this.nextSlowmoAt)) this.nextSlowmoAt = 0;
   }
 
   destroy() { this.removeAllListeners(); }

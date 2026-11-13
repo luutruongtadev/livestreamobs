@@ -63,7 +63,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   const camera = new THREE.PerspectiveCamera(36, W / H, 0.1, 200);
   const CAM = { r: 45, el: 0.7, look: new THREE.Vector3(0, -1.6, 0.6) };
   // máy quay đang ở đâu (làm mượt) + cận cảnh hiện tại / đang chờ
-  const cine = { look: CAM.look.clone(), r: CAM.r, el: CAM.el, yaw: 0, cur: null, queue: [], seenS: new Set(), seenH: new Set() };
+  const cine = { look: CAM.look.clone(), r: CAM.r, el: CAM.el, yaw: 0, fov: 36, roll: 0, cur: null, queue: [], seenS: new Set(), seenH: new Set(), slow: null };
   scene.add(new THREE.HemisphereLight(0xdff1ff, 0x7a6a4a, 1.25));
   const sun = new THREE.DirectionalLight(0xfff1d6, 1.9);
   sun.position.set(-9, 18, 10); sun.castShadow = true;
@@ -89,19 +89,27 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   const world = new THREE.Group(); scene.add(world);
   (function buildIsland() {
     const r = rng(7);
-    const top = cyl(1, 1, 0.7, 40, 0x7cc65a); top.scale.set(ISLAND.rx, 1, ISLAND.rz); top.position.y = -0.35; world.add(top);
-    const lip = cyl(1.0, 0.97, 0.5, 40, 0x6a4b2f); lip.scale.set(ISLAND.rx, 1, ISLAND.rz); lip.position.y = -0.95; world.add(lip);
-    // đá lởm chởm phía dưới
-    const rockG = new THREE.ConeGeometry(1, 1, 18, 4, true);
+    // khối đất hình chữ nhật: cỏ, mép cỏ sẫm, các lớp đất bậc thang, chóp đá vuông lởm chởm treo bên dưới
+    const X = ISLAND.rx * 2, Z = ISLAND.rz * 2;
+    world.add(box(X, 0.7, Z, 0x7cc65a, 0, -0.35, 0));
+    world.add(box(X + 0.24, 0.22, Z + 0.24, 0x5fa845, 0, -0.62, 0));
+    world.add(box(X + 0.1, 0.55, Z + 0.1, 0x8a6a4a, 0, -1.0, 0));
+    world.add(box(X - 0.5, 0.6, Z - 0.5, 0x75583c, 0, -1.55, 0));
+    world.add(box(X - 1.3, 0.5, Z - 1.3, 0x6a4b2f, 0, -2.05, 0));
+    const rockG = new THREE.ConeGeometry(1, 1, 4, 5, true);
     const pos = rockG.attributes.position;
-    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y > -0.49 && y < 0.49) { pos.setX(i, pos.getX(i) * (0.8 + r() * 0.35)); pos.setZ(i, pos.getZ(i) * (0.8 + r() * 0.35)); } }
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y > -0.49 && y < 0.49) { pos.setX(i, pos.getX(i) * (0.82 + r() * 0.3)); pos.setZ(i, pos.getZ(i) * (0.82 + r() * 0.3)); } }
     rockG.computeVertexNormals();
     const rock = new THREE.Mesh(rockG, mat(0x8a6a4a, { side: THREE.DoubleSide }));
-    rock.scale.set(ISLAND.rx * 0.97, 7.5, ISLAND.rz * 0.97); rock.rotation.x = Math.PI; rock.position.y = -1.2 - 3.75; world.add(rock);
-    for (let i = 0; i < 9; i++) { const a = r() * 6.28; const s = cyl(0.3 + r() * 0.5, 0.05, 1 + r() * 2, 6, 0x75583c); s.position.set(Math.cos(a) * ISLAND.rx * 0.6, -2.4 - r() * 2, Math.sin(a) * ISLAND.rz * 0.6); world.add(s); }
+    rock.rotation.set(Math.PI, Math.PI / 4, 0);
+    rock.scale.set((ISLAND.rx - 0.7) * 1.414, 6.5, (ISLAND.rz - 0.7) * 1.414); rock.position.y = -2.3 - 3.25; world.add(rock);
+    for (let i = 0; i < 12; i++) { const s = cyl(0.3 + r() * 0.5, 0.05, 1 + r() * 2.2, 5, 0x75583c); s.position.set((r() - 0.5) * X * 0.7, -2.6 - r() * 2.2, (r() - 0.5) * Z * 0.7); world.add(s); }
+    // hàng rào bụi cây thấp quanh mép
+    for (let x = -ISLAND.rx + 0.3; x <= ISLAND.rx - 0.3; x += 0.62) for (const sz of [-1, 1]) if (Math.abs(x) > 0.8) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + r() * 0.08, 0), mat(0x4e9a3a)); b.position.set(x, 0.12, sz * (ISLAND.rz - 0.22)); b.castShadow = true; world.add(b); }
+    for (let z = -ISLAND.rz + 0.3; z <= ISLAND.rz - 0.3; z += 0.62) for (const sx of [-1, 1]) if (Math.abs(z - ISLAND.riverZ) > 1.1) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + r() * 0.08, 0), mat(0x4e9a3a)); b.position.set(sx * (ISLAND.rx - 0.22), 0.12, z); b.castShadow = true; world.add(b); }
     // sông + thác hai đầu
     const water = mat(0x4fb3e8, { transparent: true, opacity: 0.92 });
-    const len = 2 * ISLAND.rx * Math.sqrt(1 - (ISLAND.riverZ / ISLAND.rz) ** 2);
+    const len = 2 * ISLAND.rx;
     const river = box(len + 0.4, 0.2, ISLAND.riverW, 0, 0, -0.02, ISLAND.riverZ, water); river.castShadow = false; world.add(river);
     for (const sx of [-1, 1]) { const f = box(0.25, 6, ISLAND.riverW * 0.8, 0, sx * (len / 2 + 0.25), -3, ISLAND.riverZ, water); f.castShadow = false; world.add(f); }
     // đường lớn + cầu
@@ -192,6 +200,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     const rubble = new THREE.Group();
     const rr = rng(b.id * 31 + 5);
     for (let i = 0; i < 7; i++) { const c = box(0.25 + rr() * 0.35, 0.12 + rr() * 0.2, 0.25 + rr() * 0.35, i % 2 ? wall : 0x8d8d8d, (rr() - 0.5) * 1.1, 0.1, (rr() - 0.5) * 1.0); c.rotation.set(rr(), rr() * 3, rr()); rubble.add(c); }
+    // vết cháy xém dưới đống đổ nát
+    const scorch = new THREE.Mesh(new THREE.CircleGeometry(1.05, 14), new THREE.MeshBasicMaterial({ color: 0x2b1d14, transparent: true, opacity: 0.45, depthWrite: false }));
+    scorch.rotation.x = -Math.PI / 2; scorch.position.y = 0.02; rubble.add(scorch);
     rubble.position.copy(gr.position); rubble.visible = false;
     const fire = new THREE.Group();
     for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 5), new THREE.MeshBasicMaterial({ color: i ? 0xffb300 : 0xff5722, transparent: true, opacity: 0.9 })); f.position.set((i - 1) * 0.25, 0, (i % 2) * 0.2); fire.add(f); }
@@ -210,7 +221,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     const r = rng(s.townNo * 7919 + 1);
     for (let i = 0, n = 0; i < 160 && n < 26; i++) {
       const x = (r() - 0.5) * ISLAND.rx * 1.9, z = (r() - 0.5) * ISLAND.rz * 1.9;
-      if ((x / (ISLAND.rx - 0.5)) ** 2 + (z / (ISLAND.rz - 0.5)) ** 2 > 1 || Math.abs(x) < 0.9 || Math.abs(z - ISLAND.riverZ) < 1.2) continue;
+      if (Math.abs(x) > ISLAND.rx - 0.6 || Math.abs(z) > ISLAND.rz - 0.6 || Math.abs(x) < 0.9 || Math.abs(z - ISLAND.riverZ) < 1.2) continue;
       if (s.buildings.some((b) => Math.abs(b.x - x) < 1.1 && Math.abs(b.z - z) < 1.0)) continue;
       const t = new THREE.Group();
       const kind = r();
@@ -239,12 +250,31 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   const puffs = []; // { m, v, life, max, grow }
   const debrisG = new THREE.BoxGeometry(1, 1, 1);
   const puffG = new THREE.IcosahedronGeometry(1, 0);
-  function spawnDebris(x, y, z, color, n, force = 1) {
-    for (let i = 0; i < n && debris.length < 260; i++) {
-      const m = new THREE.Mesh(debrisG, mat(color)); const s = 0.08 + Math.random() * 0.2; m.scale.set(s, s * (0.6 + Math.random()), s);
+  const sparkM = [0xffd54f, 0xff9800, 0xff5722].map((c) => new THREE.MeshBasicMaterial({ color: c }));
+  function spawnDebris(x, y, z, color, n, force = 1, spark = false) {
+    for (let i = 0; i < n && debris.length < 420; i++) {
+      const m = new THREE.Mesh(debrisG, spark ? sparkM[i % 3] : mat(color)); const s = spark ? 0.05 + Math.random() * 0.05 : 0.08 + Math.random() * 0.2; m.scale.set(s, s * (0.6 + Math.random()), s);
       m.position.set(x + (Math.random() - 0.5) * 0.8, y + Math.random() * 0.8, z + (Math.random() - 0.5) * 0.8); m.castShadow = true;
       const a = Math.random() * 6.28, sp = (1.5 + Math.random() * 3.5) * force;
-      debris.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, (3 + Math.random() * 5) * force, Math.sin(a) * sp), w: new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8), life: 3.5 });
+      debris.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, (3 + Math.random() * 5) * force, Math.sin(a) * sp), w: new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8), life: spark ? 0.9 + Math.random() * 0.5 : 3.5 });
+      scene.add(m);
+    }
+  }
+  /** Vòng sóng xung kích sát mặt đất. */
+  const rings = [];
+  function shockwave(x, z, size = 1, color = 0xffffff) {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.75, 1, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.08, z); scene.add(m);
+    rings.push({ m, t: 0, dur: 0.7, size });
+  }
+  /** Vành bụi lan ra sát đất quanh chân toà. */
+  function dustRing(x, z, n = 14, rad = 0.9) {
+    for (let i = 0; i < n && puffs.length < 260; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+      const m = new THREE.Mesh(puffG, new THREE.MeshLambertMaterial({ color: 0xbcaaa4, flatShading: true, transparent: true, opacity: 0.85 }));
+      m.position.set(x + Math.cos(a) * rad * 0.5, 0.2, z + Math.sin(a) * rad * 0.5); m.scale.setScalar(0.35 + Math.random() * 0.25);
+      const life = 1.6 + Math.random() * 0.8;
+      puffs.push({ m, v: new THREE.Vector3(Math.cos(a) * (2.2 + Math.random()), 0.25, Math.sin(a) * (2.2 + Math.random())), life, max: life, grow: 1.6, drag: 1.6 });
       scene.add(m);
     }
   }
@@ -319,7 +349,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     return g;
   }
   function flood() {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 36), new THREE.MeshLambertMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.55, flatShading: true }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 2), new THREE.MeshLambertMaterial({ color: 0x29b6f6, transparent: true, opacity: 0.55, flatShading: true }));
     m.position.set(0, 0, ISLAND.riverZ); return m;
   }
   const shield = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, 6.29, 0, 1.6), new THREE.MeshBasicMaterial({ color: 0x64ffda, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
@@ -354,19 +384,50 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (const b of S.buildings) {
       const it = town.items.get(b.id); if (!it) continue;
       if (b.hp < it.hp - 0.001 && b.alive) it.hitAt = performance.now();
-      if (b.alive && !it.alive) { it.alive = true; it.gr.visible = true; it.rubble.visible = false; it.rise = 0; it.lift = null; it.gr.position.y = 0; it.gr.scale.set(1, 1, 1); spawnPuff(b.x, 0.3, b.z, 0xffe082, 5, 0.4); }
+      if (b.alive && !it.alive) { it.alive = true; it.gr.visible = true; it.rubble.visible = false; it.rise = 0; it.lift = null; it.col = null; it.smokeUntil = 0; it.gr.position.y = 0; it.gr.scale.set(1, 1, 1); spawnPuff(b.x, 0.3, b.z, 0xffe082, 5, 0.4); }
       if (!b.alive && it.alive && !it.lift) down(it, false);
       it.hp = b.hp;
     }
   }
+  /** Toà bắt đầu sập: sụp dần xuống đất (nghiêng, lún, toé mảnh), sóng xung kích + vành bụi + tia lửa; xong mới hiện đống đổ nát. */
   function down(it, chain) {
     it.alive = false; it.hp = 0;
     const lifted = lastImpact && lastImpact.kind === 'ufo' && performance.now() - lastImpact.at < 400;
     if (lifted) { it.lift = { t: 0, y: 0 }; it.rubble.visible = false; return; }
-    it.gr.visible = false; it.rubble.visible = true; it.fire.visible = false;
-    for (const p of it.parts.slice(0, 6)) spawnDebris(it.b.x, it.top * 0.5, it.b.z, p.userData.base?.getHex?.() ?? it.wall, 4, chain ? 1.4 : 1);
-    spawnPuff(it.b.x, 0.4, it.b.z, 0xa1887f, 10, 0.7, 0.8);
-    anim.shake = Math.max(anim.shake, chain ? 0.5 : 0.25);
+    const big = it.b.kind === 'tower' || it.b.kind === 'pagoda' || chain;
+    it.col = { t: 0, dur: big ? 1.25 : 0.95, big, chain };
+    it.fire.visible = false; it.rubble.visible = false;
+    const { x, z } = it.b;
+    for (const p of it.parts.slice(0, 6)) spawnDebris(x, it.top * 0.6, z, p.userData.base?.getHex?.() ?? it.wall, big ? 5 : 3, chain ? 1.3 : 0.9);
+    spawnDebris(x, it.top * 0.5, z, 0, big ? 18 : 10, 1.2, true);
+    shockwave(x, z, big ? 1.6 : 1.1, chain ? 0xffcc80 : 0xffffff);
+    dustRing(x, z, big ? 18 : 12, big ? 1.3 : 0.9);
+    spawnPuff(x, 0.4, z, 0xa1887f, 5, 0.45, 0.8);
+    anim.shake = Math.max(anim.shake, chain ? 0.6 : big ? 0.4 : 0.25);
+  }
+  /** Một khung hình của cảnh sụp (dt đã nhân hệ số thời gian chậm). */
+  function collapse(it, dt, now) {
+    const c = it.col;
+    c.t += dt;
+    const p = clamp(c.t / c.dur, 0, 1), e = p * p * (1.4 - 0.4 * p);
+    it.gr.visible = true;
+    it.gr.position.y = -it.top * 0.98 * e;
+    const tilt = it.tilt + 0.42 * e;
+    it.gr.rotation.x = Math.cos(it.tiltDir) * tilt; it.gr.rotation.z = Math.sin(it.tiltDir) * tilt;
+    it.gr.scale.set(1 + 0.12 * e, 1 - 0.4 * e, 1 + 0.12 * e);
+    it.gr.position.x = it.b.x + (reduced ? 0 : Math.sin(now / 23) * 0.04 * (1 - p));
+    for (const q of it.parts) q.material.color.copy(q.userData.base).lerp(new THREE.Color(0x3e2723), 0.55 + 0.4 * e);
+    const y = Math.max(0.2, it.top * (1 - e));
+    if (Math.random() < dt * (c.big ? 26 : 16)) spawnDebris(it.b.x, y, it.b.z, it.parts[Math.floor(Math.random() * it.parts.length)]?.userData.base?.getHex?.() ?? it.wall, 1, 0.55);
+    if (Math.random() < dt * 12) spawnPuff(it.b.x + (Math.random() - 0.5) * 0.9, 0.2, it.b.z + (Math.random() - 0.5) * 0.9, 0xa1887f, 1, 0.32, 0.5);
+    if (p >= 1) {
+      it.col = null; it.gr.visible = false; it.gr.position.set(it.b.x, 0, it.b.z);
+      it.rubble.visible = true; it.rubble.scale.setScalar(0.2); it.settle = 0;
+      it.smokeUntil = now + (c.big ? 9000 : 6000);
+      dustRing(it.b.x, it.b.z, 10, 1); spawnDebris(it.b.x, 0.3, it.b.z, it.wall, 6, 0.5);
+      anim.shake = Math.max(anim.shake, c.big ? 0.35 : 0.2);
+      sound.play('thud');
+    }
   }
   let lastImpact = null;
 
@@ -396,8 +457,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const tid = st.targets?.[0];
       const it = tid != null ? town?.items.get(tid) : nearest(st.x, st.z);
       const top = it?.top ?? 1.2;
-      const P = { thienthach: [13, 0.42, top * 0.45, 2000], set: [12, 0.36, top * 0.6, 1800], ufo: [18, 0.32, top + 1.6, 2800], no: [14, 0.45, 0.6, 1500] }[st.kind];
-      focus({ x: it ? it.b.x : st.x, z: it ? it.b.z : st.z, y: P[2], r: P[0], el: P[1], ms: Math.max(0, st.leftMs) + P[3], low: st.kind === 'no',
+      // [khoảng cách, góc ngẩng, độ cao điểm nhìn, giữ thêm ms, nghiêng máy] — góc thấp nhìn ngước lên cho "điện ảnh"
+      const P = { thienthach: [12, 0.2, top * 0.7, 2000, 0.06], set: [10, 0.12, top * 0.85, 1800, -0.05], ufo: [15, 0.1, top + 2.2, 2800, 0.04], no: [13, 0.3, 0.8, 1500, 0.08] }[st.kind];
+      focus({ x: it ? it.b.x : st.x, z: it ? it.b.z : st.z, y: P[2], r: P[0], el: P[1], ms: Math.max(0, st.leftMs) + P[3], low: st.kind === 'no', roll: P[4],
         label: `${ACT[st.kind === 'no' ? 'thienthach' : st.kind]?.[0] || '💥'} ${it ? KIND_NAME[it.b.kind] : 'Phố'}${st.kind === 'no' ? ' · nổ dây chuyền' : ` · ${st.by?.name || ''}`}` });
     }
     for (const h of S.hazards) {
@@ -407,7 +469,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       if (S.phase !== 'play' || h.by?.npc) continue;
       const left = Math.max(0, h.totalMs - h.doneMs);
       const label = `${ACT[h.kind]?.[0] || ''} ${ACT[h.kind]?.[1] || ''} · ${h.by?.name || ''}`;
-      if (h.path) focus({ x: h.path.x0, z: h.path.z0, y: 1.2, r: h.kind === 'loc' ? 17 : 16, el: 0.48, ms: left, label, follow: () => hazardObjs.get(h.id)?.o?.position });
+      if (h.kind === 'khunglong') focus({ x: h.path.x0, z: h.path.z0, y: 1.4, r: 11, el: 0.26, ms: left, label, follow: () => hazardObjs.get(h.id)?.o?.position, chase: h.id, roll: 0.04 }); // máy quay đuổi sau lưng trâu
+      else if (h.path) focus({ x: h.path.x0, z: h.path.z0, y: 2.2, r: 17, el: 0.2, ms: left, label, follow: () => hazardObjs.get(h.id)?.o?.position, roll: -0.06 });
       else if (h.kind === 'lu') focus({ x: 0, z: ISLAND.riverZ, y: 0, r: 24, el: 0.55, ms: Math.min(left, 5000), label });
       else if (h.kind === 'dongdat') focus({ x: 0, z: 0.6, y: 0, r: 32, el: 0.62, ms: Math.min(left, 4000), label });
     }
@@ -415,22 +478,47 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (const id of cine.seenH) if (!liveH.has(id)) cine.seenH.delete(id);
   }
   function updateCamera(now, dt) {
-    if (!zoomOn() || S?.phase !== 'play') { cine.cur = null; cine.queue.length = 0; }
-    while (cine.cur && now > cine.cur.until) { cine.cur = null; while (cine.queue.length && !cine.cur) { const f = cine.queue.shift(); if (f.until > now + 300) { f.start = now; cine.cur = f; } } }
-    const f = cine.cur;
-    const wiped = S?.phase === 'wiped';
-    let lx = CAM.look.x, ly = CAM.look.y, lz = CAM.look.z, r = CAM.r, el = CAM.el, yaw = reduced ? 0 : Math.sin(now / 5200) * 0.1;
-    if (wiped && !reduced) yaw = Math.sin(now / 2600) * 0.35; // phố sập: lia chậm qua đống đổ nát
-    if (f) {
-      const p = f.follow?.();
-      lx = p ? p.x : f.x; lz = p ? p.z : f.z; ly = f.y; r = f.r; el = f.el; yaw = f.yaw + (reduced ? 0 : Math.sin(now / 3000) * 0.05);
+    const sm = S?.slowmo;
+    let lx, ly, lz, r, el, yaw, fov = 36, roll = 0, speed;
+    if (sm && zoomOn()) {
+      // dừng thời gian: cắt cảnh thẳng vào góc thấp sát toà đang sập, máy quay quay vòng chậm (bullet time)
+      const key = `${S.townNo}:${sm.id}:${sm.x}`;
+      if (cine.slow?.key !== key) {
+        const it = town?.items.get(sm.id);
+        const top = it?.top ?? 2;
+        cine.slow = { key, x: sm.x, z: sm.z, top, start: now, ms: Math.max(600, sm.leftMs), yaw0: clamp(Math.atan2(sm.x, 9), -0.5, 0.5) - 0.55 };
+        cine.look.set(sm.x, top * 0.4, sm.z); cine.r = 9 + top * 2.1; cine.el = 0.12; cine.yaw = cine.slow.yaw0; cine.fov = 30; cine.roll = 0.08;
+        anim.flash = 0.55; anim.flashCol = '#ffffff'; anim.slowAt = now;
+        sound.play('slow');
+      }
+      const q = cine.slow, p = clamp((now - q.start) / q.ms, 0, 1);
+      lx = q.x; ly = q.top * 0.35; lz = q.z; r = 9 + q.top * 2.1 - p * 2.2; el = 0.12 + p * 0.12; yaw = q.yaw0 + p * 1.3; fov = 27; roll = 0.08 - p * 0.12; speed = 5;
+    } else {
+      cine.slow = null;
+      if (!zoomOn() || S?.phase !== 'play') { cine.cur = null; cine.queue.length = 0; }
+      while (cine.cur && now > cine.cur.until) { cine.cur = null; while (cine.queue.length && !cine.cur) { const f = cine.queue.shift(); if (f.until > now + 300) { f.start = now; cine.cur = f; } } }
+      const f = cine.cur;
+      lx = CAM.look.x; ly = CAM.look.y; lz = CAM.look.z; r = CAM.r; el = CAM.el; yaw = reduced ? 0 : Math.sin(now / 5200) * 0.1;
+      if (S?.phase === 'wiped' && !reduced) yaw = Math.sin(now / 2600) * 0.35; // phố sập: lia chậm qua đống đổ nát
+      if (f) {
+        const pos = f.follow?.();
+        lx = pos ? pos.x : f.x; lz = pos ? pos.z : f.z; ly = f.y; r = f.r; el = f.el; yaw = f.yaw + (reduced ? 0 : Math.sin(now / 3000) * 0.05);
+        if (f.chase != null) { const o = hazardObjs.get(f.chase)?.o; if (o) yaw = o.rotation.y + Math.PI + 0.75; }
+        fov = r < 20 ? 31 : 34; roll = reduced ? 0 : (f.roll || 0);
+      }
+      speed = f ? 2.6 : 1.8;
     }
-    const k = 1 - Math.exp(-dt * (f ? 2.6 : 1.8));
+    const k = 1 - Math.exp(-dt * speed);
     cine.look.x = lerp(cine.look.x, lx, k); cine.look.y = lerp(cine.look.y, ly, k); cine.look.z = lerp(cine.look.z, lz, k);
-    cine.r = lerp(cine.r, r, k); cine.el = lerp(cine.el, el, k); cine.yaw = lerp(cine.yaw, yaw, k);
+    cine.r = lerp(cine.r, r, k); cine.el = lerp(cine.el, el, k); cine.fov = lerp(cine.fov, fov, k); cine.roll = lerp(cine.roll, roll, k);
+    let dy = yaw - cine.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); cine.yaw += dy * k;
     const c = Math.cos(cine.el) * cine.r;
     camera.position.set(cine.look.x + Math.sin(cine.yaw) * c, cine.look.y + Math.sin(cine.el) * cine.r, cine.look.z + Math.cos(cine.yaw) * c);
+    // máy quay cầm tay: rung rất nhẹ khi cận cảnh
+    if (!reduced && cine.r < 25) { camera.position.x += Math.sin(now / 410) * 0.05; camera.position.y += Math.sin(now / 530) * 0.04; }
     camera.lookAt(cine.look);
+    camera.rotateZ(cine.roll);
+    if (Math.abs(camera.fov - cine.fov) > 0.01) { camera.fov = cine.fov; camera.updateProjectionMatrix(); }
   }
   const closeUp = () => cine.cur && cine.r < CAM.r * 0.7;
 
@@ -509,8 +597,26 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (let i = 0; i < 6; i++) { const x = ((i * 233 + now * 0.012 * (1 + i % 3)) % (W + 400)) - 200, y = 140 + i * 230; g2.beginPath(); g2.ellipse(x, y, 120, 34, 0, 0, 7); g2.ellipse(x + 70, y - 18, 80, 30, 0, 0, 7); g2.fill(); }
   }
 
+  /** Dừng thời gian: thanh đen điện ảnh trên / dưới, chữ SLOW-MO, ai đánh sập toà gì. */
+  function letterbox(s, now) {
+    const slowK = clamp(1 - Math.abs((anim.ts ?? 1) - 0.45) / 0.55, 0, 1);
+    if (slowK > 0.02) {
+      const bh = 190 * slowK;
+      g2.fillStyle = '#000'; g2.fillRect(0, 0, W, bh); g2.fillRect(0, H - bh, W, bh);
+      const sm = s.slowmo || anim.lastSlow;
+      if (s.slowmo) anim.lastSlow = s.slowmo;
+      g2.globalAlpha = slowK;
+      if (Math.floor(now / 400) % 2) { g2.fillStyle = '#ff3b30'; g2.beginPath(); g2.arc(70, bh - 95, 14, 0, 7); g2.fill(); }
+      text('SLOW-MO', 100, bh - 94, 40, '#fff', 900, 'left', 0, TITLE);
+      text(sm?.final ? 'CÚ CHỐT HẠ!' : sm?.chain ? 'NỔ DÂY CHUYỀN!' : '⏱ THỜI GIAN NGỪNG TRÔI', W - 60, bh - 94, 34, '#ffd23f', 900, 'right', 560, TITLE);
+      if (sm) text(`💥 ${sm.by?.name || ''} đánh sập ${KIND_NAME[sm.kind] || 'toà nhà'}`, W / 2, H - bh + 95, 44, '#fff', 900, 'center', 980, TITLE);
+      g2.globalAlpha = 1;
+    }
+  }
+
   function drawHud(now) {
     const s = S;
+    if (s.slowmo && (anim.ts ?? 1) < 0.7) { letterbox(s, now); return; } // chiếu chậm: chỉ giữ khung điện ảnh
     // tiêu đề + thanh đổ nát
     out('PHỐ TÍ HON', W / 2, 78, 84, '#ffd23f');
     const pct = s.downPct / Math.max(1, s.wipePercent);
@@ -546,7 +652,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (const w of workers) { const p = toScreen(w.o.position.x, 0.9, w.o.position.z); if (p.front) chip(`🔧 ${w.name}`, p.x, p.y - 20, 22, 'rgba(46,125,50,.88)'); }
     for (const l of labels) { const p = toScreen(l.x(), l.y(), l.z()); if (p.front) chip(l.text, p.x, p.y - 40, 26, 'rgba(216,67,21,.9)'); }
     // cận cảnh
-    if (closeUp() && cine.cur?.label && s.phase === 'play') {
+    if (closeUp() && cine.cur?.label && s.phase === 'play' && !s.slowmo) {
       const a = clamp((now - cine.cur.start) / 400, 0, 1);
       g2.globalAlpha = a; chip(`🎥 ${cine.cur.label}`, W / 2, 1110, 30, 'rgba(216,67,21,.92)', '#fff', 900); g2.globalAlpha = 1;
       // khung ngắm góc màn hình kiểu máy quay + chấm REC
@@ -555,7 +661,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       if (Math.floor(now / 500) % 2) { g2.fillStyle = `rgba(255,59,48,${a})`; g2.beginPath(); g2.arc(930, 70, 13, 0, 7); g2.fill(); out('REC', 990, 72, 34, '#fff', { sw: 6 }); }
     }
     // cửa sổ chơi: tâm ngắm trên vật đang rơi / thảm hoạ bấm được + gợi ý
-    if (playing() && s.phase === 'play') {
+    if (playing() && s.phase === 'play' && !s.slowmo) {
       const ok = s.energy >= 1, pulse = 1 + Math.sin(now / 120) * 0.12;
       const ring = (p, rad) => { g2.strokeStyle = ok ? '#ff3b30' : 'rgba(120,120,120,.8)'; g2.lineWidth = 6; g2.beginPath(); g2.arc(p.x, p.y, rad * pulse, 0, 7); g2.stroke(); g2.beginPath(); g2.moveTo(p.x - rad * 1.3, p.y); g2.lineTo(p.x - rad * 0.6, p.y); g2.moveTo(p.x + rad * 0.6, p.y); g2.lineTo(p.x + rad * 1.3, p.y); g2.moveTo(p.x, p.y - rad * 1.3); g2.lineTo(p.x, p.y - rad * 0.6); g2.moveTo(p.x, p.y + rad * 0.6); g2.lineTo(p.x, p.y + rad * 1.3); g2.stroke(); };
       for (const so of strikeObjs.values()) if (so.o && so.leaving == null) { const p = toScreen(so.o.position.x, so.o.position.y, so.o.position.z); if (p.front) ring(p, so.kind === 'mua' ? 30 : 46); }
@@ -621,6 +727,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       text(s.mode === 'host' ? `Người xem thắng · tỉ số ${s.score.host} – ${s.score.viewers}  ·  phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)}s` : `Phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)} giây…`, 0, 175, 30, '#7e57c2', 800, 'center', 800);
       g2.restore();
     }
+    letterbox(s, now);
     if (s.paused) { card(W / 2 - 220, 900, 440, 110, 30, 'rgba(29,35,64,.9)', '#fff', 4); text('⏸ Tạm dừng', W / 2, 955, 50, '#fff', 900); }
   }
 
@@ -630,7 +737,9 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     raf = requestAnimationFrame(frame);
     const now = performance.now();
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    const since = S && !S.paused ? now - recvAt : 0;
+    const since = S && !S.paused && !S.slowmo ? now - recvAt : 0; // dừng thời gian: vật đang rơi / thảm hoạ treo yên
+    anim.ts = lerp(anim.ts ?? 1, S?.slowmo ? 0.45 : 1, 1 - Math.exp(-dt * 8)); // hiệu ứng (mảnh vỡ, bụi, cảnh sụp) chạy chậm
+    const sdt = dt * anim.ts;
     drawSky(now);
     if (!renderer) { if (S) drawHud(now); else text('Phố Tí Hon cần WebGL', W / 2, H / 2, 48, INK); return; }
     if (S) {
@@ -638,7 +747,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const quake = S.hazards.some((h) => h.kind === 'dongdat');
       anim.shake = Math.max(quake ? 0.18 : 0, anim.shake - dt * 0.8);
       updateCamera(now, dt);
-      const sk = anim.shake * (closeUp() ? 0.45 : 1); // cận cảnh thì rung nhẹ hơn cho đỡ chóng mặt
+      const sk = anim.shake * (closeUp() ? 0.45 : 1) * (S.slowmo ? 0.3 : 1); // cận cảnh / chiếu chậm thì rung nhẹ hơn cho đỡ chóng mặt
       if (sk > 0 && !reduced) { camera.position.x += (Math.random() - 0.5) * sk; camera.position.y += (Math.random() - 0.5) * sk; }
       // toà nhà
       const sinceTown = (now - anim.townAt) / 1000;
@@ -656,14 +765,19 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
           for (const p of it.parts) p.material.color.copy(p.userData.base).lerp(new THREE.Color(0x3e2723), dmg * 0.55);
           it.fire.visible = it.hp < 0.45;
           if (it.fire.visible) { it.fire.children.forEach((f, i) => { f.scale.y = 0.7 + Math.abs(Math.sin(now / 90 + i * 2)) * 0.8; }); if (Math.random() < dt * 4) spawnPuff(it.b.x, it.top + 0.4, it.b.z, 0x616161, 1, 0.3, 1.4); }
-        } else if (it.lift) {
+        } else if (it.col) collapse(it, sdt, now);
+        else if (it.lift) {
           it.lift.t += dt; it.gr.position.y += dt * 3.2; it.gr.rotation.y += dt * 3; const k = Math.max(0.01, 1 - it.lift.t / 1.4); it.gr.scale.set(k, k, k);
           if (it.lift.t > 1.4) { it.gr.visible = false; it.rubble.visible = false; it.lift = null; }
         }
+        if (!it.alive && it.rubble.visible) {
+          if (it.settle != null && it.settle < 1) { it.settle = Math.min(1, it.settle + sdt * 3.5); const e = it.settle; it.rubble.scale.setScalar(0.2 + 0.8 * e + Math.sin(e * Math.PI) * 0.15); }
+          if (now < (it.smokeUntil || 0) && Math.random() < sdt * 3.2) spawnPuff(it.b.x + (Math.random() - 0.5) * 0.6, 0.3, it.b.z + (Math.random() - 0.5) * 0.6, Math.random() < 0.5 ? 0x616161 : 0x8d8d8d, 1, 0.32, 1.1); // khói còn bốc
+        }
       }
       // xe chạy, mây trôi
-      for (const c of town.cars) { const u = c.userData; u.z += u.dir * u.v * dt; if (Math.abs(u.z) > ISLAND.rz - 1.2) { u.dir *= -1; u.z = Math.sign(u.z) * (ISLAND.rz - 1.2); } c.position.set(u.lane * u.dir, Math.abs(u.z - ISLAND.riverZ) < 1.2 ? 0.22 : 0.05, u.z); c.rotation.y = u.dir > 0 ? 0 : Math.PI; }
-      for (const c of clouds) { c.userData.a += c.userData.spin * dt; c.position.x = Math.cos(c.userData.a) * 11; c.position.z = Math.sin(c.userData.a) * 11; }
+      for (const c of town.cars) { const u = c.userData; u.z += u.dir * u.v * sdt; if (Math.abs(u.z) > ISLAND.rz - 1.2) { u.dir *= -1; u.z = Math.sign(u.z) * (ISLAND.rz - 1.2); } c.position.set(u.lane * u.dir, Math.abs(u.z - ISLAND.riverZ) < 1.2 ? 0.22 : 0.05, u.z); c.rotation.y = u.dir > 0 ? 0 : Math.PI; }
+      for (const c of clouds) { c.userData.a += c.userData.spin * sdt; c.position.x = Math.cos(c.userData.a) * 11; c.position.z = Math.sin(c.userData.a) * 11; }
       // điểm rơi
       const live = new Set();
       for (const st of S.strikes) {
@@ -672,7 +786,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         if (!so) { so = { kind: st.kind, o: st.kind === 'thienthach' ? meteor() : st.kind === 'set' ? stormCloud() : st.kind === 'ufo' ? saucer() : st.kind === 'mua' ? new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), mat(0xe3f2fd)) : null, st, total: Math.max(st.leftMs, 1) }; if (so.o) scene.add(so.o); strikeObjs.set(st.id, so); }
         if (!so.o) continue;
         const left = Math.max(0, st.leftMs - since), k = left / so.total;
-        if (st.kind === 'thienthach') { so.o.position.set(st.x - 9 * k, 0.4 + 22 * k, st.z - 6 * k); so.o.rotation.x += dt * 6; if (Math.random() < 0.7) spawnPuff(so.o.position.x, so.o.position.y, so.o.position.z, 0xff8a65, 1, 0.35, 0.2); }
+        if (st.kind === 'thienthach') { so.o.position.set(st.x - 9 * k, 0.4 + 22 * k, st.z - 6 * k); so.o.rotation.x += sdt * 6; if (Math.random() < 0.7 * anim.ts) spawnPuff(so.o.position.x, so.o.position.y, so.o.position.z, 0xff8a65, 1, 0.35, 0.2); }
         else if (st.kind === 'mua') so.o.position.set(st.x, 0.3 + 16 * k, st.z);
         else if (st.kind === 'set') so.o.position.set(st.x, 9 + Math.sin(now / 200) * 0.1, st.z);
         else if (st.kind === 'ufo') { so.o.position.set(st.x, 6.5 + 8 * Math.max(0, k - 0.6) / 0.4, st.z); so.o.rotation.y += dt * 2; so.o.userData.beam.material.opacity = k < 0.6 ? 0.25 + Math.sin(now / 80) * 0.08 : 0; }
@@ -719,19 +833,24 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       shield.visible = shieldWire.visible = shield.material.opacity > 0.005;
       bolt.visible = now < boltUntil;
       // mảnh vỡ, khói, thợ
+      for (let i = rings.length - 1; i >= 0; i--) { const g = rings[i]; g.t += sdt; const p = g.t / g.dur; g.m.scale.setScalar(0.3 + p * 3.6 * g.size); g.m.material.opacity = 0.85 * (1 - p); if (p >= 1) { scene.remove(g.m); g.m.geometry.dispose(); g.m.material.dispose(); rings.splice(i, 1); } }
       for (let i = debris.length - 1; i >= 0; i--) {
-        const d = debris[i]; d.life -= dt; d.v.y -= 18 * dt; d.m.position.addScaledVector(d.v, dt); d.m.rotation.x += d.w.x * dt; d.m.rotation.y += d.w.y * dt;
-        const on = (d.m.position.x / ISLAND.rx) ** 2 + (d.m.position.z / ISLAND.rz) ** 2 < 1;
+        const d = debris[i]; d.life -= sdt; d.v.y -= 18 * sdt; d.m.position.addScaledVector(d.v, sdt); d.m.rotation.x += d.w.x * sdt; d.m.rotation.y += d.w.y * sdt;
+        const on = Math.abs(d.m.position.x) < ISLAND.rx && Math.abs(d.m.position.z) < ISLAND.rz;
         if (on && d.m.position.y < 0.05 && d.v.y < 0) { d.m.position.y = 0.05; d.v.y *= -0.3; d.v.x *= 0.6; d.v.z *= 0.6; d.w.multiplyScalar(0.6); }
         if (d.life <= 0 || d.m.position.y < -12) { scene.remove(d.m); debris.splice(i, 1); }
       }
-      for (let i = puffs.length - 1; i >= 0; i--) { const p = puffs[i]; p.life -= dt; p.m.position.addScaledVector(p.v, dt); p.m.scale.multiplyScalar(1 + dt * p.grow * 0.5); p.m.material.opacity = 0.85 * (p.life / p.max); if (p.life <= 0) { scene.remove(p.m); p.m.material.dispose(); puffs.splice(i, 1); } }
-      for (let i = workers.length - 1; i >= 0; i--) { const w = workers[i]; w.life -= dt; w.o.position.y = Math.abs(Math.sin(now / 110)) * 0.2; if (w.life <= 0) { scene.remove(w.o); workers.splice(i, 1); } }
+      for (let i = puffs.length - 1; i >= 0; i--) { const p = puffs[i]; p.life -= sdt; if (p.drag) p.v.multiplyScalar(Math.max(0, 1 - sdt * p.drag)); p.m.position.addScaledVector(p.v, sdt); p.m.scale.multiplyScalar(1 + sdt * p.grow * 0.5); p.m.material.opacity = 0.85 * (p.life / p.max); if (p.life <= 0) { scene.remove(p.m); p.m.material.dispose(); puffs.splice(i, 1); } }
+      for (let i = workers.length - 1; i >= 0; i--) { const w = workers[i]; w.life -= sdt; w.o.position.y = Math.abs(Math.sin(now / 110)) * 0.2; if (w.life <= 0) { scene.remove(w.o); workers.splice(i, 1); } }
     } else {
       camera.position.set(0, Math.sin(CAM.el) * CAM.r, Math.cos(CAM.el) * CAM.r); camera.lookAt(CAM.look);
     }
     renderer.render(scene, camera);
+    const slowK = clamp(1 - Math.abs(anim.ts - 0.45) / 0.55, 0, 1); // 1 = đang chiếu chậm
+    if (slowK > 0.02) g2.filter = `saturate(${1 - 0.5 * slowK}) contrast(${1 + 0.18 * slowK})`;
     g2.drawImage(gl, 0, 0);
+    g2.filter = 'none';
+    if (slowK > 0.02) { const vg = g2.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(0,0,0,${0.55 * slowK})`); g2.fillStyle = vg; g2.fillRect(0, 0, W, H); }
     if (anim.flash > 0) { g2.fillStyle = anim.flashCol; g2.globalAlpha = anim.flash; g2.fillRect(0, 0, W, H); g2.globalAlpha = 1; anim.flash = Math.max(0, anim.flash - dt * 2.5); }
     if (S) drawHud(now);
   }
@@ -849,6 +968,8 @@ function makeSound(muted) {
     shield: () => tone(500, 0.5, { type: 'triangle', vol: 0.12, slide: 1.8 }),
     fix: () => [880, 1175].forEach((f, i) => tone(f, 0.08, { type: 'square', vol: 0.04, at: i * 0.07 })),
     wipe: () => { tone(50, 1.5, { vol: 0.6, slide: 0.4 }); noise(1.6, { freq: 1200, vol: 0.55 }); [392, 330, 262].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.12, at: 0.4 + i * 0.25 })); },
+    thud: () => { tone(70, 0.5, { vol: 0.35, slide: 0.6 }); noise(0.5, { freq: 600, vol: 0.3 }); },
+    slow: () => { tone(220, 1.6, { type: 'sawtooth', vol: 0.08, slide: 0.3 }); tone(55, 1.8, { vol: 0.4, slide: 0.7 }); [0, 0.55, 1.1].forEach((at) => tone(48, 0.18, { vol: 0.45, at })); },
     town: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, { type: 'triangle', vol: 0.1, at: i * 0.09 })),
   };
   return { play(n, a) { try { P[n]?.(a); } catch { /* bỏ qua */ } }, resume() { try { get()?.resume?.(); } catch { /* bỏ qua */ } }, close() { try { ac?.close?.(); } catch { /* bỏ qua */ } ac = null; } };

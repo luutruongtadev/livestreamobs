@@ -1,6 +1,6 @@
 # Phố Tí Hon (`photihon`)
 
-Game 3D tương tác TikTok Live: một thị trấn tí hon low-poly trên hòn đảo nổi. Người xem tặng quà để gọi thảm hoạ phá phố, bình luận để làm dân phố chạy ra sửa nhà. Phố sập đủ `wipePercent` % thì vinh danh người đánh sập, vài giây sau phố mới mọc lên.
+Game 3D tương tác TikTok Live: một thị trấn tí hon low-poly trên hòn đảo nổi hình chữ nhật (mép bụi cây, đất bậc thang, chóp đá treo bên dưới). Người xem tặng quà để gọi thảm hoạ phá phố, bình luận để làm dân phố chạy ra sửa nhà. Phố sập đủ `wipePercent` % thì vinh danh người đánh sập, vài giây sau phố mới mọc lên.
 
 Render bằng three.js (bản r160 + GLTFLoader chép sẵn trong `render/vendor/`, giấy phép MIT ở `three-LICENSE`).
 
@@ -25,6 +25,11 @@ Renderer nạp các file này ở nền; file nào không tải được thì lo
 
 ## Máy quay cận cảnh
 Quà gọi thiên thạch, sét, UFO: máy quay lướt tới cận cảnh toà bị nhắm (kèm khung ngắm, chấm REC, nhãn "🎥 Chung cư · tên người tặng"), giữ tới khi toà đổ rồi lùi ra toàn cảnh. Lốc xoáy và trâu khổng lồ thì máy quay bám theo; lũ quay sông, động đất kéo gần cả phố. Quà tới dồn dập thì mỗi cận cảnh giữ ít nhất `zoomSeconds` giây rồi chuyển sang cái mới; thảm hoạ cũ chưa xong thì quay lại sau. Phố sập thì máy quay lia chậm qua đống đổ nát. Tắt bằng `cameraZoom`; mưa đá do tim và thảm hoạ của Ông Trời không zoom.
+
+## Cảnh sập và dừng thời gian
+- Toà sập không biến mất ngay: nghiêng, lún dần xuống đất, mảnh vỡ theo màu toà và tia lửa văng ra, vòng sóng xung kích + vành bụi lan sát đất; xong mới hiện đống đổ nát (nảy nhẹ, vết cháy xém) và khói còn bốc vài giây.
+- **Dừng thời gian** (`slowmo`): chung cư, đình làng, cây xăng, nổ dây chuyền hoặc toà cuối làm sập phố do người xem gây ra → engine cho mọi đồng hồ đứng yên `slowmoSeconds` giây (lốc / thiên thạch treo giữa trời, giờ giữ phố không chạy, streamer không bấm được). Overlay cắt cảnh thẳng vào góc thấp sát toà, quay vòng chậm (bullet time), hình bớt màu + viền tối, thanh đen điện ảnh trên / dưới với chữ SLOW-MO và tên người đánh sập. Cách nhau ít nhất `slowmoCooldown` giây (toà cuối thì luôn chiếu).
+- Góc máy cận cảnh kiểu game: thấp nhìn ngước lên toà bị sét / UFO, máy quay đuổi sau lưng trâu, nghiêng máy nhẹ, thu tiêu cự khi cận, rung tay máy nhẹ.
 
 ## Chế độ streamer tự chơi (`mode: host`)
 Mở **cửa sổ chơi** (`?play=1`). Streamer phải giữ phố trong `hostSeconds` giây, người xem tặng quà để phá:

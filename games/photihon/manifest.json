@@ -2,7 +2,7 @@
   "id": "photihon",
   "name": "Phố Tí Hon",
   "description": "Thị trấn tí hon 3D trên hòn đảo nổi. Quà gọi thảm hoạ: thiên thạch, sét, lốc xoáy, lũ, động đất, trâu khổng lồ, UFO. Phố kiểu Việt: nhà ống, tiệm tạp hoá, chung cư cũ, cây xăng, đình làng (mô hình 3D tạo bằng Meshy). Bình luận là dân phố chạy ra sửa nhà. Cây xăng nổ dây chuyền điểm ×2. Ai đánh sập phố thì vào Bảng Phá. Chế độ streamer: streamer bấm chuột sửa nhà, bắn hạ thiên thạch, đuổi lốc để giữ phố tới hết giờ.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "sdk": "^1.0.0",
   "status": "dev",
   "category": "casual",
