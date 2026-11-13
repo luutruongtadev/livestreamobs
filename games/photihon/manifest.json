@@ -2,7 +2,7 @@
   "id": "photihon",
   "name": "Phố Tí Hon",
   "description": "Thị trấn tí hon 3D trên hòn đảo nổi. Quà gọi thảm hoạ: thiên thạch, sét, lốc xoáy, lũ, động đất, trâu khổng lồ, UFO. Phố kiểu Việt: nhà ống, tiệm tạp hoá, chung cư cũ, cây xăng, đình làng (mô hình 3D tạo bằng Meshy). Bình luận là dân phố chạy ra sửa nhà. Cây xăng nổ dây chuyền điểm ×2. Ai đánh sập phố thì vào Bảng Phá. Chế độ streamer: streamer bấm chuột sửa nhà, bắn hạ thiên thạch, đuổi lốc để giữ phố tới hết giờ.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "sdk": "^1.0.0",
   "status": "dev",
   "category": "casual",
@@ -22,6 +22,8 @@
     { "id": "thoxay", "label": "Thợ xây dựng lại cả phố", "icon": "👷", "defaultTriggers": [{ "type": "gift", "giftName": "Sunglasses" }] },
     { "id": "khunglong", "label": "Trâu khổng lồ húc phố", "icon": "🐃", "defaultTriggers": [{ "type": "gift", "giftName": "Corgi" }] },
     { "id": "ufo", "label": "UFO hút 3 toà to nhất", "icon": "🛸", "defaultTriggers": [{ "type": "gift", "giftName": "Galaxy" }] },
+    { "id": "lixi", "label": "Lì xì cho streamer (+💰) · chế độ người xem: sửa nhẹ cả phố", "icon": "🧧", "defaultTriggers": [{ "type": "gift", "giftName": "Heart Me" }] },
+    { "id": "muatien", "label": "Mưa tiền: 8 đồng xu to rơi khắp phố cho streamer nhặt", "icon": "💸", "defaultTriggers": [{ "type": "gift", "giftName": "Rosa" }] },
     { "id": "hopbi", "label": "Hộp bí ẩn: quay ra thảm hoạ ngẫu nhiên", "icon": "🎲", "defaultTriggers": [{ "type": "gift", "giftName": "Ice Cream Cone" }] }
   ],
   "commands": [

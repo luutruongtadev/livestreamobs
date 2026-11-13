@@ -15,10 +15,11 @@ const INK = '#1d2340';
 const ACT = {
   thienthach: ['☄️', 'Thiên thạch'], set: ['⚡', 'Sét đánh'], lu: ['🌊', 'Lũ dâng'], loc: ['🌪️', 'Lốc xoáy'], khien: ['🛡️', 'Khiên che phố'],
   dongdat: ['🫨', 'Động đất'], thoxay: ['👷', 'Thợ xây lại phố'], khunglong: ['🐃', 'Trâu khổng lồ'], ufo: ['🛸', 'UFO hút nhà'], mua: ['🧊', 'Mưa đá'],
-  hopbi: ['🎲', 'Hộp bí ẩn'], muathienthach: ['☄️', 'JACKPOT: Mưa thiên thạch!'],
+  hopbi: ['🎲', 'Hộp bí ẩn'], lixi: ['🧧', 'Lì xì cho streamer'], muatien: ['💸', 'Mưa tiền'], muathienthach: ['☄️', 'JACKPOT: Mưa thiên thạch!'],
 };
 const KIND_NAME = { house: 'Nhà ống', shop: 'Tiệm tạp hoá', tower: 'Chung cư', tank: 'Cây xăng', pagoda: 'Đình làng', cap4: 'Nhà cấp 4', cho: 'Chợ', caoc: 'Cao ốc', ben: 'Bến tàu' };
 const BEACH_X = 2.55, SEA_X = 3.3; // bãi cát, mép biển (phía đông)
+const HELP = new Set(['khien', 'thoxay', 'lixi', 'muatien']); // quà hỗ trợ streamer
 const WALLS = [0xf6d6a8, 0xf2b8a2, 0xbfe3c0, 0xa9d3f0, 0xf7e7a1, 0xe3c6f0];
 const ROOFS = [0xd9534f, 0xe07b39, 0x4f7cc9, 0x8e5bb5, 0x3f9a6b, 0xc94f7c];
 
@@ -341,7 +342,27 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       group.add(c); cars.push(c);
     }
     scene.add(group);
-    town = { no: s.townNo, group, items, cars, boats };
+    // công trường Tháp Mơ Ước (chế độ streamer): rào tôn, cần cẩu, giàn giáo cao dần theo số tiền; xây xong hiện tháp vàng
+    let site = null;
+    if (s.site) {
+      const g = new THREE.Group(); g.position.set(s.site.x, 0, s.site.z);
+      g.add(box(1.8, 0.04, 1.6, 0xbcaaa4, 0, 0.02, 0));
+      for (const [x, z, w, d] of [[0, 0.8, 1.8, 0.04], [0, -0.8, 1.8, 0.04], [-0.9, 0, 0.04, 1.6], [0.9, 0, 0.04, 1.6]]) g.add(box(w, 0.28, d, 0x1e88e5, x, 0.14, z));
+      const crane = new THREE.Group(); crane.position.set(0.65, 0, -0.55);
+      crane.add(box(0.1, 3.4, 0.1, 0xfbc02d, 0, 1.7, 0)); crane.add(box(2.1, 0.08, 0.08, 0xfbc02d, -0.6, 3.4, 0)); crane.add(box(0.3, 0.25, 0.25, 0x616161, 0.35, 3.3, 0));
+      const hook = box(0.02, 1.2, 0.02, 0x212121, -1.3, 2.8, 0); crane.add(hook);
+      g.add(crane);
+      const scaffold = new THREE.Group(); g.add(scaffold);
+      for (let i = 0; i < 12; i++) { const f = new THREE.Group(); f.position.y = i * 0.32; f.add(box(1.0, 0.04, 1.0, 0x8d6e63, 0, 0.3, 0)); for (const [x, z] of [[-0.48, -0.48], [0.48, -0.48], [-0.48, 0.48], [0.48, 0.48]]) f.add(box(0.04, 0.32, 0.04, 0xff7043, x, 0.15, z)); f.visible = false; scaffold.add(f); }
+      const tower = new THREE.Group(); tower.visible = false;
+      const gold = mat(0xffca28, { emissive: 0x6d4c00 });
+      [[1.4, 0.8], [1.15, 1.6], [0.9, 1.6], [0.65, 1.2]].reduce((y, [w, h]) => { tower.add(box(w, h, w, 0, 0, y + h / 2, 0, gold)); tower.add(box(w + 0.06, 0.06, w + 0.06, 0xffffff, 0, y + h, 0)); return y + h; }, 0);
+      tower.add(cyl(0.02, 0.12, 1.4, 6, 0xfff8e1, 0, 5.9, 0));
+      g.add(tower);
+      group.add(g);
+      site = { g, scaffold, tower, hook, top: 3.6 };
+    }
+    town = { no: s.townNo, group, items, cars, boats, site };
     anim.townAt = performance.now();
     for (const it of items.values()) it.rise = 0; // phố mới mọc lên
   }
@@ -476,6 +497,35 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     o.add(cyl(0.02, 0.13, 0.08, 6, 0xffeb3b, 0, 0.54, 0));
     const a = Math.random() * 6.28; o.position.set(it.b.x + Math.cos(a) * 0.85, 0, it.b.z + Math.sin(a) * 0.75); o.lookAt(it.b.x, 0, it.b.z);
     scene.add(o); workers.push({ o, life: 2.6, name, it });
+  }
+
+  // đồng xu vàng (chế độ streamer): xoay tròn, nhún nhảy trên toà, mờ dần khi sắp hết hạn
+  const coinObjs = new Map();
+  const coinG = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 16);
+  const coinM = new THREE.MeshLambertMaterial({ color: 0xffd54f, emissive: 0x8d6e00 });
+  function syncCoins(now) {
+    const live = new Set();
+    for (const c of S.coins || []) {
+      live.add(c.id);
+      let o = coinObjs.get(c.id);
+      if (!o) {
+        const m = new THREE.Mesh(coinG, coinM.clone()); m.rotation.x = Math.PI / 2; m.castShadow = true;
+        const it = town?.items.get(town && [...town.items.values()].find((i) => Math.abs(i.b.x - c.x) < 0.6 && Math.abs(i.b.z - c.z) < 0.6)?.b.id);
+        o = { m, c, base: (it?.top ?? 1) + 0.5, born: now, k: c.gift ? 1.6 : 0.8 + c.value / 25 };
+        if (c.gift) o.base = 6 + Math.random() * 2; // mưa tiền rơi từ trên trời
+        scene.add(m); coinObjs.set(c.id, o);
+      }
+      o.c = c;
+    }
+    for (const [id, o] of coinObjs) if (!live.has(id)) { scene.remove(o.m); o.m.material.dispose(); coinObjs.delete(id); }
+    for (const o of coinObjs.values()) {
+      const left = (o.c.leftMs - (S.slowmo ? 0 : now - recvAt));
+      if (o.c.gift && o.base > 1.2) o.base = Math.max(1.2, o.base - 0.06);
+      o.m.position.set(o.c.x, o.base + Math.sin(now / 250 + o.c.id) * 0.12, o.c.z);
+      o.m.rotation.z = now / 300 + o.c.id;
+      const pop = clamp((now - o.born) / 250, 0, 1);
+      o.m.scale.setScalar(o.k * (0.3 + 0.7 * pop) * (left < 1500 ? 0.7 + 0.3 * Math.abs(Math.sin(now / 90)) : 1));
+    }
   }
 
   // ---------------- cập nhật cảnh theo snapshot ----------------
@@ -630,12 +680,15 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   function pick(px, py) {
     let best = null, bd = 1e9;
     const consider = (d, lim, hit) => { if (d < lim && d < bd) { bd = d; best = hit; } };
+    if (S.money >= S.goal && !S.site?.built && px > BTN.x && px < BTN.x + BTN.w && py > BTN.y && py < BTN.y + BTN.h) return { type: 'landmark' };
+    for (const [id, o] of coinObjs) { const p = toScreen(o.m.position.x, o.m.position.y, o.m.position.z); if (p.front) consider(Math.hypot(p.x - px, p.y - py), 95, { type: 'coin', id }); }
+    if (best) return best;
     for (const [id, so] of strikeObjs) { if (!so.o || so.leaving != null) continue; const p = toScreen(so.o.position.x, so.o.position.y, so.o.position.z); if (p.front) consider(Math.hypot(p.x - px, p.y - py), so.kind === 'ufo' ? 150 : 110, { type: 'shoot', id }); }
     if (best) return best;
     for (const [id, ho] of hazardObjs) { if (!ho.o || !ho.h.path) continue; const p = toScreen(ho.o.position.x, 1.6, ho.o.position.z); if (p.front) consider(Math.hypot(p.x - px, p.y - py), 160, { type: 'chase', id }); }
     if (best) return best;
     for (const it of town?.items.values() || []) {
-      if (!it.alive) continue;
+      if (!it.alive) { if (it.rubble.visible) { const p = toScreen(it.b.x, 0.3, it.b.z); consider(Math.hypot(p.x - px, p.y - py), 80, { type: 'rebuild', id: it.b.id }); } continue; }
       const a = toScreen(it.b.x, 0, it.b.z), b = toScreen(it.b.x, it.top, it.b.z);
       const t = clamp(((px - a.x) * (b.x - a.x) + (py - a.y) * (b.y - a.y)) / Math.max(1, (b.x - a.x) ** 2 + (b.y - a.y) ** 2), 0, 1);
       consider(Math.hypot(px - (a.x + (b.x - a.x) * t), py - (a.y + (b.y - a.y) * t)), 70, { type: 'fix', id: it.b.id });
@@ -643,6 +696,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     return best;
   }
   let holdTimer = 0, cursor = null;
+  const BTN = { x: 760, y: 1418, w: 270, h: 84 }; // nút XÂY THÁP (cửa sổ chơi)
   const toFrame = (e) => { const rc = canvas.getBoundingClientRect(); return { x: (e.clientX - rc.left) / rc.width * W, y: (e.clientY - rc.top) / rc.height * H }; };
   if (input && typeof window !== 'undefined') {
     const stopHold = () => { clearInterval(holdTimer); holdTimer = 0; };
@@ -656,7 +710,14 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       stopHold();
       if (hit.type === 'fix') holdTimer = setInterval(() => { if (!playing() || S.phase !== 'play') return stopHold(); input(hit); }, 160); // giữ chuột = sửa liên tục
     });
-    canvas.addEventListener('pointermove', (e) => { if (playing()) cursor = { ...toFrame(e), at: performance.now() }; });
+    let down = false;
+    canvas.addEventListener('pointerdown', () => { down = true; });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) canvas.addEventListener(ev, () => { down = false; });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!playing()) return;
+      cursor = { ...toFrame(e), at: performance.now() };
+      if (down && S.phase === 'play') { const h = pick(cursor.x, cursor.y); if (h?.type === 'coin') input(h); } // giữ chuột quét qua xu cũng nhặt được
+    });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) canvas.addEventListener(ev, stopHold);
   }
 
@@ -773,7 +834,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       }
     });
     // dân sửa nhà
-    if (s.fixers.length) { card(726, 280, 330, 54 + s.fixers.length * 44, 24, 'rgba(255,255,255,.85)', INK, 4); text('🔧 Dân sửa nhà', 891, 310, 26, '#2e7d32', 900); s.fixers.forEach((r, i) => text(`${r.name} · ${r.fixes}`, 891, 352 + i * 44, 23, INK, 800, 'center', 300)); }
+    if (s.mode === 'host' && s.supporters?.length) { card(726, 280, 330, 54 + s.supporters.length * 44, 24, 'rgba(255,240,245,.92)', INK, 4); text('💖 Ủng hộ streamer', 891, 310, 26, '#c2185b', 900); s.supporters.forEach((r, i) => { text(r.name, 746, 352 + i * 44, 23, INK, 800, 'left', 200); text(`${r.money}💰`, 1040, 352 + i * 44, 23, '#c2185b', 900, 'right'); }); }
+    else if (s.fixers.length) { card(726, 280, 330, 54 + s.fixers.length * 44, 24, 'rgba(255,255,255,.85)', INK, 4); text('🔧 Dân sửa nhà', 891, 310, 26, '#2e7d32', 900); s.fixers.forEach((r, i) => text(`${r.name} · ${r.fixes}`, 891, 352 + i * 44, 23, INK, 800, 'center', 300)); }
     // tên trên đầu thợ, người gọi thảm hoạ
     for (const w of workers) { const p = toScreen(w.o.position.x, 0.9, w.o.position.z); if (p.front) chip(`🔧 ${w.name}`, p.x, p.y - 20, 22, 'rgba(46,125,50,.88)'); }
     for (const l of labels) { const p = toScreen(l.x(), l.y(), l.z()); if (p.front) chip(l.text, p.x, p.y - 40, 26, 'rgba(216,67,21,.9)'); }
@@ -792,10 +854,23 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const ring = (p, rad) => { g2.strokeStyle = ok ? '#ff3b30' : 'rgba(120,120,120,.8)'; g2.lineWidth = 6; g2.beginPath(); g2.arc(p.x, p.y, rad * pulse, 0, 7); g2.stroke(); g2.beginPath(); g2.moveTo(p.x - rad * 1.3, p.y); g2.lineTo(p.x - rad * 0.6, p.y); g2.moveTo(p.x + rad * 0.6, p.y); g2.lineTo(p.x + rad * 1.3, p.y); g2.moveTo(p.x, p.y - rad * 1.3); g2.lineTo(p.x, p.y - rad * 0.6); g2.moveTo(p.x, p.y + rad * 0.6); g2.lineTo(p.x, p.y + rad * 1.3); g2.stroke(); };
       for (const so of strikeObjs.values()) if (so.o && so.leaving == null) { const p = toScreen(so.o.position.x, so.o.position.y, so.o.position.z); if (p.front) ring(p, so.kind === 'mua' ? 30 : 46); }
       for (const ho of hazardObjs.values()) if (ho.o && ho.h.path) { const p = toScreen(ho.o.position.x, 1.6, ho.o.position.z); if (p.front) ring(p, 60); }
-      chip('Giữ chuột lên toà để sửa · bấm 🎯 để bắn hạ / đuổi (tốn ⚡)', W / 2, 1532, 24, 'rgba(46,125,50,.92)', '#fff', 980);
+      chip('Bấm 💰 nhặt tiền · giữ chuột lên toà để sửa · bấm đống đổ nát để xây lại · 🎯 bắn hạ (tốn ⚡)', W / 2, 1535, 22, 'rgba(46,125,50,.92)', '#fff', 1040);
+    }
+    // tiền của streamer + tiến độ Tháp Mơ Ước + nút XÂY THÁP
+    const hostPlay = s.mode === 'host' && s.phase === 'play';
+    if (hostPlay) {
+      const k = clamp(s.money / Math.max(1, s.goal), 0, 1), can = s.money >= s.goal;
+      card(40, 1410, can && playing() ? 700 : 1000, 100, 26, 'rgba(255,248,225,.96)', '#f9a825', 5);
+      text(`💰 ${s.money}`, 70, 1445, 40, '#e65100', 900, 'left', 260);
+      text(`Tháp Mơ Ước ${Math.min(s.money, s.goal)}/${s.goal}`, can && playing() ? 700 : 1010, 1445, 26, INK, 900, 'right', 420);
+      rr(70, 1474, (can && playing() ? 640 : 940), 18, 9); g2.fillStyle = 'rgba(0,0,0,.12)'; g2.fill();
+      rr(70, 1474, Math.max(18, (can && playing() ? 640 : 940) * k), 18, 9); g2.fillStyle = can ? '#43a047' : '#ffb300'; g2.fill();
+      if (can && playing()) { const pl = 1 + Math.sin(now / 150) * 0.04; g2.save(); g2.translate(BTN.x + BTN.w / 2, BTN.y + BTN.h / 2); g2.scale(pl, pl); card(-BTN.w / 2, -BTN.h / 2, BTN.w, BTN.h, 26, '#43a047', '#fff', 5); out('🏗️ XÂY THÁP', 0, 2, 40, '#fff', { maxW: 240 }); g2.restore(); }
+      if (playing()) for (const it of town?.items.values() || []) if (!it.alive && it.rubble.visible) { const p = toScreen(it.b.x, 0.5, it.b.z); const cost = s.costs?.[it.b.kind] || 0; if (p.front) chip(`🔨 ${cost}💰`, p.x, p.y - 26, 22, s.money >= cost ? 'rgba(46,125,50,.92)' : 'rgba(97,97,97,.85)'); }
+      if (!playing() && s.site && !s.site.built) { const p = toScreen(s.site.x, 3.9, s.site.z); if (p.front) chip(`🏗️ Tháp Mơ Ước ${Math.round(k * 100)}%`, p.x, p.y, 24, 'rgba(230,81,0,.9)', '#fff', 420); }
     }
     // bảng tin
-    feed.forEach((f, i) => { const a = clamp((f.until - now) / 600, 0, 1); g2.globalAlpha = a; chip(f.text, W / 2, 1500 - i * 50, 25, f.bg, '#fff', 900); g2.globalAlpha = 1; });
+    feed.forEach((f, i) => { const a = clamp((f.until - now) / 600, 0, 1); g2.globalAlpha = a; chip(f.text, W / 2, (hostPlay ? 1370 : 1500) - i * 50, 25, f.bg, '#fff', 900); g2.globalAlpha = 1; });
     // biểu ngữ quà
     const bn = banners[0];
     if (bn) {
@@ -824,21 +899,23 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         const x = 30 + (i % cols) * cw, y = 1575 + Math.floor(i / cols) * ch;
         const [ic, name] = ACT[p.action] || ['🎁', p.action];
         text(ic, x + 44, y + ch / 2, 42, '#fff', 400);
-        text(name, x + 80, y + ch / 2 - 16, 26, '#fff', 900, 'left', cw - 90);
+        text(name, x + 80, y + ch / 2 - 16, 26, s.mode === 'host' ? (HELP.has(p.action) ? '#69f0ae' : '#ff8a80') : '#fff', 900, 'left', cw - 90);
         text(`${p.icon} ${p.text}`, x + 80, y + ch / 2 + 18, 21, '#ffd23f', 800, 'left', cw - 90);
       });
     });
     else { card(90, 1700, 900, 120, 30, 'rgba(29,35,64,.8)', '#ffd23f', 4); text('Tặng quà gọi thảm hoạ · Bình luận để sửa nhà', W / 2, 1760, 32, '#fff', 800, 'center', 860); }
+    if (s.mode === 'host' && pw.length && s.phase === 'play' && !playing()) chip('🟢 quà giúp streamer   ·   🔴 quà phá phố', W / 2, 1556, 22, 'rgba(29,35,64,.92)', '#fff', 600);
     // màn sập phố
     if (s.phase === 'wiped' && s.winner === 'host') {
       const t = clamp((now - anim.wipeAt) / 500, 0, 1);
       g2.fillStyle = `rgba(10,40,30,${0.4 * t})`; g2.fillRect(0, 0, W, H);
       g2.save(); g2.translate(W / 2, 780); g2.scale(0.6 + 0.4 * t, 0.6 + 0.4 * t);
       card(-430, -230, 860, 460, 46, 'rgba(232,255,240,.97)', INK, 7);
-      out('STREAMER GIỮ ĐƯỢC PHỐ!', 0, -160, 70, '#2e7d32', { maxW: 800 });
-      text(`Phố #${s.townNo} còn đứng sau ${mmss(s.hostSeconds * 1000)} · đổ nát ${s.downPct}%`, 0, -70, 34, INK, 800, 'center', 780);
+      const lm = s.winReason === 'landmark';
+      out(lm ? 'XÂY XONG THÁP MƠ ƯỚC!' : 'STREAMER GIỮ ĐƯỢC PHỐ!', 0, -160, 70, lm ? '#f57f17' : '#2e7d32', { maxW: 800 });
+      text(lm ? `Phố #${s.townNo} có tháp mới sau ${mmss(s.elapsedMs)} · đổ nát ${s.downPct}%` : `Phố #${s.townNo} còn đứng sau ${mmss(s.hostSeconds * 1000)} · đổ nát ${s.downPct}%`, 0, -70, 34, INK, 800, 'center', 780);
       const st = s.hostStats || {};
-      text(`🔧 sửa ${st.fixes || 0} lần   🎯 bắn hạ ${st.shots || 0}   💨 đuổi ${st.chased || 0}`, 0, 0, 34, '#5d4037', 800, 'center', 780);
+      text(`💰 nhặt ${st.coins || 0} xu   🔨 xây lại ${st.rebuilt || 0}   🔧 sửa ${st.fixes || 0}   🎯 bắn hạ ${st.shots || 0}`, 0, 0, 32, '#5d4037', 800, 'center', 800);
       text(`Tỉ số: Streamer ${s.score.host} – ${s.score.viewers} Người xem`, 0, 70, 36, '#6a1b9a', 900);
       text(`Phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)} giây…`, 0, 160, 30, '#7e57c2', 800);
       g2.restore();
@@ -926,6 +1003,13 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       }
       // xe chạy, mây trôi
       for (const c of town.cars) { const u = c.userData; u.z += u.dir * u.v * sdt; if (Math.abs(u.z) > ISLAND.rz - 1.2) { u.dir *= -1; u.z = Math.sign(u.z) * (ISLAND.rz - 1.2); } c.position.set(u.lane * u.dir, Math.abs(u.z - ISLAND.riverZ) < 1.2 ? 0.22 : 0.05, u.z); c.rotation.y = u.dir > 0 ? 0 : Math.PI; }
+      if (S.mode === 'host' || coinObjs.size) syncCoins(now);
+      if (town.site && S.site) {
+        const k = clamp(S.site.built ? 1 : (S.money || 0) / Math.max(1, S.goal), 0, 1);
+        town.site.scaffold.children.forEach((f, i) => { f.visible = !S.site.built && i < Math.ceil(k * 12); });
+        town.site.tower.visible = !!S.site.built;
+        town.site.hook.position.y = 2.8 + Math.sin(now / 900) * 0.3;
+      }
       for (const g of town.boats || []) { g.position.y = -0.08 + Math.sin(now / 600 + g.userData.ph) * 0.04; g.rotation.z = Math.sin(now / 800 + g.userData.ph) * 0.08; }
       // biển: sóng nhẹ, triều cường thì dâng lên tràn bãi cát
       if (sea) { const surge = S.event?.id === 'trieucuong' ? 1 : 0; anim.surge = lerp(anim.surge || 0, surge, dt * 1.5); sea.position.y = -0.25 + Math.sin(now / 900) * 0.02 + anim.surge * (0.18 + Math.sin(now / 250) * 0.05); sea.scale.x = 1 + anim.surge * 0.35; sea.position.x = (ISLAND.rx + SEA_X) / 2 - anim.surge * 0.5; foam.position.x = SEA_X + 0.05 - anim.surge * (0.9 + Math.sin(now / 250) * 0.25); foam.position.y = -0.08 + anim.surge * 0.2; }
@@ -1017,7 +1101,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
       const who = fx.by?.name || '';
       switch (fx.type) {
         case 'ph_gift': {
-          if (fx.mystery) break; // hộp bí ẩn đã có biểu ngữ quay riêng
+          if (fx.mystery || fx.action === 'lixi' || fx.action === 'muatien') break; // đã có biểu ngữ riêng
           const [icon, title] = ACT[fx.action] || ['🎁', fx.action];
           if (banners.length < 4) banners.push({ at: banners.length ? Math.max(now, banners[banners.length - 1].at + 2600) : now, icon, title, who: fx.later ? `${who} · để dành cho phố mới` : `từ ${who}` });
           sound.play('gift');
@@ -1099,6 +1183,17 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
           break;
         }
         case 'ph_noenergy': if (now - (anim.noE || 0) > 800) { anim.noE = now; floaters.push({ text: 'Hết ⚡ — chờ hồi', x: W / 2, y: 1000, at: now, size: 46, color: '#ff8a80' }); sound.play('tick'); } break;
+        case 'ph_coin': {
+          const p = toScreen(fx.x, (coinObjs.get(fx.id)?.m.position.y) ?? 1.5, fx.z);
+          floaters.push({ text: `+${fx.value}💰`, x: p.x, y: p.y, at: now, size: 44, color: '#ffd54f' }); sound.play('coin');
+          const o = coinObjs.get(fx.id); if (o) { scene.remove(o.m); coinObjs.delete(fx.id); }
+          break;
+        }
+        case 'ph_rebuilt': { spawnPuff(fx.x, 0.4, fx.z, 0xffe082, 10, 0.5, 1); const p = toScreen(fx.x, 1.5, fx.z); floaters.push({ text: `🔨 Xây lại ${KIND_NAME[fx.kind] || ''} −${fx.cost}💰`, x: p.x, y: p.y, at: now, size: 38, color: '#69f0ae' }); sound.play('fix'); break; }
+        case 'ph_nomoney': if (now - (anim.noM || 0) > 700) { anim.noM = now; floaters.push({ text: `Thiếu ${fx.need}💰`, x: W / 2, y: 1000, at: now, size: 46, color: '#ff8a80' }); sound.play('tick'); } break;
+        case 'ph_lixi': if (banners.length < 4) banners.push({ at: banners.length ? Math.max(now, banners[banners.length - 1].at + 2600) : now, icon: '🧧', title: fx.heal ? 'Lì xì: cả phố khoẻ lại' : `Lì xì +${fx.amount}💰`, who: `${who} ủng hộ streamer`, bg: 'rgba(255,235,238,.97)', color: '#c62828' }); sound.play('coin'); break;
+        case 'ph_muatien': if (banners.length < 4) banners.push({ at: banners.length ? Math.max(now, banners[banners.length - 1].at + 2600) : now, icon: '💸', title: 'MƯA TIỀN! Nhặt nhanh!', who: `${who} ủng hộ streamer`, bg: 'rgba(255,248,225,.97)', color: '#e65100' }); sound.play('coin'); break;
+        case 'ph_landmark': { anim.flash = 0.8; anim.flashCol = '#fff59d'; for (let i = 0; i < 80; i++) { const a = Math.random() * 6.28, v = 300 + Math.random() * 500; sparks.push({ x: W / 2, y: 700, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200, life: 1.8, col: ['#ffd740', '#fff59d', '#ff5252', '#69f0ae'][i % 4], s: 10 }); } break; }
         case 'ph_survive': anim.wipeAt = now; anim.flash = 0.5; anim.flashCol = '#b9f6ca'; sound.play('town'); break;
         case 'ph_hazard': if (fx.kind === 'dongdat') { anim.shake = 0.6; sound.play('quake'); } else sound.play('whoosh'); break;
         case 'ph_shield': sound.play('shield'); break;
@@ -1147,6 +1242,7 @@ function makeSound(muted) {
     whoosh: () => noise(1.2, { freq: 500, vol: 0.3 }),
     quake: () => { tone(40, 2, { vol: 0.4, slide: 0.8 }); noise(2, { freq: 200, vol: 0.4 }); },
     ufo: () => tone(400, 1.2, { type: 'sine', vol: 0.12, slide: 2.5 }),
+    coin: () => [1319, 1760].forEach((f, i) => tone(f, 0.09, { type: 'square', vol: 0.05, at: i * 0.06 })),
     shield: () => tone(500, 0.5, { type: 'triangle', vol: 0.12, slide: 1.8 }),
     fix: () => [880, 1175].forEach((f, i) => tone(f, 0.08, { type: 'square', vol: 0.04, at: i * 0.07 })),
     wipe: () => { tone(50, 1.5, { vol: 0.6, slide: 0.4 }); noise(1.6, { freq: 1200, vol: 0.55 }); [392, 330, 262].forEach((f, i) => tone(f, 0.3, { type: 'triangle', vol: 0.12, at: 0.4 + i * 0.25 })); },

@@ -73,7 +73,7 @@
       "title": "Streamer phải giữ phố bao nhiêu giây (chế độ streamer)",
       "minimum": 30,
       "maximum": 900,
-      "default": 120
+      "default": 180
     },
     "hostRepair": {
       "type": "integer",
@@ -192,6 +192,34 @@
       "minimum": 0,
       "maximum": 50,
       "default": 6
+    },
+    "hostGoal": {
+      "type": "integer",
+      "title": "Chế độ streamer: cần bao nhiêu 💰 để xây Tháp Mơ Ước (xây xong là thắng)",
+      "minimum": 50,
+      "maximum": 20000,
+      "default": 800
+    },
+    "hostStartMoney": {
+      "type": "integer",
+      "title": "Chế độ streamer: tiền có sẵn lúc đầu mỗi phố",
+      "minimum": 0,
+      "maximum": 5000,
+      "default": 0
+    },
+    "coinSeconds": {
+      "type": "number",
+      "title": "Chế độ streamer: trung bình bao nhiêu giây rơi 1 đồng xu",
+      "minimum": 0.3,
+      "maximum": 10,
+      "default": 1.1
+    },
+    "lixiAmount": {
+      "type": "integer",
+      "title": "Quà Lì xì cho streamer bao nhiêu 💰",
+      "minimum": 1,
+      "maximum": 2000,
+      "default": 60
     }
   }
 }

@@ -44,7 +44,19 @@ Quà gọi thiên thạch, sét, UFO: máy quay lướt tới cận cảnh toà 
 - Góc máy cận cảnh kiểu game: thấp nhìn ngước lên toà bị sét / UFO, máy quay đuổi sau lưng trâu, nghiêng máy nhẹ, thu tiêu cự khi cận, rung tay máy nhẹ.
 
 ## Chế độ streamer tự chơi (`mode: host`)
-Mở **cửa sổ chơi** (`?play=1`). Streamer phải giữ phố trong `hostSeconds` giây, người xem tặng quà để phá:
+Mở **cửa sổ chơi** (`?play=1`).
+
+**Mục tiêu của streamer: gom tiền xây lại thành phố.**
+- Toà còn đứng rơi ra **đồng xu 💰** (cao ốc rơi xu 25, chung cư 15, nhà cấp 4 chỉ 5…), trung bình mỗi `coinSeconds` giây một xu, để 7 giây không nhặt thì mất. Bấm (hoặc giữ chuột quét qua) để nhặt.
+- **Bấm đống đổ nát** để xây lại toà đó, tốn 6 lần giá trị xu của loại toà (nhà cấp 4 30💰, chung cư 90💰, cao ốc 150💰…).
+- Giữa thành phố có **công trường Tháp Mơ Ước** (rào tôn, cần cẩu, giàn giáo cao dần theo số tiền). Đủ `hostGoal` 💰 thì nút **XÂY THÁP** hiện ra, bấm là thắng ngay. Phải chọn: tiêu tiền xây lại phố hay dồn tiền xây tháp.
+- Không xây được tháp thì vẫn thắng nếu giữ phố tới hết `hostSeconds` giây mà chưa sập.
+
+**Người xem chọn phe bằng quà** (trong bảng quà, tên xanh là quà giúp, đỏ là quà phá):
+- Giúp streamer: 🧧 **Lì xì** (+`lixiAmount` 💰, quà Heart Me), 💸 **Mưa tiền** (8 xu to rơi khắp phố cho streamer nhặt, quà Rosa), 🛡️ Khiên, 👷 Thợ xây. Bảng **💖 Ủng hộ streamer** xếp người tặng quà giúp.
+- Phá phố: mọi quà thảm hoạ, hộp bí ẩn.
+
+Các thao tác khác:
 - **Giữ chuột lên toà** để sửa (`hostRepair` % máu mỗi nhịp).
 - **Bấm 🎯 thiên thạch / mây sét / UFO / mưa đá** đang rơi để bắn hạ. **Bấm lốc / trâu** để đuổi bớt `chaseSeconds` giây. Mỗi lần tốn 1 ⚡ (tối đa `hostEnergy`, hồi 1 sau mỗi `energyRegenSeconds` giây).
 - Lúc vắng quà, Ông Trời thả mưa đá / thiên thạch mỗi `ambientSeconds` giây để streamer vẫn có việc.
@@ -64,6 +76,8 @@ Trong cửa sổ chơi, máy quay chỉ zoom nhẹ để streamer còn thấy c�
 | `khunglong` | Trâu khổng lồ húc phố 12 giây | Corgi |
 | `ufo` | UFO hút 3 toà to nhất | Galaxy |
 | `hopbi` | Hộp bí ẩn: thảm hoạ ngẫu nhiên | Ice Cream Cone |
+| `lixi` | Lì xì cho streamer (+💰); chế độ người xem: sửa nhẹ cả phố | Heart Me |
+| `muatien` | Mưa tiền: 8 xu to rơi cho streamer nhặt; chế độ người xem: sửa cả phố 20% | Rosa |
 
 ## Lệnh streamer
 `next` Phố mới · `wipe` Cho sập ngay · `clear-board` Xoá Bảng Phá

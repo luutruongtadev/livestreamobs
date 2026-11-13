@@ -10,6 +10,9 @@ import { pathAt, ISLAND } from './path.js';
  * - Khiên che cả phố một lúc; thợ xây dựng lại mọi đống đổ nát.
  * Pha: play → wiped (vinh danh) → play (phố mới). Quà tặng lúc đang vinh danh để dành cho phố mới.
  *
+ * Kinh tế chế độ host: toà còn đứng rơi ra đồng xu (cao ốc rơi xu to hơn nhà cấp 4), streamer bấm nhặt 💰, tiêu tiền để xây lại toà đã sập
+ * (bấm đống đổ nát) hoặc dồn tiền xây THÁP MƠ ƯỚC trên công trường giữa thành phố (hostGoal 💰) → thắng ngay. Người xem chọn phe bằng quà:
+ * quà hỗ trợ (Lì xì, Mưa tiền, Khiên, Thợ xây) hoặc quà thảm hoạ. Bảng "Ủng hộ streamer" xếp người tặng quà hỗ trợ.
  * Chế độ "host" (streamer tự chơi, cửa sổ ?play=1): streamer giữ phố trong hostSeconds giây — bấm toà để sửa,
  * bấm thiên thạch / mây sét / UFO đang rơi để bắn hạ, bấm lốc / trâu để đuổi bớt (tốn năng lượng, tự hồi).
  * Người xem tặng quà phá phố. Hết giờ phố còn đứng → streamer thắng; sập trước → người đánh sập thắng.
@@ -77,6 +80,11 @@ const NATURE = { id: 'npc:troi', name: 'Ông Trời', avatar: null, npc: true };
 const STREAMER = { id: 'host', name: 'Streamer', avatar: null, npc: true };
 const SHOOTABLE = new Set(['thienthach', 'set', 'ufo', 'mua', 'no']);
 const BIG = new Set(['tower', 'pagoda', 'tank', 'caoc', 'ben']);
+// giá trị đồng xu mỗi loại toà rơi ra (chế độ host); xây lại tốn REBUILD_X lần
+export const COIN = { cap4: 5, house: 8, shop: 10, cho: 12, tank: 8, tower: 15, caoc: 25, ben: 12, pagoda: 10 };
+const REBUILD_X = 6;
+const SITE = { x: -3.3, z: -5.0 }; // công trường Tháp Mơ Ước (chế độ host)
+const MAX_COINS = 8, COIN_MS = 7000;
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class PhoTiHon extends Emitter {
@@ -128,7 +136,14 @@ export class PhoTiHon extends Emitter {
     this.energy = this.s.hostEnergy;
     this.energyAt = t;
     this.nextAmbientAt = t + this.s.ambientSeconds * 1000;
-    this.hostStats = { fixes: 0, shots: 0, chased: 0 };
+    this.hostStats = { fixes: 0, shots: 0, chased: 0, coins: 0, rebuilt: 0 };
+    this.money = this.s.hostStartMoney;
+    this.earned = 0;
+    this.coins = []; // { id, bid, x, z, y, value, until }
+    this.nextCoinAt = t + 800;
+    this.landmark = false;
+    this.supporters = {};
+    this.winReason = null;
     // lô đất theo vùng: thành phố (bắc sông), làng quê (nam sông, có ruộng lúa), bến tàu ở biển phía đông
     const b = [], count = {}, fields = [];
     const add = (kind, x, z, jit = 0.12) => {
@@ -144,6 +159,7 @@ export class PhoTiHon extends Emitter {
     for (const [zs, W, park, zone] of [[CITY_Z, CITY_W, 0.08, 'city'], [COUNTRY_Z, COUNTRY_W, 0.3, 'country']]) {
       let tanks = 0;
       for (const z of zs) for (const x of COLS) {
+        if (this.hostMode && x === SITE.x && z === SITE.z) continue; // chừa lô cho công trường Tháp Mơ Ước
         if (ROAD_COL(x)) roadLots.push(b.length);
         if (ROAD_COL(x) && !tanks && this.ctx.random() < 0.3) { tanks++; add('tank', x, z); continue; }
         if (this.ctx.random() < park) { if (zone === 'country') fields.push({ x, z }); continue; }
@@ -251,6 +267,8 @@ export class PhoTiHon extends Emitter {
     if (this.hostEndsAt) this.hostEndsAt += d;
     this.energyAt += d; this.nextAmbientAt += d;
     if (this.mission) { this.mission.until += d; this.mission.startAt += d; }
+    for (const c of this.coins || []) c.until += d;
+    if (Number.isFinite(this.nextCoinAt)) this.nextCoinAt += d;
     if (this.event) { this.event.until += d; this.event.startAt += d; }
     this.nextMissionAt += d; this.nextEventAt += d;
   }
@@ -315,10 +333,24 @@ export class PhoTiHon extends Emitter {
     return null;
   }
 
+  /** Một đồng xu rơi ra từ một toà còn đứng (giá trị theo loại toà), hoặc giá trị cố định (mưa tiền). */
+  spawnCoin(t, value = null, gift = null) {
+    const alive = this.alive();
+    if (!alive.length) return null;
+    const b = value ? this.pick(alive) : (() => { let x = this.ctx.random() * alive.reduce((n, a) => n + COIN[a.kind], 0); for (const a of alive) { if ((x -= COIN[a.kind]) < 0) return a; } return alive[0]; })();
+    const c = { id: ++this.seq, bid: b.id, x: r2(b.x + this.rand(-0.4, 0.4)), z: r2(b.z + this.rand(-0.3, 0.3)), y: 0, value: value || COIN[b.kind], until: t + COIN_MS, gift: !!gift };
+    if (!gift && this.coins.filter((x) => !x.gift).length >= MAX_COINS) return null;
+    this.coins.push(c);
+    if (this.coins.length > 24) this.coins.shift();
+    return c;
+  }
+
   /** Chế độ host: hết giờ mà phố còn đứng → streamer thắng. */
-  survive() {
+  survive(reason = 'time') {
     const t = this.clock();
     this.phase = 'wiped';
+    this.winReason = reason;
+    this.coins = [];
     this.winner = 'host';
     this.hostWins++;
     this.mission = null; this.event = null;
@@ -328,7 +360,7 @@ export class PhoTiHon extends Emitter {
     this.hazards = []; this.strikes = [];
     for (const d of Object.values(this.dmgBy)) { const r = (this.board[d.id] ||= { id: d.id, name: d.name, avatar: d.avatar, wipes: 0, dmg: 0 }); r.dmg += Math.round(d.dmg); }
     this.ctx.report?.round?.({ town: this.townNo, ms: this.wipeMs, by: null, host: true });
-    return [{ type: 'ph_survive', town: this.townNo, downPct: Math.round(this.downPct() * 100), stats: { ...this.hostStats } }];
+    return [{ type: 'ph_survive', reason, town: this.townNo, downPct: Math.round(this.downPct() * 100), stats: { ...this.hostStats } }];
   }
 
   /** Năng lượng của streamer (tự hồi theo thời gian). */
@@ -345,6 +377,27 @@ export class PhoTiHon extends Emitter {
     const t = this.clock();
     if (t < this.freezeUntil) return [];
     this.regen(t);
+    if (ev.type === 'coin') {
+      const i = this.coins.findIndex((c) => c.id === ev.id);
+      if (i < 0) return [];
+      const c = this.coins.splice(i, 1)[0];
+      this.money += c.value; this.earned += c.value; this.hostStats.coins++;
+      return [{ type: 'ph_coin', id: c.id, value: c.value, x: c.x, z: c.z, y: c.y, money: this.money }];
+    }
+    if (ev.type === 'rebuild') {
+      const b = this.buildings.find((x) => x.id === ev.id);
+      if (!b || b.alive) return [];
+      const cost = COIN[b.kind] * REBUILD_X;
+      if (this.money < cost) return [{ type: 'ph_nomoney', need: cost - this.money }];
+      this.money -= cost; b.alive = true; b.hp = b.max; this.hostStats.rebuilt++;
+      return [{ type: 'ph_rebuilt', id: b.id, kind: b.kind, x: b.x, z: b.z, cost }];
+    }
+    if (ev.type === 'landmark') {
+      if (this.landmark) return [];
+      if (this.money < this.s.hostGoal) return [{ type: 'ph_nomoney', need: this.s.hostGoal - this.money }];
+      this.money -= this.s.hostGoal; this.landmark = true;
+      return [{ type: 'ph_landmark', x: SITE.x, z: SITE.z }, ...this.survive('landmark')];
+    }
     if (ev.type === 'fix') {
       const b = this.buildings.find((x) => x.id === ev.id);
       if (!b || !b.alive || b.hp >= b.max) return [];
@@ -480,6 +533,23 @@ export class PhoTiHon extends Emitter {
         this.shieldUntil = Math.min(t + 90_000, Math.max(t, this.shieldUntil) + this.s.shieldSeconds * 1000);
         fx = [{ type: 'ph_shield', by }];
         break;
+      case 'lixi': case 'muatien': {
+        const r = (this.supporters[by.id] ||= { id: by.id, name: by.name, avatar: by.avatar, money: 0 });
+        r.name = by.name;
+        if (this.hostMode) {
+          if (id === 'lixi') { this.money += this.s.lixiAmount; this.earned += this.s.lixiAmount; r.money += this.s.lixiAmount; fx = [{ type: 'ph_lixi', by, amount: this.s.lixiAmount }]; }
+          else { // mưa tiền: 8 đồng xu to rơi khắp phố, streamer phải nhặt
+            fx = [{ type: 'ph_muatien', by }];
+            for (let i = 0; i < 8; i++) this.spawnCoin(t, 15, by);
+            r.money += 120;
+          }
+        } else { // chế độ người xem: hỗ trợ = sửa nhẹ cả phố
+          for (const b of this.buildings) if (b.alive) b.hp = r2(Math.min(b.max, b.hp + b.max * (id === 'lixi' ? 0.08 : 0.2)));
+          r.money += id === 'lixi' ? 50 : 120;
+          fx = [{ type: 'ph_lixi', by, amount: 0, heal: true }];
+        }
+        break;
+      }
       case 'thoxay': {
         let n = 0;
         for (const b of this.buildings) { if (!b.alive || b.hp < b.max) { if (!b.alive) n++; b.alive = true; b.hp = b.max; } }
@@ -525,6 +595,8 @@ export class PhoTiHon extends Emitter {
       if (!this.hostEndsAt) this.hostEndsAt = t + this.s.hostSeconds * 1000; // vừa đổi sang chế độ host giữa chừng
       this.regen(t);
       if (t >= this.hostEndsAt) return this.survive();
+      this.coins = this.coins.filter((c) => c.until > t);
+      if (t >= this.nextCoinAt) { this.nextCoinAt = t + this.s.coinSeconds * 1000 * this.rand(0.6, 1.4); this.spawnCoin(t); }
       if (this.s.ambientSeconds > 0 && t >= this.nextAmbientAt) {
         this.nextAmbientAt = t + this.s.ambientSeconds * 1000 * this.rand(0.7, 1.3);
         fx.push(...this.drop(this.ctx.random() < 0.7 ? 'mua' : 'thienthach', NATURE));
@@ -615,6 +687,13 @@ export class PhoTiHon extends Emitter {
       maxEnergy: this.s.hostEnergy,
       energyInMs: this.hostMode && this.energy < this.s.hostEnergy ? Math.max(0, this.energyAt + this.s.energyRegenSeconds * 1000 - t) : 0,
       hostStats: this.hostStats,
+      money: this.hostMode ? this.money : 0,
+      goal: this.s.hostGoal,
+      site: this.hostMode ? { ...SITE, built: this.landmark } : null,
+      winReason: this.phase === 'wiped' ? this.winReason : null,
+      coins: this.hostMode ? this.coins.map((c) => ({ id: c.id, x: c.x, z: c.z, value: c.value, leftMs: c.until - t, gift: c.gift })) : [],
+      costs: Object.fromEntries(Object.entries(COIN).map(([k, v]) => [k, v * REBUILD_X])),
+      supporters: Object.values(this.supporters || {}).filter((r) => r.money > 0).sort((a, b) => b.money - a.money || (a.id < b.id ? -1 : 1)).slice(0, 4),
       score: { host: this.hostWins, viewers: this.viewerWins },
       cam: { zoom: this.s.cameraZoom !== false, hold: this.s.zoomSeconds },
       fields: this.fields || [],
@@ -631,7 +710,7 @@ export class PhoTiHon extends Emitter {
       phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt, hazards: this.hazards, strikes: this.strikes,
       shieldUntil: this.shieldUntil, dmgBy: this.dmgBy,
       winner: this.winner, hostWins: this.hostWins, viewerWins: this.viewerWins, hostEndsAt: this.hostEndsAt, energy: this.energy, energyAt: this.energyAt,
-      nextAmbientAt: this.nextAmbientAt, hostStats: this.hostStats, freeze: this.freeze, freezeUntil: this.freezeUntil, nextSlowmoAt: this.nextSlowmoAt,
+      nextAmbientAt: this.nextAmbientAt, hostStats: this.hostStats, money: this.money, earned: this.earned, coins: this.coins, nextCoinAt: this.nextCoinAt, landmark: this.landmark, supporters: this.supporters, winReason: this.winReason, freeze: this.freeze, freezeUntil: this.freezeUntil, nextSlowmoAt: this.nextSlowmoAt,
       fields: this.fields, mission: this.mission, nextMissionAt: this.nextMissionAt, missionSeq: this.missionSeq, event: this.event, nextEventAt: this.nextEventAt, fixBy: this.fixBy, wipedBy: this.wipedBy, wipeMs: this.wipeMs, seq: this.seq, buildings: this.buildings,
     };
   }
@@ -645,7 +724,13 @@ export class PhoTiHon extends Emitter {
     this.hazards = this.hazards.filter((h) => HZ[h?.kind] && Number.isFinite(h.endsAt));
     this.strikes = this.strikes.filter((x) => HZ[x?.kind] && Number.isFinite(x.at));
     const t = this.clock();
-    if (!this.hostStats || typeof this.hostStats !== 'object') this.hostStats = { fixes: 0, shots: 0, chased: 0 };
+    if (!this.hostStats || typeof this.hostStats !== 'object') this.hostStats = { fixes: 0, shots: 0, chased: 0, coins: 0, rebuilt: 0 };
+    if (!Number.isFinite(this.money)) this.money = this.s.hostStartMoney;
+    if (!Number.isFinite(this.earned)) this.earned = 0;
+    if (!Array.isArray(this.coins)) this.coins = [];
+    if (!Number.isFinite(this.nextCoinAt)) this.nextCoinAt = t + 800;
+    if (!this.supporters || typeof this.supporters !== 'object') this.supporters = {};
+    this.landmark = !!this.landmark;
     if (!Number.isFinite(this.energy)) this.energy = this.s.hostEnergy;
     if (!Number.isFinite(this.energyAt)) this.energyAt = t;
     if (!Number.isFinite(this.nextAmbientAt)) this.nextAmbientAt = t + this.s.ambientSeconds * 1000;

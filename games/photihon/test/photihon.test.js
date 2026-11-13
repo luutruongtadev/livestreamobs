@@ -215,3 +215,61 @@ test('nhiệm vụ, biến cố, may rủi, hộp bí ẩn', () => {
   for (let i = 0; i < 60; i++) { const fx = host.handle(gift('m', 'Ice Cream Cone')); const r = fx.find((e) => e.type === 'ph_mystery'); if (r) results.add(r.result); step(host, 300); if (host.snapshot().phase !== 'play') step(host, 9000); }
   assert.ok(results.size >= 5);
 });
+
+test('chế độ streamer: nhặt xu, xây lại toà bằng tiền, quà hỗ trợ (lì xì, mưa tiền), xây Tháp Mơ Ước là thắng', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 300, hostGoal: 300, coinSeconds: 0.5, lixiAmount: 60, ambientSeconds: 0, slowmo: false, luck: false, eventEvery: 0, missions: false, resultSeconds: 3 }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
+  assert.ok(S().site && !S().site.built, 'có công trường');
+  assert.ok(!S().buildings.some((b) => b.x === -3.3 && b.z === -5), 'lô công trường để trống');
+  assert.equal(S().money, 0);
+  step(3000);
+  const coins = S().coins;
+  assert.ok(coins.length >= 2, 'xu rơi ra');
+  const v = coins[0].value;
+  assert.equal(host.input({ type: 'coin', id: coins[0].id })[0].type, 'ph_coin');
+  assert.equal(S().money, v);
+  assert.deepEqual(host.input({ type: 'coin', id: coins[0].id }), [], 'không nhặt hai lần');
+  // xu hết hạn thì biến mất
+  const old = S().coins.map((c) => c.id);
+  step(8000);
+  assert.ok(!S().coins.some((c) => old.includes(c.id)));
+  // người xem tặng lì xì + mưa tiền
+  host.handle(gift('s', 'Heart Me'));
+  assert.equal(S().money, v + 60);
+  assert.equal(S().supporters[0].id, 's');
+  host.handle(gift('s2', 'Rosa'));
+  const rain = S().coins.filter((c) => c.gift);
+  assert.equal(rain.length, 8); assert.ok(rain.every((c) => c.value === 15));
+  for (const c of rain) host.input({ type: 'coin', id: c.id });
+  assert.equal(S().money, v + 60 + 120);
+  // phá một toà → xây lại bằng tiền
+  host.handle(gift('x', 'Galaxy')); step(4500);
+  const dead = S().buildings.find((b) => !b.alive);
+  assert.ok(dead);
+  const cost = S().costs[dead.kind];
+  const before = S().money;
+  const r = host.input({ type: 'rebuild', id: dead.id });
+  if (before >= cost) { assert.equal(r[0].type, 'ph_rebuilt'); assert.equal(S().money, before - cost); assert.ok(S().buildings.find((b) => b.id === dead.id).alive); }
+  else assert.equal(r[0].type, 'ph_nomoney');
+  // chưa đủ tiền xây tháp
+  if (S().money < 300) assert.equal(host.input({ type: 'landmark' })[0].type, 'ph_nomoney');
+  for (let i = 0; i < 6; i++) host.handle(gift('s', 'Heart Me'));
+  const fx = host.input({ type: 'landmark' });
+  assert.ok(fx.some((e) => e.type === 'ph_landmark'));
+  assert.equal(S().phase, 'wiped'); assert.equal(S().winner, 'host'); assert.equal(S().winReason, 'landmark'); assert.ok(S().site.built);
+  step(3250);
+  assert.equal(S().phase, 'play'); assert.equal(S().money, 0); assert.ok(!S().site.built);
+});
+
+test('chế độ người xem: lì xì / mưa tiền thành sửa nhẹ cả phố, không có xu', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { slowmo: false, luck: false, eventEvery: 0, missions: false }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
+  host.handle(gift('a', 'Hand Hearts'));
+  for (let t = 0; t < 3000; t += 250) { clock.advance(250); host.tick(); }
+  const hp = host.snapshot().buildings.reduce((n, b) => n + b.hp, 0);
+  host.handle(gift('b', 'Rosa'));
+  assert.ok(host.snapshot().buildings.reduce((n, b) => n + b.hp, 0) > hp);
+  assert.equal(host.snapshot().coins.length, 0); assert.equal(host.snapshot().site, null);
+});
