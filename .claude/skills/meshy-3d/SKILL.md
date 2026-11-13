@@ -8,6 +8,7 @@ description: Tạo mô hình 3D (.glb) cho game bằng Meshy Text-to-3D API rồ
 ## 1. Điều kiện
 - **Key Meshy**: không bao giờ để key trong repo, file, biến môi trường hay chat. Trên môi trường cloud, gọi `request_credential` cho host `api.meshy.ai` (kiểu bearer) để người dùng dán key vào form bảo mật; proxy tự gắn key vào mọi request tới `api.meshy.ai`. Nếu người dùng lỡ dán key vào chat: không dùng giá trị đó, mở form, và nhắc họ tạo key mới / xoá key cũ.
 - Kiểm tra key + số credit: `curl -s -H "Authorization: Bearer proxy-injected" https://api.meshy.ai/openapi/v1/balance`
+- File mô hình nằm ở `assets.meshy.ai`: host này phải được phép trong mạng của môi trường (nếu tải bị proxy trả 403 thì đề xuất thêm host bằng `update_environment`). Tiến độ đã lưu nên chạy lại chỉ tải, không tạo lại.
 - `docs.meshy.ai` có thể bị chặn: tham số hợp lệ dò bằng cách gửi giá trị sai (API trả về danh sách, không tốn credit), vd `ai_model` ∈ `meshy-4 meshy-5 meshy-6 meshy-6-lite meshy-7 meshy-7.1 latest meshy-t1 meshy-t2 meshy-t2.5`.
 
 ## 2. Chi phí — hỏi người dùng trước khi tiêu credit
@@ -33,7 +34,7 @@ Rồi chạy (mỗi món 1–3 phút, chạy nền):
 ```
 node .claude/skills/meshy-3d/meshy.mjs games/<id>/assets/models/meshy-jobs.json games/<id>/assets/models --concurrency 5
 ```
-Script tạo preview → refine, tải `<name>.glb`, nén texture về JPEG 1024 px bằng `@gltf-transform/cli` (khoảng 300–500 KB mỗi món), lưu ảnh xem trước `.<name>.png` (bị gitignore) và tiến độ `.meshy-state.json`. **Chạy lại không tốn credit lần hai** cho món đã có task (đọc lại state). Thêm `.gitignore` gồm `.*.png` và `.*.raw.glb` vào thư mục models.
+Script tạo preview → refine, tải `<name>.glb`, nén texture về JPEG 1024 px bằng `glb_textures.py` (Python + Pillow, không cần tải gói npm; khoảng 300–600 KB mỗi món), lưu ảnh xem trước `.<name>.png` (bị gitignore) và tiến độ `.meshy-state.json`. **Chạy lại không tốn credit lần hai** cho món đã có task (đọc lại state). Thêm `.gitignore` gồm `.*.png` và `.*.raw.glb` vào thư mục models.
 
 Xem ảnh `.<name>.png` (Read) để kiểm tra mô hình trước khi gắn vào game.
 

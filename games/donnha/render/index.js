@@ -20,10 +20,10 @@ const PALETTE = [0xe53935, 0x1e88e5, 0xfdd835, 0x43a047, 0x8e24aa, 0xfb8c00];
 const SORTED = Object.entries(KINDS).sort((a, b) => a[1].s - b[1].s);
 // Mô hình Meshy: loại đồ → file; fit = bề rộng chân đế so với đường kính 2·s của món (robot / mèo theo đơn vị riêng); rot = xoay thêm
 const MODEL_FILES = {
-  robot: { file: 'robot.glb', foot: 2.05 }, meo: { file: 'meo.glb', foot: 1.45 },
+  robot: { file: 'robot.glb', foot: 2.05, rx: -Math.PI / 2 }, // Meshy dựng rô-bốt đứng như bánh xe: xoay nằm phẳng, mặt có mắt hướng lên meo: { file: 'meo.glb', foot: 1.45 },
   sofa: { file: 'sofa.glb', fit: 1 }, tulanh: { file: 'tulanh.glb', fit: 0.95 }, xemay: { file: 'xemay.glb', fit: 1 }, caymai: { file: 'caymai.glb', fit: 1 },
   giuong: { file: 'giuong.glb', fit: 1 }, bantra: { file: 'bantra.glb', fit: 1 }, ghenhua: { file: 'ghenhua.glb', fit: 0.95 }, noicom: { file: 'noicom.glb', fit: 0.95 },
-  banhchung: { file: 'banhchung.glb', fit: 0.95 }, chauquat: { file: 'chauquat.glb', fit: 1 }, tivi: { file: 'tivi.glb', fit: 1 }, dep: { file: 'dep.glb', fit: 1 },
+ chauquat: { file: 'chauquat.glb', fit: 1 }, tivi: { file: 'tivi.glb', fit: 1 }, dep: { file: 'dep.glb', fit: 1 },
 };
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -111,7 +111,11 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   // ---- đồ trong nhà: mỗi loại dựng bằng vài khối, cỡ theo bán kính s ----
   function build(kind, s, color) {
     const M = MODELS[kind];
-    if (M) { const g = new THREE.Group(); const o = M.tpl.clone(true); o.scale.multiplyScalar(2 * s * (MODEL_FILES[kind].fit || 1)); g.add(o); g.userData.model = true; return g; }
+    if (M) {
+      const g = new THREE.Group(), o = M.tpl.clone(true);
+      const k = Math.min(2 * s * (MODEL_FILES[kind].fit || 1), (2 * s * 2.2) / Math.max(0.01, M.h)); // cao tối đa ~2,2 lần bề rộng (cây mai Meshy rất cao)
+      o.scale.multiplyScalar(k); g.add(o); g.userData.model = true; return g;
+    }
     const g = new THREE.Group();
     const c = PALETTE[color % PALETTE.length];
     const add = (o) => (g.add(o), o);
@@ -161,13 +165,15 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     for (const [kind, m] of Object.entries(MODEL_FILES)) {
       Promise.resolve(options.models?.[m.file] || new URL(`../assets/models/${m.file}`, import.meta.url).href).then((url) => loader.load(url, (gltf) => {
         if (stopped) return;
-        const raw = gltf.scene;
+        const raw = new THREE.Group(); raw.add(gltf.scene);
+        if (m.rx) gltf.scene.rotation.x = m.rx;
+        if (m.rot) gltf.scene.rotation.y = m.rot;
+        raw.updateMatrixWorld(true);
         const bb = new THREE.Box3().setFromObject(raw), size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
         raw.position.set(-c.x, -bb.min.y, -c.z);
-        if (m.rot) raw.rotation.y = m.rot;
         raw.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.metalness = 0; o.material.roughness = 0.85; } } });
         const tpl = new THREE.Group(); tpl.add(raw); tpl.scale.setScalar(1 / Math.max(size.x, size.z, 0.001)); // bề rộng chân đế = 1
-        MODELS[kind] = { tpl };
+        MODELS[kind] = { tpl, h: size.y / Math.max(size.x, size.z, 0.001) };
         onModel(kind);
       }, undefined, () => {})).catch(() => {}); // không tải được: giữ mô hình dựng bằng code
     }

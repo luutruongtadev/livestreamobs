@@ -1,6 +1,8 @@
 # Rô-bốt Dọn Nhà (`donnha`)
 
-Game 3D tương tác TikTok Live thể loại "hút để lớn": một rô-bốt hút bụi tí hon dọn căn nhà Việt đón Tết. Món nào nhỏ hơn rô-bốt thì hút được và rô-bốt to ra; món to hơn thì chặn đường. Render bằng three.js (bản r160 chép sẵn trong `render/vendor/`, giấy phép MIT).
+Game 3D tương tác TikTok Live thể loại "hút để lớn": một rô-bốt hút bụi tí hon dọn căn nhà Việt đón Tết. Món nào nhỏ hơn rô-bốt thì hút được và rô-bốt to ra; món to hơn thì chặn đường. Render bằng three.js (bản r160 + GLTFLoader chép sẵn trong `render/vendor/`, giấy phép MIT).
+
+Mô hình 3D tạo bằng [Meshy](https://www.meshy.ai) (`meshy-t2.5`, texture nén JPEG 1K) trong `assets/models/`: rô-bốt, mèo, sofa, tủ lạnh, xe máy, cây mai, giường, bàn trà, ghế nhựa đỏ, nồi cơm điện, chậu quất, ti vi, dép tổ ong. Prompt nằm ở `assets/models/meshy-jobs.json`; tạo lại / thêm món bằng skill `meshy-3d` (`.claude/skills/meshy-3d`). Món chưa có file (hoặc tải lỗi) dùng mô hình dựng bằng code trong `render/index.js`. Đổi cỡ / hướng trong `MODEL_FILES`.
 
 ## Căn nhà
 - **Phòng ngủ**: tất, bút chì, đồ chơi, gấu bông, quạt cây, tủ quần áo, giường.

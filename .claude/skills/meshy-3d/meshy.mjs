@@ -70,10 +70,10 @@ async function one(job) {
   }
   const t = await wait(st.refine, `${job.name}/refine`);
   const raw = path.join(outDir, `.${job.name}.raw.glb`);
-  await run('curl', ['-sS', '--max-time', '180', '-o', raw, t.model_urls.glb]);
+  if (!fs.existsSync(raw)) await run('curl', ['-sS', '--max-time', '180', '-o', raw, t.model_urls.glb]);
   if (t.thumbnail_url) await run('curl', ['-sS', '--max-time', '60', '-o', path.join(outDir, `.${job.name}.png`), t.thumbnail_url]).catch(() => {});
-  // nén: texture về JPEG ≤ SIZE px, giữ nguyên lưới (không simplify / draco để GLTFLoader thường đọc được)
-  await run('npx', ['-y', '@gltf-transform/cli@4', 'optimize', raw, out, '--compress', 'false', '--simplify', 'false', '--texture-compress', 'jpeg', '--texture-size', String(SIZE)]);
+  // nén: texture về JPEG ≤ SIZE px, giữ nguyên lưới (không draco để GLTFLoader thường đọc được) — Python + Pillow, không cần tải gói ngoài
+  await run('python3', ['-I', new URL('./glb_textures.py', import.meta.url).pathname, raw, out, String(SIZE), '80']);
   fs.rmSync(raw, { force: true });
   st.done = true; st.bytes = fs.statSync(out).size; st.credits = t.consumed_credits; save();
   console.log(`✓ ${job.name}.glb ${(st.bytes / 1024).toFixed(0)} KB`);

@@ -1,25 +1,100 @@
 {
   "robot": {
     "preview": "01a1d613-e5fc-77c5-9593-6ce877643998",
-    "refine": "01a1d614-d4da-76ae-a0f6-d14823b6ff7e"
+    "refine": "01a1d614-d4da-76ae-a0f6-d14823b6ff7e",
+    "done": true,
+    "bytes": 750340,
+    "credits": 10
   },
   "sofa": {
     "preview": "01a1d613-e5f1-70be-99c8-d50f6fc2e3c4",
-    "refine": "01a1d614-6c6e-77c5-aba1-d90eb20af0d2"
+    "refine": "01a1d614-6c6e-77c5-aba1-d90eb20af0d2",
+    "done": true,
+    "bytes": 719336,
+    "credits": 10
   },
   "tulanh": {
     "preview": "01a1d613-e61a-72bd-b315-5b7393aa6808",
-    "refine": "01a1d614-6c72-779f-b38f-9422402f9973"
+    "refine": "01a1d614-6c72-779f-b38f-9422402f9973",
+    "done": true,
+    "bytes": 683280,
+    "credits": 10
   },
   "xemay": {
     "preview": "01a1d613-e61c-7015-b1de-adde34db5920",
-    "refine": "01a1d614-e742-70ae-ac25-320102f15377"
+    "refine": "01a1d614-e742-70ae-ac25-320102f15377",
+    "done": true,
+    "bytes": 1012436,
+    "credits": 10
   },
   "caymai": {
     "preview": "01a1d613-e65a-7228-b663-544ff2a4c62b",
-    "refine": "01a1d614-ebda-70dc-bd57-429926a06fd0"
+    "refine": "01a1d614-ebda-70dc-bd57-429926a06fd0",
+    "done": true,
+    "bytes": 1012920,
+    "credits": 10
   },
   "giuong": {
-    "preview": "01a1d615-463b-70ba-aa7c-797030cdc259"
+    "preview": "01a1d615-463b-70ba-aa7c-797030cdc259",
+    "refine": "01a1d616-b279-7688-b4fa-d9939fea005c",
+    "done": true,
+    "bytes": 700064,
+    "credits": 10
+  },
+  "bantra": {
+    "preview": "01a1d615-5e27-743f-a5fa-27e8aa104d9e",
+    "refine": "01a1d617-0777-747b-8308-0f2be9c76594",
+    "done": true,
+    "bytes": 718940,
+    "credits": 10
+  },
+  "ghenhua": {
+    "preview": "01a1d615-99f2-743a-b822-7b7b264c768a",
+    "refine": "01a1d617-6293-7324-967a-b083a976c6fc",
+    "done": true,
+    "bytes": 627452,
+    "credits": 10
+  },
+  "noicom": {
+    "preview": "01a1d615-a000-72ea-afd4-f4a022b8b42e",
+    "refine": "01a1d617-068f-7590-9732-8984bdb744b7",
+    "done": true,
+    "bytes": 683648,
+    "credits": 10
+  },
+  "banhchung": {
+    "preview": "01a1d616-12d7-75f5-965b-8992150b98d7",
+    "refine": "01a1d617-8f01-708c-9209-91c9748e8183",
+    "done": true,
+    "bytes": 846644,
+    "credits": 10
+  },
+  "chauquat": {
+    "preview": "01a1d617-fa23-7400-b5c7-b04eaa9d7223",
+    "refine": "01a1d619-8dbd-71bd-ad4d-5da4b6a952ad",
+    "done": true,
+    "bytes": 923000,
+    "credits": 10
+  },
+  "tivi": {
+    "preview": "01a1d618-065e-7538-adad-5e4ed865cb9c",
+    "refine": "01a1d619-981a-77bf-b568-60577ea9fa0c",
+    "done": true,
+    "bytes": 803272,
+    "credits": 10
+  },
+  "meo": {
+    "preview": "01a1d618-1ded-774c-8dc0-048ea1edebfa",
+    "refine": "01a1d619-af87-74d4-86cc-f9fd397dbed6",
+    "done": true,
+    "bytes": 769844,
+    "credits": 10
+  },
+  "dep": {
+    "preview": "01a1d618-904b-70a9-856a-d2fa95ad311c",
+    "refine": "01a1d619-e50e-7612-b5f0-869dd69501f8",
+    "done": true,
+    "bytes": 850348,
+    "credits": 10
   }
 }
