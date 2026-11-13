@@ -23,6 +23,17 @@ Renderer nạp các file này ở nền; file nào không tải được thì lo
 - **Bảng Phá nhiều nhất**: điểm phá trong phố hiện tại. **Bảng Phá**: số phố từng đánh sập (người làm đổ toà cuối cùng vượt ngưỡng).
 - Quà tặng lúc đang vinh danh được để dành cho phố mới.
 
+## Máy quay cận cảnh
+Quà gọi thiên thạch, sét, UFO: máy quay lướt tới cận cảnh toà bị nhắm (kèm khung ngắm, chấm REC, nhãn "🎥 Chung cư · tên người tặng"), giữ tới khi toà đổ rồi lùi ra toàn cảnh. Lốc xoáy và trâu khổng lồ thì máy quay bám theo; lũ quay sông, động đất kéo gần cả phố. Quà tới dồn dập thì mỗi cận cảnh giữ ít nhất `zoomSeconds` giây rồi chuyển sang cái mới; thảm hoạ cũ chưa xong thì quay lại sau. Phố sập thì máy quay lia chậm qua đống đổ nát. Tắt bằng `cameraZoom`; mưa đá do tim và thảm hoạ của Ông Trời không zoom.
+
+## Chế độ streamer tự chơi (`mode: host`)
+Mở **cửa sổ chơi** (`?play=1`). Streamer phải giữ phố trong `hostSeconds` giây, người xem tặng quà để phá:
+- **Giữ chuột lên toà** để sửa (`hostRepair` % máu mỗi nhịp).
+- **Bấm 🎯 thiên thạch / mây sét / UFO / mưa đá** đang rơi để bắn hạ. **Bấm lốc / trâu** để đuổi bớt `chaseSeconds` giây. Mỗi lần tốn 1 ⚡ (tối đa `hostEnergy`, hồi 1 sau mỗi `energyRegenSeconds` giây).
+- Lúc vắng quà, Ông Trời thả mưa đá / thiên thạch mỗi `ambientSeconds` giây để streamer vẫn có việc.
+- Hết giờ mà phố chưa sập là streamer thắng, sập trước thì người đánh sập thắng. Tỉ số Streamer – Người xem hiện ở đầu màn hình. Bình luận vẫn làm dân phố sửa nhà (người xem có thể phụ streamer).
+Trong cửa sổ chơi, máy quay chỉ zoom nhẹ để streamer còn thấy cả phố mà bấm.
+
 ## Actions (quà mặc định)
 | id | Tác dụng | Quà |
 |---|---|---|

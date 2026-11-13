@@ -59,3 +59,68 @@ test('phá phố: sét toà cao nhất, bình luận sửa nhà (giãn cách), k
   assert.ok(S().buildings.every((b) => b.alive));
   assert.equal(S().hazards.length, 1, 'lốc để dành chạy ngay ở phố mới');
 });
+
+test('chế độ streamer: sửa nhà, bắn hạ, đuổi lốc tốn năng lượng (tự hồi), hết giờ phố còn đứng → streamer thắng; sập trước → người xem thắng; khôi phục', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 40, hostEnergy: 2, energyRegenSeconds: 5, ambientSeconds: 0, resultSeconds: 3, wipePercent: 60 }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+  const S = () => host.snapshot();
+  const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
+  assert.equal(S().mode, 'host'); assert.equal(S().energy, 2); assert.ok(S().hostLeftMs > 39000);
+  // người xem không dùng được input
+  assert.deepEqual(createHost(game, { settings: {}, data: game.data, now: clock.now, random: seededRandom(1), log: {} }).input({ type: 'fix', id: 0 }), []);
+  // động đất làm hư → streamer bấm giữ để sửa
+  host.handle(gift('a', 'Hand Hearts')); step(6500);
+  const hit = S().buildings.find((b) => b.alive && b.hp < 1);
+  assert.ok(hit);
+  assert.equal(host.input({ type: 'fix', id: hit.id }).length, 1);
+  assert.equal(host.input({ type: 'fix', id: hit.id }).length, 0, 'chống bấm máy');
+  clock.advance(150);
+  host.input({ type: 'fix', id: hit.id });
+  assert.ok(S().buildings.find((b) => b.id === hit.id).hp > hit.hp);
+  assert.equal(S().hostStats.fixes, 2);
+  // bắn hạ thiên thạch: không gây hư hại, tốn 1 năng lượng
+  const before = JSON.stringify(S().buildings);
+  host.handle(gift('b', 'Rose'));
+  const st = S().strikes[0];
+  assert.equal(host.input({ type: 'shoot', id: st.id })[0].type, 'ph_shot');
+  step(2000);
+  assert.equal(JSON.stringify(S().buildings), before, 'bắn hạ rồi thì không rơi');
+  assert.equal(S().energy, 1);
+  // đuổi lốc: rút ngắn thời gian
+  host.handle(gift('c', 'Doughnut'));
+  const h = S().hazards[0];
+  host.input({ type: 'chase', id: h.id });
+  assert.ok(S().hazards[0].totalMs < h.totalMs);
+  assert.equal(S().energy, 0);
+  host.handle(gift('d', 'Rose'));
+  assert.equal(host.input({ type: 'shoot', id: S().strikes[0].id })[0].type, 'ph_noenergy');
+  step(5000);
+  assert.ok(S().energy >= 1, 'năng lượng tự hồi');
+  // khôi phục giữa chừng
+  const saved = host.serialize();
+  const h2 = createHost(game, { settings: { mode: 'host', hostSeconds: 40 }, data: game.data, now: clock.now, random: seededRandom(9), log: {} });
+  h2.restore(JSON.parse(JSON.stringify(saved)));
+  assert.equal(h2.snapshot().hostStats.shots, 1);
+  // hết giờ: streamer thắng
+  host.handle(gift('e', 'Sunglasses'));
+  const fx = [];
+  for (let i = 0; i < 200 && S().phase === 'play'; i++) fx.push(...step(250));
+  assert.ok(fx.some((e) => e.type === 'ph_survive'));
+  assert.equal(S().phase, 'wiped'); assert.equal(S().winner, 'host'); assert.deepEqual(S().score, { host: 1, viewers: 0 });
+  step(3250);
+  assert.equal(S().phase, 'play'); assert.equal(S().townNo, 2); assert.equal(S().hostStats.fixes, 0);
+  // người xem đánh sập trước giờ → người xem thắng
+  for (const g of ['Galaxy', 'Galaxy', 'Galaxy', 'Hand Hearts', 'Hand Hearts', 'Corgi']) host.handle(gift('g', g));
+  for (let i = 0; i < 35 && S().phase === 'play'; i++) { step(1000); host.handle(gift('g', 'Galaxy')); }
+  assert.equal(S().winner, 'viewers'); assert.equal(S().wipedBy.id, 'g'); assert.deepEqual(S().score, { host: 1, viewers: 1 });
+});
+
+test('Ông Trời thả thảm hoạ nhẹ định kỳ ở chế độ streamer, không zoom / không tính điểm', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: { mode: 'host', ambientSeconds: 5 }, data: game.data, now: clock.now, random: seededRandom(2), log: {} });
+  for (let t = 0; t < 8000; t += 250) { clock.advance(250); host.tick(); }
+  const s = host.snapshot();
+  assert.ok(s.strikes.length + s.buildings.filter((b) => b.hp < 1).length > 0);
+  assert.equal(s.top.length, 0);
+  assert.equal(s.cam.zoom, true);
+});

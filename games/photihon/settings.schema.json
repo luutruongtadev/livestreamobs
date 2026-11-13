@@ -1,13 +1,126 @@
 {
   "type": "object",
   "properties": {
-    "wipePercent": { "type": "integer", "title": "Phố coi là sập khi bao nhiêu % toà nhà đổ", "minimum": 30, "maximum": 100, "default": 85 },
-    "resultSeconds": { "type": "integer", "title": "Vinh danh người đánh sập trong bao nhiêu giây rồi mới có phố mới", "minimum": 3, "maximum": 60, "default": 8 },
-    "disasterScale": { "type": "number", "title": "Sức tàn phá của thảm hoạ (×)", "minimum": 0.3, "maximum": 3, "default": 1 },
-    "repairPerComment": { "type": "integer", "title": "Mỗi bình luận sửa toà hư nặng nhất bao nhiêu máu (0 = tắt)", "minimum": 0, "maximum": 30, "default": 3 },
-    "commentCooldown": { "type": "number", "title": "Mỗi người sửa nhà cách nhau ít nhất bao nhiêu giây", "minimum": 0, "maximum": 30, "default": 2 },
-    "likesPerHail": { "type": "integer", "title": "Bao nhiêu tim thì rơi 1 cục mưa đá", "minimum": 10, "maximum": 5000, "default": 200 },
-    "shieldSeconds": { "type": "integer", "title": "Khiên che phố bao nhiêu giây", "minimum": 3, "maximum": 60, "default": 15 },
-    "showBoard": { "type": "boolean", "title": "Hiện bảng Phá nhiều nhất + Bảng Phá", "default": true }
+    "mode": {
+      "type": "string",
+      "title": "Ai chơi",
+      "enum": [
+        "viewers",
+        "host"
+      ],
+      "enumNames": [
+        "Người xem phá phố (bình luận sửa nhà)",
+        "Streamer giữ phố trong cửa sổ chơi, người xem tặng quà phá"
+      ],
+      "default": "viewers"
+    },
+    "wipePercent": {
+      "type": "integer",
+      "title": "Phố coi là sập khi bao nhiêu % toà nhà đổ",
+      "minimum": 30,
+      "maximum": 100,
+      "default": 85
+    },
+    "resultSeconds": {
+      "type": "integer",
+      "title": "Vinh danh người đánh sập trong bao nhiêu giây rồi mới có phố mới",
+      "minimum": 3,
+      "maximum": 60,
+      "default": 8
+    },
+    "disasterScale": {
+      "type": "number",
+      "title": "Sức tàn phá của thảm hoạ (×)",
+      "minimum": 0.3,
+      "maximum": 3,
+      "default": 1
+    },
+    "repairPerComment": {
+      "type": "integer",
+      "title": "Mỗi bình luận sửa toà hư nặng nhất bao nhiêu máu (0 = tắt)",
+      "minimum": 0,
+      "maximum": 30,
+      "default": 3
+    },
+    "commentCooldown": {
+      "type": "number",
+      "title": "Mỗi người sửa nhà cách nhau ít nhất bao nhiêu giây",
+      "minimum": 0,
+      "maximum": 30,
+      "default": 2
+    },
+    "likesPerHail": {
+      "type": "integer",
+      "title": "Bao nhiêu tim thì rơi 1 cục mưa đá",
+      "minimum": 10,
+      "maximum": 5000,
+      "default": 200
+    },
+    "shieldSeconds": {
+      "type": "integer",
+      "title": "Khiên che phố bao nhiêu giây",
+      "minimum": 3,
+      "maximum": 60,
+      "default": 15
+    },
+    "showBoard": {
+      "type": "boolean",
+      "title": "Hiện bảng Phá nhiều nhất + Bảng Phá",
+      "default": true
+    },
+    "hostSeconds": {
+      "type": "integer",
+      "title": "Streamer phải giữ phố bao nhiêu giây (chế độ streamer)",
+      "minimum": 30,
+      "maximum": 900,
+      "default": 120
+    },
+    "hostRepair": {
+      "type": "integer",
+      "title": "Mỗi cú bấm của streamer sửa bao nhiêu % máu toà",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 6
+    },
+    "hostEnergy": {
+      "type": "integer",
+      "title": "Năng lượng tối đa của streamer (bắn hạ thiên thạch / đuổi lốc tốn 1)",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 4
+    },
+    "energyRegenSeconds": {
+      "type": "number",
+      "title": "Bao nhiêu giây hồi 1 năng lượng",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 5
+    },
+    "chaseSeconds": {
+      "type": "number",
+      "title": "Mỗi lần bấm lốc / trâu rút ngắn thảm hoạ bao nhiêu giây",
+      "minimum": 0.5,
+      "maximum": 10,
+      "default": 2.5
+    },
+    "ambientSeconds": {
+      "type": "integer",
+      "title": "Chế độ streamer: Ông Trời thả mưa đá / thiên thạch mỗi bao nhiêu giây (0 = tắt)",
+      "minimum": 0,
+      "maximum": 120,
+      "default": 10
+    },
+    "cameraZoom": {
+      "type": "boolean",
+      "title": "Máy quay zoom cận cảnh toà bị thảm hoạ quà tặng phá",
+      "default": true
+    },
+    "zoomSeconds": {
+      "type": "number",
+      "title": "Giữ cận cảnh ít nhất bao nhiêu giây trước khi chuyển sang thảm hoạ khác",
+      "minimum": 0.5,
+      "maximum": 10,
+      "default": 1.5
+    }
   }
 }

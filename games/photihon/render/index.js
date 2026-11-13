@@ -1,7 +1,8 @@
 // Renderer 3D của Phố Tí Hon (khung dọc 1080×1920): three.js vẽ thị trấn low-poly trên hòn đảo nổi vào một canvas WebGL ẩn,
 // rồi chép sang canvas 2D của nền tảng; HUD (bảng quà, bảng phá, tên người xem) vẽ 2D đè lên, nên drawPanel của SDK dùng y như game 2D.
-// Mọi mô hình dựng bằng code (khối, nón, trụ, flat shading) — có thể thay bằng .glb (vd tạo bằng Meshy) sau này.
-// Không đụng DOM khi import.
+// Máy quay "điện ảnh": quà gọi thảm hoạ thì máy quay lướt tới cận cảnh toà / công trình bị phá, giữ tới khi đổ rồi lùi ra toàn cảnh
+// (lốc xoáy, trâu thì bám theo). Cửa sổ chơi (mount nhận input) ở chế độ streamer: bấm / giữ toà để sửa, bấm vật đang rơi để bắn hạ,
+// bấm lốc / trâu để đuổi. Không đụng DOM khi import.
 import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { drawPanel } from '#sdk';
@@ -34,7 +35,7 @@ const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t =
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-export function mount(el, { canvas, options = {} } = {}) {
+export function mount(el, { canvas, options = {}, input = null } = {}) {
   const g2 = canvas.getContext('2d');
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const sound = makeSound(!!options.mute);
@@ -61,6 +62,8 @@ export function mount(el, { canvas, options = {} } = {}) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(36, W / H, 0.1, 200);
   const CAM = { r: 45, el: 0.7, look: new THREE.Vector3(0, -1.6, 0.6) };
+  // máy quay đang ở đâu (làm mượt) + cận cảnh hiện tại / đang chờ
+  const cine = { look: CAM.look.clone(), r: CAM.r, el: CAM.el, yaw: 0, cur: null, queue: [], seenS: new Set(), seenH: new Set() };
   scene.add(new THREE.HemisphereLight(0xdff1ff, 0x7a6a4a, 1.25));
   const sun = new THREE.DirectionalLight(0xfff1d6, 1.9);
   sun.position.set(-9, 18, 10); sun.castShadow = true;
@@ -346,7 +349,8 @@ export function mount(el, { canvas, options = {} } = {}) {
   // ---------------- cập nhật cảnh theo snapshot ----------------
   function sync() {
     if (!S) return;
-    if (!town || town.no !== S.townNo) buildTown(S);
+    if (!town || town.no !== S.townNo) { buildTown(S); cine.cur = null; cine.queue.length = 0; }
+    watchFocus();
     for (const b of S.buildings) {
       const it = town.items.get(b.id); if (!it) continue;
       if (b.hp < it.hp - 0.001 && b.alive) it.hitAt = performance.now();
@@ -365,6 +369,106 @@ export function mount(el, { canvas, options = {} } = {}) {
     anim.shake = Math.max(anim.shake, chain ? 0.5 : 0.25);
   }
   let lastImpact = null;
+
+  // ---------------- máy quay cận cảnh ----------------
+  const nearest = (x, z) => { let best = null, bd = 1e9; for (const it of town?.items.values() || []) { const d = Math.hypot(it.b.x - x, it.b.z - z); if (d < bd) { bd = d; best = it; } } return bd < 1.6 ? best : null; };
+  const zoomOn = () => S?.cam?.zoom !== false && !reduced;
+  /** Xếp một cận cảnh. f: { x, z, y, r, el, ms, follow?, label, low? } */
+  function focus(f) {
+    if (!zoomOn()) return;
+    const now = performance.now();
+    if (playing()) f.r = Math.max(f.r, 22); // streamer đang bấm: zoom nhẹ để còn thấy cả phố
+    f.yaw = clamp(Math.atan2(f.x, 9) * 0.9, -0.6, 0.6);
+    f.start = now; f.until = now + f.ms;
+    const cur = cine.cur, hold = (S?.cam?.hold ?? 1.5) * 1000;
+    if (cur && f.low) { if (cine.queue.length < 3) cine.queue.push(f); return; }
+    if (cur && now - cur.start < hold) { if (cine.queue.length >= 4) cine.queue.shift(); cine.queue.push(f); return; }
+    if (cur && cur.until - now > 1200) cine.queue.unshift(cur); // thảm hoạ cũ chưa xong: quay lại sau
+    cine.cur = f;
+  }
+  function watchFocus() {
+    const liveS = new Set(), liveH = new Set();
+    for (const st of S.strikes) {
+      liveS.add(st.id);
+      if (cine.seenS.has(st.id)) continue;
+      cine.seenS.add(st.id);
+      if (S.phase !== 'play' || st.by?.npc || !['thienthach', 'set', 'ufo', 'no'].includes(st.kind)) continue;
+      const tid = st.targets?.[0];
+      const it = tid != null ? town?.items.get(tid) : nearest(st.x, st.z);
+      const top = it?.top ?? 1.2;
+      const P = { thienthach: [13, 0.42, top * 0.45, 2000], set: [12, 0.36, top * 0.6, 1800], ufo: [18, 0.32, top + 1.6, 2800], no: [14, 0.45, 0.6, 1500] }[st.kind];
+      focus({ x: it ? it.b.x : st.x, z: it ? it.b.z : st.z, y: P[2], r: P[0], el: P[1], ms: Math.max(0, st.leftMs) + P[3], low: st.kind === 'no',
+        label: `${ACT[st.kind === 'no' ? 'thienthach' : st.kind]?.[0] || '💥'} ${it ? KIND_NAME[it.b.kind] : 'Phố'}${st.kind === 'no' ? ' · nổ dây chuyền' : ` · ${st.by?.name || ''}`}` });
+    }
+    for (const h of S.hazards) {
+      liveH.add(h.id);
+      if (cine.seenH.has(h.id)) continue;
+      cine.seenH.add(h.id);
+      if (S.phase !== 'play' || h.by?.npc) continue;
+      const left = Math.max(0, h.totalMs - h.doneMs);
+      const label = `${ACT[h.kind]?.[0] || ''} ${ACT[h.kind]?.[1] || ''} · ${h.by?.name || ''}`;
+      if (h.path) focus({ x: h.path.x0, z: h.path.z0, y: 1.2, r: h.kind === 'loc' ? 17 : 16, el: 0.48, ms: left, label, follow: () => hazardObjs.get(h.id)?.o?.position });
+      else if (h.kind === 'lu') focus({ x: 0, z: ISLAND.riverZ, y: 0, r: 24, el: 0.55, ms: Math.min(left, 5000), label });
+      else if (h.kind === 'dongdat') focus({ x: 0, z: 0.6, y: 0, r: 32, el: 0.62, ms: Math.min(left, 4000), label });
+    }
+    for (const id of cine.seenS) if (!liveS.has(id)) cine.seenS.delete(id);
+    for (const id of cine.seenH) if (!liveH.has(id)) cine.seenH.delete(id);
+  }
+  function updateCamera(now, dt) {
+    if (!zoomOn() || S?.phase !== 'play') { cine.cur = null; cine.queue.length = 0; }
+    while (cine.cur && now > cine.cur.until) { cine.cur = null; while (cine.queue.length && !cine.cur) { const f = cine.queue.shift(); if (f.until > now + 300) { f.start = now; cine.cur = f; } } }
+    const f = cine.cur;
+    const wiped = S?.phase === 'wiped';
+    let lx = CAM.look.x, ly = CAM.look.y, lz = CAM.look.z, r = CAM.r, el = CAM.el, yaw = reduced ? 0 : Math.sin(now / 5200) * 0.1;
+    if (wiped && !reduced) yaw = Math.sin(now / 2600) * 0.35; // phố sập: lia chậm qua đống đổ nát
+    if (f) {
+      const p = f.follow?.();
+      lx = p ? p.x : f.x; lz = p ? p.z : f.z; ly = f.y; r = f.r; el = f.el; yaw = f.yaw + (reduced ? 0 : Math.sin(now / 3000) * 0.05);
+    }
+    const k = 1 - Math.exp(-dt * (f ? 2.6 : 1.8));
+    cine.look.x = lerp(cine.look.x, lx, k); cine.look.y = lerp(cine.look.y, ly, k); cine.look.z = lerp(cine.look.z, lz, k);
+    cine.r = lerp(cine.r, r, k); cine.el = lerp(cine.el, el, k); cine.yaw = lerp(cine.yaw, yaw, k);
+    const c = Math.cos(cine.el) * cine.r;
+    camera.position.set(cine.look.x + Math.sin(cine.yaw) * c, cine.look.y + Math.sin(cine.el) * cine.r, cine.look.z + Math.cos(cine.yaw) * c);
+    camera.lookAt(cine.look);
+  }
+  const closeUp = () => cine.cur && cine.r < CAM.r * 0.7;
+
+  // ---------------- streamer tự chơi (cửa sổ chơi) ----------------
+  const playing = () => !!input && S?.mode === 'host';
+  /** Tìm thứ dưới con trỏ (toạ độ khung 1080×1920): vật đang rơi > lốc / trâu > toà nhà. */
+  function pick(px, py) {
+    let best = null, bd = 1e9;
+    const consider = (d, lim, hit) => { if (d < lim && d < bd) { bd = d; best = hit; } };
+    for (const [id, so] of strikeObjs) { if (!so.o || so.leaving != null) continue; const p = toScreen(so.o.position.x, so.o.position.y, so.o.position.z); if (p.front) consider(Math.hypot(p.x - px, p.y - py), so.kind === 'ufo' ? 150 : 110, { type: 'shoot', id }); }
+    if (best) return best;
+    for (const [id, ho] of hazardObjs) { if (!ho.o || !ho.h.path) continue; const p = toScreen(ho.o.position.x, 1.6, ho.o.position.z); if (p.front) consider(Math.hypot(p.x - px, p.y - py), 160, { type: 'chase', id }); }
+    if (best) return best;
+    for (const it of town?.items.values() || []) {
+      if (!it.alive) continue;
+      const a = toScreen(it.b.x, 0, it.b.z), b = toScreen(it.b.x, it.top, it.b.z);
+      const t = clamp(((px - a.x) * (b.x - a.x) + (py - a.y) * (b.y - a.y)) / Math.max(1, (b.x - a.x) ** 2 + (b.y - a.y) ** 2), 0, 1);
+      consider(Math.hypot(px - (a.x + (b.x - a.x) * t), py - (a.y + (b.y - a.y) * t)), 70, { type: 'fix', id: it.b.id });
+    }
+    return best;
+  }
+  let holdTimer = 0, cursor = null;
+  const toFrame = (e) => { const rc = canvas.getBoundingClientRect(); return { x: (e.clientX - rc.left) / rc.width * W, y: (e.clientY - rc.top) / rc.height * H }; };
+  if (input && typeof window !== 'undefined') {
+    const stopHold = () => { clearInterval(holdTimer); holdTimer = 0; };
+    canvas.addEventListener('pointerdown', (e) => {
+      sound.resume();
+      if (!playing() || S.phase !== 'play') return;
+      const p = toFrame(e); cursor = { ...p, at: performance.now() };
+      const hit = pick(p.x, p.y);
+      if (!hit) return;
+      input(hit);
+      stopHold();
+      if (hit.type === 'fix') holdTimer = setInterval(() => { if (!playing() || S.phase !== 'play') return stopHold(); input(hit); }, 160); // giữ chuột = sửa liên tục
+    });
+    canvas.addEventListener('pointermove', (e) => { if (playing()) cursor = { ...toFrame(e), at: performance.now() }; });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) canvas.addEventListener(ev, stopHold);
+  }
 
   // ---------------- HUD 2D ----------------
   function rr(x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); g2.beginPath(); g2.moveTo(x + r, y); g2.arcTo(x + w, y, x + w, y + h, r); g2.arcTo(x + w, y + h, x, y + h, r); g2.arcTo(x, y + h, x, y, r); g2.arcTo(x, y, x + w, y, r); g2.closePath(); }
@@ -386,10 +490,10 @@ export function mount(el, { canvas, options = {} } = {}) {
   const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
   const v3 = new THREE.Vector3();
   const toScreen = (x, y, z) => { v3.set(x, y, z).project(camera); return { x: (v3.x + 1) / 2 * W, y: (1 - v3.y) / 2 * H, front: v3.z < 1 }; };
-  function chip(s, x, y, size = 26, bg = 'rgba(29,35,64,.82)', fg = '#fff') {
-    g2.font = `800 ${size}px ${FONT}`; const w = Math.min(360, g2.measureText(s).width + 28);
+  function chip(s, x, y, size = 26, bg = 'rgba(29,35,64,.82)', fg = '#fff', maxW = 360) {
+    g2.font = `800 ${size}px ${FONT}`; const w = Math.min(maxW, g2.measureText(s).width + 28);
     rr(x - w / 2, y - size * 0.8, w, size * 1.6, size * 0.8); g2.fillStyle = bg; g2.fill();
-    text(s, x, y + 1, size, fg, 800, 'center', 330);
+    text(s, x, y + 1, size, fg, 800, 'center', maxW - 30);
   }
   function avatar(u, x, y, r) {
     g2.beginPath(); g2.arc(x, y, r, 0, 7); g2.fillStyle = '#ffcf4a'; g2.fill(); g2.lineWidth = 4; g2.strokeStyle = INK; g2.stroke();
@@ -412,29 +516,52 @@ export function mount(el, { canvas, options = {} } = {}) {
     const pct = s.downPct / Math.max(1, s.wipePercent);
     card(150, 140, 780, 74, 37, 'rgba(255,255,255,.9)');
     rr(160, 150, Math.max(54, 760 * clamp(pct, 0, 1)), 54, 27); g2.fillStyle = pct > 0.7 ? '#ff5252' : pct > 0.4 ? '#ff9f43' : '#ffd23f'; g2.fill();
-    text(`Phố #${s.townNo}  ·  đổ nát ${s.downPct}% / ${s.wipePercent}%  ·  ⏱ ${mmss(s.elapsedMs + (s.phase === 'play' && !s.paused ? now - recvAt : 0))}`, W / 2, 178, 30, INK, 900, 'center', 740);
-    if (s.fastestMs) chip(`🏁 Kỷ lục sập phố: ${mmss(s.fastestMs)}  ·  đã sập ${s.wipes} phố`, W / 2, 252, 24);
-    if (s.shieldMs > 0) chip(`🛡️ Khiên còn ${Math.ceil((s.shieldMs - (now - recvAt)) / 1000)}s`, W / 2, 302, 30, 'rgba(0,150,136,.9)');
-    if (s.carry) chip(`🎁 ${s.carry} thảm hoạ chờ phố mới`, W / 2, 302, 26, 'rgba(126,87,194,.9)');
+    const host = s.mode === 'host', since = s.phase === 'play' && !s.paused ? now - recvAt : 0;
+    if (host) text(`Giữ phố #${s.townNo}  ·  còn ⏱ ${mmss(s.hostLeftMs - since)}  ·  đổ nát ${s.downPct}% / ${s.wipePercent}%`, W / 2, 178, 30, INK, 900, 'center', 740);
+    else text(`Phố #${s.townNo}  ·  đổ nát ${s.downPct}% / ${s.wipePercent}%  ·  ⏱ ${mmss(s.elapsedMs + since)}`, W / 2, 178, 30, INK, 900, 'center', 740);
+    if (host) {
+      // năng lượng + tỉ số streamer / người xem
+      const pips = Array.from({ length: s.maxEnergy }, (_, i) => (i < s.energy ? '⚡' : '·')).join('');
+      chip(`Streamer ${s.score.host} – ${s.score.viewers} Người xem  ·  ${pips}${s.energyInMs ? ` +1 sau ${Math.ceil((s.energyInMs - since) / 1000)}s` : ''}`, W / 2, 252, 24, 'rgba(29,35,64,.86)', '#fff', 760);
+    } else if (s.fastestMs) chip(`🏁 Kỷ lục sập phố: ${mmss(s.fastestMs)}  ·  đã sập ${s.wipes} phố`, W / 2, 252, 24);
+    if (s.shieldMs > 0) chip(`🛡️ Khiên còn ${Math.ceil((s.shieldMs - (now - recvAt)) / 1000)}s`, W / 2, 312, 30, 'rgba(0,150,136,.9)');
+    if (s.carry) chip(`🎁 ${s.carry} thảm hoạ chờ phố mới`, W / 2, 312, 26, 'rgba(126,87,194,.9)');
     // bảng phá
-    if (s.showBoard !== false && (s.top.length || s.legends.length)) panel('board', { x: 24, y: 250 }, () => {
+    if (s.showBoard !== false && (s.top.length || s.legends.length)) panel('board', { x: 24, y: 280 }, () => {
       const rows = s.top.slice(0, 5), leg = s.legends.slice(0, 3);
       const head = rows.length ? 70 + rows.length * 52 : 6;
       const h = head + (leg.length ? 64 + leg.length * 50 : 0);
-      card(24, 250, 330, h, 26, 'rgba(255,255,255,.88)', INK, 4);
-      if (rows.length) text('💥 Phá nhiều nhất', 189, 285, 28, '#d84315', 900);
-      rows.forEach((r, i) => { const y = 336 + i * 52; avatar(r, 64, y, 20); text(r.name, 94, y, 25, INK, 800, 'left', 170); text(String(r.dmg), 336, y, 25, '#d84315', 900, 'right'); });
+      card(24, 280, 330, h, 26, 'rgba(255,255,255,.88)', INK, 4);
+      if (rows.length) text('💥 Phá nhiều nhất', 189, 315, 28, '#d84315', 900);
+      rows.forEach((r, i) => { const y = 366 + i * 52; avatar(r, 64, y, 20); text(r.name, 94, y, 25, INK, 800, 'left', 170); text(String(r.dmg), 336, y, 25, '#d84315', 900, 'right'); });
       if (leg.length) {
-        const y0 = 250 + head + 26;
+        const y0 = 280 + head + 26;
         text('🏆 Bảng Phá (số phố sập)', 189, y0, 25, '#6a1b9a', 900);
         leg.forEach((r, i) => { const y = y0 + 48 + i * 50; avatar(r, 64, y, 19); text(r.name, 94, y, 24, INK, 800, 'left', 180); text(`×${r.wipes}`, 336, y, 26, '#6a1b9a', 900, 'right'); });
       }
     });
     // dân sửa nhà
-    if (s.fixers.length) { card(726, 250, 330, 54 + s.fixers.length * 44, 24, 'rgba(255,255,255,.85)', INK, 4); text('🔧 Dân sửa nhà', 891, 280, 26, '#2e7d32', 900); s.fixers.forEach((r, i) => text(`${r.name} · ${r.fixes}`, 891, 322 + i * 44, 23, INK, 800, 'center', 300)); }
+    if (s.fixers.length) { card(726, 280, 330, 54 + s.fixers.length * 44, 24, 'rgba(255,255,255,.85)', INK, 4); text('🔧 Dân sửa nhà', 891, 310, 26, '#2e7d32', 900); s.fixers.forEach((r, i) => text(`${r.name} · ${r.fixes}`, 891, 352 + i * 44, 23, INK, 800, 'center', 300)); }
     // tên trên đầu thợ, người gọi thảm hoạ
     for (const w of workers) { const p = toScreen(w.o.position.x, 0.9, w.o.position.z); if (p.front) chip(`🔧 ${w.name}`, p.x, p.y - 20, 22, 'rgba(46,125,50,.88)'); }
     for (const l of labels) { const p = toScreen(l.x(), l.y(), l.z()); if (p.front) chip(l.text, p.x, p.y - 40, 26, 'rgba(216,67,21,.9)'); }
+    // cận cảnh
+    if (closeUp() && cine.cur?.label && s.phase === 'play') {
+      const a = clamp((now - cine.cur.start) / 400, 0, 1);
+      g2.globalAlpha = a; chip(`🎥 ${cine.cur.label}`, W / 2, 1110, 30, 'rgba(216,67,21,.92)', '#fff', 900); g2.globalAlpha = 1;
+      // khung ngắm góc màn hình kiểu máy quay + chấm REC
+      g2.strokeStyle = `rgba(255,255,255,${0.75 * a})`; g2.lineWidth = 6;
+      for (const [x, y, dx, dy] of [[24, 236, 1, 1], [W - 24, 236, -1, 1], [24, 1540, 1, -1], [W - 24, 1540, -1, -1]]) { g2.beginPath(); g2.moveTo(x, y + dy * 60); g2.lineTo(x, y); g2.lineTo(x + dx * 60, y); g2.stroke(); }
+      if (Math.floor(now / 500) % 2) { g2.fillStyle = `rgba(255,59,48,${a})`; g2.beginPath(); g2.arc(930, 70, 13, 0, 7); g2.fill(); out('REC', 990, 72, 34, '#fff', { sw: 6 }); }
+    }
+    // cửa sổ chơi: tâm ngắm trên vật đang rơi / thảm hoạ bấm được + gợi ý
+    if (playing() && s.phase === 'play') {
+      const ok = s.energy >= 1, pulse = 1 + Math.sin(now / 120) * 0.12;
+      const ring = (p, rad) => { g2.strokeStyle = ok ? '#ff3b30' : 'rgba(120,120,120,.8)'; g2.lineWidth = 6; g2.beginPath(); g2.arc(p.x, p.y, rad * pulse, 0, 7); g2.stroke(); g2.beginPath(); g2.moveTo(p.x - rad * 1.3, p.y); g2.lineTo(p.x - rad * 0.6, p.y); g2.moveTo(p.x + rad * 0.6, p.y); g2.lineTo(p.x + rad * 1.3, p.y); g2.moveTo(p.x, p.y - rad * 1.3); g2.lineTo(p.x, p.y - rad * 0.6); g2.moveTo(p.x, p.y + rad * 0.6); g2.lineTo(p.x, p.y + rad * 1.3); g2.stroke(); };
+      for (const so of strikeObjs.values()) if (so.o && so.leaving == null) { const p = toScreen(so.o.position.x, so.o.position.y, so.o.position.z); if (p.front) ring(p, so.kind === 'mua' ? 30 : 46); }
+      for (const ho of hazardObjs.values()) if (ho.o && ho.h.path) { const p = toScreen(ho.o.position.x, 1.6, ho.o.position.z); if (p.front) ring(p, 60); }
+      chip('Giữ chuột lên toà để sửa · bấm 🎯 để bắn hạ / đuổi (tốn ⚡)', W / 2, 1532, 24, 'rgba(46,125,50,.92)', '#fff', 980);
+    }
     // bảng tin
     feed.forEach((f, i) => { const a = clamp((f.until - now) / 600, 0, 1); g2.globalAlpha = a; chip(f.text, W / 2, 1500 - i * 50, 25, f.bg); g2.globalAlpha = 1; });
     // biểu ngữ quà
@@ -469,6 +596,19 @@ export function mount(el, { canvas, options = {} } = {}) {
     });
     else { card(90, 1700, 900, 120, 30, 'rgba(29,35,64,.8)', '#ffd23f', 4); text('Tặng quà gọi thảm hoạ · Bình luận để sửa nhà', W / 2, 1760, 32, '#fff', 800, 'center', 860); }
     // màn sập phố
+    if (s.phase === 'wiped' && s.winner === 'host') {
+      const t = clamp((now - anim.wipeAt) / 500, 0, 1);
+      g2.fillStyle = `rgba(10,40,30,${0.4 * t})`; g2.fillRect(0, 0, W, H);
+      g2.save(); g2.translate(W / 2, 780); g2.scale(0.6 + 0.4 * t, 0.6 + 0.4 * t);
+      card(-430, -230, 860, 460, 46, 'rgba(232,255,240,.97)', INK, 7);
+      out('STREAMER GIỮ ĐƯỢC PHỐ!', 0, -160, 70, '#2e7d32', { maxW: 800 });
+      text(`Phố #${s.townNo} còn đứng sau ${mmss(s.hostSeconds * 1000)} · đổ nát ${s.downPct}%`, 0, -70, 34, INK, 800, 'center', 780);
+      const st = s.hostStats || {};
+      text(`🔧 sửa ${st.fixes || 0} lần   🎯 bắn hạ ${st.shots || 0}   💨 đuổi ${st.chased || 0}`, 0, 0, 34, '#5d4037', 800, 'center', 780);
+      text(`Tỉ số: Streamer ${s.score.host} – ${s.score.viewers} Người xem`, 0, 70, 36, '#6a1b9a', 900);
+      text(`Phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)} giây…`, 0, 160, 30, '#7e57c2', 800);
+      g2.restore();
+    }
     if (s.phase === 'wiped' && s.wipedBy) {
       const t = clamp((now - anim.wipeAt) / 500, 0, 1);
       g2.fillStyle = `rgba(20,10,40,${0.45 * t})`; g2.fillRect(0, 0, W, H);
@@ -478,7 +618,7 @@ export function mount(el, { canvas, options = {} } = {}) {
       avatar(s.wipedBy, 0, -40, 54);
       text(s.wipedBy.name, 0, 50, 46, INK, 900, 'center', 760);
       text(`đánh sập phố #${s.townNo} sau ${mmss(s.elapsedMs)}`, 0, 110, 32, '#5d4037', 800);
-      text(`Phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)} giây…`, 0, 175, 30, '#7e57c2', 800);
+      text(s.mode === 'host' ? `Người xem thắng · tỉ số ${s.score.host} – ${s.score.viewers}  ·  phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)}s` : `Phố mới sau ${Math.ceil(Math.max(0, s.nextInMs - (now - recvAt)) / 1000)} giây…`, 0, 175, 30, '#7e57c2', 800, 'center', 800);
       g2.restore();
     }
     if (s.paused) { card(W / 2 - 220, 900, 440, 110, 30, 'rgba(29,35,64,.9)', '#fff', 4); text('⏸ Tạm dừng', W / 2, 955, 50, '#fff', 900); }
@@ -497,10 +637,9 @@ export function mount(el, { canvas, options = {} } = {}) {
       // camera: lắc lư nhẹ, rung khi nổ / động đất
       const quake = S.hazards.some((h) => h.kind === 'dongdat');
       anim.shake = Math.max(quake ? 0.18 : 0, anim.shake - dt * 0.8);
-      const sway = reduced ? 0 : Math.sin(now / 5200) * 0.1;
-      camera.position.set(Math.sin(sway) * CAM.r * Math.cos(CAM.el), Math.sin(CAM.el) * CAM.r, Math.cos(sway) * CAM.r * Math.cos(CAM.el));
-      camera.lookAt(CAM.look);
-      if (anim.shake > 0 && !reduced) { camera.position.x += (Math.random() - 0.5) * anim.shake; camera.position.y += (Math.random() - 0.5) * anim.shake; }
+      updateCamera(now, dt);
+      const sk = anim.shake * (closeUp() ? 0.45 : 1); // cận cảnh thì rung nhẹ hơn cho đỡ chóng mặt
+      if (sk > 0 && !reduced) { camera.position.x += (Math.random() - 0.5) * sk; camera.position.y += (Math.random() - 0.5) * sk; }
       // toà nhà
       const sinceTown = (now - anim.townAt) / 1000;
       for (const it of town.items.values()) {
@@ -635,7 +774,31 @@ export function mount(el, { canvas, options = {} } = {}) {
           sound.play('crash');
           break;
         }
-        case 'ph_fix': { const it = town?.items.get(fx.id); if (it) worker(it, who); sound.play('fix'); break; }
+        case 'ph_fix': {
+          const it = town?.items.get(fx.id);
+          if (it && fx.host) { spawnPuff(it.b.x, it.top * 0.7, it.b.z, 0x69f0ae, 2, 0.25, 1.2); if (now - (anim.fixFloat || 0) > 450) { anim.fixFloat = now; const p = toScreen(it.b.x, it.top, it.b.z); floaters.push({ text: '🔧 +', x: p.x, y: p.y - 20, at: now, size: 40, color: '#69f0ae' }); } }
+          else if (it) worker(it, who);
+          sound.play('fix');
+          break;
+        }
+        case 'ph_shot': {
+          const so = strikeObjs.get(fx.id);
+          const pos = so?.o?.position || new THREE.Vector3(fx.x, 3, fx.z);
+          spawnPuff(pos.x, pos.y, pos.z, 0xffcc80, 12, 0.6, 0.6); spawnDebris(pos.x, pos.y, pos.z, 0x5d4037, 8, 0.8);
+          if (so?.o && so.kind !== 'ufo') { scene.remove(so.o); strikeObjs.delete(fx.id); }
+          const p = toScreen(pos.x, pos.y, pos.z); floaters.push({ text: '🎯 BẮN HẠ!', x: p.x, y: p.y, at: now, size: 54, color: '#ffd23f' });
+          anim.flash = 0.25; anim.flashCol = '#fff8e1'; sound.play('zap');
+          if (cine.cur && Math.abs(cine.cur.x - fx.x) < 1.6 && Math.abs(cine.cur.z - fx.z) < 1.6) cine.cur.until = Math.min(cine.cur.until, now + 900);
+          break;
+        }
+        case 'ph_chase': {
+          const ho = hazardObjs.get(fx.id);
+          if (ho?.o) { spawnPuff(ho.o.position.x, 1, ho.o.position.z, 0xe0f7fa, 8, 0.5, 1); const p = toScreen(ho.o.position.x, 2.5, ho.o.position.z); floaters.push({ text: '💨 ĐUỔI!', x: p.x, y: p.y, at: now, size: 50, color: '#80deea' }); }
+          sound.play('whoosh');
+          break;
+        }
+        case 'ph_noenergy': if (now - (anim.noE || 0) > 800) { anim.noE = now; floaters.push({ text: 'Hết ⚡ — chờ hồi', x: W / 2, y: 1000, at: now, size: 46, color: '#ff8a80' }); sound.play('tick'); } break;
+        case 'ph_survive': anim.wipeAt = now; anim.flash = 0.5; anim.flashCol = '#b9f6ca'; sound.play('town'); break;
         case 'ph_hazard': if (fx.kind === 'dongdat') { anim.shake = 0.6; sound.play('quake'); } else sound.play('whoosh'); break;
         case 'ph_shield': sound.play('shield'); break;
         case 'ph_rebuild': floaters.push({ text: `👷 Xây lại ${fx.n} toà!`, x: W / 2, y: 1100, at: now, size: 62, color: '#69f0ae' }); sound.play('fix'); break;

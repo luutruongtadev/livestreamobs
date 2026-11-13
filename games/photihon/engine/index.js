@@ -9,6 +9,11 @@ import { pathAt, ISLAND, onIsland } from './path.js';
  * - Cây xăng sập thì nổ, phá nhà xung quanh: phá dây chuyền tính điểm ×2 cho người gây ra.
  * - Khiên che cả phố một lúc; thợ xây dựng lại mọi đống đổ nát.
  * Pha: play → wiped (vinh danh) → play (phố mới). Quà tặng lúc đang vinh danh để dành cho phố mới.
+ *
+ * Chế độ "host" (streamer tự chơi, cửa sổ ?play=1): streamer giữ phố trong hostSeconds giây — bấm toà để sửa,
+ * bấm thiên thạch / mây sét / UFO đang rơi để bắn hạ, bấm lốc / trâu để đuổi bớt (tốn năng lượng, tự hồi).
+ * Người xem tặng quà phá phố. Hết giờ phố còn đứng → streamer thắng; sập trước → người đánh sập thắng.
+ * Ông Trời thả thảm hoạ nhẹ định kỳ (ambientSeconds) để lúc vắng quà streamer vẫn có việc.
  */
 export function createGame(ctx) { return new PhoTiHon(ctx); }
 
@@ -35,6 +40,8 @@ const HZ = {
 const MAX_HAZ = 6;
 const pub = (u) => ({ id: String(u?.id ?? '?'), name: String(u?.name || 'Ẩn danh').slice(0, 40), avatar: u?.avatar || null });
 const NATURE = { id: 'npc:troi', name: 'Ông Trời', avatar: null, npc: true };
+const STREAMER = { id: 'host', name: 'Streamer', avatar: null, npc: true };
+const SHOOTABLE = new Set(['thienthach', 'set', 'ufo', 'mua', 'no']);
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class PhoTiHon extends Emitter {
@@ -51,12 +58,15 @@ export class PhoTiHon extends Emitter {
     this.likeAcc = 0;
     this.lastRepair = {};
     this.carry = []; // quà tặng lúc đang vinh danh → dùng cho phố mới
+    this.hostWins = 0;
+    this.viewerWins = 0;
     this.newTown();
   }
 
   rand(a, b) { return a + this.ctx.random() * (b - a); }
   pick(arr) { return arr[Math.floor(this.ctx.random() * arr.length) % arr.length]; }
   get k() { return this.s.disasterScale; }
+  get hostMode() { return this.s.mode === 'host'; }
 
   newTown() {
     this.townNo++;
@@ -71,7 +81,14 @@ export class PhoTiHon extends Emitter {
     this.dmgBy = {}; // phá trong phố này: id → { id, name, avatar, dmg, downs }
     this.fixBy = {}; // sửa trong phố này
     this.wipedBy = null;
+    this.winner = null; // 'host' | 'viewers' (chế độ host)
     this.seq = 0;
+    // chế độ host: giờ giữ phố, năng lượng, thống kê
+    this.hostEndsAt = this.hostMode ? t + this.s.hostSeconds * 1000 : 0;
+    this.energy = this.s.hostEnergy;
+    this.energyAt = t;
+    this.nextAmbientAt = t + this.s.ambientSeconds * 1000;
+    this.hostStats = { fixes: 0, shots: 0, chased: 0 };
     // lô đất: 4 cột (giữa là đường lớn) × 7 hàng, bỏ hàng ven sông, bỏ ngẫu nhiên vài lô cho công viên
     const b = [];
     let pagodas = 0;
@@ -145,6 +162,7 @@ export class PhoTiHon extends Emitter {
     this.endsAt = t + this.s.resultSeconds * 1000;
     this.wipedBy = by;
     this.wipeMs = ms;
+    if (this.hostMode) { this.winner = 'viewers'; this.viewerWins++; }
     this.hazards = []; this.strikes = [];
     if (!by.npc) {
       const r = (this.board[by.id] ||= { id: by.id, name: by.name, avatar: by.avatar, wipes: 0, dmg: 0 });
@@ -156,6 +174,63 @@ export class PhoTiHon extends Emitter {
     this.hall = this.hall.slice(0, 6);
     this.ctx.report?.round?.({ town: this.townNo, ms, by: by.npc ? null : by.name });
     return [{ type: 'ph_wipe', by, ms, town: this.townNo }];
+  }
+
+  /** Chế độ host: hết giờ mà phố còn đứng → streamer thắng. */
+  survive() {
+    const t = this.clock();
+    this.phase = 'wiped';
+    this.winner = 'host';
+    this.hostWins++;
+    this.wipedBy = null;
+    this.wipeMs = t - this.startedAt;
+    this.endsAt = t + this.s.resultSeconds * 1000;
+    this.hazards = []; this.strikes = [];
+    for (const d of Object.values(this.dmgBy)) { const r = (this.board[d.id] ||= { id: d.id, name: d.name, avatar: d.avatar, wipes: 0, dmg: 0 }); r.dmg += Math.round(d.dmg); }
+    this.ctx.report?.round?.({ town: this.townNo, ms: this.wipeMs, by: null, host: true });
+    return [{ type: 'ph_survive', town: this.townNo, downPct: Math.round(this.downPct() * 100), stats: { ...this.hostStats } }];
+  }
+
+  /** Năng lượng của streamer (tự hồi theo thời gian). */
+  regen(t) {
+    const every = this.s.energyRegenSeconds * 1000;
+    if (this.energy >= this.s.hostEnergy) { this.energyAt = t; return; }
+    const n = Math.floor((t - this.energyAt) / every);
+    if (n > 0) { this.energy = Math.min(this.s.hostEnergy, this.energy + n); this.energyAt += n * every; }
+  }
+
+  /** Đầu vào tại chỗ của streamer (cửa sổ chơi): bấm toà / điểm rơi / thảm hoạ. */
+  input(ev = {}) {
+    if (this.paused || !this.hostMode || !ev || typeof ev !== 'object' || this.phase !== 'play') return [];
+    const t = this.clock();
+    this.regen(t);
+    if (ev.type === 'fix') {
+      const b = this.buildings.find((x) => x.id === ev.id);
+      if (!b || !b.alive || b.hp >= b.max) return [];
+      if (t - (this.lastHostFix ?? -1e12) < 120) return []; // chống bấm máy
+      this.lastHostFix = t;
+      b.hp = r2(Math.min(b.max, b.hp + b.max * this.s.hostRepair / 100));
+      this.hostStats.fixes++;
+      return [{ type: 'ph_fix', id: b.id, x: b.x, z: b.z, by: STREAMER, host: true }];
+    }
+    if (this.energy < 1) return [{ type: 'ph_noenergy' }];
+    if (ev.type === 'shoot') {
+      const i = this.strikes.findIndex((x) => x.id === ev.id);
+      if (i < 0) return [];
+      const st = this.strikes[i];
+      if (!SHOOTABLE.has(st.kind) || st.at - t < 150) return []; // sắp chạm đất thì không kịp
+      this.strikes.splice(i, 1);
+      this.energy--; this.hostStats.shots++;
+      return [{ type: 'ph_shot', id: st.id, kind: st.kind, x: st.x, z: st.z, by: st.by }];
+    }
+    if (ev.type === 'chase') {
+      const h = this.hazards.find((x) => x.id === ev.id);
+      if (!h || h.endsAt - t < 300) return [];
+      h.endsAt = Math.max(t + 200, h.endsAt - this.s.chaseSeconds * 1000);
+      this.energy--; this.hostStats.chased++;
+      return [{ type: 'ph_chase', id: h.id, kind: h.kind, by: h.by }];
+    }
+    return [];
   }
 
   // ---------------- đầu vào ----------------
@@ -190,7 +265,10 @@ export class PhoTiHon extends Emitter {
   /** Thảm hoạ rơi xuống một điểm sau một nhịp. */
   drop(kind, by) {
     const t = this.clock();
-    const alive = this.alive();
+    // toà đã bị sét / UFO khác nhắm thì để dành cho quà sau (tặng liên tiếp không trùng mục tiêu)
+    const aimed = new Set(this.strikes.flatMap((x) => (x.kind === 'ufo' ? x.targets : x.kind === 'set' ? [x.target] : [])));
+    const all = this.alive();
+    const alive = kind === 'set' || kind === 'ufo' ? (all.filter((b) => !aimed.has(b.id)).length ? all.filter((b) => !aimed.has(b.id)) : all) : all;
     if (kind === 'set') {
       if (!alive.length) return [];
       const b = alive.reduce((a, c) => (c.h > a.h || (c.h === a.h && c.hp > a.hp) ? c : a));
@@ -275,6 +353,15 @@ export class PhoTiHon extends Emitter {
     const dt = Math.max(0, Math.min(2000, t - this.lastTickAt)) / 1000;
     this.lastTickAt = t;
     const k = this.k;
+    if (this.hostMode) {
+      if (!this.hostEndsAt) this.hostEndsAt = t + this.s.hostSeconds * 1000; // vừa đổi sang chế độ host giữa chừng
+      this.regen(t);
+      if (t >= this.hostEndsAt) return this.survive();
+      if (this.s.ambientSeconds > 0 && t >= this.nextAmbientAt) {
+        this.nextAmbientAt = t + this.s.ambientSeconds * 1000 * this.rand(0.7, 1.3);
+        fx.push(...this.drop(this.ctx.random() < 0.7 ? 'mua' : 'thienthach', NATURE));
+      }
+    }
     // điểm rơi tới giờ
     const due = this.strikes.filter((s) => s.at <= t);
     this.strikes = this.strikes.filter((s) => s.at > t);
@@ -308,6 +395,8 @@ export class PhoTiHon extends Emitter {
     for (const h of this.hazards) { h.startAt += d; h.endsAt += d; }
     for (const s of this.strikes) s.at += d;
     if (this.shieldUntil) this.shieldUntil += d;
+    if (this.hostEndsAt) this.hostEndsAt += d;
+    this.energyAt += d; this.nextAmbientAt += d;
   }
 
   snapshot() {
@@ -335,6 +424,16 @@ export class PhoTiHon extends Emitter {
       carry: this.carry.length,
       hall: this.hall.slice(0, 5),
       legends: Object.values(this.board).filter((r) => r.wipes > 0).sort((a, b) => b.wipes - a.wipes || b.dmg - a.dmg).slice(0, 5),
+      mode: this.hostMode ? 'host' : 'viewers',
+      winner: this.phase === 'wiped' ? this.winner : null,
+      hostLeftMs: this.hostMode && this.phase === 'play' ? Math.max(0, this.hostEndsAt - t) : 0,
+      hostSeconds: this.s.hostSeconds,
+      energy: this.hostMode ? this.energy : 0,
+      maxEnergy: this.s.hostEnergy,
+      energyInMs: this.hostMode && this.energy < this.s.hostEnergy ? Math.max(0, this.energyAt + this.s.energyRegenSeconds * 1000 - t) : 0,
+      hostStats: this.hostStats,
+      score: { host: this.hostWins, viewers: this.viewerWins },
+      cam: { zoom: this.s.cameraZoom !== false, hold: this.s.zoomSeconds },
       powerups: (this.ctx.bindings?.view?.() || []).map((b) => ({ action: b.action, icon: triggerIcon(b.trigger), text: triggerText(b.trigger), trigger: b.trigger })),
     };
   }
@@ -343,7 +442,9 @@ export class PhoTiHon extends Emitter {
     return {
       townNo: this.townNo, wipes: this.wipes, fastest: this.fastest, hall: this.hall, board: this.board, likeAcc: this.likeAcc, carry: this.carry,
       phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt, hazards: this.hazards, strikes: this.strikes,
-      shieldUntil: this.shieldUntil, dmgBy: this.dmgBy, fixBy: this.fixBy, wipedBy: this.wipedBy, wipeMs: this.wipeMs, seq: this.seq, buildings: this.buildings,
+      shieldUntil: this.shieldUntil, dmgBy: this.dmgBy,
+      winner: this.winner, hostWins: this.hostWins, viewerWins: this.viewerWins, hostEndsAt: this.hostEndsAt, energy: this.energy, energyAt: this.energyAt,
+      nextAmbientAt: this.nextAmbientAt, hostStats: this.hostStats, fixBy: this.fixBy, wipedBy: this.wipedBy, wipeMs: this.wipeMs, seq: this.seq, buildings: this.buildings,
     };
   }
 
@@ -355,6 +456,12 @@ export class PhoTiHon extends Emitter {
     for (const k of Object.keys(this.serialize())) if (k in copy) this[k] = copy[k];
     this.hazards = this.hazards.filter((h) => HZ[h?.kind] && Number.isFinite(h.endsAt));
     this.strikes = this.strikes.filter((x) => HZ[x?.kind] && Number.isFinite(x.at));
+    const t = this.clock();
+    if (!this.hostStats || typeof this.hostStats !== 'object') this.hostStats = { fixes: 0, shots: 0, chased: 0 };
+    if (!Number.isFinite(this.energy)) this.energy = this.s.hostEnergy;
+    if (!Number.isFinite(this.energyAt)) this.energyAt = t;
+    if (!Number.isFinite(this.nextAmbientAt)) this.nextAmbientAt = t + this.s.ambientSeconds * 1000;
+    if (!Number.isFinite(this.hostEndsAt)) this.hostEndsAt = 0;
   }
 
   destroy() { this.removeAllListeners(); }
