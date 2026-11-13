@@ -140,6 +140,58 @@
       "minimum": 0,
       "maximum": 120,
       "default": 10
+    },
+    "missions": {
+      "type": "boolean",
+      "title": "Nhiệm vụ cho người xem (đánh sập toà đánh dấu, phá n toà, làm nổ cây xăng…)",
+      "default": true
+    },
+    "missionSeconds": {
+      "type": "integer",
+      "title": "Mỗi nhiệm vụ có bao nhiêu giây",
+      "minimum": 15,
+      "maximum": 300,
+      "default": 60
+    },
+    "missionReward": {
+      "type": "integer",
+      "title": "Điểm thưởng khi hoàn thành nhiệm vụ",
+      "minimum": 0,
+      "maximum": 1000,
+      "default": 40
+    },
+    "missionPenaltySeconds": {
+      "type": "integer",
+      "title": "Chế độ streamer: người xem xong nhiệm vụ thì streamer phải giữ thêm bao nhiêu giây",
+      "minimum": 0,
+      "maximum": 120,
+      "default": 15
+    },
+    "eventEvery": {
+      "type": "integer",
+      "title": "Biến cố (bão, giờ vàng, cứu hộ, triều cường, Tết) mỗi khoảng bao nhiêu giây (0 = tắt)",
+      "minimum": 0,
+      "maximum": 600,
+      "default": 45
+    },
+    "luck": {
+      "type": "boolean",
+      "title": "May rủi: quà thảm hoạ có thể chí mạng ×2 hoặc xịt",
+      "default": true
+    },
+    "critChance": {
+      "type": "integer",
+      "title": "Tỉ lệ chí mạng (%)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 12
+    },
+    "missChance": {
+      "type": "integer",
+      "title": "Tỉ lệ xịt (%)",
+      "minimum": 0,
+      "maximum": 50,
+      "default": 6
     }
   }
 }

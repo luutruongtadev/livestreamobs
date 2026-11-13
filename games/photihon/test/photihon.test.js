@@ -9,7 +9,7 @@ const gift = (id, giftName) => ({ type: 'gift', user: u(id), giftName, diamonds:
 
 test('phá phố: sét toà cao nhất, bình luận sửa nhà (giãn cách), khiên chặn, thợ xây, lốc đi xuyên phố, phố sập → vinh danh → phố mới, quà để dành', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { wipePercent: 60, resultSeconds: 5, repairPerComment: 10, commentCooldown: 2, disasterScale: 0.5, slowmo: false }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
+  const host = createHost(game, { settings: { wipePercent: 60, resultSeconds: 5, repairPerComment: 10, commentCooldown: 2, disasterScale: 0.5, slowmo: false, luck: false, eventEvery: 0, missions: false }, data: game.data, now: clock.now, random: seededRandom(3), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
   const n = S().buildings.length;
@@ -62,7 +62,7 @@ test('phá phố: sét toà cao nhất, bình luận sửa nhà (giãn cách), k
 
 test('chế độ streamer: sửa nhà, bắn hạ, đuổi lốc tốn năng lượng (tự hồi), hết giờ phố còn đứng → streamer thắng; sập trước → người xem thắng; khôi phục', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 40, hostEnergy: 2, energyRegenSeconds: 5, ambientSeconds: 0, resultSeconds: 3, wipePercent: 60, slowmo: false }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
+  const host = createHost(game, { settings: { mode: 'host', hostSeconds: 40, hostEnergy: 2, energyRegenSeconds: 5, ambientSeconds: 0, resultSeconds: 3, wipePercent: 60, slowmo: false, luck: false, eventEvery: 0, missions: false }, data: game.data, now: clock.now, random: seededRandom(4), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...host.tick()); } return fx; };
   assert.equal(S().mode, 'host'); assert.equal(S().energy, 2); assert.ok(S().hostLeftMs > 39000);
@@ -117,7 +117,7 @@ test('chế độ streamer: sửa nhà, bắn hạ, đuổi lốc tốn năng l�
 
 test('Ông Trời thả thảm hoạ nhẹ định kỳ ở chế độ streamer, không zoom / không tính điểm', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { mode: 'host', ambientSeconds: 5 }, data: game.data, now: clock.now, random: seededRandom(2), log: {} });
+  const host = createHost(game, { settings: { mode: 'host', ambientSeconds: 5, luck: false, eventEvery: 0, missions: false }, data: game.data, now: clock.now, random: seededRandom(2), log: {} });
   for (let t = 0; t < 8000; t += 250) { clock.advance(250); host.tick(); }
   const s = host.snapshot();
   assert.ok(s.strikes.length + s.buildings.filter((b) => b.hp < 1).length > 0);
@@ -127,7 +127,7 @@ test('Ông Trời thả thảm hoạ nhẹ định kỳ ở chế độ streamer
 
 test('dừng thời gian: toà lớn sập → mọi đồng hồ đứng yên slowmoSeconds rồi chạy tiếp; có thời gian chờ; nhà nhỏ không dừng', () => {
   const clock = fakeClock();
-  const host = createHost(game, { settings: { slowmo: true, slowmoSeconds: 2, slowmoCooldown: 10, disasterScale: 3 }, data: game.data, now: clock.now, random: seededRandom(5), log: {} });
+  const host = createHost(game, { settings: { slowmo: true, slowmoSeconds: 2, slowmoCooldown: 10, disasterScale: 3, luck: false, eventEvery: 0, missions: false }, data: game.data, now: clock.now, random: seededRandom(5), log: {} });
   const S = () => host.snapshot();
   const step = (ms) => { for (let t = 0; t < ms; t += 100) { clock.advance(100); host.tick(); } };
   // bản đồ chữ nhật: mọi toà nằm trong đảo
@@ -136,7 +136,7 @@ test('dừng thời gian: toà lớn sập → mọi đồng hồ đứng yên s
   host.handle(gift('b', 'Finger Heart')); // sét đánh toà cao nhất (chung cư) → sập
   step(700);
   const sm = S().slowmo;
-  assert.ok(sm, 'đang chiếu chậm'); assert.equal(sm.kind, 'tower'); assert.equal(sm.by.id, 'b');
+  assert.ok(sm, 'đang chiếu chậm'); assert.ok(['tower', 'caoc'].includes(sm.kind)); assert.equal(sm.by.id, 'b');
   const lockDone = S().hazards[0].doneMs, el = S().elapsedMs;
   step(1500);
   assert.equal(S().hazards[0].doneMs, lockDone, 'lốc đứng yên'); assert.equal(S().elapsedMs, el, 'đồng hồ đứng yên');
@@ -155,4 +155,63 @@ test('dừng thời gian: toà lớn sập → mọi đồng hồ đứng yên s
     h2.restore(JSON.parse(JSON.stringify(host.serialize())));
     assert.ok(h2.snapshot().slowmo);
   }
+});
+
+test('bản đồ chia vùng: cao ốc ở thành phố, nhà cấp 4 + ruộng ở làng quê, cây xăng sát đường, bến tàu ngoài biển', () => {
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const host = createHost(game, { settings: {}, data: game.data, now: fakeClock().now, random: seededRandom(seed), log: {} });
+    const s = host.snapshot();
+    const of = (k) => s.buildings.filter((b) => b.kind === k);
+    assert.ok(of('tank').length >= 1 && of('tank').every((b) => Math.abs(b.x) < 2), 'cây xăng sát đường');
+    assert.ok(of('caoc').every((b) => b.z < 0) && of('tower').every((b) => b.z < 0), 'nhà cao tầng ở thành phố');
+    assert.ok(of('cap4').every((b) => b.z > 0) && of('pagoda').every((b) => b.z > 0), 'nhà cấp 4, đình ở làng quê');
+    assert.equal(of('ben').length, 2); assert.ok(of('ben').every((b) => b.x > 4));
+    assert.ok(s.fields.every((f) => f.z > 0));
+    assert.ok(s.buildings.every((b) => Math.abs(b.x) < 6.2 && Math.abs(b.z) < 8.6));
+  }
+});
+
+test('nhiệm vụ, biến cố, may rủi, hộp bí ẩn', () => {
+  const clock = fakeClock();
+  const mk = (extra) => createHost(game, { settings: { slowmo: false, eventEvery: 0, luck: false, missionSeconds: 30, missionReward: 40, ...extra }, data: game.data, now: clock.now, random: seededRandom(7), log: {} });
+  const step = (h, ms) => { const fx = []; for (let t = 0; t < ms; t += 250) { clock.advance(250); fx.push(...h.tick()); } return fx; };
+  // nhiệm vụ xuất hiện sau vài giây; hết giờ thì thất bại, ra nhiệm vụ mới
+  let host = mk();
+  assert.equal(host.snapshot().mission, null);
+  const f1 = step(host, 4500);
+  assert.ok(f1.some((e) => e.type === 'ph_mission_new'));
+  const m = host.snapshot().mission;
+  assert.ok(m.label && m.leftMs > 0);
+  const f2 = step(host, 31000);
+  assert.ok(f2.some((e) => e.type === 'ph_mission' && e.ok === false));
+  // hoàn thành nhiệm vụ "đánh sập toà đánh dấu" → thưởng điểm cho người đánh sập
+  let done = false;
+  for (let i = 0; i < 60 && !done; i++) {
+    const cur = host.snapshot().mission;
+    if (cur?.type === 'topple' || (cur?.type === 'count' && /Chung cư|Cao ốc|Đình|Bến/.test(cur.label))) {
+      for (let k = 0; k < 6; k++) host.handle(gift('z', 'Galaxy')); // UFO hút toà to nhất, gồm toà mục tiêu
+      const fx = step(host, 5000);
+      done = fx.some((e) => e.type === 'ph_mission' && e.ok && e.by.id === 'z');
+      if (done) assert.ok(host.snapshot().top.find((r) => r.id === 'z').dmg >= 60);
+      if (!done) step(host, 12000);
+    } else step(host, 6000);
+    if (host.snapshot().phase !== 'play') step(host, 9000);
+  }
+  assert.ok(done, 'hoàn thành được nhiệm vụ');
+  // biến cố: Tết hồi máu, Giờ vàng nhân đôi điểm
+  host = mk({ eventEvery: 10, missions: false });
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) for (const e of step(host, 2000)) if (e.type === 'ph_event') seen.add(e.id);
+  assert.ok(seen.size >= 3, `có nhiều loại biến cố (${[...seen]})`);
+  // may rủi: chí mạng và xịt đều xảy ra
+  host = mk({ luck: true, critChance: 30, missChance: 30, missions: false });
+  const lucks = new Set();
+  for (let i = 0; i < 30; i++) for (const e of host.handle(gift('l', 'Rose'))) if (e.type === 'ph_luck') lucks.add(e.luck);
+  assert.deepEqual([...lucks].sort(), ['crit', 'miss']);
+  assert.ok(host.snapshot().strikes.some((s) => s.x > 3.9), 'quả xịt rơi xuống biển');
+  // hộp bí ẩn: luôn ra một kết quả và chạy thảm hoạ đó
+  host = mk({ missions: false });
+  const results = new Set();
+  for (let i = 0; i < 60; i++) { const fx = host.handle(gift('m', 'Ice Cream Cone')); const r = fx.find((e) => e.type === 'ph_mystery'); if (r) results.add(r.result); step(host, 300); if (host.snapshot().phase !== 'play') step(host, 9000); }
+  assert.ok(results.size >= 5);
 });

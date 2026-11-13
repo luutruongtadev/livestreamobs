@@ -2,7 +2,7 @@
   "id": "photihon",
   "name": "Phố Tí Hon",
   "description": "Thị trấn tí hon 3D trên hòn đảo nổi. Quà gọi thảm hoạ: thiên thạch, sét, lốc xoáy, lũ, động đất, trâu khổng lồ, UFO. Phố kiểu Việt: nhà ống, tiệm tạp hoá, chung cư cũ, cây xăng, đình làng (mô hình 3D tạo bằng Meshy). Bình luận là dân phố chạy ra sửa nhà. Cây xăng nổ dây chuyền điểm ×2. Ai đánh sập phố thì vào Bảng Phá. Chế độ streamer: streamer bấm chuột sửa nhà, bắn hạ thiên thạch, đuổi lốc để giữ phố tới hết giờ.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "sdk": "^1.0.0",
   "status": "dev",
   "category": "casual",
@@ -21,7 +21,8 @@
     { "id": "dongdat", "label": "Động đất", "icon": "🫨", "defaultTriggers": [{ "type": "gift", "giftName": "Hand Hearts" }] },
     { "id": "thoxay", "label": "Thợ xây dựng lại cả phố", "icon": "👷", "defaultTriggers": [{ "type": "gift", "giftName": "Sunglasses" }] },
     { "id": "khunglong", "label": "Trâu khổng lồ húc phố", "icon": "🐃", "defaultTriggers": [{ "type": "gift", "giftName": "Corgi" }] },
-    { "id": "ufo", "label": "UFO hút 3 toà to nhất", "icon": "🛸", "defaultTriggers": [{ "type": "gift", "giftName": "Galaxy" }] }
+    { "id": "ufo", "label": "UFO hút 3 toà to nhất", "icon": "🛸", "defaultTriggers": [{ "type": "gift", "giftName": "Galaxy" }] },
+    { "id": "hopbi", "label": "Hộp bí ẩn: quay ra thảm hoạ ngẫu nhiên", "icon": "🎲", "defaultTriggers": [{ "type": "gift", "giftName": "Ice Cream Cone" }] }
   ],
   "commands": [
     { "id": "next", "label": "Phố mới" },
@@ -36,12 +37,16 @@
     { "id": "wipe", "label": "Phố sập", "fx": "ph_wipe" },
     { "id": "chain", "label": "Cây xăng nổ dây chuyền", "fx": "ph_impact", "where": { "kind": "no" } },
     { "id": "rebuild", "label": "Thợ xây dựng lại phố", "fx": "ph_rebuild" },
-    { "id": "survive", "label": "Streamer giữ được phố", "fx": "ph_survive" }
+    { "id": "survive", "label": "Streamer giữ được phố", "fx": "ph_survive" },
+    { "id": "mission", "label": "Hoàn thành nhiệm vụ", "fx": "ph_mission", "where": { "ok": true } },
+    { "id": "jackpot", "label": "Hộp bí ẩn trúng Mưa thiên thạch", "fx": "ph_mystery", "where": { "result": "muathienthach" } }
   ],
   "memes": [
     { "event": "wipe", "q": "city destroyed", "sound": { "mode": "lib", "id": "vineboom" }, "text": "SẬP PHỐ RỒI!!|Phố tan tành 🏚️|Ai làm vậy trời" },
     { "event": "chain", "q": "explosion", "sound": { "mode": "lib", "id": "vineboom" }, "text": "Nổ dây chuyền ×2 🔥|Cây xăng bay màu" },
     { "event": "rebuild", "q": "construction worker", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Thợ tới rồi 👷|Xây lại hết!" },
-    { "event": "survive", "q": "victory", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Streamer giữ được phố! 🏙️|Phố vẫn đứng 💪" }
+    { "event": "survive", "q": "victory", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Streamer giữ được phố! 🏙️|Phố vẫn đứng 💪" },
+    { "event": "mission", "q": "mission complete", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Nhiệm vụ xong! 🎯|Quá đỉnh" },
+    { "event": "jackpot", "q": "meteor shower", "sound": { "mode": "lib", "id": "vineboom" }, "text": "JACKPOT! ☄️☄️☄️|Mưa thiên thạch!!" }
   ]
 }
