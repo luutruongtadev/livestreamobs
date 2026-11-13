@@ -11,7 +11,7 @@ import { Gateway } from './gateway.js';
 import { storeFromEnv } from './store.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.woff2': 'font/woff2' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.woff2': 'font/woff2', '.glb': 'model/gltf-binary' };
 // phần của game được phục vụ cho trình duyệt — KHÔNG BAO GIỜ server/, test/, supabase/
 const GAME_PUBLIC = new Set(['manifest.json', 'settings.schema.json', 'README.md', 'engine', 'render', 'data', 'assets', 'i18n', 'demo']);
 
@@ -109,7 +109,7 @@ export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicCo
     fs.stat(file, (err, st) => {
       if (err || !st.isFile()) { res.writeHead(404, head); return res.end('Không tìm thấy'); }
       const ext = path.extname(file).toLowerCase();
-      const isData = /\/data\/|\\data\\/.test(file) || ['.png', '.jpg', '.webp', '.mp3', '.ogg', '.woff2'].includes(ext);
+      const isData = /\/data\/|\\data\\/.test(file) || ['.png', '.jpg', '.webp', '.mp3', '.ogg', '.woff2', '.glb'].includes(ext);
       res.writeHead(200, { ...head, 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Content-Length': st.size, 'Cache-Control': isData ? 'public, max-age=3600' : 'no-cache' });
       if (req.method === 'HEAD') return res.end();
       fs.createReadStream(file).pipe(res);

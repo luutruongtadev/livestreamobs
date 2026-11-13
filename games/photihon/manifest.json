@@ -1,0 +1,44 @@
+{
+  "id": "photihon",
+  "name": "Phố Tí Hon",
+  "description": "Thị trấn tí hon 3D trên hòn đảo nổi. Quà gọi thảm hoạ: thiên thạch, sét, lốc xoáy, lũ, động đất, trâu khổng lồ, UFO. Phố kiểu Việt: nhà ống, tiệm tạp hoá, chung cư cũ, cây xăng, đình làng (mô hình 3D tạo bằng Meshy). Bình luận là dân phố chạy ra sửa nhà. Cây xăng nổ dây chuyền điểm ×2. Ai đánh sập phố thì vào Bảng Phá.",
+  "version": "0.1.0",
+  "sdk": "^1.0.0",
+  "status": "dev",
+  "category": "casual",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment", "like"],
+  "restore": "full",
+  "server": false,
+  "actions": [
+    { "id": "thienthach", "label": "Thiên thạch", "icon": "☄️", "defaultTriggers": [{ "type": "gift", "giftName": "Rose" }] },
+    { "id": "set", "label": "Sét đánh toà cao nhất", "icon": "⚡", "defaultTriggers": [{ "type": "gift", "giftName": "Finger Heart" }] },
+    { "id": "lu", "label": "Lũ dâng hai bờ sông", "icon": "🌊", "defaultTriggers": [{ "type": "gift", "giftName": "Perfume" }] },
+    { "id": "loc", "label": "Lốc xoáy", "icon": "🌪️", "defaultTriggers": [{ "type": "gift", "giftName": "Doughnut" }] },
+    { "id": "khien", "label": "Khiên che cả phố", "icon": "🛡️", "defaultTriggers": [{ "type": "gift", "giftName": "Cap" }] },
+    { "id": "dongdat", "label": "Động đất", "icon": "🫨", "defaultTriggers": [{ "type": "gift", "giftName": "Hand Hearts" }] },
+    { "id": "thoxay", "label": "Thợ xây dựng lại cả phố", "icon": "👷", "defaultTriggers": [{ "type": "gift", "giftName": "Sunglasses" }] },
+    { "id": "khunglong", "label": "Trâu khổng lồ húc phố", "icon": "🐃", "defaultTriggers": [{ "type": "gift", "giftName": "Corgi" }] },
+    { "id": "ufo", "label": "UFO hút 3 toà to nhất", "icon": "🛸", "defaultTriggers": [{ "type": "gift", "giftName": "Galaxy" }] }
+  ],
+  "commands": [
+    { "id": "next", "label": "Phố mới" },
+    { "id": "wipe", "label": "Cho sập ngay" },
+    { "id": "clear-board", "label": "Xoá Bảng Phá" }
+  ],
+  "panels": [
+    { "id": "menu", "label": "Bảng quà", "icon": "🎁", "rect": { "x": 30, "y": 1560, "w": 1020, "h": 330 } },
+    { "id": "board", "label": "Phá nhiều nhất + Bảng Phá", "icon": "🏆", "rect": { "x": 24, "y": 250, "w": 330, "h": 470 } }
+  ],
+  "events": [
+    { "id": "wipe", "label": "Phố sập", "fx": "ph_wipe" },
+    { "id": "chain", "label": "Cây xăng nổ dây chuyền", "fx": "ph_impact", "where": { "kind": "no" } },
+    { "id": "rebuild", "label": "Thợ xây dựng lại phố", "fx": "ph_rebuild" }
+  ],
+  "memes": [
+    { "event": "wipe", "q": "city destroyed", "sound": { "mode": "lib", "id": "vineboom" }, "text": "SẬP PHỐ RỒI!!|Phố tan tành 🏚️|Ai làm vậy trời" },
+    { "event": "chain", "q": "explosion", "sound": { "mode": "lib", "id": "vineboom" }, "text": "Nổ dây chuyền ×2 🔥|Cây xăng bay màu" },
+    { "event": "rebuild", "q": "construction worker", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Thợ tới rồi 👷|Xây lại hết!" }
+  ]
+}
