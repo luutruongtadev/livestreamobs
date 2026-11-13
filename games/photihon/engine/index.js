@@ -85,6 +85,14 @@ export const COIN = { cap4: 5, house: 8, shop: 10, cho: 12, tank: 8, tower: 15, 
 const REBUILD_X = 6;
 const SITE = { x: -3.3, z: -5.0 }; // công trường Tháp Mơ Ước (chế độ host)
 const MAX_COINS = 8, COIN_MS = 7000;
+// đổi bố cục lô thì tăng số này: bản lưu từ bố cục cũ chỉ giữ bảng điểm, phố được dựng lại (tránh nhà cũ nằm giữa biển / sông mới)
+const LAYOUT_V = 2;
+/** Toà có nằm đúng chỗ trên bản đồ hiện tại không (không trên biển, sông, ngoài đảo). */
+export function placeOk(b) {
+  if (!b) return false;
+  if (b.kind === 'ben') return b.x > 3.6 && b.x < ISLAND.rx && Math.abs(b.z) < ISLAND.rz - 0.5;
+  return b.x > -ISLAND.rx + 0.5 && b.x < 2.4 && Math.abs(b.z) < ISLAND.rz - 0.5 && Math.abs(b.z - ISLAND.riverZ) > 1.6;
+}
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class PhoTiHon extends Emitter {
@@ -706,6 +714,7 @@ export class PhoTiHon extends Emitter {
 
   serialize() {
     return {
+      layoutV: LAYOUT_V,
       townNo: this.townNo, wipes: this.wipes, fastest: this.fastest, hall: this.hall, board: this.board, likeAcc: this.likeAcc, carry: this.carry,
       phase: this.phase, startedAt: this.startedAt, endsAt: this.endsAt, lastTickAt: this.lastTickAt, hazards: this.hazards, strikes: this.strikes,
       shieldUntil: this.shieldUntil, dmgBy: this.dmgBy,
@@ -720,6 +729,14 @@ export class PhoTiHon extends Emitter {
     if (!s.buildings.every((b) => b && KINDS[b.kind] && Number.isFinite(b.x) && Number.isFinite(b.z) && Number.isFinite(b.hp))) return;
     if (s.phase === 'wiped' && !Number.isFinite(s.endsAt)) return;
     const copy = JSON.parse(JSON.stringify(s));
+    if (copy.layoutV !== LAYOUT_V || !copy.buildings.every(placeOk)) {
+      // bản lưu từ bố cục cũ: chỉ giữ thành tích, dựng phố mới theo bố cục hiện tại
+      for (const k of ['wipes', 'fastest', 'hall', 'board', 'likeAcc', 'hostWins', 'viewerWins']) if (k in copy) this[k] = copy[k];
+      if (Number.isFinite(copy.townNo)) this.townNo = copy.townNo;
+      this.carry = [];
+      this.newTown();
+      return;
+    }
     for (const k of Object.keys(this.serialize())) if (k in copy) this[k] = copy[k];
     this.hazards = this.hazards.filter((h) => HZ[h?.kind] && Number.isFinite(h.endsAt));
     this.strikes = this.strikes.filter((x) => HZ[x?.kind] && Number.isFinite(x.at));

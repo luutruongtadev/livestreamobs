@@ -273,3 +273,31 @@ test('chế độ người xem: lì xì / mưa tiền thành sửa nhẹ cả ph
   assert.ok(host.snapshot().buildings.reduce((n, b) => n + b.hp, 0) > hp);
   assert.equal(host.snapshot().coins.length, 0); assert.equal(host.snapshot().site, null);
 });
+
+test('khôi phục bản lưu bố cục cũ (nhà ở chỗ nay là biển) → giữ bảng điểm, dựng phố mới đúng chỗ', () => {
+  const clock = fakeClock();
+  const host = createHost(game, { settings: {}, data: game.data, now: clock.now, random: seededRandom(2), log: {} });
+  const old = JSON.parse(JSON.stringify(host.serialize()));
+  delete old.layoutV;
+  old.townNo = 7; old.wipes = 3; old.board = { a: { id: 'a', name: 'A', avatar: null, wipes: 3, dmg: 500 } };
+  old.buildings = [{ id: 0, kind: 'house', x: 4.6, z: -6.6, rot: 0, h: 1, hp: 40, max: 40, alive: true, color: 0 }, { id: 1, kind: 'shop', x: 2.3, z: 0.4, rot: 0, h: 1, hp: 55, max: 55, alive: true, color: 1 }];
+  const h2 = createHost(game, { settings: {}, data: game.data, now: clock.now, random: seededRandom(9), log: {} });
+  h2.restore(old);
+  const s = h2.snapshot();
+  assert.ok(s.buildings.length > 10, 'phố mới');
+  assert.ok(s.buildings.every((b) => (b.kind === 'ben' ? b.x > 3.6 : b.x < 2.4 && Math.abs(b.z - 0.2) > 1.6)), 'không toà nào trên biển / sông');
+  assert.equal(s.wipes, 3); assert.equal(s.legends[0].id, 'a'); assert.equal(s.townNo, 8);
+  // bản lưu đúng bố cục hiện tại thì khôi phục y nguyên
+  const h3 = createHost(game, { settings: {}, data: game.data, now: clock.now, random: seededRandom(9), log: {} });
+  h3.restore(JSON.parse(JSON.stringify(host.serialize())));
+  assert.deepEqual(h3.snapshot().buildings, host.snapshot().buildings);
+});
+
+test('bố cục mới: mọi toà mọi seed đều nằm đúng chỗ (không trên biển / sông)', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    for (const mode of ['viewers', 'host']) {
+      const host = createHost(game, { settings: { mode }, data: game.data, now: fakeClock().now, random: seededRandom(seed), log: {} });
+      for (const b of host.snapshot().buildings) assert.ok(b.kind === 'ben' ? b.x > 3.6 : b.x < 2.4 && Math.abs(b.z - 0.2) > 1.6, `seed ${seed} ${b.kind} (${b.x}, ${b.z})`);
+    }
+  }
+});
