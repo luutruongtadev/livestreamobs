@@ -1,0 +1,46 @@
+{
+  "id": "donnha",
+  "name": "Rô-bốt Dọn Nhà",
+  "description": "Rô-bốt hút bụi tí hon dọn căn nhà Việt đón Tết: hút món nào nhỏ hơn mình thì to ra — tất, dép tổ ong, nồi cơm điện, ghế nhựa đỏ, sofa, tủ lạnh, xe máy, cây mai. Người xem bình luận trái / phải / lên / xuống để cùng lái, bình luận khác thả món đồ mang tên mình vào nhà; quà giúp (Turbo, Nam châm, Mẹ đi chợ về, Siêu hút) hoặc phá (Mèo nghịch, Hết pin, Đảo chiều, Chó làm đổ). Streamer tự lái bằng chuột / phím.",
+  "version": "0.1.0",
+  "sdk": "^1.0.0",
+  "status": "dev",
+  "category": "casual",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": { "width": 1080, "height": 1920 },
+  "inputs": ["comment", "like"],
+  "play": true,
+  "restore": "full",
+  "server": false,
+  "actions": [
+    { "id": "turbo", "label": "Turbo: chạy nhanh gấp đôi", "icon": "⚡", "defaultTriggers": [{ "type": "gift", "giftName": "Rose" }] },
+    { "id": "namcham", "label": "Nam châm: hút đồ từ xa", "icon": "🧲", "defaultTriggers": [{ "type": "gift", "giftName": "Finger Heart" }] },
+    { "id": "dicho", "label": "Mẹ đi chợ về: rơi 10 món quanh rô-bốt", "icon": "🛒", "defaultTriggers": [{ "type": "gift", "giftName": "Perfume" }] },
+    { "id": "phinhto", "label": "Phình to ngay +15%", "icon": "🎈", "defaultTriggers": [{ "type": "gift", "giftName": "Hand Hearts" }] },
+    { "id": "sieuhut", "label": "Siêu hút: hút được đồ to hơn", "icon": "🌀", "defaultTriggers": [{ "type": "gift", "giftName": "Galaxy" }] },
+    { "id": "meo", "label": "Mèo nghịch đuổi rô-bốt", "icon": "🐈", "defaultTriggers": [{ "type": "gift", "giftName": "Doughnut" }] },
+    { "id": "hetpin", "label": "Hết pin: chạy chậm", "icon": "🪫", "defaultTriggers": [{ "type": "gift", "giftName": "Cap" }] },
+    { "id": "daochieu", "label": "Đảo chiều điều khiển", "icon": "🔄", "defaultTriggers": [{ "type": "gift", "giftName": "Sunglasses" }] },
+    { "id": "bayra", "label": "Chó làm đổ: nhả ra 5 món", "icon": "🐕", "defaultTriggers": [{ "type": "gift", "giftName": "Corgi" }] }
+  ],
+  "commands": [
+    { "id": "next", "label": "Nhà mới" },
+    { "id": "end", "label": "Kết thúc ván" },
+    { "id": "clear-board", "label": "Xoá bảng" }
+  ],
+  "panels": [
+    { "id": "menu", "label": "Bảng quà", "icon": "🎁", "rect": { "x": 30, "y": 1560, "w": 1020, "h": 330 } },
+    { "id": "board", "label": "Ủng hộ + Phá bĩnh", "icon": "🏆", "rect": { "x": 24, "y": 300, "w": 300, "h": 420 } },
+    { "id": "pad", "label": "Bảng lái", "icon": "🕹️", "rect": { "x": 800, "y": 300, "w": 256, "h": 256 } }
+  ],
+  "events": [
+    { "id": "level", "label": "Rô-bốt lên cấp", "fx": "dn_level" },
+    { "id": "eatcat", "label": "Rô-bốt hút luôn con mèo", "fx": "dn_eatcat" },
+    { "id": "end", "label": "Hết ván", "fx": "dn_end" }
+  ],
+  "memes": [
+    { "event": "level", "q": "level up", "sound": { "mode": "lib", "id": "dramatic" }, "text": "LÊN CẤP! 🔼|To ra rồi!" },
+    { "event": "eatcat", "q": "vacuum cat", "sound": { "mode": "lib", "id": "vineboom" }, "text": "Hút luôn con mèo 🐈|Mèo bay màu" },
+    { "event": "end", "q": "clean house", "sound": { "mode": "lib", "id": "dramatic" }, "text": "Dọn xong! 🧹|Nhà sạch bong" }
+  ]
+}

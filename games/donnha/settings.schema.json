@@ -1,0 +1,124 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "title": "Ai lái rô-bốt",
+      "enum": [
+        "viewers",
+        "host"
+      ],
+      "enumNames": [
+        "Người xem bình luận trái / phải / lên / xuống (không ai lái thì tự đi)",
+        "Streamer lái bằng chuột / phím trong cửa sổ chơi"
+      ],
+      "default": "viewers"
+    },
+    "roundSeconds": {
+      "type": "integer",
+      "title": "Mỗi ván dọn nhà bao nhiêu giây",
+      "minimum": 30,
+      "maximum": 900,
+      "default": 150
+    },
+    "resultSeconds": {
+      "type": "integer",
+      "title": "Hiện kết quả bao nhiêu giây rồi sang nhà mới",
+      "minimum": 3,
+      "maximum": 60,
+      "default": 10
+    },
+    "speed": {
+      "type": "number",
+      "title": "Tốc độ rô-bốt",
+      "minimum": 0.5,
+      "maximum": 8,
+      "default": 1.8
+    },
+    "growth": {
+      "type": "number",
+      "title": "Hút xong to ra nhanh cỡ nào",
+      "minimum": 0.05,
+      "maximum": 2,
+      "default": 0.15
+    },
+    "steerSeconds": {
+      "type": "number",
+      "title": "Phiếu lái của người xem có hiệu lực bao nhiêu giây",
+      "minimum": 0.5,
+      "maximum": 10,
+      "default": 2.5
+    },
+    "autopilot": {
+      "type": "boolean",
+      "title": "Không ai lái thì rô-bốt tự đi hút đồ",
+      "default": true
+    },
+    "namedItems": {
+      "type": "boolean",
+      "title": "Bình luận thả món đồ mang tên người xem vào nhà",
+      "default": true
+    },
+    "maxNamed": {
+      "type": "integer",
+      "title": "Tối đa bao nhiêu món mang tên mỗi ván",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 40
+    },
+    "likesPerDust": {
+      "type": "integer",
+      "title": "Bao nhiêu tim thì rơi thêm bụi / kẹo quanh rô-bốt",
+      "minimum": 10,
+      "maximum": 5000,
+      "default": 150
+    },
+    "turboSeconds": {
+      "type": "integer",
+      "title": "Turbo kéo dài (giây)",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 6
+    },
+    "magnetSeconds": {
+      "type": "integer",
+      "title": "Nam châm kéo dài (giây)",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 8
+    },
+    "superSeconds": {
+      "type": "integer",
+      "title": "Siêu hút kéo dài (giây)",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 10
+    },
+    "catSeconds": {
+      "type": "integer",
+      "title": "Mèo nghịch đuổi bao nhiêu giây",
+      "minimum": 3,
+      "maximum": 60,
+      "default": 10
+    },
+    "slowSeconds": {
+      "type": "integer",
+      "title": "Hết pin (chậm) kéo dài (giây)",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 6
+    },
+    "reverseSeconds": {
+      "type": "integer",
+      "title": "Đảo chiều kéo dài (giây)",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 6
+    },
+    "showBoard": {
+      "type": "boolean",
+      "title": "Hiện bảng Ủng hộ + Phá bĩnh",
+      "default": true
+    }
+  }
+}
