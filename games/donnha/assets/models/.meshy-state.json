@@ -1,0 +1,25 @@
+{
+  "robot": {
+    "preview": "01a1d613-e5fc-77c5-9593-6ce877643998",
+    "refine": "01a1d614-d4da-76ae-a0f6-d14823b6ff7e"
+  },
+  "sofa": {
+    "preview": "01a1d613-e5f1-70be-99c8-d50f6fc2e3c4",
+    "refine": "01a1d614-6c6e-77c5-aba1-d90eb20af0d2"
+  },
+  "tulanh": {
+    "preview": "01a1d613-e61a-72bd-b315-5b7393aa6808",
+    "refine": "01a1d614-6c72-779f-b38f-9422402f9973"
+  },
+  "xemay": {
+    "preview": "01a1d613-e61c-7015-b1de-adde34db5920",
+    "refine": "01a1d614-e742-70ae-ac25-320102f15377"
+  },
+  "caymai": {
+    "preview": "01a1d613-e65a-7228-b663-544ff2a4c62b",
+    "refine": "01a1d614-ebda-70dc-bd57-429926a06fd0"
+  },
+  "giuong": {
+    "preview": "01a1d615-463b-70ba-aa7c-797030cdc259"
+  }
+}

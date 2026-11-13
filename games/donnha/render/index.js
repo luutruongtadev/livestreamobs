@@ -1,7 +1,9 @@
 // Renderer 3D của Rô-bốt Dọn Nhà (khung dọc 1080×1920): three.js vẽ căn nhà + rô-bốt vào canvas WebGL ẩn rồi chép sang canvas 2D,
-// HUD (bảng lái, bảng quà, cấp, % sạch) vẽ 2D đè lên. Mọi mô hình dựng bằng code (khối, trụ, flat shading).
+// HUD (bảng lái, bảng quà, cấp, % sạch) vẽ 2D đè lên. Mô hình tạo bằng Meshy (assets/models/*.glb, xem MODEL_FILES) nạp nền;
+// món nào chưa có file / tải lỗi thì dùng mô hình dựng bằng code (khối, trụ, flat shading).
 // Cửa sổ chơi (mount nhận input) ở chế độ streamer: bấm / giữ chuột chỗ muốn tới, hoặc WASD / mũi tên. Không đụng DOM khi import.
 import * as THREE from './vendor/three.module.min.js';
+import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { drawPanel } from '#sdk';
 import { HOUSE, ZONES, KINDS } from '../engine/index.js';
 
@@ -16,6 +18,13 @@ const ACT = {
 const DIR_NAME = { l: 'trái', r: 'phải', u: 'lên', d: 'xuống' };
 const PALETTE = [0xe53935, 0x1e88e5, 0xfdd835, 0x43a047, 0x8e24aa, 0xfb8c00];
 const SORTED = Object.entries(KINDS).sort((a, b) => a[1].s - b[1].s);
+// Mô hình Meshy: loại đồ → file; fit = bề rộng chân đế so với đường kính 2·s của món (robot / mèo theo đơn vị riêng); rot = xoay thêm
+const MODEL_FILES = {
+  robot: { file: 'robot.glb', foot: 2.05 }, meo: { file: 'meo.glb', foot: 1.45 },
+  sofa: { file: 'sofa.glb', fit: 1 }, tulanh: { file: 'tulanh.glb', fit: 0.95 }, xemay: { file: 'xemay.glb', fit: 1 }, caymai: { file: 'caymai.glb', fit: 1 },
+  giuong: { file: 'giuong.glb', fit: 1 }, bantra: { file: 'bantra.glb', fit: 1 }, ghenhua: { file: 'ghenhua.glb', fit: 0.95 }, noicom: { file: 'noicom.glb', fit: 0.95 },
+  banhchung: { file: 'banhchung.glb', fit: 0.95 }, chauquat: { file: 'chauquat.glb', fit: 1 }, tivi: { file: 'tivi.glb', fit: 1 }, dep: { file: 'dep.glb', fit: 1 },
+};
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -101,6 +110,8 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
 
   // ---- đồ trong nhà: mỗi loại dựng bằng vài khối, cỡ theo bán kính s ----
   function build(kind, s, color) {
+    const M = MODELS[kind];
+    if (M) { const g = new THREE.Group(); const o = M.tpl.clone(true); o.scale.multiplyScalar(2 * s * (MODEL_FILES[kind].fit || 1)); g.add(o); g.userData.model = true; return g; }
     const g = new THREE.Group();
     const c = PALETTE[color % PALETTE.length];
     const add = (o) => (g.add(o), o);
@@ -141,6 +152,30 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     }
     g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     return g;
+  }
+
+  // ---- mô hình Meshy (nạp nền; xong thì thay vật đang hiện) ----
+  const MODELS = {};
+  if (renderer && typeof document !== 'undefined') {
+    const loader = new GLTFLoader();
+    for (const [kind, m] of Object.entries(MODEL_FILES)) {
+      Promise.resolve(options.models?.[m.file] || new URL(`../assets/models/${m.file}`, import.meta.url).href).then((url) => loader.load(url, (gltf) => {
+        if (stopped) return;
+        const raw = gltf.scene;
+        const bb = new THREE.Box3().setFromObject(raw), size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+        raw.position.set(-c.x, -bb.min.y, -c.z);
+        if (m.rot) raw.rotation.y = m.rot;
+        raw.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material) { o.material.metalness = 0; o.material.roughness = 0.85; } } });
+        const tpl = new THREE.Group(); tpl.add(raw); tpl.scale.setScalar(1 / Math.max(size.x, size.z, 0.001)); // bề rộng chân đế = 1
+        MODELS[kind] = { tpl };
+        onModel(kind);
+      }, undefined, () => {})).catch(() => {}); // không tải được: giữ mô hình dựng bằng code
+    }
+  }
+  function onModel(kind) {
+    if (kind === 'robot') { body.children.forEach((o) => { if (o !== brush) o.visible = false; }); brush.visible = false; const o = MODELS.robot.tpl.clone(true); o.scale.multiplyScalar(MODEL_FILES.robot.foot); body.add(o); return; }
+    if (kind === 'meo') { cat.children.forEach((o) => { o.visible = false; }); const o = MODELS.meo.tpl.clone(true); o.scale.multiplyScalar(MODEL_FILES.meo.foot); cat.add(o); return; }
+    for (const e of itemObjs.values()) if (e.it.kind === kind && !e.o.userData.model) { const n = build(kind, e.it.s, e.it.color); n.position.copy(e.o.position); n.rotation.y = e.it.rot; scene.remove(e.o); scene.add(n); e.o = n; }
   }
 
   // ---- rô-bốt hút bụi có đôi mắt ----
