@@ -36,7 +36,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
   let LAYOUT = {};
   const panel = (id, def, fn) => drawPanel(g2, LAYOUT, id, def, fn);
   const banners = [], feed = [], floaters = [];
-  const anim = { shake: 0, flash: 0, flashCol: '#fff', endAt: -1e9, levelAt: -1e9 };
+  const anim = { shake: 0, flash: 0, flashCol: '#fff', endAt: -1e9, levelAt: -1e9, likeFullAt: -1e9 };
   if (typeof document !== 'undefined' && !document.getElementById('dd-font')) {
     const l = document.createElement('link'); l.id = 'dd-font'; l.rel = 'stylesheet';
     l.href = 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap'; document.head.append(l);
@@ -277,6 +277,18 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     text(`Hút được tới: ${can ? can[1].name : '—'}`, 810, 236, 22, '#fff', 800, 'right', 260);
     rr(270, 256, 540, 14, 7); g2.fillStyle = 'rgba(255,255,255,.2)'; g2.fill();
     rr(270, 256, Math.max(14, 540 * k), 14, 7); g2.fillStyle = '#ffd23f'; g2.fill();
+    // thanh tim: đủ tim thì rơi thêm bụi / kẹo quanh rô-bốt
+    if (s.phase === 'play' && s.likes?.every) panel('likes', { x: 24, y: 212 }, () => {
+      const lk = clamp(s.likes.n / s.likes.every, 0, 1), hot = lk >= 0.8;
+      const pulse = hot && !reduced ? 1 + Math.sin(now / 110) * 0.04 : 1, fl = clamp((anim.likeFullAt + 900 - now) / 900, 0, 1);
+      g2.save(); g2.translate(132, 247); g2.scale(pulse, pulse);
+      card(-112, -35, 224, 70, 30, fl ? `rgba(255,${205 + 50 * (1 - fl)},${230 + 25 * (1 - fl)},.95)` : 'rgba(255,255,255,.92)', '#e91e63', 4);
+      text(`❤️ ${s.likes.n}/${s.likes.every}`, 0, -11, 28, '#c2185b', 900, 'center', 200);
+      rr(-94, 10, 188, 14, 7); g2.fillStyle = 'rgba(233,30,99,.18)'; g2.fill();
+      rr(-94, 10, Math.max(14, 188 * lk), 14, 7); g2.fillStyle = hot ? '#ff1744' : '#f06292'; g2.fill();
+      g2.restore();
+      chip(hot ? 'Sắp đầy! Thả tim tiếp 🔥' : 'Thả tim → rơi bụi kẹo', 132, 302, 18, 'rgba(194,24,91,.9)', '#fff', 230);
+    });
     // bảng lái
     if (s.phase === 'play') panel('pad', { x: 800, y: 300 }, () => {
       const cx = 928, cy = 428;
@@ -289,10 +301,10 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
     });
     if (s.mode === 'viewers' && s.phase === 'play') chip('Bình luận: trái · phải · lên · xuống', 900, 584, 19, 'rgba(29,35,64,.88)', '#fff', 340);
     // bảng ủng hộ / phá bĩnh
-    if (s.showBoard !== false && (s.helpers.length || s.pranks.length)) panel('board', { x: 24, y: 300 }, () => {
+    if (s.showBoard !== false && (s.helpers.length || s.pranks.length)) panel('board', { x: 24, y: 340 }, () => {
       const h = 40 + (s.helpers.length ? 40 + s.helpers.length * 40 : 0) + (s.pranks.length ? 40 + s.pranks.length * 40 : 0);
-      card(24, 300, 300, h, 24, 'rgba(255,255,255,.9)', INK, 4);
-      let y = 330;
+      card(24, 340, 300, h, 24, 'rgba(255,255,255,.9)', INK, 4);
+      let y = 370;
       if (s.helpers.length) { text('💚 Ủng hộ rô-bốt', 174, y, 24, '#2e7d32', 900); y += 40; for (const r of s.helpers) { text(r.name, 44, y, 22, INK, 800, 'left', 200); text(`×${r.n}`, 306, y, 22, '#2e7d32', 900, 'right'); y += 40; } }
       if (s.pranks.length) { text('😈 Phá bĩnh', 174, y, 24, '#c62828', 900); y += 40; for (const r of s.pranks) { text(r.name, 44, y, 22, INK, 800, 'left', 200); text(`×${r.n}`, 306, y, 22, '#c62828', 900, 'right'); y += 40; } }
     });
@@ -471,6 +483,7 @@ export function mount(el, { canvas, options = {}, input = null } = {}) {
         }
         case 'dn_drop': push(feed, { text: `🏷️ ${who} thả ${KINDS[fx.kind]?.name.toLowerCase() || 'món đồ'} vào nhà`, until: now + 3000, bg: 'rgba(0,121,107,.88)' }, 3); sound.play('pop'); break;
         case 'dn_spawn': sound.play('pop'); break;
+        case 'dn_likefull': anim.likeFullAt = now; floaters.push({ text: fx.n > 1 ? `❤️ Đủ tim! Mưa bụi ×${fx.n}` : '❤️ Đủ tim! Mưa bụi kẹo', x: W / 2, y: 1000, at: now, size: 50, color: '#ff80ab' }); break;
         case 'dn_level': banner({ kind: 'level', icon: '🔼', title: `LÊN CẤP ${fx.level + 1}!`, who: fx.name, color: '#6a1b9a', bg: 'rgba(243,229,245,.97)' }); anim.flash = 0.35; anim.flashCol = '#fff59d'; sound.play('level'); break;
         case 'dn_grow': sound.play('level'); break;
         case 'dn_spit': floaters.push({ text: fx.why === 'meo' ? '🐈 Bị mèo vồ! Nhả đồ…' : '🐕 Chó làm đổ hết!', x: W / 2, y: 1050, at: now, size: 52, color: '#ff8a80' }); anim.shake = 0.6; sound.play('boo'); break;

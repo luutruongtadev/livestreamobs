@@ -183,7 +183,7 @@ export class DonNha extends Emitter {
       if (n <= 0 || this.phase !== 'play') return [];
       const fx = [];
       for (let i = 0; i < n; i++) fx.push(...this.spawnAround(['bui', 'keo', 'giay'], 4, 2.5, null));
-      return fx;
+      return [{ type: 'dn_likefull', n }, ...fx];
     }
     return [];
   }
@@ -459,6 +459,7 @@ export class DonNha extends Emitter {
       eatenCount: this.items.length - this.items.filter((o) => o.alive).length,
       itemCount: this.items.length,
       cleanPct: this.cleanPct(),
+      likes: { n: this.likeAcc % this.s.likesPerDust, every: this.s.likesPerDust },
       level: { i: lv, name: LEVELS[lv][1], from: LEVELS[lv][0], next: LEVELS[lv + 1]?.[0] ?? null, nextName: LEVELS[lv + 1]?.[1] ?? null },
       buffs: { turbo: left('turbo'), namcham: left('namcham'), sieuhut: left('sieuhut'), hetpin: left('hetpin'), daochieu: left('daochieu'), choang: left('choang') },
       cat: this.cat ? { x: this.cat.x, z: this.cat.z, s: this.cat.s, leftMs: this.cat.until - t, by: this.cat.by } : null,

@@ -30,7 +30,8 @@
   ],
   "panels": [
     { "id": "menu", "label": "Bảng quà", "icon": "🎁", "rect": { "x": 30, "y": 1560, "w": 1020, "h": 330 } },
-    { "id": "board", "label": "Ủng hộ + Phá bĩnh", "icon": "🏆", "rect": { "x": 24, "y": 300, "w": 300, "h": 420 } },
+    { "id": "board", "label": "Ủng hộ + Phá bĩnh", "icon": "🏆", "rect": { "x": 24, "y": 340, "w": 300, "h": 420 } },
+    { "id": "likes", "label": "Thanh tim", "icon": "❤️", "rect": { "x": 24, "y": 212, "w": 224, "h": 112 } },
     { "id": "pad", "label": "Bảng lái", "icon": "🕹️", "rect": { "x": 800, "y": 300, "w": 256, "h": 256 } }
   ],
   "events": [
