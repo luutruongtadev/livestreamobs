@@ -1,12 +1,21 @@
 // Phố Mới — dựng cảnh three.js: địa hình có độ cao, nước, đường theo graph (thẳng / cong, nút giao),
 // nhà, cây, xe chạy theo làn, dây điện / ống nước, lớp phủ quy hoạch.
 import * as THREE from '../vendor/three.module.min.js';
-import { N, T, HALF, SERVICES, ROADS, ZDEF, garbageLimit, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
+import { GLTFLoader } from '../vendor/GLTFLoader.js';
+import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
+import { N, T, HALF, SERVICES, ROADS, ZDEF, garbageLimit, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
 import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const WATER_Y = -0.9;
-const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520;
+const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520, MAX_ANIMALS = 16, DOG_COUNT = 10;
+// Mô hình người / vật tạo bằng Meshy (assets/models/*.glb): tải lỗi hoặc chưa tải xong thì giữ người hộp dựng bằng code.
+const PED_MODELS = [
+  { file: 'ped_man.glb', foot: 0.42 },
+  { file: 'ped_woman.glb', foot: 0.4 },
+  { file: 'ped_elder.glb', foot: 0.42 },
+];
+const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 const ZCOL = ZDEF.map((z) => z.rgb);
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
@@ -152,6 +161,10 @@ export class View {
     this.motoMesh = this._inst(motoGeometry(), vehMat, MAX_MOTO, true);
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
+    this.pedVariants = []; // người dựng từ mô hình Meshy, nạp xong thì thế dần người hộp
+    this.animalMesh = null; // chó thả rông, nạp xong mới có
+    this.animals = [];
+    this._loadCrowdModels();
     this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 1.5, 0.9), new THREE.MeshBasicMaterial(), 800);
     this.lampMesh.count = 0; this.lampMesh.frustumCulled = false; s.add(this.lampMesh);
     this.flameMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 4.5, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1e, transparent: true, opacity: 0.9 }), 300);
@@ -207,6 +220,84 @@ export class View {
     m.userData.cap = cap;
     this.scene.add(m);
     return m;
+  }
+
+  /** Gộp mọi mesh trong cảnh GLTF thành một BufferGeometry, dời tâm về gốc, đáy ở y=0, scale theo bề rộng chân đế mong muốn. */
+  _normalizeGltf(gltf, foot, tint) {
+    gltf.scene.updateMatrixWorld(true);
+    const parts = [];
+    let mat = null;
+    gltf.scene.traverse((o) => { if (o.isMesh && o.geometry) { const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld); parts.push(g); if (!mat && o.material) mat = o.material; } });
+    if (!parts.length) throw new Error('mô hình không có mesh');
+    const geo = parts.length > 1 ? mergeGeometries(parts, false) : parts[0];
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox, size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+    const k = foot / Math.max(size.x, size.z, 0.001);
+    geo.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-c.x, -bb.min.y, -c.z)));
+    geo.computeVertexNormals(); geo.computeBoundingSphere();
+    mat = mat ? mat.clone() : new THREE.MeshStandardMaterial();
+    mat.metalness = 0; mat.roughness = 0.85;
+    if (tint) mat.color.set(tint);
+    return { geo, mat };
+  }
+
+  /** Nạp người / vật tạo bằng Meshy (assets/models/*.glb); mỗi món tải xong thì tự thêm vào, tải lỗi thì bỏ qua (người hộp / không có vật vẫn ổn). */
+  _loadCrowdModels() {
+    const loader = new GLTFLoader();
+    const load = (file) => new Promise((resolve, reject) => loader.load(new URL(`../assets/models/${file}`, import.meta.url).href, resolve, undefined, reject));
+    for (const pm of PED_MODELS) {
+      load(pm.file).then((gltf) => {
+        const { geo, mat } = this._normalizeGltf(gltf, pm.foot);
+        this.pedVariants.push(this._inst(geo, mat, MAX_PEDS, true));
+      }).catch(() => {});
+    }
+    load(ANIMAL_DOG.file).then((gltf) => {
+      const { geo, mat } = this._normalizeGltf(gltf, ANIMAL_DOG.foot, ANIMAL_DOG.tint);
+      this.animalMesh = this._inst(geo, mat, MAX_ANIMALS, true);
+    }).catch(() => {});
+  }
+
+  /** Chọn lại vài chục chỗ lang thang (công viên, quảng trường, lề đường trống) khi sang thành phố khác. */
+  _ensureAnimals() {
+    const c = this.city;
+    if (this._animalCity === c) return;
+    this._animalCity = c;
+    const spots = [];
+    for (const s of c.services) {
+      const def = SERVICES[s.type];
+      if ((s.type === 'park' || s.type === 'plaza') && s.cell >= 0) { const wx = (s.x + def.size / 2) * T - HALF, wz = (s.y + def.size / 2) * T - HALF; for (let k = 0; k < 3; k++) spots.push(wx, wz); }
+    }
+    for (let i = 0; i < N * N; i++) if (c.acc[i] === 2 && !c.level[i] && !c.road[i] && !c.water[i] && Math.random() < 0.02) spots.push(cellX(i), cellZ(i));
+    this._animalSpots = spots;
+    this.animals = [];
+    const total = spots.length / 2;
+    if (!total) return;
+    for (let k = 0; k < DOG_COUNT; k++) {
+      const si = ((Math.random() * total) | 0) * 2, x = spots[si], z = spots[si + 1];
+      this.animals.push({ x, z, tx: x, tz: z, yaw: 0 });
+    }
+  }
+
+  /** Vẽ chó thả rông: lang thang chậm rãi quanh vài điểm quen (không thuộc mô phỏng kinh tế, chỉ trang trí). */
+  _animals(simDt) {
+    if (!this.animalMesh) return;
+    this._ensureAnimals();
+    const sp = this._animalSpots, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3();
+    let n = 0;
+    for (const a of this.animals) {
+      const dx = a.tx - a.x, dz = a.tz - a.z, d2 = dx * dx + dz * dz;
+      if (d2 < 0.3) {
+        if (sp && sp.length >= 2) { const si = ((Math.random() * (sp.length / 2)) | 0) * 2; a.tx = sp[si] + (Math.random() - 0.5) * 6; a.tz = sp[si + 1] + (Math.random() - 0.5) * 6; }
+      } else {
+        const v = Math.sqrt(d2), speed = 1.1;
+        a.x += (dx / v) * speed * simDt; a.z += (dz / v) * speed * simDt; a.yaw = Math.atan2(dx, dz);
+      }
+      if (n >= MAX_ANIMALS) break;
+      const bob = 1 + Math.sin(this.time * 8 + n) * 0.06;
+      p.set(a.x, this.roadY(a.x, a.z) + 0.05, a.z); q.setFromAxisAngle(up, a.yaw); s.set(1, bob, 1); m.compose(p, q, s);
+      this.animalMesh.setMatrixAt(n++, m);
+    }
+    this.animalMesh.count = n; this.animalMesh.instanceMatrix.needsUpdate = true;
   }
 
   setCity(city) {
@@ -713,9 +804,9 @@ export class View {
         this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(line.hue, 0.75, 0.52));
       }
     }
-    // người đi bộ trên vỉa hè
+    // người đi bộ trên vỉa hè: có mô hình Meshy thì luân phiên theo id (ổn định qua từng khung hình), chưa có thì người hộp dựng bằng code
+    const pv = this.pedVariants, nv = pv.length, nvC = nv ? new Array(nv).fill(0) : null;
     for (const w of c.traffic.peds) {
-      if (np >= MAX_PEDS) break;
       const st = w.steps[w.pi], e = st.e, pt = pointAt(e.pts, e.cum, st.fwd ? Math.min(w.s, e.len) : Math.max(0, e.len - w.s));
       const sg = st.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, off = w.side * (ROADS[e.type].w / 2 - 0.9);
       const gx = pt[0] - pt[3] * off, gz = pt[1] + pt[2] * off;
@@ -723,10 +814,14 @@ export class View {
       w.rx += (gx - w.rx) * ease; w.rz += (gz - w.rz) * ease;
       const bob = 1 + Math.sin(this.time * 14 + w.hue * 40) * 0.05;
       p.set(w.rx, this.roadY(w.rx, w.rz) + 0.1, w.rz); q.setFromAxisAngle(up, Math.atan2(tx, tz)); m.compose(p, q, s.set(1.25, 1.25 * bob, 1.25));
-      this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55));
+      if (nv) {
+        const vi = ((w.cb.id * 2654435761) >>> 0) % nv, ni = nvC[vi]++;
+        if (ni < MAX_PEDS) pv[vi].setMatrixAt(ni, m);
+      } else if (np < MAX_PEDS) { this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55)); }
     }
     s.set(1, 1, 1);
     for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu], [this.motoMesh, nm], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };
     let nl = 0;
@@ -873,6 +968,7 @@ export class View {
     if (d.zones) { this._zones(); d.zones = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
     this._vehicles(dt);
+    this._animals(simDt);
     this._flames();
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
