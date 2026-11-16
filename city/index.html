@@ -105,10 +105,11 @@
   <div class="panel stat"><small>Dân số</small><b id="pop">0</b><span class="sub" id="jobs" style="color:var(--dim)"></span></div>
   <div class="panel stat"><small>Ngân sách</small><b id="money">0</b><span class="sub" id="net"></span></div>
   <div class="panel stat"><small>Hài lòng</small><b id="happy">–</b><span class="sub" id="date" style="color:var(--dim)"></span></div>
-  <div class="panel" id="demand" title="Nhu cầu: dân cư / thương mại / công nghiệp">
+  <div class="panel" id="demand" title="Nhu cầu: nhà ở / thương mại / công nghiệp / văn phòng">
     <div class="col"><div class="bar"><i id="dr" style="background:#46c85a"></i></div>Dân</div>
     <div class="col"><div class="bar"><i id="dc" style="background:#468cec"></i></div>TM</div>
     <div class="col"><div class="bar"><i id="di" style="background:#f0be32"></i></div>CN</div>
+    <div class="col"><div class="bar"><i id="do" style="background:#9a6be0"></i></div>VP</div>
   </div>
   <div class="spacer"></div>
   <div class="panel btns" id="speed">
@@ -119,7 +120,8 @@
   </div>
   <div class="panel btns">
     <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
-    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giá đất / ô nhiễm / dịch vụ / điện / nước">🗺️</button>
+    <button id="bCity" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe">👥</button>
+    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giao thông / giá đất / ô nhiễm khí, đất, ồn, nước / rác / dịch vụ / điện / nước">🗺️</button>
     <button id="bSave" title="Lưu và tải">💾</button>
     <button id="bHelp" title="Hướng dẫn">❓</button>
   </div>
@@ -129,17 +131,19 @@
 <div id="toasts"></div>
 
 <div class="panel side" id="budget">
-  <h3>Ngân sách tháng <button data-close>✕</button></h3>
+  <h3>Ngân sách mỗi ngày <button data-close>✕</button></h3>
   <div class="row"><span>🏠 Thuế dân cư</span><b id="taxRv"></b></div><input type="range" id="taxR" min="1" max="20" step="1" aria-label="Thuế dân cư">
   <div class="row"><span>🏬 Thuế thương mại</span><b id="taxCv"></b></div><input type="range" id="taxC" min="1" max="20" step="1" aria-label="Thuế thương mại">
   <div class="row"><span>🏭 Thuế công nghiệp</span><b id="taxIv"></b></div><input type="range" id="taxI" min="1" max="20" step="1" aria-label="Thuế công nghiệp">
-  <div class="row"><span>Thu thuế</span><span id="bInc" class="pos"></span></div>
+  <div class="row"><span>Tổng thu 24 giờ qua</span><span id="bInc" class="pos"></span></div>
+  <div class="row"><span>Trong đó tiền vé</span><span id="bFare" class="pos"></span></div>
   <div class="row"><span>Đường sá</span><span id="eRoad"></span></div>
   <div class="row"><span>Điện</span><span id="ePower"></span></div>
   <div class="row"><span>Nước và thoát nước</span><span id="eWater"></span></div>
   <div class="row"><span>Rác</span><span id="eTrash"></span></div>
   <div class="row"><span>Công viên</span><span id="ePark"></span></div>
   <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
+  <div class="row"><span>Xe buýt, metro</span><span id="eTransit"></span></div>
   <div class="row"><span>Trả nợ</span><span id="eLoan"></span></div>
   <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
   <h4>Vay nợ</h4>
@@ -149,7 +153,15 @@
   <div class="row"><span>💧 Nước sạch</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
   <div class="row"><span>🕳️ Thoát nước</span><span id="sTxt"></span></div><div class="meter"><i id="sBar"></i></div>
   <div class="row"><span>🗑️ Rác</span><span id="tTxt"></span></div><div class="meter"><i id="tBar"></i></div>
-  <div class="row"><span>Việc làm / lao động</span><span id="jTxt"></span></div>
+</div>
+
+<div class="panel side" id="people">
+  <h3>Dân cư và kinh tế <button data-close>✕</button></h3>
+  <div id="pBody"></div>
+  <h4>Giao thông công cộng</h4>
+  <div class="row"><span>Giá vé</span><b id="fareV"></b></div>
+  <input type="range" id="fare" min="0" max="8" step="1" aria-label="Giá vé">
+  <div id="pLines"></div>
 </div>
 
 <div class="panel side" id="saves">
@@ -177,13 +189,14 @@
 <div class="modal" id="modal">
   <div class="panel">
     <h2>Chào thị trưởng của <em>Phố Mới</em></h2>
-    <div>Một vùng đất trống cạnh sông đang chờ bạn. Năm bước để có những cư dân đầu tiên:</div>
+    <div>Một vùng đất trống cạnh sông đang chờ bạn. Các bước để có những cư dân đầu tiên:</div>
     <ol>
       <li><b>🛣️ Đường</b>: bấm điểm đầu rồi điểm cuối (hoặc kéo chuột), bắt đầu từ đoạn đường có sẵn. Đổi sang <b>Cong</b> để bấm thêm điểm uốn. Đường cắt nhau tự thành nút giao.</li>
       <li><b>🎨 Quy hoạch</b>: hai bên đường tự có 2 hàng ô đất; tô khu 🏠 dân cư, 🏬 thương mại, 🏭 công nghiệp lên đó.</li>
       <li><b>⚡ Điện</b>: đặt tua-bin gió gần đường (trong 2 ô) hoặc kéo dây điện từ nó tới đường. Điện chạy dọc theo đường.</li>
       <li><b>💧 Nước</b>: tháp nước cấp nước sạch, cống xả thải (đặt sát bờ nước) nhận nước thải. Ở xa đường thì nối bằng ống nước.</li>
-      <li>Bấm ▶ rồi chờ nhà mọc. Thêm bãi rác, công viên, trường, y tế, cứu hoả để nhà lên cấp và dân vui hơn.</li>
+      <li>Bấm ▶: người dân dọn tới, đi làm, đi chợ bằng xe thật trên đường. Thêm 🏬 cửa hàng, 🏭 công nghiệp để có việc; hàng hoá do xe tải chở giữa nhà máy, cửa hàng và đường cao tốc.</li>
+      <li>Về sau: bãi rác, y tế, cứu hoả (xe phải chạy tới nơi), trường học để có lao động trình độ, xe buýt / metro khi kẹt xe. Xem 👥 để biết thành phố đang thiếu gì.</li>
     </ol>
     <div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to ·

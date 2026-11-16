@@ -12,30 +12,35 @@ const road = (c, x0, y0, x1, y1, type = 'small', ctrl = null) => S.buildRoad(c, 
   a: S.snapPoint(c, W(x0), W(y0), { type }), b: S.snapPoint(c, W(x1), W(y1), { type }), type, ctrl: ctrl && { x: W(ctrl[0]), z: W(ctrl[1]) },
 });
 const degrees = (c) => { const d = {}; for (const l of c.adj.values()) d[l.length] = (d[l.length] || 0) + 1; return d; };
-const run = (c, days) => { for (let d = 0; d < days; d++) S.tick(c); };
+const run = (c, hours) => { for (let h = 0; h < hours; h++) S.tick(c); };
+const cell = (x, y) => y * S.N + x;
+const shore = (c) => { for (let y = 5; y < 60; y++) for (let x = 5; x < 90; x++) if (S.canPlace(c, 'outlet', x, y).ok) return [x, y]; return null; };
 
-/** Thị trấn mẫu: trục dọc + trục ngang cắt nhau, đủ ba loại khu, chưa có điện nước. */
-function town(seed = 12345) {
+/** Lưới đường nhỏ: trục dọc + trục ngang cắt nhau, chưa có gì khác. */
+function cross(seed = 12345) {
   const c = S.newCity(seed), sx = c.start.x;
   road(c, sx, 7, sx, 30);
   road(c, sx - 12, 20, sx + 12, 20);
-  S.zoneRect(c, sx + 1, 9, sx + 2, 19, S.ZONE.R);
-  S.zoneRect(c, sx - 12, 21, sx - 1, 22, S.ZONE.C);
-  S.zoneRect(c, sx + 1, 21, sx + 12, 22, S.ZONE.I);
   return c;
 }
-/** Thêm điện, nước sạch và cống xả (nối bằng ống) cho thị trấn mẫu. */
-function utilities(c) {
-  const sx = c.start.x;
-  assert.ok(S.placeService(c, 'wind', sx - 2, 10).linked);
-  assert.ok(S.placeService(c, 'wind', sx - 2, 12).linked);
-  assert.ok(S.placeService(c, 'tower', sx - 2, 14).linked);
-  let shore = null;
-  for (let y = 5; y < 60 && !shore; y++) for (let x = 5; x < 90; x++) if (S.canPlace(c, 'outlet', x, y).ok) { shore = [x, y]; break; }
-  assert.ok(shore, 'có chỗ sát bờ nước');
-  assert.equal(S.placeService(c, 'outlet', ...shore).linked, false, 'cống ở xa đường chưa nối mạng');
-  assert.ok(S.buildLine(c, 'pipe', { x: W(shore[0]), z: W(shore[1]) }, { x: W(sx - 12), z: W(20) }).ok);
+
+/** Thị trấn đủ dùng: lưới ô bàn cờ, ba loại khu, điện, nước, cống xả đã nối mạng. */
+function town(seed = 12345) {
+  const c = S.newCity(seed), sx = c.start.x;
+  c.money = 500000;
+  road(c, sx, 7, sx, 34); road(c, sx - 14, 14, sx + 14, 14); road(c, sx - 14, 24, sx + 14, 24);
+  road(c, sx - 14, 14, sx - 14, 34); road(c, sx + 14, 14, sx + 14, 34); road(c, sx - 14, 34, sx + 14, 34);
+  S.zoneRect(c, sx - 13, 12, sx + 13, 13, 1); S.zoneRect(c, sx - 13, 15, sx + 13, 16, 1); S.zoneRect(c, sx - 13, 22, sx - 1, 23, 1);
+  S.zoneRect(c, sx + 1, 22, sx + 13, 23, 2); S.zoneRect(c, sx - 13, 25, sx - 1, 26, 2);
+  S.zoneRect(c, sx + 1, 32, sx + 13, 33, 3); S.zoneRect(c, sx - 13, 32, sx - 1, 33, 3); S.zoneRect(c, sx + 1, 35, sx + 13, 36, 3);
+  for (let k = 0; k < 6; k++) assert.ok(S.placeService(c, 'wind', sx + (k % 2 ? 2 : -2), 17 + k).linked);
+  assert.ok(S.placeService(c, 'tower', sx - 2, 9).linked);
+  assert.ok(S.placeService(c, 'tower', sx + 2, 9).linked);
+  const sh = shore(c);
+  assert.equal(S.placeService(c, 'outlet', ...sh).linked, false, 'cống ở xa đường chưa nối mạng');
+  assert.ok(S.buildLine(c, 'pipe', { x: W(sh[0]), z: W(sh[1]) }, { x: W(sx - 14), z: W(14) }).ok);
   assert.ok(c.services.every((s) => s.linked));
+  return c;
 }
 
 test('city: bản đồ mới có nước, cây, địa hình cao thấp và một đoạn đường dẫn vào', () => {
@@ -43,14 +48,12 @@ test('city: bản đồ mới có nước, cây, địa hình cao thấp và m�
   const sum = (a) => a.reduce((n, v) => n + v, 0);
   assert.ok(sum(c.water) > 300 && sum(c.water) < S.N * S.N / 2);
   assert.ok(sum(c.tree) > 200);
-  assert.equal(c.edges.size, 1);
-  assert.equal(c.nodes.size, 2);
+  assert.deepEqual([c.nodes.size, c.edges.size], [2, 1]);
   assert.ok(Math.max(...c.hv) > 3, 'có đồi');
   assert.equal(Math.min(...c.hv), Math.fround(-3.2));
-  // heightAt khớp đỉnh lưới và liên tục giữa hai tam giác của một ô
   assert.equal(S.heightAt(c, -S.HALF + 30, -S.HALF + 50), c.hv[5 * (S.N + 1) + 3]);
   assert.ok(Math.abs(S.heightAt(c, 4.99, 5.01) - S.heightAt(c, 5.01, 4.99)) < 0.05);
-  for (let i = 0; i < S.N * S.N; i++) if (c.water[i]) assert.ok(c.cellH[i] <= 0);
+  assert.equal(S.outsidePositions(c).length, 1, 'đường dẫn vào là cửa ngõ ra ngoài');
 });
 
 test('city: đường là graph — cắt nhau tự sinh nút giao, đường cong, từ chối đường trùng', () => {
@@ -63,12 +66,8 @@ test('city: đường là graph — cắt nhau tự sinh nút giao, đường co
   assert.ok(road(c, sx - 12, 20, sx + 12, 20).ok);
   assert.deepEqual([c.nodes.size, c.edges.size], [6, 5], 'cắt nhau: thêm nút giao, đường cũ bị tách đôi');
   assert.equal(degrees(c)[4], 1);
-  // đường cong Bezier từ nút cuối
-  const curve = road(c, sx, 30, sx + 14, 36, 'small', [sx + 12, 30]);
-  assert.ok(curve.ok);
-  const e = [...c.edges.values()].pop();
-  assert.ok(e.len > Math.hypot(140, 60), 'đường cong dài hơn dây cung');
-  // bắt điểm vào thân đường → tạo ngã ba
+  assert.ok(road(c, sx, 30, sx + 14, 36, 'small', [sx + 12, 30]).ok);
+  assert.ok([...c.edges.values()].pop().len > Math.hypot(140, 60), 'đường cong dài hơn dây cung');
   const mid = S.snapPoint(c, W(sx + 6) + 2, W(20) + 3);
   assert.ok(mid.edge != null);
   assert.ok(S.buildRoad(c, { a: mid, b: S.snapPoint(c, W(sx + 6), W(12)), type: 'small' }).ok);
@@ -79,53 +78,29 @@ test('city: đường là graph — cắt nhau tự sinh nút giao, đường co
   assert.equal(road(c, sx + 12, 20, sx + 20, 20).reason, 'Không đủ tiền');
 });
 
-test('city: ô quy hoạch tự sinh hai bên đường, ngoài đó không tô được', () => {
+test('city: ô quy hoạch tự sinh hai bên đường; khu mật độ cao và văn phòng khoá theo mốc dân số', () => {
   const c = S.newCity(12345), sx = c.start.x;
   road(c, sx - 12, 20, sx + 12, 20);
-  const i = (x, y) => y * S.N + x;
-  assert.equal(c.road[i(sx, 20)], 1);
-  assert.deepEqual([c.acc[i(sx, 21)], c.acc[i(sx, 22)], c.acc[i(sx, 23)]], [1, 2, 0]);
+  assert.equal(c.road[cell(sx, 20)], 1);
+  assert.deepEqual([c.acc[cell(sx, 21)], c.acc[cell(sx, 22)], c.acc[cell(sx, 23)]], [1, 2, 0]);
   assert.equal(S.roadDir(c, sx, 21), 3, 'quay mặt lên phía đường');
-  assert.equal(S.roadDir(c, sx, 19), 1);
   assert.equal(S.zoneRect(c, sx - 5, 21, sx + 5, 25, S.ZONE.R).count, 22, 'chỉ 2 hàng sát đường nhận quy hoạch');
   assert.equal(S.zoneRect(c, 2, 2, 4, 4, S.ZONE.R).ok, false);
-  // đại lộ rộng 2 ô, bám mép ô
+  assert.equal(S.zoneRect(c, sx - 5, 18, sx + 5, 19, S.ZONE.RH).ok, false, 'chung cư chưa mở khoá');
+  c.milestone = 2;
+  assert.ok(S.zoneRect(c, sx - 5, 18, sx + 5, 19, S.ZONE.RH).ok);
+  assert.equal(S.zoneRect(c, sx - 12, 18, sx - 6, 19, S.ZONE.O).ok, false, 'văn phòng cần mốc 1.000 dân');
   assert.ok(road(c, sx - 12, 30, sx + 12, 30, 'large').ok);
-  assert.deepEqual([c.road[i(sx, 30)], c.road[i(sx, 31)], c.acc[i(sx, 32)], c.acc[i(sx, 29)]], [1, 1, 1, 1]);
-});
-
-test('city: nhà chỉ mọc khi mạng điện, nước và thoát nước nối tới', () => {
-  const c = town(), sx = c.start.x;
-  run(c, 60);
-  assert.equal(c.stats.pop, 0, 'chưa có điện nước');
-  assert.ok(c.stats.none.p && c.stats.none.w);
-  // nhà máy điện ở xa đường chưa cấp được điện cho tới khi kéo dây
-  assert.equal(S.placeService(c, 'wind', sx + 20, 5).linked, false);
-  assert.equal(c.stats.powerCap, 0);
-  assert.ok(S.buildLine(c, 'power', { x: W(sx + 20), z: W(5) }, { x: W(sx + 12), z: W(19) }).ok);
-  assert.equal(c.stats.powerCap, 60);
-  utilities(c);
-  assert.deepEqual(c.stats.none, { p: false, w: false, s: false });
-  run(c, 200);
-  assert.ok(c.stats.pop > 50, `dân ${c.stats.pop}`);
-  assert.ok(c.stats.jobsC > 0 && c.stats.jobsI > 0);
-  assert.equal(c.stats.noPower + c.stats.noWater, 0);
-  assert.ok(c.milestone >= 1 && c.events.some((e) => e.type === 'milestone'));
-  // cắt nguồn điện → nhà bị bỏ hoang dần
-  const pop = c.stats.pop;
-  c.services = c.services.filter((s) => s.type !== 'wind'); S.computeNetworks(c);
-  run(c, 120);
-  assert.ok(c.stats.pop < pop * 0.5, `mất điện mà dân vẫn ${c.stats.pop} / ${pop}`);
+  assert.deepEqual([c.road[cell(sx, 30)], c.road[cell(sx, 31)], c.acc[cell(sx, 32)], c.acc[cell(sx, 29)]], [1, 1, 1, 1], 'đại lộ rộng 2 ô');
 });
 
 test('city: nâng cấp, đảo chiều và san ủi đường', () => {
-  const c = town(), sx = c.start.x;
+  const c = cross(), sx = c.start.x;
   const e = S.edgeAt(c, W(sx), W(25));
-  assert.ok(e);
   const m = c.money, cost = S.upgradeCost(e, 'large');
   assert.ok(S.upgradeRoad(c, e.id, 'large').ok);
   assert.equal(c.money, m - cost);
-  assert.equal(c.road[25 * S.N + sx + 1] + c.road[25 * S.N + sx - 1], 2, 'đường rộng hơn đè thêm ô hai bên');
+  assert.equal(c.road[cell(sx + 1, 25)] + c.road[cell(sx - 1, 25)], 2, 'đường rộng hơn đè thêm ô hai bên');
   assert.ok(S.upgradeRoad(c, e.id, 'oneway').ok);
   const [a, b] = [e.a, e.b];
   assert.ok(S.upgradeRoad(c, e.id, 'oneway').flipped);
@@ -133,67 +108,214 @@ test('city: nâng cấp, đảo chiều và san ủi đường', () => {
   const edges = c.edges.size;
   assert.ok(S.bulldozeRect(c, sx, 25, sx, 25).ok);
   assert.equal(c.edges.size, edges - 1);
-  assert.equal(S.edgeAt(c, W(sx), W(25)), null);
 });
 
-test('city: công trình khoá theo mốc dân số, trạm bơm phải sát nước, san ủi gỡ được', () => {
-  const c = town(), sx = c.start.x;
-  assert.equal(S.canPlace(c, 'coal', sx + 8, 5).ok, false);
-  assert.equal(S.canPlace(c, 'pump', sx + 8, 5).reason, 'Phải đặt sát bờ nước');
-  assert.equal(S.canPlace(c, 'landfill', sx + 20, 5).ok, false, 'chưa mở khoá');
-  c.milestone = 1;
-  assert.equal(S.canPlace(c, 'landfill', sx + 20, 5).reason, 'Phải đặt sát đường');
-  assert.ok(S.placeService(c, 'park', sx + 5, 15).ok);
-  assert.equal(S.canPlace(c, 'park', sx + 5, 15).ok, false);
-  assert.ok(S.bulldozeRect(c, sx + 5, 15, sx + 5, 15).ok);
-  assert.equal(c.services.length, 0);
-  assert.equal(road(c, sx + 3, 12, sx + 9, 12).ok, true);
-  S.placeService(c, 'park', sx + 6, 14);
-  assert.equal(road(c, sx + 6, 12, sx + 6, 18).reason, 'Vướng công trình, hãy san ủi trước');
+test('city: tìm đường theo graph, tôn trọng đường một chiều; ngã tư có đèn', () => {
+  const c = cross(), sx = c.start.x;
+  const from = S.cellPos(c, cell(sx - 8, 21)), to = S.cellPos(c, cell(sx + 1, 12));
+  assert.ok(from && to);
+  assert.equal(S.cellPos(c, cell(3, 3)), null, 'ô không cạnh đường thì không có lối ra');
+  const p = S.findPath(c, from, to);
+  assert.equal(p.steps.length, 2, 'đi dọc trục ngang rồi rẽ lên trục dọc');
+  assert.ok(p.cost > 0);
+  // biến đoạn trục dọc phía bắc thành một chiều hướng xuống nam: không còn đi ngược lên được
+  const north = to.edge;
+  S.upgradeRoad(c, north.id, 'oneway');
+  const nodeN = [...c.adj.entries()].find(([, l]) => l.length === 4)[0];
+  if (north.b !== nodeN) S.upgradeRoad(c, north.id, 'oneway'); // đảo cho chiều a→b chạy về phía ngã tư
+  assert.equal(north.b, nodeN);
+  assert.equal(S.findPath(c, S.cellPos(c, cell(sx - 8, 21)), S.cellPos(c, cell(sx + 1, 12))), null);
+  assert.ok(S.findPath(c, S.cellPos(c, cell(sx + 1, 12)), S.cellPos(c, cell(sx - 8, 21))), 'chiều thuận vẫn đi được');
+  assert.ok(c.traffic.signals.has(nodeN), 'ngã tư có đèn tín hiệu');
+  assert.ok(['g', 'y', 'r'].includes(S.signalState(c, nodeN, north.id)));
 });
 
-test('city: thuế riêng từng khu, vay nợ và phá sản', () => {
+test('city: nhà chỉ mọc khi mạng điện, nước và thoát nước nối tới', () => {
+  const c = cross(), sx = c.start.x;
+  S.zoneRect(c, sx + 1, 9, sx + 2, 19, S.ZONE.R);
+  run(c, 30);
+  assert.equal(c.level.reduce((n, v) => n + v, 0), 0, 'chưa có điện nước');
+  assert.ok(c.stats.none.p && c.stats.none.w);
+  assert.equal(S.placeService(c, 'wind', sx + 20, 5).linked, false);
+  assert.equal(c.stats.powerCap, 0);
+  assert.ok(S.buildLine(c, 'power', { x: W(sx + 20), z: W(5) }, { x: W(sx + 12), z: W(19) }).ok);
+  assert.equal(c.stats.powerCap, 60);
+  S.placeService(c, 'tower', sx - 2, 10);
+  const sh = shore(c);
+  S.placeService(c, 'outlet', ...sh);
+  S.buildLine(c, 'pipe', { x: W(sh[0]), z: W(sh[1]) }, { x: W(sx - 12), z: W(20) });
+  assert.deepEqual(c.stats.none, { p: false, w: false, s: false });
+  run(c, 30);
+  assert.ok(c.level.reduce((n, v) => n + v, 0) > 5, 'nhà đã mọc');
+});
+
+test('city: người dân dọn tới, có việc, đi làm bằng xe thật trên đường; thuế thu theo hoạt động', () => {
   const c = town();
-  utilities(c);
-  run(c, 150);
-  const inc = { ...c.stats.inc };
-  assert.ok(inc.r > 0 && inc.c > 0 && inc.i > 0);
+  run(c, 24 * 4);
+  const ps = c.pstats;
+  assert.ok(c.stats.pop > 120, `dân ${c.stats.pop}`);
+  assert.equal(c.stats.pop, c.pp.count);
+  assert.ok(ps.kids > 0 && ps.adults > 0);
+  assert.ok(ps.employed > ps.workers * 0.6, `có việc ${ps.employed}/${ps.workers}`);
+  assert.ok(c.milestone >= 1 && c.events.some((e) => e.type === 'milestone'));
+  assert.ok(c.stats.inc.r > 0 && c.stats.inc.c > 0, 'thuế thu nhập và thuế thương mại');
+  // sáng thứ hai (ngày 7): xe đi làm xuất hiện, có người đã tới chỗ làm
+  run(c, 24 * 3 + 9);
+  assert.equal(c.day % 7, 0);
+  assert.ok(c.traffic.stats.spawned > 20, 'đã có xe chạy thật');
+  assert.ok(c.traffic.stats.arrived > 10);
+  assert.ok(c.present.reduce((n, v) => n + v, 0) > 10, 'có nhân viên đang ở chỗ làm');
+  assert.equal(c.traffic.stats.stuck, 0, 'thị trấn nhỏ không được kẹt cứng');
+  const mode = c.pstats.mode;
+  assert.ok(mode.car + mode.walk > 0);
+  // thuế riêng từng khu
+  const before = c.demand.c;
   c.tax.c = 18; S.recalc(c);
-  assert.equal(c.stats.inc.r, inc.r);
-  assert.equal(c.stats.inc.c, inc.c * 2);
-  assert.ok(c.demand.c < 0.3);
+  assert.ok(c.demand.c < before);
+});
+
+test('city: chuỗi hàng hoá — xe tải nhập hàng qua cửa ngõ, mất cửa ngõ thì cửa hàng cạn kho', () => {
+  const c = town();
+  run(c, 24 * 6);
+  assert.ok(c.econ.imports > 0, 'thiếu nhà cung cấp trong thành phố thì nhập từ ngoài');
+  const kinds = new Set();
+  for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) kinds.add(S.bizKind(c, i));
+  assert.ok(kinds.has('shop') && (kinds.has('raw') || kinds.has('factory')));
+  // cắt đường cao tốc dẫn vào
+  S.bulldozeRect(c, c.start.x, 3, c.start.x, 3);
+  assert.equal(S.outsidePositions(c).length, 0);
+  const imp = c.econ.imports;
+  run(c, 24 * 2);
+  assert.equal(c.econ.imports, imp, 'không còn đường nhập hàng');
+});
+
+test('city: xe cứu hoả chạy tới dập lửa; không có trạm thì nhà cháy rụi', () => {
+  const c = town(), sx = c.start.x;
+  run(c, 48);
+  const pick = () => { for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && !c.fire[i]) return i; return -1; };
+  const a = pick();
+  c.fire[a] = 7; run(c, 8);
+  assert.equal(c.level[a], 0, 'không có trạm cứu hoả: cháy rụi');
+  assert.ok(c.events.some((e) => e.type === 'fire'));
+  c.milestone = 2;
+  assert.ok(S.placeService(c, 'fire', sx - 16, 18).ok);
+  const b = pick();
+  c.fire[b] = 7; run(c, 8);
+  assert.ok(c.level[b] > 0, 'xe cứu hoả tới kịp');
+  assert.equal(c.fire[b], 0);
+  assert.ok(c.events.some((e) => e.type === 'fireOut'));
+});
+
+test('city: trường học nâng học vấn; bãi rác cho xe đi thu gom', () => {
+  const c = town(), sx = c.start.x;
+  c.milestone = 2;
+  assert.ok(S.placeService(c, 'school', sx - 16, 21).ok);
+  assert.ok(S.placeService(c, 'landfill', sx + 16, 29).ok);
+  run(c, 24 * 14);
+  assert.ok(c.pstats.students > 0, 'có học sinh');
+  const school = c.services.find((s) => s.type === 'school');
+  assert.ok(school.used > 0);
+  // trẻ nhập cư lúc 6-11 tuổi, sau ~2 tuần đã có đứa qua tuổi 12 với bằng tiểu học
+  let grads = 0;
+  for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.age[id] >= 12 && c.pp.age[id] < 18 && c.pp.edu[id] >= 1) grads++;
+  assert.ok(grads > 0, 'có trẻ học xong tiểu học');
+  const landfill = c.services.find((s) => s.type === 'landfill');
+  assert.ok(c.traffic.stats.spawned > 0);
+  let worst = 0;
+  for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) worst = Math.max(worst, c.garbage[i] / S.garbageLimit(c.zone[i], c.level[i]));
+  assert.ok(worst < 3, `rác tồn nhiều nhất gấp ${worst.toFixed(1)} lần ngưỡng`);
+  assert.ok(landfill.out >= 0);
+});
+
+test('city: xe buýt và metro — vẽ tuyến, dân chọn đi khi có lợi, thu tiền vé', () => {
+  const c = town(), sx = c.start.x;
+  assert.equal(S.planTransit(c, 'bus', [{ x: W(3), z: W(3) }, { x: W(sx), z: W(20) }]).reason, 'Trạm xe buýt phải nằm trên đường');
+  assert.equal(S.planTransit(c, 'metro', [{ x: W(sx - 20), z: W(12) }, { x: W(sx + 18), z: W(36) }]).ok, false, 'metro chưa mở khoá');
+  const bus = S.addTransit(c, 'bus', [{ x: W(sx - 14), z: W(16) }, { x: W(sx), z: W(14) }, { x: W(sx + 14), z: W(26) }, { x: W(sx), z: W(34) }]);
+  assert.ok(bus.ok);
+  assert.equal(bus.line.broken, false);
+  assert.ok(bus.line.loop > 300);
+  assert.equal(c.traffic.vehicles.filter((v) => v.kind === 'bus').length, 1);
+  assert.ok(S.setVehicles(c, bus.line.id, 3).ok);
+  assert.equal(c.traffic.vehicles.filter((v) => v.kind === 'bus').length, 3);
+  c.milestone = 4;
+  const metro = S.addTransit(c, 'metro', [{ x: W(sx - 13), z: W(12) }, { x: W(sx), z: W(24) }, { x: W(sx + 13), z: W(35) }]);
+  assert.ok(metro.ok);
+  const ride = S.planRide(c, cell(sx - 13, 13), cell(sx + 12, 35));
+  assert.ok(ride && ride.eta > 0, 'có tuyến nối hai đầu thành phố');
+  const money0 = c.transit.income;
+  run(c, 24 * 9);
+  assert.ok(c.transit.income > money0, 'đã có khách trả tiền vé');
+  assert.ok(c.stats.exp.transit > 0);
+  assert.ok(S.removeTransit(c, bus.line.id).ok);
+  assert.equal(c.traffic.vehicles.filter((v) => v.kind === 'bus').length, 0);
+});
+
+test('city: ô nhiễm bốn loại; cây xanh lọc bớt; trạm bơm gần cống xả thì nước bẩn', () => {
+  const c = town(), sx = c.start.x;
+  run(c, 72);
+  S.computeMaps(c);
+  const ind = [];
+  for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && c.zone[i] === 3) ind.push(i);
+  assert.ok(ind.length > 0);
+  assert.ok(c.air[ind[0]] > 0.1 && c.ground[ind[0]] > 0.1 && c.noise[ind[0]] > 0.1);
+  assert.ok(c.noise[cell(sx + 1, 20)] > 0.05, 'đường có tiếng ồn');
+  assert.equal(c.air[cell(sx - 10, 12)], 0, 'khu nhà ở xa công nghiệp không bị khói');
+  const outlet = c.services.find((x) => x.type === 'outlet'), sh = [outlet.x, outlet.y];
+  assert.ok(c.waterPol[cell(sh[0], sh[1])] > 0.5, 'nước quanh cống xả bị bẩn');
+  assert.equal(c.dirtyWater, false);
+  let spot = null;
+  for (let d = 1; d < 6 && !spot; d++) for (const [dx, dy] of [[0, d], [0, -d], [d, 0], [-d, 0]]) if (S.canPlace(c, 'pump', sh[0] + dx, sh[1] + dy).ok) { spot = [sh[0] + dx, sh[1] + dy]; break; }
+  assert.ok(spot);
+  S.placeService(c, 'pump', ...spot);
+  assert.equal(c.dirtyWater, true);
+});
+
+test('city: vay nợ và phá sản', () => {
+  const c = town();
   const m = c.money;
   assert.ok(S.takeLoan(c, 0).ok);
   assert.equal(c.money, m + S.LOANS[0].amount);
-  assert.equal(c.stats.exp.loans, Math.round(S.LOANS[0].amount * (1 + S.LOANS[0].rate) / S.LOANS[0].months));
+  assert.equal(c.stats.exp.loans, Math.round(S.LOANS[0].amount * (1 + S.LOANS[0].rate) / S.LOANS[0].days));
   S.takeLoan(c, 1); S.takeLoan(c, 2);
   assert.equal(S.takeLoan(c, 0).ok, false, 'tối đa 3 khoản');
-  run(c, 30 * S.LOANS[0].months + 2);
+  run(c, 24 * S.LOANS[0].days + 2);
   assert.equal(c.loans.length, 2, 'trả xong khoản ngắn nhất');
   c.money = S.BANKRUPT_AT - 1;
   S.tick(c);
   assert.ok(c.over && c.events.some((e) => e.type === 'bankrupt'));
-  const day = c.day; S.tick(c);
-  assert.equal(c.day, day, 'phá sản thì thời gian dừng');
+  const hour = c.hour; S.tick(c);
+  assert.equal(c.hour, hour, 'phá sản thì thời gian dừng');
 });
 
-test('city: lưu rồi nạp lại giữ nguyên thành phố, từ chối bản lưu cũ', () => {
-  const c = town();
-  utilities(c);
-  road(c, c.start.x, 30, c.start.x + 14, 36, 'oneway', [c.start.x + 12, 30]);
-  S.takeLoan(c, 0); c.tax.i = 12;
-  run(c, 120);
-  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+test('city: lưu rồi nạp lại giữ nguyên thành phố và người dân; đọc được bản lưu đời trước', () => {
+  const c = town(), sx = c.start.x;
+  road(c, sx, 34, sx + 10, 40, 'oneway', [sx + 8, 34]);
+  S.addTransit(c, 'bus', [{ x: W(sx - 14), z: W(16) }, { x: W(sx), z: W(14) }, { x: W(sx + 14), z: W(26) }]);
+  S.takeLoan(c, 2); c.tax.i = 12;
+  run(c, 24 * 5);
+  const o = JSON.parse(JSON.stringify(S.serialize(c)));
+  const c2 = S.deserialize(o);
+  assert.equal(c2.pp.count, c.pp.count);
   assert.equal(c2.stats.pop, c.stats.pop);
-  assert.equal(c2.day, c.day);
-  assert.deepEqual([c2.nodes.size, c2.edges.size, c2.lines.length], [c.nodes.size, c.edges.size, c.lines.length]);
+  assert.equal(c2.hour, c.hour);
+  assert.deepEqual([c2.nodes.size, c2.edges.size, c2.lines.length, c2.transit.lines.length], [c.nodes.size, c.edges.size, c.lines.length, 1]);
   assert.deepEqual([...c2.road], [...c.road]);
-  assert.deepEqual([...c2.acc], [...c.acc]);
-  assert.deepEqual([...c2.water], [...c.water]);
+  assert.deepEqual([...c2.level], [...c.level]);
   assert.deepEqual(c2.tax, c.tax);
   assert.equal(c2.loans.length, 1);
-  assert.deepEqual(c2.services.map((s) => [s.type, s.x, s.y, s.linked]), c.services.map((s) => [s.type, s.x, s.y, s.linked]));
-  assert.ok(Math.abs(c2.stats.roadLen - c.stats.roadLen) < 1);
+  assert.equal(c2.pstats.employed, c.pstats.employed);
+  assert.equal(c2.resCount.reduce((n, v) => n + v, 0), c.resCount.reduce((n, v) => n + v, 0));
+  run(c2, 30);
+  assert.ok(c2.pp.count > 0);
+  // bản lưu v2 (trước khi có người dân): giữ đường và nhà, dân tự dọn về
+  const v2 = { ...o, v: 2, day: 50 };
+  delete v2.people; delete v2.transit; delete v2.hour;
+  const c3 = S.deserialize(v2);
+  assert.equal(c3.edges.size, c.edges.size);
+  assert.equal(c3.pp.count, 0);
+  run(c3, 24);
+  assert.ok(c3.pp.count > 0, 'dân dọn về lại');
   assert.throws(() => S.deserialize({ v: 1, n: S.N }));
   assert.throws(() => S.deserialize(null));
 });

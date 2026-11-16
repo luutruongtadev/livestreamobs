@@ -122,105 +122,104 @@ const WALLS = [0xf0e6d2, 0xe9d8b8, 0xdfe6ea, 0xf4efe6, 0xd9c3a5, 0xe4d0c0];
 const ROOFS = [0xa8503a, 0x8e4a3c, 0x5d6672, 0x7a5a48, 0x9c6b3e];
 const SIGNS = [0xd9483b, 0x2f7fd0, 0xe6a01e, 0x2aa37a, 0x8a4fd0];
 
-/** Nhà tự mọc theo khu (1 R, 2 C, 3 I), cấp 1..3, biến thể 0..2. */
+const GLASS = [0x7fa8cc, 0x86b5b0, 0x93a4c4, 0x9db4c0];
+const APT = [0xe8e2d6, 0xcfd9e0, 0xe6cdb4, 0xdcd3c4, 0xd6dfd0];
+
+function house(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6da44b);
+  g.box(1.8, 0.14, 2.9, 2.2, 0.03, 3.8, 0xa9a69c); // lối xe
+  const wall = pick(r, WALLS), roof = pick(r, ROOFS), alongX = variant !== 1;
+  const two = level >= 3, w = 5 + level * 0.35 + r() * 0.6, d = 4.2 + level * 0.2, h = two ? 5.6 : 2.9, cx = -1 + r() * 0.4, cz = -1.2;
+  g.box(cx, 0.14, cz, w, h, d, wall, two);
+  g.gable(cx, 0.14 + h, cz, w + 0.6, 1.7 + level * 0.12, d + 0.6, roof, alongX, wall);
+  g.box(cx - w * 0.2, 0.14, cz + d / 2 + 0.03, 0.9, 2, 0.08, 0x6a4630);
+  if (!two) g.box(cx + w * 0.22, 1.2, cz + d / 2 + 0.03, 1.3, 1.1, 0.08, 0x86b4d6);
+  g.box(cx + w / 2 - 0.5, h + 0.6, cz - d / 4, 0.5, 1.9, 0.5, 0x8a8078);
+  if (level >= 2) g.box(3.4, 0.14, -1.4, 2.3, 2.4, 3.4, wall, false, roof); // nhà xe
+  if (level >= 4) { g.box(cx, 0.14, cz + d / 2 + 0.9, w * 0.7, 0.25, 1.8, 0xc9b99a); g.box(cx, 2.9, cz + d / 2 + 0.9, w * 0.7, 0.15, 1.8, 0xd8d4cc); } // hiên
+  if (level >= 5) { g.box(-2.6, 0.14, 3.3, 3.4, 0.08, 1.9, 0x5db7e6); g.box(-2.6, 0.14, 3.3, 3.8, 0.05, 2.3, 0xd8d4cc); } // hồ bơi
+  else g.tree(-3.6, 0.14, 3.4, 0.8 + r() * 0.3);
+  if (r() > 0.4) g.tree(3.7, 0.14, -4, 0.7, 0x4b8c3f);
+  g.box(0, 0.14, 4.65, 9.4, 0.5, 0.18, 0x4a8440);
+}
+
+function tower(g, r, floors, wall, opt = {}) {
+  const { podium = 0, w = 6.8, d = 6.6, glass = false, sign = null, shop = false } = opt;
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa);
+  let y = 0.14;
+  if (podium) {
+    g.box(0, y, 0, 8.7, podium, 8.4, shop ? 0x4f6a80 : 0xcac4b8, !shop);
+    if (shop) { g.box(0, y + podium - 0.5, 4.5, 8.7, 0.2, 1, sign); g.box(0, y + podium, 0, 8.9, 0.25, 8.6, 0x77726c); }
+    y += podium;
+  }
+  const h = floors * FLOOR;
+  g.box(0, y, -0.2, w, h, d, wall, true);
+  if (!glass) { g.box(w / 2 + 0.15, y, -0.2, 0.5, h, 2.2, 0xa4acb2); g.box(-w / 2 - 0.15, y, -0.2, 0.5, h, 2.2, 0xa4acb2); }
+  y += h;
+  if (glass && floors >= 12) { const h2 = Math.round(floors * 0.25) * FLOOR; g.box(0, y, -0.2, w * 0.72, h2, d * 0.72, wall, true); y += h2; }
+  g.box(0, y, -0.2, w * (glass && floors >= 12 ? 0.76 : 1.04), 0.4, d * (glass && floors >= 12 ? 0.76 : 1.04), 0x5f5d5a);
+  g.box(0.8, y + 0.4, -0.6, 2.2, 1.6, 2, 0x8d9499);
+  if (floors >= 9) g.cyl(-1.4, y + 0.4, 0.8, 0.09, 0.05, 3.5 + floors * 0.15, 0x999999, 4);
+  if (sign && !shop) g.box(0, y - 1.6, d / 2 - 0.1, w * 0.6, 1.2, 0.25, sign);
+  if (!podium) { g.box(0, 0.14, d / 2 - 0.15, 1.6, 2.4, 0.1, 0x4b5b68); g.tree(-3.9, 0.14, 4, 0.75); g.tree(3.9, 0.14, 4, 0.75, 0x4b8c3f); }
+}
+
+function shop(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xbcb8ae);
+  const sign = pick(r, SIGNS), wall = pick(r, WALLS), w = 7.4 + r() * 0.8, d = 6.2 + level * 0.15, base = 3.8 + (variant === 2 ? 0.4 : 0);
+  g.box(0, 0.14, -1, w, base, d, level >= 2 ? 0x4f6a80 : wall);
+  g.box(0, 0.5, d / 2 - 0.95, w - 1.2, 2.3, 0.08, 0x54748c);
+  g.box(0, 2.95, d / 2 - 0.3, w, 0.18, 1.5, sign);
+  let y = 0.14 + base;
+  if (level >= 2) { const h = (level - 1) * FLOOR; g.box(0, y, -1, w, h, d, wall, true); y += h; }
+  g.box(0, y, -1, w + 0.2, 0.3, d + 0.2, 0x77726c);
+  g.box(0, y + 0.3, d / 2 - 1.5, w * 0.6, 1 + level * 0.12, 0.25, sign);
+  if (level >= 3) g.box(-2, y + 0.3, -2.2, 2, 1.2, 1.8, 0x8d9499);
+  g.box(3.5, 0.14, 3.9, 0.9, 0.9, 0.9, 0x5c7b4a);
+}
+
+function industry(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x9c9a92);
+  if (variant === 0) { // khai thác nguyên liệu: kho + si-lô + đống hàng
+    const metal = pick(r, [0xa9b3b8, 0xb9a98c, 0x97a9b5]);
+    g.box(-1.4, 0.14, -1.6, 6, 3.2 + level * 0.3, 5.4, metal);
+    g.gable(-1.4, 3.34 + level * 0.3, -1.6, 6.2, 1, 5.6, pick(r, [0x6c7a86, 0x8a5a44, 0x5f7f6a]), true, metal);
+    for (let k = 0; k < Math.min(3, 1 + (level >> 1)); k++) { g.cyl(3.4, 0.14, -3.2 + k * 2.4, 1, 1, 4 + level * 0.5, 0xc8ccd0, 9); g.cyl(3.4, 4.14 + level * 0.5, -3.2 + k * 2.4, 1, 0.1, 0.8, 0xa8adb2, 9); }
+    for (let k = 0; k < 2 + level; k++) g.box(-3.6 + (k % 4) * 1.5, 0.14 + ((k / 4) | 0) * 0.9, 3.4, 1.2, 0.9, 1.2, [0xb38a4f, 0xa07a42, 0x8f6a3a][k % 3]);
+    g.box(-1.4, 0.14, 1.13, 2.4, 2.6, 0.08, 0x5a646c);
+    return;
+  }
+  if (level >= 5) { // công nghệ cao
+    g.box(0, 0.14, -0.6, 8.2, 6.4, 7, 0xeef1f3, true);
+    g.box(0, 2.6, -0.6, 8.3, 0.7, 7.1, pick(r, [0x2f7fd0, 0x2aa37a, 0xe07b2e]));
+    g.box(0, 6.54, -0.6, 8.4, 0.3, 7.2, 0x8a949c);
+    g.cyl(-2.2, 6.84, -1.4, 1.1, 1.4, 0.7, 0xd9dde0, 10); g.box(2, 6.84, -0.6, 2.6, 1, 2, 0x9aa3aa);
+    for (let k = 0; k < 3; k++) g.at(new THREE.Matrix4().makeTranslation(-2.6 + k * 2.6, 0.5, 3.9).multiply(new THREE.Matrix4().makeRotationX(-0.5))).box(0, 0, 0, 2.2, 0.1, 1.4, 0x27457a).at(null);
+    return;
+  }
+  const brick = pick(r, [0xa5694d, 0x97715c, 0x8b8f93, 0xa9b3b8]), h = 3.6 + level * 0.9;
+  g.box(-0.5, 0.14, -0.6, 8.2, h, 6.8, brick, level >= 4);
+  if (level >= 2) for (let k = 0; k < 3; k++) g.gable(-0.5, 0.14 + h, -2.87 + k * 2.27, 8.2, 1.2, 2.27, 0x6f7a82, true, brick);
+  else g.gable(-0.5, 0.14 + h, -0.6, 8.4, 1, 7, 0x6c7a86, variant !== 1, brick);
+  g.box(-0.5, 0.14, 2.83, 3, 3, 0.08, 0x4f5a62);
+  if (level >= 2) { const cx = variant === 1 ? -3.7 : 3.8; g.cyl(cx, 0.14, 3.7, 0.7, 0.5, 9 + level * 1.6, 0x9b6a55, 9, 0x2b2b2b); g.cyl(cx, 7.5 + level * 1.6, 3.7, 0.58, 0.55, 0.9, 0xe8e2d8, 9); }
+  if (level >= 3) g.cyl(variant === 1 ? 3.6 : -3.6, 0.14, 3.7, 0.9, 0.9, 2.6 + level * 0.3, 0xc8ccd0, 9);
+  if (level >= 4) g.box(3.9, 0.14, -3.6, 1.2, 4 + h, 1.2, 0x8a949c);
+}
+
+/** Nhà tự mọc theo khu (1..7), cấp 1..5, biến thể 0..2. */
 export function growable(zone, level, variant) {
   const r = mulberry32(zone * 1000 + level * 100 + variant * 7 + 5);
   const g = new GB();
   g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
-  if (zone === 1) {
-    if (level === 1) {
-      g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6da44b);
-      g.box(1.6, 0.14, 2.6, 2.2, 0.03, 4.4, 0xa9a69c); // lối xe
-      const w = 5.2 + r() * 1.2, d = 4.4 + r() * 0.8, wall = pick(r, WALLS), roof = pick(r, ROOFS), alongX = variant !== 1;
-      const cx = -1 + r() * 0.6, cz = -1.2;
-      g.box(cx, 0.14, cz, w, 2.9, d, wall);
-      g.gable(cx, 3.04, cz, w + 0.6, 1.9, d + 0.6, roof, alongX, wall);
-      g.box(cx - w * 0.2, 0.14, cz + d / 2 + 0.03, 0.9, 2, 0.08, 0x6a4630); // cửa
-      g.box(cx + w * 0.22, 1.2, cz + d / 2 + 0.03, 1.3, 1.1, 0.08, 0x86b4d6);
-      g.box(cx + w / 2 - 0.5, 3.6, cz - d / 4, 0.5, 1.8, 0.5, 0x8a8078); // ống khói
-      if (variant === 2) g.box(3.2, 0.14, -1.6, 2.4, 2.3, 3.2, wall, false, roof);
-      g.tree(-3.6, 0.14, 3.4, 0.8 + r() * 0.3); if (r() > 0.4) g.tree(3.6, 0.14, -3.8, 0.7, 0x4b8c3f);
-      g.box(0, 0.14, 4.65, 9.4, 0.5, 0.18, 0x4a8440); // hàng rào cây
-    } else if (level === 2) {
-      g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa);
-      g.box(0, 0.14, 3.9, 9, 0.04, 1.4, 0x6da44b);
-      const fl = 3 + variant, w = 7.8, d = 6, wall = pick(r, WALLS);
-      g.box(0, 0.14, -0.9, w, fl * FLOOR, d, wall, true);
-      g.box(0, 0.14 + fl * FLOOR, -0.9, w + 0.3, 0.35, d + 0.3, 0x6e6a66);
-      g.box(-1.5, 0.5 + fl * FLOOR, -1.4, 1.8, 1.3, 1.6, 0x8d9499);
-      g.box(0, 0.14, 2.14, 1.6, 2.4, 0.1, 0x4b5b68);
-      for (let k = 1; k < fl; k++) g.box(0, 0.14 + k * FLOOR - 0.1, 2.5, w, 0.16, 0.8, 0xd8d4cc); // ban công
-      g.tree(-3.8, 0.14, 3.9, 0.8); g.tree(3.8, 0.14, 3.9, 0.8, 0x4b8c3f);
-    } else {
-      g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa);
-      const wall = pick(r, [0xe8e2d6, 0xcfd9e0, 0xe6cdb4]), fl = 9 + variant * 2 + ((r() * 2) | 0);
-      g.box(0, 0.14, 0, 8.6, 4, 8.2, 0xcac4b8, true);
-      g.box(0, 4.14, -0.3, 6.6, fl * FLOOR, 6.4, wall, true);
-      g.box(3.4, 4.14, -0.3, 0.5, fl * FLOOR, 2.2, 0xa4acb2);
-      g.box(-3.4, 4.14, -0.3, 0.5, fl * FLOOR, 2.2, 0xa4acb2);
-      const top = 4.14 + fl * FLOOR;
-      g.box(0, top, -0.3, 6.9, 0.4, 6.7, 0x66625e);
-      g.box(0.8, top + 0.4, -0.6, 2.6, 1.8, 2.4, 0x8d9499);
-      g.cyl(-1.8, top + 0.4, 1.2, 0.08, 0.05, 4.5, 0x999999, 4);
-    }
-  } else if (zone === 2) {
-    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xbcb8ae);
-    const sign = pick(r, SIGNS);
-    if (level === 1) {
-      const wall = pick(r, WALLS), w = 7.4 + r(), h = 3.8 + variant * 0.5;
-      g.box(0, 0.14, -1, w, h, 6.2, wall);
-      g.box(0, 0.14 + h, -1, w + 0.2, 0.3, 6.4, 0x77726c);
-      g.box(0, 0.5, 2.13, w - 1.2, 2.3, 0.08, 0x54748c); // kính mặt tiền
-      g.box(0, 2.95, 2.8, w, 0.18, 1.5, sign); // mái hiên
-      g.box(0, 0.14 + h + 0.3, 1.6, w * 0.6, 1.1, 0.25, sign);
-      g.box(3.4, 0.14, 3.6, 0.9, 0.9, 0.9, 0x5c7b4a);
-    } else if (level === 2) {
-      const wall = pick(r, [0xdcd3c4, 0xc8d2d8, 0xe2c9a8]), fl = 3 + variant, w = 8.2, d = 7;
-      g.box(0, 0.14, -0.7, w, 3.4, d, 0x4f6a80);
-      g.box(0, 3.3, 3.2, w + 0.2, 0.2, 1.2, sign);
-      g.box(0, 3.54, -0.7, w, (fl - 1) * FLOOR, d, wall, true);
-      const top = 3.54 + (fl - 1) * FLOOR;
-      g.box(0, top, -0.7, w + 0.3, 0.35, d + 0.3, 0x6e6a66);
-      g.box(0, top + 0.35, 2.4, 4.5, 1.6, 0.3, sign);
-      g.box(-2, top + 0.35, -2, 2, 1.2, 1.8, 0x8d9499);
-    } else {
-      const glass = pick(r, [0x7fa8cc, 0x86b5b0, 0x93a4c4]), fl = 11 + variant * 3 + ((r() * 2) | 0);
-      g.box(0, 0.14, 0, 8.8, 5, 8.6, 0x9aa7b0, true);
-      g.box(0, 5.14, 0, 7, fl * FLOOR, 7, glass, true);
-      const m = 5.14 + fl * FLOOR;
-      g.box(0, m, 0, 5.2, 3 * FLOOR, 5.2, glass, true);
-      g.box(0, m + 9, 0, 5.5, 0.4, 5.5, 0x5b6670);
-      g.cyl(0, m + 9.4, 0, 0.14, 0.04, 7, 0xb0b0b0, 5);
-      g.box(0, 5.14, 3.55, 3.5, 1.2, 0.2, sign);
-    }
-  } else {
-    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x9c9a92);
-    if (level === 1) {
-      const metal = pick(r, [0xa9b3b8, 0xb9a98c, 0x97a9b5]);
-      g.box(-0.6, 0.14, -0.8, 7.6, 3.6, 6.4, metal);
-      g.gable(-0.6, 3.74, -0.8, 7.8, 1.1, 6.6, pick(r, [0x6c7a86, 0x8a5a44, 0x5f7f6a]), variant !== 1, metal);
-      g.box(-0.6, 0.14, 2.43, 2.6, 2.7, 0.08, 0x5a646c);
-      g.cyl(3.9, 0.14, 2.6, 0.8, 0.8, 2.6, 0xc8ccd0, 9);
-      g.box(3.6, 0.14, -3.4, 1.2, 1.1, 1.2, 0xb38a4f); g.box(3.9, 1.24, -3.3, 0.9, 0.9, 0.9, 0xa07a42);
-    } else if (level === 2) {
-      const brick = pick(r, [0xa5694d, 0x97715c, 0x8b8f93]);
-      g.box(-0.5, 0.14, -0.5, 8.2, 5.2, 7, brick);
-      for (let k = 0; k < 3; k++) g.gable(-0.5, 5.34, -2.8 + k * 2.33, 8.2, 1.2, 2.33, 0x6f7a82, true, brick);
-      const cx = variant === 1 ? -3.6 : 3.8;
-      g.cyl(cx, 0.14, 3.6, 0.7, 0.5, 13, 0x9b6a55, 9, 0x2b2b2b);
-      g.cyl(cx, 11.2, 3.6, 0.58, 0.55, 0.9, 0xe8e2d8, 9);
-      g.box(-0.5, 0.14, 3.03, 3, 3, 0.08, 0x4f5a62);
-      if (variant === 2) g.cyl(-3.6, 0.14, 3.7, 0.9, 0.9, 3.4, 0xc8ccd0, 9);
-    } else {
-      g.box(0, 0.14, -0.6, 8.2, 6, 7, 0xeef1f3, true);
-      g.box(0, 2.6, -0.6, 8.3, 0.7, 7.1, pick(r, [0x2f7fd0, 0x2aa37a, 0xe07b2e]));
-      g.box(0, 6.14, -0.6, 8.4, 0.3, 7.2, 0x8a949c);
-      g.cyl(-2.2, 6.44, -1.4, 1.1, 1.4, 0.7, 0xd9dde0, 10);
-      g.box(2, 6.44, -0.6, 2.6, 1, 2, 0x9aa3aa);
-      for (let k = 0; k < 3; k++) g.at(new THREE.Matrix4().makeTranslation(-2.6 + k * 2.6, 0.5, 3.9).multiply(new THREE.Matrix4().makeRotationX(-0.5))).box(0, 0, 0, 2.2, 0.1, 1.4, 0x27457a).at(null);
-      g.tree(4, 0.14, 4, 0.7);
-    }
-  }
+  const v = variant + ((r() * 2) | 0);
+  if (zone === 1) house(g, r, level, variant);
+  else if (zone === 4) tower(g, r, [4, 7, 11, 16, 24][level - 1] + v, pick(r, APT), { podium: level >= 3 ? 4 : 0 });
+  else if (zone === 2) shop(g, r, level, variant);
+  else if (zone === 5) tower(g, r, [2, 4, 7, 11, 17][level - 1] + v, pick(r, [0xdcd3c4, 0xc8d2d8, 0xe2c9a8, 0x9fb6c8]), { podium: 4.4, shop: true, sign: pick(r, SIGNS), w: 7.6, d: 7 });
+  else if (zone === 3) industry(g, r, level, variant);
+  else if (zone === 6) tower(g, r, [4, 8, 14, 22, 34][level - 1] + v * 2, pick(r, GLASS), { glass: true, podium: level >= 2 ? 4.6 : 0, w: 7, d: 7, sign: level >= 3 ? pick(r, SIGNS) : null });
+  else tower(g, r, [2, 4, 6, 9, 13][level - 1] + v, pick(r, APT), { podium: 4, shop: true, sign: pick(r, SIGNS), w: 6.6, d: 6.4 });
   return g.build();
 }
 
@@ -237,6 +236,45 @@ export function treeGeometry(kind) {
     g.cyl(0, 2, 0, 1.6, 2.3, 1.4, 0x4f9440, 8);
     g.cyl(0, 3.4, 0, 2.3, 1.9, 1.1, 0x58a046, 8);
     g.cyl(0, 4.5, 0, 1.9, 0.5, 1.3, 0x62aa4c, 8);
+  }
+  return g.build();
+}
+
+/** Xe to dùng chung cho xe tải, xe rác, cứu thương, cứu hoả (màu nhân theo từng xe). */
+export function truckGeometry() {
+  const g = new GB();
+  g.box(0, 0.35, -0.6, 2, 2.1, 3.9, 0xffffff);
+  g.box(0, 0.35, 2, 1.9, 1.5, 1.4, 0xffffff);
+  g.box(0, 1.2, 2.71, 1.6, 0.6, 0.04, 0x39454f);
+  g.box(0, 0.1, 0, 1.8, 0.3, 5.2, 0x2a2a2a);
+  g.box(0, 1.9, 2, 0.9, 0.18, 0.4, 0x6fa8ff);
+  return g.build();
+}
+
+export function busGeometry() {
+  const g = new GB();
+  g.box(0, 0.4, 0, 2.2, 2.3, 7.2, 0xffffff);
+  g.box(0, 1.35, 0, 2.26, 0.85, 6.6, 0x2f3b45);
+  g.box(0, 1.2, 3.61, 1.9, 1, 0.04, 0x2f3b45);
+  g.box(0, 0.12, 0, 2, 0.3, 6.8, 0x2a2a2a);
+  g.box(0, 2.7, 0, 1.6, 0.14, 5, 0xe9e9e9);
+  return g.build();
+}
+
+/** Trạm chờ xe buýt (mặt quay về +z) và ga metro trên cao. */
+export function stopGeometry(mode) {
+  const g = new GB();
+  if (mode === 'bus') {
+    g.box(0, 0, 0, 3.2, 0.12, 1.4, 0xb9b5aa);
+    g.box(-1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670); g.box(1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670);
+    g.box(0, 2.42, -0.2, 3.4, 0.12, 1.4, 0xffffff); g.box(0, 0.12, -0.55, 3, 2.3, 0.06, 0x9cc4e4);
+    g.box(0, 0.5, 0, 2.4, 0.1, 0.4, 0x8a5a36);
+  } else {
+    for (const [x, z] of [[-3, -5], [3, -5], [-3, 5], [3, 5]]) g.cyl(x, 0, z, 0.5, 0.5, 6.4, 0x9a968e, 8);
+    g.box(0, 6.4, 0, 8, 0.6, 14, 0xc9c5ba);
+    g.box(0, 9.4, 0, 8.4, 0.3, 14.4, 0xffffff);
+    for (const z of [-6.5, 0, 6.5]) { g.box(-3.9, 7, z, 0.25, 2.4, 0.25, 0x5b6670); g.box(3.9, 7, z, 0.25, 2.4, 0.25, 0x5b6670); }
+    g.box(4.6, 0, 3, 1.4, 6.6, 3, 0x8d9499, true);
   }
   return g.build();
 }
@@ -343,6 +381,33 @@ export function serviceModel(type, size) {
       g.box(-2, 0.14, 5, 6, 4, 3, 0x8a949c);
       g.cyl(7, 0.14, 6.5, 1.3, 0.9, 22, 0xd9dde0, 12, 0x2b2b2b); g.cyl(7, 19, 6.5, 1.05, 1, 1.4, 0xd0342c, 12);
       out.smoke = [[7, 22.5, 6.5]];
+      break;
+    }
+    case 'highschool': {
+      pave(0xc9c2ae);
+      g.box(0, 0.14, -4.5, 16, 9.5, 7, 0xc9d3da, true); g.box(0, 9.64, -4.5, 16.4, 0.4, 7.4, 0x5b6670);
+      g.box(-5.5, 0.14, 3, 5, 6.5, 8, 0xd9c7a0, true, 0x8a7f70);
+      g.box(3, 0.14, 4.5, 9, 0.06, 7, 0x4f9c45); g.box(3, 0.2, 4.5, 0.15, 0.02, 7, 0xffffff);
+      g.cyl(8.2, 0.14, -8.4, 0.1, 0.1, 8, 0xdddddd, 5); g.box(7.4, 7.2, -8.4, 1.5, 0.9, 0.05, 0x2f7fd0);
+      g.tree(-8.3, 0.14, -8.3, 1.1, 0x4f9440);
+      break;
+    }
+    case 'parking': {
+      g.box(0, 0, 0, e, 0.14, e, 0x4a4d52);
+      for (let k = 0; k < 7; k++) for (const z of [-5.2, 5.2]) g.box(-7.8 + k * 2.6, 0.14, z, 0.12, 0.02, 4.6, 0xe9e4cf);
+      const rr = mulberry32(53), cols = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c];
+      for (let k = 0; k < 6; k++) for (const z of [-5.2, 5.2]) if (rr() > 0.45) { const x = -6.5 + k * 2.6; g.box(x, 0.3, z, 1.5, 0.6, 3.3, cols[(rr() * 6) | 0]); g.box(x, 0.9, z - 0.2, 1.35, 0.5, 1.7, 0x39454f); }
+      g.box(-8.6, 0.14, 8.6, 1.6, 2.4, 1.6, 0xe6e9ec, false, 0x2c5aa0);
+      g.box(8.9, 0.14, -8.9, 0.3, 5, 0.3, 0x8a949c); g.box(8.9, 5, -8.9, 1.8, 1.8, 0.2, 0x2c5aa0);
+      break;
+    }
+    case 'port': {
+      pave(0x8d8a84);
+      g.box(-6, 0.14, -8, 14, 6, 9, 0x9aa7b0, true); g.box(-6, 6.14, -8, 14.4, 0.4, 9.4, 0x5b6670);
+      const rr = mulberry32(71), cols = [0xc0392b, 0x2f6fb0, 0xd8b93a, 0x3d8a5a, 0xe07b2e, 0x8a949c];
+      for (let k = 0; k < 16; k++) g.box(-11 + (k % 4) * 3.2, 0.14 + ((k / 8) | 0) * 2.5, 3 + (((k / 4) | 0) % 2) * 6.4, 2.9, 2.5, 6, cols[(rr() * 6) | 0]);
+      for (const x of [5, 11]) { g.box(x, 0.14, 2, 0.8, 16, 0.8, 0xe6a01e); g.box(x, 0.14, 11, 0.8, 16, 0.8, 0xe6a01e); g.box(x, 15.4, 3, 0.9, 0.9, 22, 0xe6a01e); g.box(x, 11, 14, 1.6, 1.4, 1.6, 0x39454f); }
+      g.box(8, 0.14, -10, 6, 3, 5, 0xd8d4cc, false, 0x77726c);
       break;
     }
     case 'park': {
