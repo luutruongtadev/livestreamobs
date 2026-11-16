@@ -279,6 +279,26 @@ export function stopGeometry(mode) {
   return g.build();
 }
 
+/** Xe máy có người ngồi (màu nhân theo từng xe). */
+export function motoGeometry() {
+  const g = new GB();
+  g.box(0, 0.25, 0, 0.45, 0.5, 1.7, 0xffffff);
+  g.box(0, 0, 0.75, 0.16, 0.5, 0.5, 0x222222); g.box(0, 0, -0.75, 0.16, 0.5, 0.5, 0x222222);
+  g.box(0, 0.75, -0.15, 0.5, 0.75, 0.4, 0x4a5560); // người lái
+  g.cyl(0, 1.5, -0.1, 0.22, 0.2, 0.34, 0xf0d9b5, 6, 0x333333);
+  g.box(0, 0.85, 0.6, 0.7, 0.08, 0.08, 0x222222);
+  return g.build();
+}
+
+/** Người đi bộ (áo nhân màu theo từng người). */
+export function pedGeometry() {
+  const g = new GB();
+  g.box(0, 0, 0, 0.42, 0.8, 0.3, 0x3a4350);
+  g.box(0, 0.8, 0, 0.5, 0.75, 0.32, 0xffffff);
+  g.cyl(0, 1.55, 0, 0.2, 0.18, 0.34, 0xf0d9b5, 6, 0x3b2a1e);
+  return g.build();
+}
+
 export function carGeometry() {
   const g = new GB();
   g.box(0, 0.25, 0, 1.5, 0.6, 3.4, 0xffffff);

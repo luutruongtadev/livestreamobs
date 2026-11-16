@@ -4,25 +4,29 @@ import { ROADS, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
 
 export const VKIND = {
   car: { len: 3.4, speed: 24 },
+  moto: { len: 1.9, speed: 23 }, // xe máy: ngắn, bám sát nhau hơn nên cùng một làn chở được nhiều hơn
+  ped: { len: 0.6, speed: 9, ped: true }, // người đi bộ: đi trên vỉa hè, không chiếm làn xe
   truck: { len: 5.8, speed: 19 },
   garbage: { len: 5.8, speed: 17 },
   ambulance: { len: 4.6, speed: 34, emergency: true },
   fire: { len: 6.2, speed: 32, emergency: true },
   bus: { len: 7.6, speed: 19 },
 };
-export const MAX_VEH = 640; // tổng số xe chạy thật cùng lúc
-export const MAX_CARS = 440; // riêng xe con; vượt quá thì chuyến đi được tính thời gian chứ không vẽ xe
+export const MAX_VEH = 900; // tổng số xe chạy thật cùng lúc
+export const MAX_CARS = 380; // riêng xe con; vượt quá thì chuyến đi được tính thời gian chứ không vẽ xe
+export const MAX_MOTO = 380;
+export const MAX_PEDS = 500;
 const GATE = 7; // vạch dừng cách nút giao bao xa
-const CYCLE = 8; // giây mỗi pha đèn
-const YELLOW = 1.3;
+const CYCLE = 5; // giây mỗi pha đèn
+const YELLOW = 1;
 
 export function initTraffic(c) {
-  c.traffic = { vehicles: [], time: 0, pending: [], signals: new Map(), busy: new Map(), reserve: new Map(), load: new Map(), lanes: new Map(), nextId: 1, speedEma: 1, stats: { spawned: 0, abstract: 0, stuck: 0, arrived: 0, noPath: 0 } };
+  c.traffic = { vehicles: [], peds: [], time: 0, pending: [], signals: new Map(), busy: new Map(), reserve: new Map(), load: new Map(), lanes: new Map(), nextId: 1, speedEma: 1, stats: { spawned: 0, abstract: 0, stuck: 0, arrived: 0, noPath: 0 } };
 }
 
 const laneKey = (e, fwd, lane) => e.id * 8 + (fwd ? 4 : 0) + lane;
 const dirKey = (e, fwd) => e.id * 2 + (fwd ? 1 : 0);
-const canTravel = (e, fwd) => e.type !== 'oneway' || fwd;
+const canTravel = (e, fwd, kind) => e.type !== 'oneway' || fwd || kind === 'ped';
 const baseSpeed = (e, kind) => VKIND[kind].speed * ROADS[e.type].speed;
 
 /** Mức đông của một chiều đường: 0 thoáng → 1 kín xe. */
@@ -50,6 +54,8 @@ export function rebuildTraffic(c) {
     }
     tr.signals.set(nid, { groups, offset: (nid * 2.7) % (CYCLE * groups.length) });
   }
+  const gone = tr.peds.filter((p) => p.steps.some((st, k) => k >= p.pi && c.edges.get(st.e.id) !== st.e));
+  if (gone.length) { tr.peds = tr.peds.filter((p) => !gone.includes(p)); for (const p of gone) c.onArrive(c, p.cb, null); }
   const lost = tr.vehicles.filter((v) => v.steps.some((s, k) => k >= v.pi && c.edges.get(s.e.id) !== s.e));
   if (lost.length) {
     tr.vehicles = tr.vehicles.filter((v) => !lost.includes(v));
@@ -89,31 +95,32 @@ class Heap {
  */
 export function findPath(c, from, to, kind = 'car') {
   const emergency = !!VKIND[kind].emergency;
-  const tcost = (e, fwd, dist) => (dist / baseSpeed(e, kind)) * (1 + (emergency ? 0.5 : 3) * loadOf(c, e, fwd));
+  const ped = kind === 'ped';
+  const tcost = (e, fwd, dist) => (ped ? dist / VKIND.ped.speed : (dist / baseSpeed(e, kind)) * (1 + (emergency ? 0.5 : 3) * loadOf(c, e, fwd)));
   const fe = from.edge, te = to.edge;
   let best = null;
   // cùng một đoạn đường và đi thẳng tới được
   if (fe === te) {
-    if (to.along >= from.along && canTravel(fe, true)) best = { steps: [{ e: fe, fwd: true }], startS: from.along, endS: to.along, cost: tcost(fe, true, to.along - from.along) };
-    else if (to.along < from.along && canTravel(fe, false)) best = { steps: [{ e: fe, fwd: false }], startS: fe.len - from.along, endS: fe.len - to.along, cost: tcost(fe, false, from.along - to.along) };
+    if (to.along >= from.along && canTravel(fe, true, kind)) best = { steps: [{ e: fe, fwd: true }], startS: from.along, endS: to.along, cost: tcost(fe, true, to.along - from.along) };
+    else if (to.along < from.along && canTravel(fe, false, kind)) best = { steps: [{ e: fe, fwd: false }], startS: fe.len - from.along, endS: fe.len - to.along, cost: tcost(fe, false, from.along - to.along) };
     if (best) return best;
   }
   const dist = new Map(), prev = new Map(), heap = new Heap();
   const relax = (nid, d, p) => { if (d < (dist.get(nid) ?? Infinity)) { dist.set(nid, d); prev.set(nid, p); heap.push(d, nid); } };
-  if (canTravel(fe, true)) relax(fe.b, tcost(fe, true, fe.len - from.along), { e: fe, fwd: true, from: null });
-  if (canTravel(fe, false)) relax(fe.a, tcost(fe, false, from.along), { e: fe, fwd: false, from: null });
+  if (canTravel(fe, true, kind)) relax(fe.b, tcost(fe, true, fe.len - from.along), { e: fe, fwd: true, from: null });
+  if (canTravel(fe, false, kind)) relax(fe.a, tcost(fe, false, from.along), { e: fe, fwd: false, from: null });
   const done = new Set();
   let bestCost = Infinity, bestEnd = null;
   while (heap.size) {
     const [d, nid] = heap.pop();
     if (done.has(nid) || d > bestCost) continue;
     done.add(nid);
-    if (nid === te.a && canTravel(te, true)) { const t = d + tcost(te, true, to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: true }; } }
-    if (nid === te.b && canTravel(te, false)) { const t = d + tcost(te, false, te.len - to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: false }; } }
+    if (nid === te.a && canTravel(te, true, kind)) { const t = d + tcost(te, true, to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: true }; } }
+    if (nid === te.b && canTravel(te, false, kind)) { const t = d + tcost(te, false, te.len - to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: false }; } }
     const wait = c.traffic.signals.has(nid) ? (emergency ? 0.3 : 2.2) : 0.5;
     for (const id of c.adj.get(nid) || []) {
       const e = c.edges.get(id), fwd = e.a === nid;
-      if (!canTravel(e, fwd)) continue;
+      if (!canTravel(e, fwd, kind)) continue;
       relax(fwd ? e.b : e.a, d + wait + tcost(e, fwd, e.len), { e, fwd, from: nid });
     }
   }
@@ -156,8 +163,8 @@ export function reroute(c, v, to) {
 export function trip(c, kind, fromCell, toCell, cb, physical = true, color) {
   const tr = c.traffic, from = typeof fromCell === 'number' ? cellPos(c, fromCell) : fromCell, to = typeof toCell === 'number' ? cellPos(c, toCell) : toCell;
   if (!from || !to) { tr.stats.noPath++; return null; }
-  const cars = kind === 'car' ? tr.vehicles.reduce((n, v) => n + (v.kind === 'car'), 0) : 0;
-  if (physical && tr.vehicles.length < MAX_VEH && (kind !== 'car' || cars < MAX_CARS)) {
+  const same = kind === 'car' || kind === 'moto' ? tr.vehicles.reduce((n, v) => n + (v.kind === kind), 0) : 0;
+  if (physical && tr.vehicles.length < MAX_VEH && same < (kind === 'car' ? MAX_CARS : kind === 'moto' ? MAX_MOTO : Infinity)) {
     const v = spawnVehicle(c, kind, from, to, cb, color);
     if (!v) { tr.stats.noPath++; return null; }
     return { eta: v.cost, vehicle: v };
@@ -168,7 +175,18 @@ export function trip(c, kind, fromCell, toCell, cb, physical = true, color) {
   return { eta: path.cost * 1.2 + 2 };
 }
 
-/** Hẹn một lần "tới nơi" sau `sec` giây mô phỏng (đi bộ, chuyến không vẽ xe). */
+/** Người đi bộ thật trên vỉa hè từ ô này tới ô kia. Trả về false nếu không có lối đi hoặc đã quá đông (khi đó gọi later). */
+export function walk(c, fromCell, toCell, cb, hue) {
+  const tr = c.traffic;
+  if (tr.peds.length >= MAX_PEDS) return false;
+  const from = cellPos(c, fromCell), to = cellPos(c, toCell);
+  const path = from && to && findPath(c, from, to, 'ped');
+  if (!path) return false;
+  tr.peds.push({ steps: path.steps, pi: 0, s: path.startS, endS: path.endS, cb, hue: hue ?? Math.random(), side: Math.random() < 0.5 ? 1 : -1 });
+  return true;
+}
+
+/** Hẹn một lần "tới nơi" sau `sec` giây mô phỏng (chuyến không vẽ ra). */
 export function later(c, sec, cb) { c.traffic.pending.push({ at: c.traffic.time + sec, cb }); }
 
 function tryGrant(c, v, force) {
@@ -191,7 +209,7 @@ function tryGrant(c, v, force) {
   if (pick < 0) return false;
   v.nextLane = pick;
   tr.reserve.set(laneKey(next.e, next.fwd, pick), tr.time + 0.9);
-  if (!tr.signals.has(nid)) tr.busy.set(nid, tr.time + 0.3);
+  if (!tr.signals.has(nid)) tr.busy.set(nid, tr.time + (v.kind === 'moto' ? 0.1 : 0.22));
   return true;
 }
 
@@ -203,6 +221,15 @@ export function stepTraffic(c, dt) {
     const due = tr.pending.filter((p) => p.at <= tr.time);
     tr.pending = tr.pending.filter((p) => p.at > tr.time);
     for (const p of due) c.onArrive(c, p.cb, null);
+  }
+  if (tr.peds.length) {
+    const sp = VKIND.ped.speed * dt, done = [];
+    for (const p of tr.peds) {
+      p.s += sp;
+      const st = p.steps[p.pi];
+      if (p.pi === p.steps.length - 1) { if (p.s >= p.endS) done.push(p); } else if (p.s >= st.e.len) { p.s -= st.e.len; p.pi++; }
+    }
+    if (done.length) { tr.peds = tr.peds.filter((p) => !done.includes(p)); for (const p of done) c.onArrive(c, p.cb, null); }
   }
   const lanes = tr.lanes;
   lanes.clear(); tr.load.clear();
@@ -235,7 +262,7 @@ export function stepTraffic(c, dt) {
         oarr.push(v);
       }
     }
-    const target = Math.min(vmax, Math.max(0, (gap - 1.2) * 2.4));
+    const target = Math.min(vmax, Math.max(0, v.kind === 'moto' ? (gap - 0.5) * 4.5 : (gap - 1.2) * 2.4));
     v.v = Math.max(0, v.v + clamp(target - v.v, -45 * dt, 14 * dt));
     let ds = v.v * dt;
     if (ds > gap - 0.3) ds = Math.max(0, gap - 0.3);

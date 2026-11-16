@@ -2,11 +2,11 @@
 // nhà, cây, xe chạy theo làn, dây điện / ống nước, lớp phủ quy hoạch.
 import * as THREE from '../vendor/three.module.min.js';
 import { N, T, HALF, SERVICES, ROADS, ZDEF, garbageLimit, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
-import { GB, growable, treeGeometry, carGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, windowTexture, pylonParts } from './models.js';
+import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const WATER_Y = -0.9;
-const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90;
+const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520;
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 const ZCOL = ZDEF.map((z) => z.rgb);
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
@@ -149,6 +149,8 @@ export class View {
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.carMesh = this._inst(carGeometry(), vehMat, MAX_CARS, true);
     this.bigMesh = this._inst(truckGeometry(), vehMat, MAX_BIG, true);
+    this.motoMesh = this._inst(motoGeometry(), vehMat, MAX_MOTO, true);
+    this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
     this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 1.5, 0.9), new THREE.MeshBasicMaterial(), 800);
     this.lampMesh.count = 0; this.lampMesh.frustumCulled = false; s.add(this.lampMesh);
@@ -684,10 +686,10 @@ export class View {
     const PAL = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c, 0x3d8a5a, 0xf2f2f2];
     const FIX = { garbage: 0x3d8a5a, ambulance: 0xffffff, fire: 0xd0342c };
     const ease = 1 - Math.exp(-realDt * 10);
-    let nc = 0, nb = 0, nu = 0;
+    let nc = 0, nb = 0, nu = 0, nm = 0, np = 0;
     for (const v of c.traffic.vehicles) {
       const e = v.e, pt = pointAt(e.pts, e.cum, v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s));
-      const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] * (e.type === 'oneway' ? 1 : 1);
+      const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
       const gx = pt[0] - tz * off, gz = pt[1] + tx * off;
       if (v.rx == null) { v.rx = gx; v.rz = gz; v.ryaw = Math.atan2(tx, tz); }
       const ox = v.rx, oz = v.rz;
@@ -695,7 +697,8 @@ export class View {
       const mx = v.rx - ox, mz = v.rz - oz;
       if (mx * mx + mz * mz > 1e-5) v.ryaw = Math.atan2(mx, mz);
       p.set(v.rx, this.roadY(v.rx, v.rz) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
-      if (v.kind === 'car') { if (nc < MAX_CARS) { this.carMesh.setMatrixAt(nc, m); this.carMesh.setColorAt(nc++, col.set(PAL[(v.color * PAL.length) | 0])); } }
+      if (v.kind === 'moto') { if (nm < MAX_MOTO) { this.motoMesh.setMatrixAt(nm, m); this.motoMesh.setColorAt(nm++, col.setHSL(v.color, 0.6, 0.5)); } }
+      else if (v.kind === 'car') { if (nc < MAX_CARS) { this.carMesh.setMatrixAt(nc, m); this.carMesh.setColorAt(nc++, col.set(PAL[(v.color * PAL.length) | 0])); } }
       else if (v.kind === 'bus') { if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
       else if (nb < MAX_BIG) { this.bigMesh.setMatrixAt(nb, m); this.bigMesh.setColorAt(nb++, FIX[v.kind] ? col.set(FIX[v.kind]) : col.setHSL(v.color, 0.35, 0.62)); }
     }
@@ -710,7 +713,20 @@ export class View {
         this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(line.hue, 0.75, 0.52));
       }
     }
-    for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    // người đi bộ trên vỉa hè
+    for (const w of c.traffic.peds) {
+      if (np >= MAX_PEDS) break;
+      const st = w.steps[w.pi], e = st.e, pt = pointAt(e.pts, e.cum, st.fwd ? Math.min(w.s, e.len) : Math.max(0, e.len - w.s));
+      const sg = st.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, off = w.side * (ROADS[e.type].w / 2 - 0.9);
+      const gx = pt[0] - pt[3] * off, gz = pt[1] + pt[2] * off;
+      if (w.rx == null) { w.rx = gx; w.rz = gz; }
+      w.rx += (gx - w.rx) * ease; w.rz += (gz - w.rz) * ease;
+      const bob = 1 + Math.sin(this.time * 14 + w.hue * 40) * 0.05;
+      p.set(w.rx, this.roadY(w.rx, w.rz) + 0.1, w.rz); q.setFromAxisAngle(up, Math.atan2(tx, tz)); m.compose(p, q, s.set(1.25, 1.25 * bob, 1.25));
+      this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55));
+    }
+    s.set(1, 1, 1);
+    for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu], [this.motoMesh, nm], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };
     let nl = 0;

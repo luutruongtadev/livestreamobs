@@ -3,7 +3,7 @@
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
 import { N, ZDEF, SERVICES, PRICE, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
-import { trip, later, cellPos, reroute } from './traffic.js';
+import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
@@ -23,7 +23,7 @@ export function initPeople(c) {
   c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N) };
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
   c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, metro: 0, walk: 0 }, housing: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
-  c.carSample = 0.5; c.gbusy = new Set();
+  c.carSample = 1; c.gbusy = new Set();
 }
 
 function growPeople(pp) {
@@ -119,13 +119,15 @@ function go(c, id, dest, purpose) {
   const cb = { t: 'cit', id, gen: pp.gen[id], dest, purpose };
   if (from < 0 || dest < 0 || from === dest) { later(c, 1, cb); return; }
   const d = dist(from, dest), mode = c.pstats.mode;
-  if (d < 170) { mode.walk++; later(c, d / 7 + 1, cb); return; }
+  const hue = (id * 0.6180339) % 1;
+  if (d < 115) { mode.walk++; if (!walk(c, from, dest, cb, hue)) later(c, d / 9 + 1, cb); return; }
   const carEta = (d * 1.35) / 22 / Math.max(0.35, c.traffic.speedEma) + (purpose !== 'home' && c.parked[dest] >= spots(c, dest) ? 8 : 0);
   const ride = planRide(c, from, dest);
   if (ride && ride.eta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
   mode.car++;
-  cb.car = true;
-  if (!trip(c, 'car', from, dest, cb, Math.random() < c.carSample, (id * 0.6180339) % 1)) later(c, 6, { ...cb, fail: true });
+  const kind = id % 5 < 2 ? 'car' : 'moto'; // phần đông đi xe máy
+  if (kind === 'car') cb.car = true; // chỉ ô tô mới phải tìm chỗ đỗ
+  if (!trip(c, kind, from, dest, cb, Math.random() < c.carSample, hue)) later(c, 6, { ...cb, fail: true });
 }
 
 function settle(c, id, cb) {
@@ -134,7 +136,7 @@ function settle(c, id, cb) {
   const hours = (c.traffic.time - pp.t0[id]) / c.hourSec;
   if (cb.purpose === 'work') {
     if (pp.work[id] !== dest || !c.level[dest]) { pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; return; }
-    pp.state[id] = ST.WORK; c.present[dest]++;
+    pp.state[id] = ST.WORK; c.present[dest]++; pp.until[id] = c.hour + 9; // làm đủ 9 giờ kể từ lúc tới nơi
     pp.commute[id] = pp.commute[id] ? pp.commute[id] * 0.6 + hours * 0.4 : hours;
   } else if (cb.purpose === 'home') {
     pp.state[id] = ST.HOME;
@@ -294,7 +296,7 @@ export function peopleHour(c) {
     if (st === ST.HOME) {
       const w = pp.work[id];
       if (w >= 0 && !weekend && h === 4 + (id % 7) && pp.home[id] >= 0) go(c, id, w, 'work');
-      else if (age >= 16 && shops.length && pp.home[id] >= 0 && !pp.sick[id] && rng() < (weekend ? (h >= 9 && h <= 17 ? 0.05 : 0) : h >= 18 && h <= 20 ? 0.03 : 0)) {
+      else if (age >= 14 && shops.length && pp.home[id] >= 0 && !pp.sick[id] && rng() < (weekend || w < 0 ? (h >= 8 && h <= 18 ? 0.06 : 0) : h >= 18 && h <= 21 ? 0.04 : 0)) {
         let best = shops[(rng() * shops.length) | 0];
         for (let k = 0; k < 3; k++) { const j = shops[(rng() * shops.length) | 0]; if (dist(pp.home[id], j) < dist(pp.home[id], best)) best = j; }
         go(c, id, best, 'out');
@@ -304,7 +306,7 @@ export function peopleHour(c) {
       if (w < 0 || !c.level[w]) { pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; } else {
         const wg = wageAt(c, w);
         pp.money[id] += wg * (1 - c.tax.r / 100); wages += wg; c.biz.money[w] -= wg;
-        if (h >= 14 + (id % 7) || weekend) { if (c.present[w] > 0) c.present[w]--; go(c, id, pp.home[id], 'home'); }
+        if (c.hour >= pp.until[id]) { if (c.present[w] > 0) c.present[w]--; go(c, id, pp.home[id], 'home'); }
       }
     } else if (st === ST.OUT) {
       if (c.hour >= pp.until[id]) go(c, id, pp.home[id], 'home');
@@ -359,7 +361,7 @@ function bizHour(c, companies, shops, h) {
       if (pres && b.sin[i] <= 0.01) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needGoods.push(i);
     } else if (kind === 'office' && pres) saleIncome(c, i, pres * (1.75 + 0.2 * c.level[i]), 'c');
-    if (h >= 9 && h <= 14 && c.day % 7 < 5) b.eff[i] += ((active ? Math.min(1, pres / Math.max(1, cap * 0.75)) : 0) - b.eff[i]) * 0.08;
+    if (h >= 9 && h <= 17 && c.day % 7 < 5) b.eff[i] += ((active ? Math.min(1, pres / Math.max(1, cap * 0.5)) : 0) - b.eff[i]) * 0.06; // ca làm lệch giờ nhau nên có mặt một nửa đã là đủ người
     effSum += b.eff[i];
     if (b.incoming[i] && ++b.incoming[i] > 20) b.incoming[i] = 0; // xe hàng thất lạc
     if (b.money[i] < -380) broke.push(i);
@@ -462,7 +464,7 @@ function peopleDay(c) {
     pp.money[id] = clamp(pp.money[id], -200, 3000);
     let hpy = home >= 0 ? c.fn.cellHappy(c, home).happy : 15;
     if (adult && pp.work[id] < 0 && !pp.enrolled[id]) { hpy -= 14; if (pp.idle[id] < 250) pp.idle[id]++; }
-    if (pp.commute[id] > 4) hpy -= Math.min(20, (pp.commute[id] - 4) * 5);
+    if (pp.commute[id] > 5) hpy -= Math.min(20, (pp.commute[id] - 5) * 4);
     if (pp.sick[id]) hpy -= 12;
     if (pp.money[id] > 120) hpy += 4; else if (pp.money[id] < -40) hpy -= 10;
     hpy = clamp(hpy, 0, 100); pp.happy[id] = hpy;
@@ -477,7 +479,7 @@ function peopleDay(c) {
     if (pp.work[id] >= 0 && pp.commute[id]) { cs += pp.commute[id]; cn++; }
   }
   Object.assign(ps, count, { pop: pp.count, edu, unemployed: count.workers - count.employed, happy: pp.count ? hs / pp.count : 55, commute: cn ? cs / cn : 0 });
-  c.carSample = Math.min(0.5, 380 / Math.max(1, count.employed)); // một nửa đi ô tô (vẽ thành xe), còn lại đi xe máy: chỉ tính thời gian
+  c.carSample = Math.min(1, 520 / Math.max(1, count.employed)); // thành phố lớn: chỉ vẽ một phần chuyến đi, phần còn lại tính thời gian
   // sổ sách theo ngày
   c.econ.last = { ...day, riders: c.transit.riders, mode: { ...ps.mode } };
   for (const k of Object.keys(day)) day[k] = 0;
