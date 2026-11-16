@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated } from './sim.js';
-import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
+import { GB, growable, treeGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -165,9 +165,7 @@ export class View {
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     this.treeMeshes = [this._inst(treeGeometry(0), treeMat, 6000, true), this._inst(treeGeometry(1), treeMat, 6000, true)];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
-    this.carMesh = this._inst(carGeometry(), vehMat, MAX_CARS, true);
-    this.bigMesh = this._inst(truckGeometry(), vehMat, MAX_BIG, true);
-    this.motoMesh = this._inst(motoGeometry(), vehMat, MAX_MOTO, true);
+    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
     this.tramMesh = this._inst(tramGeometry(), vehMat, MAX_BUS, true);
@@ -855,7 +853,17 @@ export class View {
     const PAL = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c, 0x3d8a5a, 0xf2f2f2];
     const FIX = { garbage: 0x3d8a5a, ambulance: 0xffffff, fire: 0xd0342c, hearse: 0x26262a, police: 0x2c5aa0, tow: 0xe6a01e };
     const ease = 1 - Math.exp(-realDt * 10);
-    let nc = 0, nb = 0, nu = 0, nm = 0, np = 0, nt = 0;
+    let nu = 0, np = 0, nt = 0;
+    const vc = this.vehCount;
+    for (const k in vc) vc[k] = 0;
+    const CONT = [0xc0392b, 0x2f6fb0, 0x3d8a5a, 0xe07b2e, 0x8a949c, 0x7a3fa0, 0xd8b93a];
+    const put = (look, cap, color) => {
+      let mesh = this.vehMeshes[look];
+      if (!mesh) { mesh = this.vehMeshes[look] = this._inst(vehicleGeometry(look), this.vehMat, cap, true); vc[look] = 0; }
+      const n = vc[look] || 0;
+      if (n >= cap) return;
+      mesh.setMatrixAt(n, m); mesh.setColorAt(n, color); vc[look] = n + 1;
+    };
     for (const v of c.traffic.vehicles) {
       const e = v.e, sa = v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s), pt = pointAt(e.pts, e.cum, sa), lift = ROADS[e.type].elevated ? liftAt(c, e, sa) : 0;
       const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
@@ -867,11 +875,14 @@ export class View {
       if (mx * mx + mz * mz > 1e-5) v.ryaw = Math.atan2(mx, mz);
       if (v.wreck && !v.crashed) { v.crashed = true; v.ryaw += v.crashYaw || 0.6; } // xe tai nạn nằm chéo đường
       p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
-      if (v.kind === 'moto') { if (nm < MAX_MOTO) { this.motoMesh.setMatrixAt(nm, m); this.motoMesh.setColorAt(nm++, col.setHSL(v.color, 0.6, 0.5)); } }
-      else if (v.kind === 'car' || v.kind === 'police') { if (nc < MAX_CARS) { this.carMesh.setMatrixAt(nc, m); this.carMesh.setColorAt(nc++, v.kind === 'police' ? col.set(0x2c5aa0) : v.wreck ? col.set(0x3a3a3a) : col.set(PAL[(v.color * PAL.length) | 0])); } }
+      const look = v.look || v.kind;
+      if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : col.setHSL(v.color, 0.6, 0.5));
+      else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
+      else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
       else if (v.kind === 'bus') { if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
-      else if (nb < MAX_BIG) { this.bigMesh.setMatrixAt(nb, m); this.bigMesh.setColorAt(nb++, FIX[v.kind] ? col.set(FIX[v.kind]) : col.setHSL(v.color, 0.35, 0.62)); }
+      else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
+      else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));
     }
     // tàu metro chạy trên ray cao
     const s2 = new THREE.Vector3(1.15, 1.1, 2.1);
@@ -900,7 +911,8 @@ export class View {
       } else if (np < MAX_PEDS) { this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55)); }
     }
     s.set(1, 1, 1);
-    for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu], [this.tramMesh, nt], [this.motoMesh, nm], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    for (const k in this.vehMeshes) { const mesh = this.vehMeshes[k]; mesh.count = vc[k] || 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };

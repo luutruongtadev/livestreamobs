@@ -463,6 +463,79 @@ export function carGeometry() {
   return g.build();
 }
 
+// ───────────────────────── xe các kiểu (đầu xe về +z, phần màu trắng được nhân màu riêng từng xe) ─────────────────────────
+const TYRE = 0x1e1f22, GLASS_D = 0x2f3b45, LIGHT = 0xfff3b0, TAIL = 0xc0392b;
+function wheels(g, half, zs, r = 0.42, w = 0.32) { for (const z of zs) for (const x of [-half, half]) g.box(x, 0, z, w, r * 2, r * 2, TYRE); }
+function lights(g, w, zf, zb, y) { g.box(0, y, zf, w, 0.22, 0.05, LIGHT); g.box(0, y, zb, w, 0.22, 0.05, TAIL); }
+
+/** Hình 3D cho một kiểu xe trong traffic.LOOKS hoặc một loại xe dịch vụ. */
+export function vehicleGeometry(look) {
+  const g = new GB();
+  switch (look) {
+    case 'hatch': g.box(0, 0.25, 0, 1.45, 0.62, 3, 0xffffff); g.box(0, 0.87, -0.35, 1.32, 0.6, 1.9, GLASS_D); g.box(0, 0.87, -0.35, 1.36, 0.55, 1.3, 0xffffff); wheels(g, 0.66, [0.95, -0.95], 0.34); lights(g, 1.2, 1.51, -1.51, 0.5); break;
+    case 'suv': g.box(0, 0.32, 0, 1.75, 0.85, 3.9, 0xffffff); g.box(0, 1.17, -0.3, 1.66, 0.72, 2.6, GLASS_D); g.box(0, 1.17, -0.3, 1.7, 0.66, 1.9, 0xffffff); g.box(0, 1.92, -0.3, 1.4, 0.08, 2.2, 0x333333); wheels(g, 0.8, [1.25, -1.25], 0.45); lights(g, 1.5, 1.96, -1.96, 0.72); break;
+    case 'taxi': g.box(0, 0.25, 0, 1.5, 0.6, 3.4, 0xffffff); g.box(0, 0.85, -0.2, 1.36, 0.55, 1.8, GLASS_D); g.box(0, 0.85, -0.2, 1.4, 0.5, 1.2, 0xffffff); g.box(0, 1.4, -0.2, 0.7, 0.28, 0.3, 0xf4f4f4); g.box(0, 0.5, 0, 1.52, 0.12, 2.2, 0x222222); wheels(g, 0.7, [1.1, -1.1], 0.34); lights(g, 1.3, 1.71, -1.71, 0.45); break;
+    case 'pickup': g.box(0, 0.3, 0.2, 1.7, 0.7, 4.2, 0xffffff); g.box(0, 1, 0.8, 1.6, 0.7, 1.7, 0xffffff); g.box(0, 1.05, 0.75, 1.62, 0.5, 1.5, GLASS_D); g.box(0, 1, -1.05, 1.6, 0.35, 1.8, 0x5a4a3a); wheels(g, 0.78, [1.4, -1.2], 0.44); lights(g, 1.4, 2.31, -1.91, 0.65); break;
+    case 'minivan': g.box(0, 0.3, 0, 1.75, 1.6, 4.3, 0xffffff); g.box(0, 1.15, 0.1, 1.78, 0.65, 3.9, GLASS_D); g.box(0, 0.3, 2.05, 1.6, 0.5, 0.3, 0xffffff); wheels(g, 0.8, [1.4, -1.4], 0.4); lights(g, 1.5, 2.16, -2.16, 0.65); break;
+    case 'police': g.box(0, 0.25, 0, 1.5, 0.6, 3.4, 0xffffff); g.box(0, 0.85, -0.2, 1.36, 0.55, 1.8, GLASS_D); g.box(0, 0.85, -0.2, 1.4, 0.5, 1.2, 0xffffff); g.box(0, 1.4, -0.1, 1.1, 0.2, 0.35, 0xd0342c); g.box(0.3, 1.4, -0.1, 0.5, 0.21, 0.36, 0x2f6fff); g.box(0, 0.55, 0, 1.52, 0.18, 3.42, 0xf2f2f2); wheels(g, 0.7, [1.1, -1.1], 0.34); lights(g, 1.3, 1.71, -1.71, 0.45); break;
+    // xe hai bánh
+    case 'scooter': case 'duo': case 'cargomoto': {
+      g.box(0, 0.3, 0, 0.5, 0.55, 1.6, 0xffffff); g.box(0, 0.62, -0.25, 0.46, 0.18, 0.8, 0x2a2a2a);
+      g.box(0, 0, 0.7, 0.14, 0.48, 0.48, TYRE); g.box(0, 0, -0.68, 0.14, 0.48, 0.48, TYRE);
+      g.box(0, 0.8, 0.6, 0.62, 0.07, 0.07, 0x222222);
+      g.box(0, 0.8, -0.15, 0.48, 0.72, 0.38, 0x4a5560); g.cyl(0, 1.52, -0.1, 0.21, 0.19, 0.34, 0xf0d9b5, 6, 0x333333); // người lái
+      if (look === 'duo') { g.box(0, 0.8, -0.62, 0.46, 0.7, 0.36, 0x8a5a7a); g.cyl(0, 1.5, -0.6, 0.2, 0.18, 0.32, 0xf0d9b5, 6, 0x3b2a1e); }
+      if (look === 'cargomoto') { g.box(0, 0.75, -0.95, 0.9, 0.7, 0.9, 0xb38a4f); g.box(0, 1.45, -0.95, 0.7, 0.5, 0.7, 0xd9b98a); } // chở hàng cồng kềnh
+      break;
+    }
+    case 'motorbike': g.box(0, 0.35, 0, 0.42, 0.45, 1.8, 0xffffff); g.box(0, 0.7, 0.15, 0.5, 0.35, 0.6, 0xffffff); g.box(0, 0, 0.78, 0.16, 0.6, 0.6, TYRE); g.box(0, 0, -0.75, 0.16, 0.6, 0.6, TYRE); g.box(0, 0.85, -0.2, 0.48, 0.7, 0.38, 0x2d3640); g.cyl(0, 1.55, -0.15, 0.23, 0.21, 0.36, 0x222222, 6, 0x222222); g.box(0, 1, 0.65, 0.66, 0.07, 0.07, 0x222222); break;
+    case 'bicycle': g.box(0, 0, 0.55, 0.06, 0.62, 0.62, TYRE); g.box(0, 0, -0.55, 0.06, 0.62, 0.62, TYRE); g.box(0, 0.45, 0, 0.08, 0.08, 1.1, 0xffffff); g.box(0, 0.55, -0.15, 0.08, 0.5, 0.08, 0xffffff); g.box(0, 0.95, 0.45, 0.5, 0.06, 0.06, 0x222222); g.box(0, 0.8, -0.15, 0.4, 0.7, 0.32, 0x5b8a4a); g.cyl(0, 1.5, -0.08, 0.2, 0.18, 0.3, 0xf0d9b5, 6, 0xd8b93a); break;
+    // xe tải
+    case 'deliveryvan': g.box(0, 0.32, 0, 1.8, 2, 4.8, 0xffffff); g.box(0, 1.35, 2.41, 1.6, 0.7, 0.04, GLASS_D); g.box(0, 0.32, 2.3, 1.82, 0.4, 0.3, 0x444444); wheels(g, 0.82, [1.6, -1.6], 0.4); lights(g, 1.5, 2.41, -2.41, 0.7); break;
+    case 'boxtruck': case 'reefer': {
+      g.box(0, 0.45, 2.2, 2, 1.9, 1.8, 0xe9e9e9); g.box(0, 1.35, 3.11, 1.8, 0.7, 0.04, GLASS_D);
+      g.box(0, 0.6, -0.9, 2.2, 2.6, 4.6, 0xffffff); g.box(0, 0.25, 0, 1.9, 0.35, 6.2, 0x2a2a2a);
+      if (look === 'reefer') { g.box(0, 2.4, 1.36, 1.4, 0.7, 0.3, 0xd8dde0); g.box(0, 1.6, -0.9, 2.22, 0.3, 4.62, 0x2f7fd0); }
+      wheels(g, 0.95, [2.2, -1.8, -2.6], 0.48); lights(g, 1.6, 3.12, -3.21, 0.8); break;
+    }
+    case 'container': {
+      g.box(0, 0.5, 4.6, 2.3, 2.3, 2.2, 0xe2e2e2); g.box(0, 1.6, 5.71, 2, 0.8, 0.04, GLASS_D); g.box(0, 2.8, 4.2, 2.1, 0.5, 1.2, 0xe2e2e2); // đầu kéo
+      g.box(0, 0.55, -1.1, 2.1, 0.25, 9, 0x3a3a3a); // rơ-moóc
+      g.box(0, 0.8, -1.1, 2.4, 2.6, 8.8, 0xffffff);
+      for (let k = 0; k < 9; k++) { g.box(-1.21, 0.9, -5.1 + k, 0.03, 2.4, 0.12, 0xdddddd); g.box(1.21, 0.9, -5.1 + k, 0.03, 2.4, 0.12, 0xdddddd); } // gân thùng
+      wheels(g, 1.05, [4.8, 3.2, -4.2, -5.2], 0.5); lights(g, 1.8, 5.72, -5.56, 0.8); break;
+    }
+    case 'tanker': {
+      g.box(0, 0.5, 3.6, 2.2, 2.2, 2.1, 0xffffff); g.box(0, 1.55, 4.66, 1.9, 0.8, 0.04, GLASS_D);
+      g.box(0, 0.55, -1, 1.9, 0.25, 7, 0x3a3a3a);
+      g.at(new THREE.Matrix4().makeTranslation(0, 1.85, -1).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))).cyl(0, -3.3, 0, 1.15, 1.15, 6.6, 0xd9dde0, 12, 0xc8ccd0).at(null);
+      g.box(0, 3.05, -1, 0.5, 0.15, 5, 0x8a949c); g.box(0, 1.85, -4.32, 0.9, 0.5, 0.05, 0xe6a01e); // biển cảnh báo dễ cháy
+      wheels(g, 1, [3.8, -2.8, -3.8], 0.5); lights(g, 1.7, 4.67, -4.35, 0.8); break;
+    }
+    case 'logtruck': {
+      g.box(0, 0.5, 3.6, 2.2, 2.2, 2.1, 0xffffff); g.box(0, 1.55, 4.66, 1.9, 0.8, 0.04, GLASS_D);
+      g.box(0, 0.55, -1, 2, 0.25, 7, 0x3a3a3a);
+      for (const z of [1.8, -1, -3.8]) { g.box(-1, 0.8, z, 0.15, 2.4, 0.15, 0x333333); g.box(1, 0.8, z, 0.15, 2.4, 0.15, 0x333333); }
+      for (let k = 0; k < 7; k++) { const x = -0.7 + (k % 3) * 0.7, y = 1.25 + ((k / 3) | 0) * 0.65; g.at(new THREE.Matrix4().makeTranslation(x, y, -1).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))).cyl(0, -3.6, 0, 0.32, 0.32, 7.2, 0x8a5a36, 6, 0xd9b98a).at(null); }
+      wheels(g, 1, [3.8, -2.8, -3.8], 0.5); lights(g, 1.7, 4.67, -4.55, 0.8); break;
+    }
+    case 'dump': {
+      g.box(0, 0.5, 2.4, 2.2, 2.2, 2, 0xffffff); g.box(0, 1.55, 3.41, 1.9, 0.8, 0.04, GLASS_D);
+      g.box(0, 0.55, -1, 2.3, 0.3, 5, 0x3a3a3a);
+      g.box(0, 0.85, -1, 2.3, 1.6, 4.8, 0xe6a01e, false, 0x6d6552); g.box(0, 2.3, -1, 2, 0.3, 4.4, 0x7b6f58); // thùng ben chở đất đá, nông sản
+      wheels(g, 1.05, [2.6, -1.4, -2.6], 0.52); lights(g, 1.7, 3.42, -3.41, 0.8); break;
+    }
+    // xe dịch vụ
+    case 'ambulance': g.box(0, 0.32, 0, 1.9, 2.2, 5, 0xffffff); g.box(0, 1.45, 2.51, 1.6, 0.7, 0.04, GLASS_D); g.box(0, 1.1, 0, 1.92, 0.3, 5.02, 0xd0342c); g.box(0, 2.52, 1.6, 1.2, 0.2, 0.4, 0xd0342c); g.box(0.95, 1.6, -0.6, 0.04, 0.9, 0.3, 0xd0342c); g.box(0.95, 1.6, -0.6, 0.04, 0.3, 0.9, 0xd0342c); wheels(g, 0.86, [1.7, -1.7], 0.42); lights(g, 1.5, 2.51, -2.51, 0.7); break;
+    case 'fire': g.box(0, 0.5, 2.6, 2.3, 2.2, 1.8, 0xffffff); g.box(0, 1.6, 3.51, 2, 0.8, 0.04, GLASS_D); g.box(0, 0.5, -0.8, 2.3, 2, 5, 0xffffff); for (let k = 0; k < 3; k++) g.box(-1.16, 0.8, -2.5 + k * 1.6, 0.04, 1.4, 1.3, 0xd8d4cc); g.box(0, 2.6, -0.8, 0.9, 0.3, 5.6, 0xdcdcdc); for (let k = 0; k < 7; k++) g.box(0, 2.9, -3.4 + k * 0.85, 0.9, 0.06, 0.08, 0x9a9a9a); g.box(0, 2.75, 2.8, 1.4, 0.18, 0.35, 0x2f6fff); wheels(g, 1.05, [2.6, -1.6, -2.8], 0.5); lights(g, 1.8, 3.52, -3.31, 0.8); break;
+    case 'garbage': g.box(0, 0.5, 2.5, 2.2, 2.2, 1.9, 0xffffff); g.box(0, 1.55, 3.46, 1.9, 0.8, 0.04, GLASS_D); g.at(new THREE.Matrix4().makeTranslation(0, 0.6, -0.9)).box(0, 0, 0, 2.3, 2.4, 4.6, 0xffffff).box(0, 2.4, -0.3, 2.1, 0.4, 3.8, 0xffffff).box(0, 0.2, -2.4, 2.2, 2, 0.4, 0x555555).at(null); wheels(g, 1, [2.5, -1.5, -2.6], 0.5); lights(g, 1.7, 3.47, -3.51, 0.8); break;
+    case 'hearse': g.box(0, 0.25, 0, 1.6, 0.65, 4.8, 0xffffff); g.box(0, 0.9, -0.5, 1.5, 0.8, 3.4, 0xffffff); g.box(0, 1.0, 0.95, 1.48, 0.55, 0.6, GLASS_D); g.box(-0.76, 1.05, -0.8, 0.03, 0.5, 2.2, 0x8a7f70); g.box(0.76, 1.05, -0.8, 0.03, 0.5, 2.2, 0x8a7f70); wheels(g, 0.74, [1.6, -1.6], 0.36); lights(g, 1.3, 2.41, -2.41, 0.45); break;
+    case 'tow': g.box(0, 0.5, 2, 2.1, 2, 1.9, 0xffffff); g.box(0, 1.5, 2.96, 1.8, 0.7, 0.04, GLASS_D); g.box(0, 0.6, -1, 2.2, 0.4, 4.2, 0x5b6670); g.at(new THREE.Matrix4().makeTranslation(0, 1.6, -1.6).multiply(new THREE.Matrix4().makeRotationX(0.5))).box(0, 0, 0, 0.35, 0.35, 3.4, 0x333333).at(null); g.box(0, 2.6, 2, 1.4, 0.2, 0.35, 0xe6a01e); wheels(g, 0.98, [2, -1.4, -2.4], 0.48); lights(g, 1.6, 2.97, -3.11, 0.75); break;
+    default: return carGeometry();
+  }
+  return g.build();
+}
+
 /** Công trình đặt tay. Trả về { geometry, spin?: [{geometry, pos:[x,y,z]}] } — gốc ở tâm khối đất, mặt tiền về +z. */
 export function serviceModel(type, size) {
   const g = new GB(), S = size * T, e = S - 0.3;

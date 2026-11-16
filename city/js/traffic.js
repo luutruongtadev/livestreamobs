@@ -16,6 +16,25 @@ export const VKIND = {
   police: { len: 4.2, speed: 33, emergency: true },
   tow: { len: 6.4, speed: 26, emergency: true },
 };
+/**
+ * Kiểu dáng từng xe (chỉ đổi hình, chiều dài, tốc độ; loại xe trong mô phỏng giữ nguyên).
+ * vmul: nhân tốc độ tối đa (xe container, xe bồn chạy chậm; xe đạp rất chậm).
+ */
+export const LOOKS = {
+  sedan: { len: 3.4 }, hatch: { len: 3 }, suv: { len: 3.9 }, taxi: { len: 3.4 }, pickup: { len: 4.2 }, minivan: { len: 4.3, vmul: 0.95 },
+  scooter: { len: 1.8 }, motorbike: { len: 2, vmul: 1.08 }, duo: { len: 1.9, vmul: 0.95 }, bicycle: { len: 1.7, vmul: 0.55 }, cargomoto: { len: 2.2, vmul: 0.85 },
+  boxtruck: { len: 6.4 }, deliveryvan: { len: 4.8, vmul: 1.05 }, container: { len: 11.5, vmul: 0.82 }, tanker: { len: 9.5, vmul: 0.85 }, logtruck: { len: 9.5, vmul: 0.85 }, dump: { len: 7, vmul: 0.9 }, reefer: { len: 7.4 },
+};
+/** Chọn kiểu dáng cho xe theo loại và việc nó đang làm (xe tải chở gì, đi đâu). */
+export function pickLook(kind, cb, r) {
+  if (kind === 'car') return r < 0.42 ? 'sedan' : r < 0.6 ? 'hatch' : r < 0.76 ? 'suv' : r < 0.85 ? 'taxi' : r < 0.93 ? 'minivan' : 'pickup';
+  if (kind === 'moto') return r < 0.5 ? 'scooter' : r < 0.72 ? 'motorbike' : r < 0.86 ? 'duo' : r < 0.95 ? 'bicycle' : 'cargomoto';
+  if (kind !== 'truck') return kind; // xe dịch vụ: mỗi loại một hình riêng
+  if (cb && (cb.t === 'export' || cb.imp)) return r < 0.75 ? 'container' : cb.kind === 'oil' ? 'tanker' : 'boxtruck'; // hàng ra vào thành phố
+  const k = cb && cb.kind;
+  return k === 'oil' ? 'tanker' : k === 'wood' ? 'logtruck' : k === 'ore' || k === 'agri' ? 'dump' : k === 'fish' ? 'reefer' : r < 0.55 ? 'boxtruck' : 'deliveryvan';
+}
+
 export const MAX_VEH = 900; // tổng số xe chạy thật cùng lúc
 export const MAX_CARS = 380; // riêng xe con; vượt quá thì chuyến đi được tính thời gian chứ không vẽ xe
 export const MAX_MOTO = 380;
@@ -148,6 +167,9 @@ export function spawnVehicle(c, kind, from, to, cb, color) {
   if (!path) return null;
   const k = VKIND[kind], tr = c.traffic;
   const v = { id: tr.nextId++, kind, len: k.len, emergency: !!k.emergency, v: 0, cb, color: color ?? Math.random(), lane: (Math.random() * 3) | 0, hold: 0, cost: path.cost };
+  v.look = pickLook(kind, cb, Math.random());
+  const lk = LOOKS[v.look];
+  if (lk) { v.len = lk.len; v.vmul = lk.vmul || 1; }
   place(v, path);
   tr.vehicles.push(v); tr.stats.spawned++;
   return v;
@@ -251,7 +273,7 @@ export function stepTraffic(c, dt) {
   let sum = 0, cnt = 0;
   for (const v of tr.vehicles) {
     if (v.hold > 0) { v.hold -= dt; v.v = 0; continue; }
-    const L = v.e.len, last = v.pi === v.steps.length - 1, vmax = baseSpeed(v.e, v.kind);
+    const L = v.e.len, last = v.pi === v.steps.length - 1, vmax = baseSpeed(v.e, v.kind) * (v.vmul || 1);
     const arr = lanes.get(laneKey(v.e, v.fwd, v.lane));
     let gap = Infinity;
     for (const o of arr) if (o !== v && o.s > v.s && (!v.emergency || o.wreck || o.emergency)) gap = Math.min(gap, o.s - v.s - (o.len + v.len) / 2); // xe khẩn cấp lách qua xe thường

@@ -12,7 +12,7 @@ import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, 
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
-export { edgeLoad, signalState, findPath, cellPos, VKIND } from './traffic.js';
+export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die } from './people.js';
 export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
 export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
