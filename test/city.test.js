@@ -14,11 +14,14 @@ const road = (c, x0, y0, x1, y1, type = 'small', ctrl = null) => S.buildRoad(c, 
 const degrees = (c) => { const d = {}; for (const l of c.adj.values()) d[l.length] = (d[l.length] || 0) + 1; return d; };
 const run = (c, hours) => { for (let h = 0; h < hours; h++) S.tick(c); };
 const cell = (x, y) => y * S.N + x;
+const { newCity } = S;
+/** Thành phố mới với cả bản đồ đã là đất của mình (các test cũ không bàn chuyện mua đất). */
+const openCity = (seed) => { const c = newCity(seed); c.owned.fill(1); c.own.fill(1); return c; };
 const shore = (c) => { for (let y = 5; y < 60; y++) for (let x = 5; x < 90; x++) if (S.canPlace(c, 'outlet', x, y).ok) return [x, y]; return null; };
 
 /** Lưới đường nhỏ: trục dọc + trục ngang cắt nhau, chưa có gì khác. */
 function cross(seed = 12345) {
-  const c = S.newCity(seed), sx = c.start.x;
+  const c = openCity(seed), sx = c.start.x;
   road(c, sx, 7, sx, 30);
   road(c, sx - 12, 20, sx + 12, 20);
   return c;
@@ -26,7 +29,7 @@ function cross(seed = 12345) {
 
 /** Thị trấn đủ dùng: lưới ô bàn cờ, ba loại khu, điện, nước, cống xả đã nối mạng. */
 function town(seed = 12345) {
-  const c = S.newCity(seed), sx = c.start.x;
+  const c = openCity(seed), sx = c.start.x;
   c.money = 500000;
   road(c, sx, 7, sx, 34); road(c, sx - 14, 14, sx + 14, 14); road(c, sx - 14, 24, sx + 14, 24);
   road(c, sx - 14, 14, sx - 14, 34); road(c, sx + 14, 14, sx + 14, 34); road(c, sx - 14, 34, sx + 14, 34);
@@ -44,7 +47,7 @@ function town(seed = 12345) {
 }
 
 test('city: bản đồ mới có nước, cây, địa hình cao thấp và một đoạn đường dẫn vào', () => {
-  const c = S.newCity(42);
+  const c = openCity(42);
   const sum = (a) => a.reduce((n, v) => n + v, 0);
   assert.ok(sum(c.water) > 300 && sum(c.water) < S.N * S.N / 2);
   assert.ok(sum(c.tree) > 200);
@@ -57,7 +60,7 @@ test('city: bản đồ mới có nước, cây, địa hình cao thấp và m�
 });
 
 test('city: đường là graph — cắt nhau tự sinh nút giao, đường cong, từ chối đường trùng', () => {
-  const c = S.newCity(12345), sx = c.start.x, before = c.money;
+  const c = openCity(12345), sx = c.start.x, before = c.money;
   const r1 = road(c, sx, 7, sx, 30);
   assert.ok(r1.ok);
   assert.equal(c.money, before - r1.cost);
@@ -79,7 +82,7 @@ test('city: đường là graph — cắt nhau tự sinh nút giao, đường co
 });
 
 test('city: ô quy hoạch tự sinh hai bên đường; khu mật độ cao và văn phòng khoá theo mốc dân số', () => {
-  const c = S.newCity(12345), sx = c.start.x;
+  const c = openCity(12345), sx = c.start.x;
   road(c, sx - 12, 20, sx + 12, 20);
   assert.equal(c.road[cell(sx, 20)], 1);
   assert.deepEqual([c.acc[cell(sx, 21)], c.acc[cell(sx, 22)], c.acc[cell(sx, 23)]], [1, 2, 0]);
@@ -318,6 +321,73 @@ test('city: lưu rồi nạp lại giữ nguyên thành phố và người dân;
   assert.ok(c3.pp.count > 0, 'dân dọn về lại');
   assert.throws(() => S.deserialize({ v: 1, n: S.N }));
   assert.throws(() => S.deserialize(null));
+});
+
+test('city: khu chuyên biệt chỉ mọc trên ô có tài nguyên, mở bằng điểm phát triển; nhà máy cần đúng loại nguyên liệu', () => {
+  const c = town(), sx = c.start.x, farm = S.ZONE.FARM;
+  for (let y = 16; y <= 22; y++) for (const x of [sx + 15, sx + 16]) c.res[cell(x, y)] = S.RAW.agri.id;
+  for (let y = 26; y <= 30; y++) for (const x of [sx + 15, sx + 16]) c.res[cell(x, y)] = 0;
+  assert.match(S.zoneRect(c, sx + 15, 16, sx + 16, 22, farm).reason, /Phát triển/, 'chưa mở trong cây công nghệ');
+  assert.equal(S.unlockTech(c, 'fish').ok, false, 'ngư nghiệp cần nông nghiệp trước');
+  assert.ok(S.unlockTech(c, 'farm').ok);
+  assert.equal(c.points, S.START_POINTS - 1);
+  assert.match(S.zoneRect(c, sx + 15, 26, sx + 16, 30, farm).reason, /nông sản/, 'ô không có đất màu mỡ');
+  assert.ok(S.zoneRect(c, sx + 15, 16, sx + 16, 22, farm).count > 6);
+  run(c, 24 * 6);
+  const farms = [];
+  for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) { if (c.zone[i] === farm) farms.push(i); else if (c.zone[i] === 3) assert.equal(S.bizKind(c, i), 'factory'); }
+  assert.ok(farms.length > 0, 'nông trại đã mọc');
+  assert.equal(S.bizKind(c, farms[0]), 'raw');
+  assert.ok(c.econ.exports > 0 || farms.some((i) => c.biz.sout[i] > 0), 'nông trại có sản lượng');
+  assert.ok(S.RAW[S.factoryNeed(farms[0])], 'mỗi nhà máy gắn với một loại nguyên liệu');
+});
+
+test('city: module nâng công suất công trình; công trình biểu tượng mỗi thành phố một cái; lưu lại đủ', () => {
+  const c = town(), sx = c.start.x;
+  const tower = c.services.findIndex((s) => s.type === 'tower'), cap = c.stats.waterCap, exp = c.stats.expense;
+  assert.equal(S.addModule(c, tower, 'tank').ok, false, 'chưa mở module');
+  assert.ok(S.unlockTech(c, 'm_water').ok);
+  assert.ok(S.addModule(c, tower, 'tank').ok);
+  assert.equal(c.stats.waterCap, cap + 125);
+  assert.ok(c.stats.expense > exp);
+  assert.equal(S.addModule(c, tower, 'tank').ok, false, 'mỗi loại module chỉ gắn một lần');
+  assert.equal(S.addModule(c, tower, 'wing').ok, false, 'module của trường không gắn vào tháp nước');
+  assert.equal(S.techState(c, 'lm1'), 'rank', 'tượng đài cần mốc dân số đầu tiên');
+  c.milestone = 1;
+  assert.ok(S.unlockTech(c, 'lm1').ok);
+  assert.equal(c.points, 0);
+  assert.equal(S.unlockTech(c, 'forest').reason, 'Không đủ điểm phát triển');
+  assert.ok(S.placeService(c, 'monument', sx + 18, 20).ok);
+  assert.equal(c.bonus.happy, 2);
+  assert.match(S.canPlace(c, 'monument', sx + 22, 20).reason, /chỉ có một/);
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual([[...c2.tech].sort(), c2.points, c2.services[tower].mods, c2.stats.waterCap, c2.bonus.happy], [['lm1', 'm_water'], 0, ['tank'], cap + 125, 2]);
+});
+
+test('city: đất khoá lúc đầu, mua ô kề bên để mở rộng; bản đồ mới có núi; bản lưu cũ mở sẵn cả bản đồ', () => {
+  const c = newCity(12345), sx = c.start.x, owned = () => c.owned.reduce((n, v) => n + v, 0);
+  assert.equal(owned(), 9);
+  assert.ok(c.steep.some((v) => v) && Math.max(...c.hv) > 25, 'có núi dốc');
+  for (const d of Object.values(S.RAW)) assert.ok(c.res.includes(d.id), `bản đồ có ${d.name}`);
+  assert.ok(road(c, sx, 7, sx, 30).ok);
+  assert.match(road(c, sx, 30, sx, 40).reason, /chưa mua/);
+  assert.match(S.canPlace(c, 'wind', 3, 80).reason, /chưa mua/);
+  assert.equal(S.zoneRect(c, 0, 0, S.N - 1, S.N - 1, S.ZONE.R).count, S.zoneRect(c, 0, 0, S.N - 1, S.N - 1, 0).count, 'quy hoạch không lọt ra ngoài đất của mình');
+  const below = S.landOf(sx, 40), far = S.landOf(3, 90), money = c.money, price = S.landPrice(c, below), farPrice = S.landPrice(c, far);
+  assert.match(S.buyLand(c, far).reason, /kề/);
+  assert.ok(S.buyLand(c, below).ok);
+  assert.deepEqual([owned(), c.money], [10, money - price]);
+  assert.ok(S.landPrice(c, far) > farPrice, 'càng có nhiều đất càng đắt');
+  assert.ok(road(c, sx, 30, sx, 40).ok);
+  const o = JSON.parse(JSON.stringify(S.serialize(c)));
+  assert.equal(S.deserialize(o).owned.reduce((n, v) => n + v, 0), 10);
+  // bản lưu v3: chưa có mua đất, cây công nghệ, núi
+  const v3 = { ...o, v: 3, milestone: 2 };
+  for (const k of ['owned', 'tech', 'points', 'tgen']) delete v3[k];
+  const c3 = S.deserialize(v3);
+  assert.ok(c3.owned.every((v) => v === 1) && c3.own.every((v) => v === 1));
+  assert.deepEqual([c3.tgen, c3.steep.some((v) => v), c3.points], [1, false, S.START_POINTS + 7]);
+  assert.equal(c3.edges.size, c.edges.size);
 });
 
 test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', () => {

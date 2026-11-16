@@ -2,7 +2,7 @@
 // Người: tuổi, học vấn, nhà, chỗ làm, tiền, hạnh phúc, sức khoẻ; vòng đời sinh → học → làm → nghỉ hưu → mất;
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
-import { N, ZDEF, SERVICES, PRICE, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
+import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 
@@ -83,13 +83,13 @@ export function onBuildingCleared(c, i) {
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
 export const wageAt = (c, i) => (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1));
 export const rentAt = (c, i) => 1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6;
-const spots = (c, i) => (c.occ[i] ? SERVICES[c.services[c.occ[i] - 1].type].spots || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
+const spots = (c, i) => (c.occ[i] ? svcVal(c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
 const isShop = (c, i) => c.level[i] > 0 && ZDEF[c.zone[i]].biz === 'shop';
-/** Loại doanh nghiệp ở ô i: 'raw' khai thác nguyên liệu, 'factory', 'shop', 'office' hoặc null. */
+/** Loại doanh nghiệp ở ô i: 'raw' khu chuyên biệt khai thác nguyên liệu, 'factory', 'shop', 'office' hoặc null. */
 export function bizKind(c, i) {
   if (!c.level[i]) return null;
   const b = ZDEF[c.zone[i]].biz;
-  return b === 'ind' ? (c.variant[i] % 3 === 0 ? 'raw' : 'factory') : b || null;
+  return b === 'ind' ? 'factory' : b === 'res' ? 'raw' : b || null;
 }
 const dist = (a, b) => Math.hypot(cellX(a) - cellX(b), cellZ(a) - cellZ(b));
 const svcByUid = (c, uid) => c.services.find((s) => s.uid === uid);
@@ -163,7 +163,7 @@ export function onArrive(c, cb, v) {
           // hết chỗ: tìm bãi đỗ xe gần đó, không có thì chạy vòng rồi đỗ lề đường
           c.econ.parkSearch++; c.econ.day.parkSearch++;
           let lot = null;
-          for (const s of c.services) { const d = SERVICES[s.type]; if (d.spots && s.cell >= 0 && c.parked[s.cell] < d.spots && dist(s.cell, cb.dest) < d.radius * 10) { lot = s; break; } }
+          for (const s of c.services) { if (SERVICES[s.type].spots && s.cell >= 0 && c.parked[s.cell] < svcVal(s, 'spots') && dist(s.cell, cb.dest) < svcVal(s, 'radius') * 10) { lot = s; break; } }
           if (lot) { c.parked[lot.cell]++; pp.car[id] = lot.cell; }
           if (v) {
             let far = lot ? lot.cell : -1;
@@ -181,13 +181,13 @@ export function onArrive(c, cb, v) {
       const b = c.biz, to = cb.to;
       b.incoming[to] = 0;
       if (!c.level[to]) return undefined;
-      const price = PRICE[cb.kind], cost = cb.qty * price * (cb.imp ? PRICE.importMult : 1);
+      const price = priceOf(cb.kind), cost = cb.qty * price * (cb.imp ? (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) : 1);
       b.sin[to] += cb.qty; b.money[to] -= cost;
       if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * price, 'i');
       return undefined;
     }
     case 'export': {
-      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * PRICE[cb.kind] * PRICE.exportMult, 'i');
+      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0)), 'i');
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;
     }
@@ -233,7 +233,7 @@ export function onArrive(c, cb, v) {
 function saleIncome(c, i, amount, cat) {
   const rate = c.tax[cat] / 100;
   c.biz.money[i] += amount * (1 - rate);
-  c.hourInc[cat] += amount * (c.tax[cat] / 9) * (cat === 'c' ? 1.2 : 1.35);
+  c.hourInc[cat] += amount * (c.tax[cat] / 9) * (cat === 'c' ? 1.2 * (1 + c.bonus.comm) : 1.35);
 }
 
 // ───────────────────────── mỗi giờ ─────────────────────────
@@ -251,7 +251,7 @@ export function peopleHour(c) {
     if (rc) { housing += rc; if (c.resCount[i] < rc && c.pOk[i] === 1 && c.wOk[i] === 1 && !c.fire[i]) vacHomes.push(i); }
     if (jb) {
       jobs += jb; companies.push(i);
-      const cat = ZDEF[z].biz === 'ind' ? 'i' : ZDEF[z].biz === 'office' ? 'o' : 'c';
+      const cat = ZDEF[z].biz === 'ind' || ZDEF[z].biz === 'res' ? 'i' : ZDEF[z].biz === 'office' ? 'o' : 'c';
       if (cat === 'i') ji += jb; else if (cat === 'o') jo += jb; else jc += jb;
       if (c.staff[i] < jb) vacJobs.push(i);
       if (ZDEF[z].biz === 'shop') shops.push(i);
@@ -275,6 +275,7 @@ export function peopleHour(c) {
   // 3) lịch sinh hoạt + lương + tìm việc + tìm nhà
   let wages = 0, matched = 0, sickDispatch = 0;
   const clinics = c.services.filter((s) => SERVICES[s.type].ambulances && s.cell >= 0);
+  const ambOf = (s) => svcVal(s, 'ambulances');
   for (let id = 0; id < pp.n; id++) {
     if (!pp.alive[id]) continue;
     const age = pp.age[id], st = pp.state[id], adult = age >= 18 && age < 65;
@@ -317,7 +318,7 @@ export function peopleHour(c) {
       if (pp.sick[id] < 250) pp.sick[id]++;
       if (!pp.amb[id] && sickDispatch < 4 && pp.home[id] >= 0 && clinics.length) {
         let best = null, bd = Infinity;
-        for (const s of clinics) { if ((s.out || 0) >= SERVICES[s.type].ambulances) continue; const d = dist(s.cell, pp.home[id]); if (d < bd) { bd = d; best = s; } }
+        for (const s of clinics) { if ((s.out || 0) >= ambOf(s)) continue; const d = dist(s.cell, pp.home[id]); if (d < bd) { bd = d; best = s; } }
         const from = best && svcPos(c, best);
         if (from && trip(c, 'ambulance', from, pp.home[id], { t: 'amb', id, gen: pp.gen[id], svc: best.uid }, true)) { best.out = (best.out || 0) + 1; pp.amb[id] = 1; sickDispatch++; }
       }
@@ -338,7 +339,9 @@ function bizHour(c, companies, shops, h) {
   let shopStaff = 0;
   for (const i of shops) shopStaff += c.present[i];
   const demand = c.pp.count * DEMAND_PER_HEAD * (open ? 1.5 : 0.2);
-  const needRaw = [], needGoods = [], supRaw = [], supGoods = [], broke = [];
+  const needRaw = {}, supRaw = {}, needGoods = [], supGoods = [], broke = [];
+  for (const k of RAW_KINDS) { needRaw[k] = []; supRaw[k] = []; }
+  const boost = c.tech.has('survey') ? 1.2 : 1;
   let effSum = 0;
   for (const i of companies) {
     const kind = bizKind(c, i), pres = c.present[i], cap = jobCap(c.zone[i], c.level[i]);
@@ -346,13 +349,14 @@ function bizHour(c, companies, shops, h) {
     const prod = 1 + 0.12 * (c.level[i] - 1);
     let active = pres > 0;
     if (kind === 'raw') {
-      b.sout[i] = Math.min(48, b.sout[i] + pres * 0.6 * prod);
-      if (b.sout[i] >= PRICE.load) supRaw.push(i);
+      const rk = ZDEF[c.zone[i]].raw;
+      b.sout[i] = Math.min(48, b.sout[i] + pres * RAW[rk].rate * prod * boost);
+      if (b.sout[i] >= PRICE.load) supRaw[rk].push(i);
     } else if (kind === 'factory') {
       const use = Math.min(b.sin[i], pres * 0.4 * prod, 48 - b.sout[i]);
       b.sin[i] -= use; b.sout[i] += use;
       if (pres && use < pres * 0.2) active = false;
-      if (b.sin[i] < 6 && !b.incoming[i]) needRaw.push(i);
+      if (b.sin[i] < 6 && !b.incoming[i]) needRaw[factoryNeed(i)].push(i);
       if (b.sout[i] >= PRICE.load) supGoods.push(i);
     } else if (kind === 'shop') {
       const sold = Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.3 * prod);
@@ -381,10 +385,10 @@ function bizHour(c, companies, shops, h) {
       if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind, qty: PRICE.load, imp: true }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
     }
   };
-  deliver(needRaw, supRaw, 'raw');
+  for (const k of RAW_KINDS) deliver(needRaw[k], supRaw[k], k);
   deliver(needGoods, supGoods, 'goods');
   // kho đầy mà trong thành phố không ai mua: xuất ra ngoài
-  for (const [sups, kind] of [[supRaw, 'raw'], [supGoods, 'goods']]) for (const s of sups) {
+  for (const [sups, kind] of [...RAW_KINDS.map((k) => [supRaw[k], k]), [supGoods, 'goods']]) for (const s of sups) {
     if (b.sout[s] < 30) continue;
     const out = nearestOutside(c, s);
     if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: 16 }, trucks < MAX_TRUCKS)) { b.sout[s] -= 16; trucks++; }
@@ -403,9 +407,10 @@ function servicesHour(c, h) {
   // xe rác: tới con đường bẩn nhất trong bán kính
   for (const s of c.services) {
     const d = SERVICES[s.type];
-    if (!d.trash || !d.trucks || s.cell < 0 || h < 5 || h > 20 || (s.out || 0) >= d.trucks || (s.processed || 0) >= d.trash) continue;
+    if (!d.trash || !d.trucks || s.cell < 0 || h < 5 || h > 20 || (s.out || 0) >= svcVal(s, 'trucks') || (s.processed || 0) >= svcVal(s, 'trash')) continue;
     let best = -1, bg = 4;
-    for (let i = 0; i < N * N; i++) if (c.garbage[i] > bg && c.level[i] && !c.gbusy.has(c.cedge[i]) && dist(i, s.cell) < d.radius * 10) { bg = c.garbage[i]; best = i; }
+    const reach = svcVal(s, 'radius') * 10;
+    for (let i = 0; i < N * N; i++) if (c.garbage[i] > bg && c.level[i] && !c.gbusy.has(c.cedge[i]) && dist(i, s.cell) < reach) { bg = c.garbage[i]; best = i; }
     const from = best >= 0 && svcPos(c, s);
     if (from && trip(c, 'garbage', from, best, { t: 'garbage', svc: s.uid, cell: best, edge: c.cedge[best] }, true)) { s.out = (s.out || 0) + 1; c.gbusy.add(c.cedge[best]); }
   }
@@ -417,7 +422,7 @@ function servicesHour(c, h) {
     if (--c.fire[i] === 0) { c.events.push({ type: 'fire', x: i % N, y: (i / N) | 0, zone: c.zone[i] }); c.fn.clearBuilding(c, i); c.dirty.fx = true; continue; }
     if (c.fireTruck[i]) continue;
     let best = null, bd = Infinity;
-    for (const s of c.services) { const d = SERVICES[s.type]; if (s.type !== 'fire' || s.cell < 0 || (s.out || 0) >= d.trucks) continue; const dd = dist(s.cell, i); if (dd < bd) { bd = dd; best = s; } }
+    for (const s of c.services) { if (s.type !== 'fire' || s.cell < 0 || (s.out || 0) >= svcVal(s, 'trucks')) continue; const dd = dist(s.cell, i); if (dd < bd) { bd = dd; best = s; } }
     const from = best && svcPos(c, best);
     if (from && trip(c, 'fire', from, i, { t: 'fire', svc: best.uid, cell: i }, true)) { best.out = (best.out || 0) + 1; c.fireTruck[i] = 1; }
   }
@@ -429,9 +434,9 @@ function servicesHour(c, h) {
 function seatAt(c, level, home) {
   for (const s of c.services) {
     const d = SERVICES[s.type];
-    if (d.eduLevel !== level || (s.used || 0) >= d.students) continue;
+    if (d.eduLevel !== level || (s.used || 0) >= svcVal(s, 'students')) continue;
     const cx = s.x + d.size / 2, cy = s.y + d.size / 2;
-    if (Math.hypot((home % N) + 0.5 - cx, ((home / N) | 0) + 0.5 - cy) <= d.radius) { s.used = (s.used || 0) + 1; return true; }
+    if (Math.hypot((home % N) + 0.5 - cx, ((home / N) | 0) + 0.5 - cy) <= svcVal(s, 'radius')) { s.used = (s.used || 0) + 1; return true; }
   }
   return false;
 }

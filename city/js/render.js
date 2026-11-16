@@ -3,8 +3,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, SERVICES, ROADS, ZDEF, garbageLimit, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
-import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, windowTexture, pylonParts } from './models.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
+import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const WATER_Y = -0.9;
@@ -18,6 +18,8 @@ const PED_MODELS = [
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 const ZCOL = ZDEF.map((z) => z.rgb);
+const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
+const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
 const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6] };
 
@@ -210,7 +212,7 @@ export class View {
     this.lineGroup = new THREE.Group(); s.add(this.lineGroup);
     this.ghostGroup = new THREE.Group(); s.add(this.ghostGroup);
     this.pipeMat = new THREE.MeshBasicMaterial({ color: 0x35b6ff, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
-    this.svcCache = {};
+    this.svcCache = {}; this.modCache = {};
     this.spinners = [];
   }
 
@@ -306,26 +308,27 @@ export class View {
     this.terrain = this._terrain(city);
     this.overlay = this._overlayMesh(city);
     this.scene.add(this.terrain, this.overlay);
-    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true };
+    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true };
     this.puffs.length = 0; this.fireCells = [];
     this.cam.x = cellCenter(city.start.x); this.cam.z = cellCenter(city.start.y + 6);
     this.cam.y = heightAt(city, this.cam.x, this.cam.z);
   }
 
   _terrain(city) {
-    const f = makeField(city.seed), seed = city.seed;
+    const hf = heightFn(city), { f, isWater } = hf, seed = city.seed;
     const W = N + 2 * BORDER, V = W + 1;
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
-    const isWater = (tx, ty) => (tx >= 0 && ty >= 0 && tx < N && ty < N ? city.water[ty * N + tx] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
-    const grass = new THREE.Color(0x5e9c43), grass2 = new THREE.Color(0x74ad4c), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), c = new THREE.Color();
+    const grass = new THREE.Color(0x5e9c43), grass2 = new THREE.Color(0x74ad4c), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), snow = new THREE.Color(0xe9ebe6), c = new THREE.Color(), tint = new THREE.Color();
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const gx = i - BORDER, gy = j - BORDER, k = j * V + i;
       const inside = gx >= 0 && gy >= 0 && gx <= N && gy <= N;
       const wn = isWater(gx - 1, gy - 1) + isWater(gx, gy - 1) + isWater(gx - 1, gy) + isWater(gx, gy);
-      let h = inside ? city.hv[gy * (N + 1) + gx] : vertexHeight(seed, f, isWater, gx, gy);
+      let h = inside ? city.hv[gy * (N + 1) + gx] : hf.height(gx, gy);
       if (wn === 4) c.copy(bed); else if (wn > 0) c.copy(sand); else {
-        const out = Math.max(0, -gx, gx - N, -gy, gy - N);
+        const out = Math.max(0, -gx, gx - N, -gy, gy - N), mt = hf.mount(gx, gy);
         c.copy(grass).lerp(grass2, vnoise(gx * 0.11, gy * 0.11, seed + 21)).lerp(dry, Math.min(0.6, h / 22));
+        if (gx >= 0 && gy >= 0 && gx < N && gy < N) { const rs = city.res[gy * N + gx]; if (rs && rs < 5) c.lerp(tint.set(RES_TINT[rs]), 0.3 + 0.2 * vnoise(gx * 0.4, gy * 0.4, seed + 81)); }
+        if (mt > 0) c.lerp(rock, Math.min(0.9, mt / 14)).lerp(snow, Math.min(1, Math.max(0, (h - 33) / 9))); // núi đá, đỉnh cao phủ trắng
         if (out > 0) {
           const s = Math.min(1, out / BORDER), e = s * s * (3 - 2 * s), land = Math.min(1, Math.max(0, f(gx, gy) / 9));
           const m = e * land * (vnoise(gx * 0.05, gy * 0.05, seed + 31) * 85 + vnoise(gx * 0.17, gy * 0.17, seed + 33) * 16);
@@ -371,6 +374,36 @@ export class View {
     m.renderOrder = 2; m.frustumCulled = false;
     return m;
   }
+
+  /** Viền phần đất đã mua (luôn hiện) và lưới ô đất còn lại (chỉ hiện khi cầm công cụ mua đất). */
+  _land() {
+    const c = this.city, V = N + 1, edge = new Tris(false), grid = new Tris(false);
+    const y = (gx, gy) => Math.max(c.hv[gy * V + gx], WATER_Y) + 0.4;
+    const seg = (t, x0, y0, x1, y1, w) => { // dải rộng 2w dọc một cạnh ô lưới
+      const dx = x1 - x0 ? 0 : w, dz = x1 - x0 ? w : 0, ax = x0 * T - HALF, az = y0 * T - HALF, bx = x1 * T - HALF, bz = y1 * T - HALF, ya = y(x0, y0), yb = y(x1, y1);
+      const p = t.v(ax - dx, ya, az - dz, 0, 0), q = t.v(ax + dx, ya, az + dz, 0, 0), r = t.v(bx - dx, yb, bz - dz, 0, 0), s = t.v(bx + dx, yb, bz + dz, 0, 0);
+      t.tri(p, q, r, true); t.tri(q, s, r, true);
+    };
+    const own = (tx, ty) => tx >= 0 && ty >= 0 && tx < LT && ty < LT && c.owned[ty * LT + tx] === 1;
+    for (let ty = 0; ty <= LT; ty++) for (let tx = 0; tx <= LT; tx++) {
+      for (const horiz of [true, false]) { // cạnh trên (ngang) và cạnh trái (dọc) của ô đất (tx, ty)
+        if (horiz ? tx >= LT : ty >= LT) continue;
+        const a = own(tx, ty), b = horiz ? own(tx, ty - 1) : own(tx - 1, ty), t = a !== b ? edge : grid, w = a !== b ? 0.9 : 0.35;
+        for (let k = 0; k < LAND; k++) {
+          if (horiz) seg(t, tx * LAND + k, ty * LAND, tx * LAND + k + 1, ty * LAND, w);
+          else seg(t, tx * LAND, ty * LAND + k, tx * LAND, ty * LAND + k + 1, w);
+        }
+      }
+    }
+    for (const m of [this.landEdge, this.landGrid]) if (m) { this.scene.remove(m); m.geometry.dispose(); }
+    const mk = (t, color, opacity) => { const m = new THREE.Mesh(t.build(), new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.frustumCulled = false; m.renderOrder = 3; this.scene.add(m); return m; };
+    this.landEdge = mk(edge, 0xffe9a8, 0.85);
+    this.landGrid = mk(grid, 0xffffff, 0.45);
+    this.landGrid.visible = !!this.showLand;
+  }
+
+  /** Bật / tắt lưới ô đất (công cụ mua đất). */
+  setLandGrid(on) { this.showLand = on; if (this.landGrid) this.landGrid.visible = on; }
 
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
@@ -422,8 +455,8 @@ export class View {
   }
 
   /** mode: 'zones' | 'value' | 'pollution' | 'service' | 'power' | 'water'; strong: đang cầm công cụ quy hoạch */
-  setOverlay(mode, strong, grid) {
-    if (mode !== this.overlayMode || strong !== this.ovStrong) { this.overlayMode = mode; this.ovStrong = strong; this.city.dirty.zones = true; }
+  setOverlay(mode, strong, grid, zone = 0) {
+    if (mode !== this.overlayMode || strong !== this.ovStrong || zone !== this.ovZone) { this.overlayMode = mode; this.ovStrong = strong; this.ovZone = zone; this.city.dirty.zones = true; }
     this.ovMat.uniforms.uGrid.value = grid ? 1 : 0;
     if (mode !== 'traffic' && this.trafficMesh) { this.scene.remove(this.trafficMesh); this.trafficMesh.geometry.dispose(); this.trafficMesh = null; }
     const pipes = mode === 'water';
@@ -439,7 +472,13 @@ export class View {
         if (z) {
           [r, g, b] = ZCOL[z]; a = c.level[i] ? (this.ovStrong ? 70 : 0) : this.ovStrong ? 150 : 95;
           if (c.level[i] && (c.pOk[i] !== 1 || c.wOk[i] !== 1 || c.sOk[i] !== 1)) { r = 235; g = 50; b = 40; a = 130; } // nhà đang thiếu điện nước
-        } else if (this.ovStrong && c.acc[i] && !c.occ[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
+        } else if (this.ovStrong && c.acc[i] && !c.occ[i] && !c.steep[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
+      } else if (mode === 'resource') {
+        // tài nguyên: đang cầm khu chuyên biệt thì ô cạnh đường đặt được sáng hẳn lên
+        const z = c.zone[i], rs = c.res[i];
+        if (z && !c.water[i]) { [r, g, b] = ZCOL[z]; a = c.level[i] ? 90 : 170; }
+        else if (this.ovZone && c.acc[i] && !c.occ[i] && !c.steep[i] && hasResource(c, i, this.ovZone)) { r = g = b = 255; a = 150; }
+        else if (rs) { [r, g, b] = RESCOL[rs]; a = rs === 5 ? 95 : 135; }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
       } else if (!c.water[i]) {
@@ -451,6 +490,7 @@ export class View {
         else if (mode === 'service') { const cv = c.cover; const v = Math.min(1, (cv.police[i] + cv.fire[i] + cv.health[i] + cv.edu[i] + cv.trash[i]) / 3); r = 40; g = 120 + 100 * v; b = 220; a = v > 0.02 ? 50 + 130 * v : 0; }
         if (mode === 'garbage' && c.level[i]) { const v = Math.min(1, c.garbage[i] / (2 * garbageLimit(c.zone[i], c.level[i]))); r = 120 + 120 * v; g = 190 * (1 - v) + 30; b = 40; a = 150; }
       }
+      if (!c.own[i]) { if (a < 40) { r = 12; g = 16; b = 24; a = 100; } else { r *= 0.6; g *= 0.6; b *= 0.6; a = Math.max(a, 120); } } // đất chưa mua: phủ tối
       d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = a;
     }
     this.ovTex.needsUpdate = true;
@@ -716,6 +756,11 @@ export class View {
     for (const s of c.services) {
       const def = SERVICES[s.type], grp = this._serviceObject(s.type);
       grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3];
+      (s.mods || []).forEach((id, k) => { // module: khối phụ ở các góc lô đất, góc sau trước
+        const geo = this.modCache[id] || (this.modCache[id] = moduleGeometry(id)), mesh = new THREE.Mesh(geo, this.matBuilding), o = (def.size * T) / 2 - 2.1;
+        mesh.position.set(k % 2 ? o : -o, 0.14, k < 2 ? -o : o); mesh.castShadow = mesh.receiveShadow = true;
+        grp.add(mesh);
+      });
       grp.updateMatrixWorld(true);
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
@@ -958,6 +1003,7 @@ export class View {
       if (!this.bornAt || this.bornCity !== c) { this.bornAt = new Float32Array(N * N).fill(-9); this.bornKey = new Uint8Array(N * N); this.bornCity = c; for (let i = 0; i < N * N; i++) this.bornKey[i] = c.level[i]; }
       for (let i = 0; i < N * N; i++) if (c.level[i] !== this.bornKey[i]) { if (c.level[i]) this.bornAt[i] = this.time; this.bornKey[i] = c.level[i]; }
     }
+    if (d.land) { this._land(); d.land = false; }
     if (d.roads) { this._roads(); d.roads = false; }
     if (d.lines) { this._lines(); d.lines = false; }
     if (d.buildings || this._animating) { this._animating = this._buildings(); d.buildings = false; d.zones = true; }

@@ -1,6 +1,6 @@
 // Phố Mới — giao thông công cộng: tuyến xe buýt (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
-import { TRANSIT, MILESTONES, HALF, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
+import { TRANSIT, MILESTONES, HALF, N, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
 import { spawnVehicle, reroute, findPath } from './traffic.js';
 
 const WALK_SPEED = 7; // đơn vị / giây mô phỏng
@@ -27,6 +27,7 @@ export function planLine(c, mode, pts) {
   const out = { ok: false, cost, len };
   if (mode === 'metro' && !metroUnlocked(c)) return { ...out, reason: `Metro mở khoá khi đạt ${def.unlock} dân` };
   if (pts.some((p) => Math.abs(p.x) > HALF || Math.abs(p.z) > HALF)) return { ...out, reason: 'Ra ngoài bản đồ' };
+  if (pts.some((p) => !c.own[idx(clamp(cellOf(p.x), 0, N - 1), clamp(cellOf(p.z), 0, N - 1))])) return { ...out, reason: 'Đất chưa mua: mở rộng bằng 🧭 Mua đất' };
   if (mode === 'bus' && pts.some((p) => !nearestEdge(c, p.x, p.z))) return { ...out, reason: 'Trạm xe buýt phải nằm trên đường' };
   for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z) < 25) return { ...out, reason: 'Hai trạm quá gần nhau' };
   if (pts.length < 2) return { ...out, reason: 'Cần ít nhất 2 trạm' };

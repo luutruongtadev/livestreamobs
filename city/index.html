@@ -82,6 +82,10 @@
   .needs li { padding: 2px 0; color: var(--bad); }
   .needs li.ok { color: var(--good); }
   #info { top: auto; bottom: 150px; right: auto; left: 10px; }
+  #devBody .slot small, #iBody .slot small { white-space: normal; }
+  #devBody .note { display: block; color: var(--dim); margin: 2px 0 4px; }
+  #devPts { color: var(--acc); font-size: 11px; font-weight: 700; margin-left: 1px; }
+  #bDev.on #devPts { color: #2a1e00; }
 
   .modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .55); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .modal.show { display: flex; }
@@ -121,7 +125,8 @@
   <div class="panel btns">
     <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
     <button id="bCity" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe">👥</button>
-    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giao thông / giá đất / ô nhiễm khí, đất, ồn, nước / rác / dịch vụ / điện / nước">🗺️</button>
+    <button id="bDev" title="Phát triển: tiêu điểm để mở khu tài nguyên, module, công trình biểu tượng">🔬<sup id="devPts"></sup></button>
+    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giao thông / giá đất / ô nhiễm khí, đất, ồn, nước / rác / dịch vụ / tài nguyên / điện / nước">🗺️</button>
     <button id="bSave" title="Lưu và tải">💾</button>
     <button id="bHelp" title="Hướng dẫn">❓</button>
   </div>
@@ -164,6 +169,11 @@
   <div id="pLines"></div>
 </div>
 
+<div class="panel side" id="dev">
+  <h3>Phát triển <button data-close>✕</button></h3>
+  <div id="devBody"></div>
+</div>
+
 <div class="panel side" id="saves">
   <h3>Lưu và tải <button data-close>✕</button></h3>
   <div id="slots"></div>
@@ -197,6 +207,8 @@
       <li><b>💧 Nước</b>: tháp nước cấp nước sạch, cống xả thải (đặt sát bờ nước) nhận nước thải. Ở xa đường thì nối bằng ống nước.</li>
       <li>Bấm ▶: người dân dọn tới, đi làm, đi chợ bằng xe thật trên đường. Thêm 🏬 cửa hàng, 🏭 công nghiệp để có việc; hàng hoá do xe tải chở giữa nhà máy, cửa hàng và đường cao tốc.</li>
       <li>Về sau: bãi rác, y tế, cứu hoả (xe phải chạy tới nơi), trường học để có lao động trình độ, xe buýt / metro khi kẹt xe. Xem 👥 để biết thành phố đang thiếu gì.</li>
+      <li><b>🧭 Mua đất</b>: lúc đầu chỉ có một góc bản đồ (phần sáng). Mua thêm ô đất kề bên để vươn tới rừng, núi, mỏ dầu, vùng nước có cá.</li>
+      <li><b>🔬 Phát triển</b>: mỗi mốc dân số thưởng điểm; tiêu điểm để mở <b>⛏️ khu tài nguyên</b> (nông sản, gỗ, khoáng sản, dầu, cá nuôi nhà máy và xuất khẩu), module nâng cấp công trình (bấm vào công trình để gắn) và <b>🗽 công trình biểu tượng</b>.</li>
     </ol>
     <div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to ·
