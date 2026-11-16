@@ -12,21 +12,23 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // nhóm công cụ ở thanh dưới; nhóm có `tool` thì bấm là cầm luôn
 const GROUPS = [
   { id: 'info', icon: '🖐️', label: 'Xem', tool: 'info' },
-  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway'] },
-  { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:4', 'zone:7', 'zone:2', 'zone:5', 'zone:6', 'zone:3', 'zone:0'] },
+  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:highway', 'roundabout', 'junction'] },
+  { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
-  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'line:power'] },
+  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
   { id: 'water', icon: '💧', label: 'Nước', items: ['tower', 'pump', 'outlet', 'treat', 'line:pipe'] },
-  { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'incinerator'] },
-  { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['clinic', 'school', 'highschool', 'university', 'police', 'fire'] },
-  { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:metro', 'parking', 'port'] },
+  { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'recycle', 'incinerator'] },
+  { id: 'health', icon: '🏥', label: 'Y tế', items: ['clinic', 'hospital', 'cemetery', 'crematorium'] },
+  { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
+  { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'port', 'airport'] },
   { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
+  { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
   { id: 'land', icon: '🧭', label: 'Mua đất', tool: 'land' },
   { id: 'bulldoze', icon: '🚜', label: 'San ủi', tool: 'bulldoze' },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro'], ['value', 'Lớp xem: giá trị đất (xanh = cao)'], ['air', 'Lớp xem: ô nhiễm không khí'], ['ground', 'Lớp xem: ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)'], ['service', 'Lớp xem: vùng phủ dịch vụ công'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro'], ['value', 'Lớp xem: giá trị đất (xanh = cao)'], ['air', 'Lớp xem: ô nhiễm không khí'], ['ground', 'Lớp xem: ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)'], ['service', 'Lớp xem: vùng phủ dịch vụ công'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let roadMode = 'line', gridSnap = true, draw = null; // draw: { a, ctrl } khi đang vẽ đường / dây, { stops } khi vẽ tuyến
@@ -38,7 +40,9 @@ function toolInfo(id) {
   if (id === 'info') return { kind: 'info', icon: '🖐️', label: 'Xem', desc: 'Kéo để di chuyển bản đồ, bấm vào nhà hoặc ô đất để xem thông tin' };
   if (id === 'bulldoze') return { kind: 'bulldoze', icon: '🚜', label: 'San ủi', desc: 'Kéo để phá đường, nhà, cây, dây điện, ống nước và công trình' };
   if (id === 'land') return { kind: 'land', icon: '🧭', label: 'Mua đất', desc: `Bấm vào một ô đất ${S.LAND}×${S.LAND} kề phần đất của thành phố để mua · càng có nhiều đất, ô sau càng đắt` };
-  if (kind === 'road') { const d = S.ROADS[arg]; return { kind, type: arg, icon: d.icon, label: d.name.replace(/ \d làn/, ''), desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô, qua nước đắt gấp ${S.BRIDGE_MULT} · ${d.desc}` }; }
+  if (kind === 'road') { const d = S.ROADS[arg], lock = !S.roadUnlocked(city, arg); return { kind, type: arg, icon: d.icon, label: d.name.replace(/ \d làn/, ''), locked: lock, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô${d.elevated ? '' : `, qua nước đắt gấp ${S.BRIDGE_MULT}`} · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
+  if (id === 'roundabout') return { kind: 'node', icon: '⭕', label: 'Vòng xuyến', desc: `<b>Vòng xuyến</b> · ${money(S.roundaboutCost())} · bấm vào ngã ba, ngã tư để đổi thành vòng xuyến một chiều: không đèn, xe trong vòng được đi trước, xe vào vòng nhường` };
+  if (id === 'junction') return { kind: 'node', icon: '🚦', label: 'Đèn / biển', desc: '<b>Điều khiển nút giao</b> · miễn phí · bấm vào ngã ba, ngã tư để đổi lần lượt: tự động → luôn có đèn → biển dừng (xe dừng hẳn rồi lần lượt đi)' };
   if (kind === 'zone') {
     const z = S.ZDEF[+arg];
     if (!+arg) return { kind, zone: 0, icon: z.icon, label: 'Bỏ q.hoạch', desc: 'Kéo để bỏ quy hoạch (dỡ luôn nhà trong vùng)' };
@@ -46,10 +50,10 @@ function toolInfo(id) {
     const raw = z.raw ? ` · chỉ mọc trên ô có ${S.RAW[z.raw].icon} ${S.RAW[z.raw].name.toLowerCase()}, bán cho nhà máy ${S.RAW[z.raw].product} hoặc xuất khẩu` : '';
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
-  if (kind === 'transit') { const d = S.TRANSIT[arg]; return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: arg === 'metro' && !S.metroUnlocked(city), desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${arg === 'metro' && !S.metroUnlocked(city) ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
+  if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
   if (kind === 'line') { const d = S.LINES[arg]; return { kind, line: arg, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô · bấm điểm đầu rồi điểm cuối · ${d.desc}` }; }
   const d = S.SERVICES[id];
-  const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
+  const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.hearses && `${d.hearses} xe tang`, d.graves && `${d.graves} phần mộ`, d.cremate && `${d.cremate} người / ngày`, d.cells && `${d.cells} chỗ giam`, d.depot && `+${d.depot} xe buýt / tàu điện`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
   const lock = S.isUnlocked(city, id) ? '' : ` · 🔒 ${S.lockText(d)}`;
   return { kind: 'svc', svc: id, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> (${d.size}×${d.size}) · ${money(d.cost)} · phí ${fmt(d.upkeep * S.RATE)} ₫/ngày${extra ? ' · ' + extra : ''} · ${d.desc}${d.unique ? ' · chỉ xây một cái' : ''}${lock}` };
 }
@@ -70,7 +74,7 @@ function loadSlot(name) {
   if (!d) return false;
   try { startCity(S.deserialize(d.city)); return true; } catch (e) { toast('Không đọc được bản lưu: ' + e.message); return false; }
 }
-function dateText(hour) { const day = Math.floor(hour / 24); return `Ngày ${day + 1} · ${WEEK[day % 7]} · ${String(hour % 24).padStart(2, '0')}:00`; }
+function dateText(hour) { const day = Math.floor(hour / 24), w = city && S.WEATHER[city.inc.weather]; return `Ngày ${day + 1} · ${WEEK[day % 7]} · ${String(hour % 24).padStart(2, '0')}:00${w ? ` · ${w.icon} ${w.name}` : ''}`; }
 
 function renderSlots() {
   const box = $('slots'); box.textContent = '';
@@ -199,9 +203,9 @@ function linePoint() {
 /** Vị trí trạm tại con trỏ: xe buýt bám vào đường gần nhất, metro đặt tự do. */
 function transitPoint(mode) {
   if (!hover) return null;
-  if (mode === 'metro') return { x: S.cellCenter(hover.x), z: S.cellCenter(hover.y), ok: true };
+  if (!S.TRANSIT[mode].road) return { x: S.cellCenter(hover.x), z: S.cellCenter(hover.y), ok: true };
   const e = S.edgeAt(city, hover.wx, hover.wz, 7);
-  if (!e) return { x: hover.wx, z: hover.wz, ok: false };
+  if (!e || S.ROADS[e.type].elevated) return { x: hover.wx, z: hover.wz, ok: false };
   const r = S.nearestOnEdge(e, hover.wx, hover.wz);
   return { x: r.x, z: r.z, ok: true };
 }
@@ -228,6 +232,15 @@ function updatePreview() {
     const has = Object.values(S.RAW).filter((d) => n[d.id] > 3).map((d) => `${d.icon} ${d.name.toLowerCase()}`).join(', ');
     view.setPreview(tiles, city.owned[lt] ? 0xffffff : r.ok ? 0x62d98b : 0xff5b4a);
     renderHint(city.owned[lt] ? 'Ô đất này đã là của thành phố' : `Ô đất: <b>${money(r.price)}</b> · ${has ? `có ${has}` : 'không có tài nguyên'}${r.ok ? ' · bấm để mua' : ` · <b>${r.reason}</b>`}`);
+    return;
+  }
+  if (t.kind === 'node') {
+    const n = hover && S.nodeAt(city, hover.wx, hover.wz, 14);
+    view.setMarker(n ? { x: n.x, z: n.z } : null, !!n);
+    if (!n) { renderHint(); return; }
+    const arms = (city.adj.get(n.id) || []).length;
+    if (tool === 'roundabout') { const r = S.canRoundabout(city, n.id); renderHint(r.ok ? `Làm vòng xuyến ở nút ${arms} nhánh · <b>${money(r.cost)}</b> · bấm để xây` : `<b>${r.reason}</b>`); }
+    else renderHint(arms < 3 ? '<b>Chỉ đặt được ở ngã ba, ngã tư</b>' : n.rb ? '<b>Nút thuộc vòng xuyến</b>' : `Nút ${arms} nhánh · đang: <b>${S.JUNCTION_CTL[n.ctl | 0]}</b>${city.traffic.signals.has(n.id) ? ' 🚦' : ''} · bấm để đổi sang <b>${S.JUNCTION_CTL[((n.ctl | 0) + 1) % 3]}</b>`);
     return;
   }
   if (t.kind === 'svc') {
@@ -282,7 +295,7 @@ function updatePreview() {
     const pts = [...(draw ? draw.stops : []), p], flat = new Float32Array(pts.length * 2);
     pts.forEach((q, k) => { flat[k * 2] = q.x; flat[k * 2 + 1] = q.z; });
     view.setRibbon(pts.length > 1 ? flat : null, 1.1, p.ok ? 0xffe680 : 0xff5b4a);
-    if (draw) { const plan = S.planTransit(city, t.mode, pts); renderHint(`${S.TRANSIT[t.mode].name}: <b>${pts.length} trạm</b> · ${money(plan.cost)}${plan.ok ? ' · chuột phải / Enter để chốt' : ` · <b>${plan.reason}</b>`}`); } else renderHint(p.ok ? null : '<b>Trạm xe buýt phải nằm trên đường</b>');
+    if (draw) { const plan = S.planTransit(city, t.mode, pts); renderHint(`${S.TRANSIT[t.mode].name}: <b>${pts.length} trạm</b> · ${money(plan.cost)}${plan.ok ? ' · chuột phải / Enter để chốt' : ` · <b>${plan.reason}</b>`}`); } else renderHint(p.ok ? null : '<b>Trạm phải nằm trên đường mặt đất</b>');
     return;
   }
   // quy hoạch, san ủi: kéo hình chữ nhật
@@ -323,7 +336,7 @@ function drawClick(fromDrag) {
     if (fromDrag) return;
     const p = transitPoint(t.mode);
     if (!p || !p.ok) return;
-    if (t.locked) { toast(`Metro mở khoá khi đạt ${fmt(S.TRANSIT.metro.unlock)} dân`); return; }
+    if (t.locked) { toast(`${S.TRANSIT[t.mode].name} mở khoá khi đạt ${fmt(S.TRANSIT[t.mode].unlock)} dân`); return; }
     if (!draw) draw = { stops: [] };
     const last = draw.stops[draw.stops.length - 1];
     if (last && Math.hypot(last.x - p.x, last.z - p.z) < 25) { toast('Hai trạm quá gần nhau'); return; }
@@ -371,10 +384,19 @@ function showInfo(tile) {
     if (d.sewage) add('Nhận nước thải', val('sewage'));
     if (d.trash) add('Rác xử lý hôm nay', `${fmt(sv.processed || 0)} / ${val('trash')}`);
     if (d.students) add('Học sinh', `${sv.used || 0} / ${val('students')}`);
-    if (d.trucks || d.ambulances) add('Xe đang đi làm nhiệm vụ', `${sv.out || 0} / ${val('trucks') || val('ambulances')}`);
+    if (d.trucks || d.ambulances || d.hearses) add('Xe đang đi làm nhiệm vụ', `${sv.out || 0} / ${val('trucks') || val('ambulances') || d.hearses}`);
+    if (d.graves) add('Phần mộ đã dùng', `${fmt(sv.fill || 0)} / ${d.graves}${(sv.fill || 0) >= d.graves ? ' · <span class="neg">đã đầy</span>' : ''}`);
+    if (d.cremate) add('Hoả táng hôm nay', `${sv.burned || 0} / ${d.cremate}`);
+    if (d.cells) add('Người đang bị giam (cả thành phố)', `${fmt(c.stats.prisoners)} / ${fmt(c.stats.prisonCap)}`);
+    if (d.research) add('Tiến độ điểm phát triển kế tiếp', `${Math.floor(c.research)}% · ${fmt(c.pstats.edu[3])} người học đại học`);
+    if (d.depot) { const f = S.roadFleet(c); add('Xe buýt + tàu điện đang chạy', `${f.used} / ${f.cap}`); }
+    if (d.tows) add('Xe cứu hộ đang đi', `${sv.out || 0} / ${val('trucks')}`);
+    if (d.cars) add('Xe công an đang đi', `${sv.out || 0} / ${val('cars')}`);
+    if (d.recycle) add('Bán phế liệu', `≈ ${fmt((sv.processed || 0) * d.recycle)} ₫ hôm nay`);
     if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${val('spots')}`);
     if (d.radius) add('Bán kính phục vụ', `${val('radius')} ô`);
-    if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${d.bonus.comm * 100}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
+    if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
+    if (d.outside) add('Cửa ngõ xuất nhập khẩu', sv.cell >= 0 ? '✔ xe tải ra vào được' : '✖ chưa sát đường');
     if (d.power || d.water || d.sewage) add('Nối mạng', sv.linked ? '✔ đã nối' : '✖ chưa, kéo dây / ống tới đường');
     mods = { k: c.occ[i] - 1, list: S.moduleList(c, sv) };
   } else if (edge) {
@@ -383,7 +405,12 @@ function showInfo(tile) {
     add('Chiều dài', `${(edge.len / S.T).toFixed(1)} ô`);
     add('Bảo trì', `${fmt(edge.len * d.upkeep * S.RATE)} ₫/ngày`);
     add('Mức đông xe', load > 0.7 ? '🔴 kẹt' : load > 0.35 ? '🟡 đông' : '🟢 thoáng');
-    add('Nút giao hai đầu', [edge.a, edge.b].map((n) => `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}`).join(' · '));
+    const wear = edge.wear || 0;
+    add('Mặt đường', `${wear > 0.6 ? '🔴 hư hỏng nặng' : wear > 0.3 ? '🟡 xuống cấp' : '🟢 tốt'} (${Math.round(wear * 100)}% mòn) · dễ tai nạn hơn khi mòn, trạm 🚧 bảo trì sửa dần`);
+    const acc = c.inc.accidents.filter((a) => a.edge === edge).length;
+    if (acc) add('Tai nạn trên đoạn này', `💥 ${acc} vụ, đang chờ công an / cứu hộ`);
+    add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
+    if (d.elevated) add('Tầng', 'Trên cao: bắc qua đường dưới, không có nhà hai bên');
   } else if (c.water[i]) { title = '🌊 Mặt nước'; add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
@@ -397,7 +424,9 @@ function showInfo(tile) {
         let hs = 0, n = 0, edu = 0, kids = 0;
         for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] === i) { hs += c.pp.happy[id]; n++; if (c.pp.age[id] < 18) kids++; else edu += c.pp.edu[id]; }
         if (n) { add('Hài lòng', `${face(hs / n)} ${Math.round(hs / n)}%`); add('Trẻ em · học vấn TB', `${kids} · ${n - kids ? S.EDU_NAME[Math.round(edu / (n - kids))] : '–'}`); }
-        add('Tiền thuê', `${S.rentAt(c, i).toFixed(1)} ₫/ngày mỗi người lớn`);
+        add('Tiền thuê', `${(S.rentAt(c, i) * (zd.who === 'student' ? 0.4 : 1)).toFixed(1)} ₫/ngày mỗi người lớn`);
+        if (zd.who) add('Dành cho', zd.who === 'senior' ? 'Người từ 65 tuổi' : 'Sinh viên đại học 18–24 tuổi');
+        if (c.dead[i]) add('Người mất chờ xe tang', `${c.dead[i]}${c.hearseTo[i] ? ' · 🚐 xe đang tới' : ''}`);
       }
       if (jb) {
         const b = c.biz;
@@ -430,7 +459,8 @@ function showInfo(tile) {
     if (c.level[i]) add('Rác tồn', c.garbage[i].toFixed(0));
     const cv = c.cover, tag = (v) => (v > 0.05 ? '✔' : '–');
     add('Công viên · Y tế · Trường', `${tag(cv.park[i])} · ${tag(cv.health[i])} · ${tag(cv.edu[i])}`);
-    add('Công an · Cứu hoả', `${tag(cv.police[i])} · ${tag(cv.fire[i])}`);
+    add('Công an · Cứu hoả · Tang lễ', `${tag(cv.police[i])} · ${tag(cv.fire[i])} · ${tag(cv.death[i])}`);
+    if (c.level[i] && c.crime[i] > 0.02) add('Tội phạm', `${Math.round(c.crime[i] * 100)}%`);
   }
   $('iTitle').textContent = title; $('iBody').innerHTML = rows.join('');
   if (needs) {
@@ -494,7 +524,7 @@ function renderCity(force) {
   if (!$('people').classList.contains('show')) return;
   const c = city, ps = c.pstats, s = c.stats, last = c.econ.last || {}, mode = last.mode || ps.mode, box = $('pBody');
   const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
-  const adults = ps.edu.reduce((a, b) => a + b, 0), trips = mode.car + mode.bus + mode.metro + mode.walk;
+  const adults = ps.edu.reduce((a, b) => a + b, 0), trips = mode.car + mode.bus + (mode.tram || 0) + mode.metro + mode.walk;
   const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
   box.innerHTML = [
     row('Trẻ em · lao động · người già', `${fmt(ps.kids)} · ${fmt(ps.adults)} · ${fmt(ps.seniors)}`),
@@ -508,7 +538,7 @@ function renderCity(force) {
     row('Trung học · đại học', `${pct(ps.edu[2], adults)} · ${pct(ps.edu[3], adults)}`),
     row('Đang đi học', fmt(ps.students || 0)),
     '<h4>Đi lại (hôm qua)</h4>',
-    row('Xe riêng · xe buýt · metro · đi bộ', `${pct(mode.car, trips)} · ${pct(mode.bus, trips)} · ${pct(mode.metro, trips)} · ${pct(mode.walk, trips)}`),
+    row('Xe riêng · buýt · tàu điện · metro · đi bộ', `${pct(mode.car, trips)} · ${pct(mode.bus, trips)} · ${pct(mode.tram || 0, trips)} · ${pct(mode.metro, trips)} · ${pct(mode.walk, trips)}`),
     row('Thời gian đi làm trung bình', ps.commute ? `${ps.commute.toFixed(1)} giờ` : '–'),
     row('Tốc độ xe so với đường thoáng', `${Math.round(c.traffic.speedEma * 100)}%`),
     row('Xe đang chạy · xe phải tìm chỗ đỗ', `${c.traffic.vehicles.length} · ${last.parkSearch || 0}`),
@@ -517,7 +547,18 @@ function renderCity(force) {
     row('Việc: thương mại · công nghiệp · văn phòng', `${fmt(s.jobsBy.c)} · ${fmt(s.jobsBy.i)} · ${fmt(s.jobsBy.o)}`),
     row('Hôm qua: nhập · xuất (đơn vị hàng)', `${fmt(last.imports || 0)} · ${fmt(last.exports || 0)}`),
     row('Phá sản hôm qua · tổng cộng', `${last.bankrupt || 0} · ${c.econ.bankrupt}`),
-    row('Cửa ngõ ra ngoài', S.outsidePositions(c).length ? `${S.outsidePositions(c).length} (cao tốc / cảng)` : '<span class="neg">✖ mất kết nối</span>'),
+    row('Cửa ngõ ra ngoài', S.outsidePositions(c).length ? `${S.outsidePositions(c).length} (cao tốc / cảng / ga / sân bay)` : '<span class="neg">✖ mất kết nối</span>'),
+    '<h4>An ninh, tang lễ, nghiên cứu</h4>',
+    row('Tội phạm trung bình', ps.pop >= 400 ? `${Math.round((ps.crime || 0) * 100)}%` : 'chưa có (dưới 400 dân)'),
+    row('Đang bị giam / chỗ giam', `${fmt(s.prisoners || 0)} / ${fmt(s.prisonCap || 0)}`),
+    row('Phần mộ đã dùng · hoả táng mỗi ngày', `${fmt(s.gravesUsed || 0)} / ${fmt(s.graves || 0)} · ${fmt(s.cremate || 0)}`),
+    row('Điểm phát triển kế tiếp từ viện nghiên cứu', c.services.some((sv) => S.SERVICES[sv.type].research) ? `${Math.floor(c.research)}%` : '–'),
+    row('Xe buýt + tàu điện / chỗ ở bến xe', `${S.roadFleet(c).used} / ${S.roadFleet(c).cap}`),
+    '<h4>Sự cố, thiên tai</h4>',
+    row('Thời tiết', `${S.WEATHER[c.inc.weather].icon} ${S.WEATHER[c.inc.weather].name} · nguy cơ tai nạn ×${S.crashFactor(c).toFixed(1)}`),
+    row('Hôm qua: tai nạn · cướp (bắt được)', `${c.inc.last.accidents || 0} · ${c.inc.last.robberies || 0} (${c.inc.last.caught || 0})`),
+    row('Tổng: tai nạn · cây cháy · lốc xoáy', `${c.inc.total.accidents} · ${c.inc.total.burned} · ${c.inc.total.tornadoes}`),
+    row('Thiệt mạng vì lốc xoáy', fmt(c.inc.total.killed)),
   ].join('');
   // tuyến giao thông công cộng: chỉ dựng lại khi danh sách đổi để nút bấm không bị giật
   const tr = c.transit, sig = tr.lines.map((l) => `${l.id}:${l.count}:${l.broken ? 1 : 0}:${l.ridersDay}`).join('|');
@@ -584,6 +625,17 @@ function updateHud(force) {
   if (c.traffic.speedEma < 0.3 && c.traffic.vehicles.length > 60) al.push(['🚗 Kẹt xe nặng: mở thêm đường, nâng lên đại lộ hoặc mở tuyến xe buýt (lớp xem 🗺️ giao thông)', 1]);
   if (ps.homeless > 5) al.push([`${ps.homeless} người vô gia cư: quy hoạch thêm nhà ở`, 1]);
   if (ps.sick > Math.max(8, s.pop * 0.05)) al.push([`🏥 ${ps.sick} người đang ốm: thêm trạm y tế, giảm ô nhiễm`, 1]);
+  if (c.inc.warn) al.push(['📡 Cảnh báo: lốc xoáy sắp tới trong 1 giờ, dân đang xuống hầm trú ẩn', 1]);
+  if (c.inc.tornado) al.push([`🌪️ Lốc xoáy đang càn qua thành phố!${c.services.some((sv) => sv.type === 'shelter') ? '' : ' Xây 🛖 hầm trú ẩn để giảm thương vong'}`, 1]);
+  if (c.inc.accidents.length) al.push([`💥 ${c.inc.accidents.length} vụ tai nạn đang chắn đường${c.services.some((sv) => S.SERVICES[sv.type].tows) ? '' : ': xây 🚧 trạm cứu hộ để kéo xe đi nhanh'}`, 1]);
+  const wild = S.wildCount(c);
+  if (wild) al.push([`🔥 Cháy rừng: ${wild} ô đang cháy${c.services.some((sv) => sv.type === 'firewatch') ? '' : ' · xây 🗼 tháp canh lửa gần rừng'}`, 1]);
+  if (c.inc.robberies.length) al.push([`🚨 ${c.inc.robberies.length} vụ cướp đang xảy ra, chờ công an tới`, 1]);
+  let deadWait = 0;
+  for (let i = 0; i < S.N * S.N; i++) deadWait += c.dead[i];
+  if (deadWait > 4) al.push([`⚱️ ${deadWait} người mất chưa được đưa đi: ${s.graves + s.cremate ? (s.graves && s.gravesUsed >= s.graves && !s.cremate ? 'nghĩa trang đã đầy, xây thêm hoặc làm đài hoá thân' : 'thêm xe tang (nghĩa trang, đài hoá thân) hoặc gỡ kẹt xe') : 'xây một nghĩa trang (nhóm 🏥 Y tế)'}`, 1]);
+  if (ps.crime > 0.35) al.push([`🚨 Tội phạm cao (${Math.round(ps.crime * 100)}%): thêm đồn công an, tạo việc làm${s.prisonCap ? '' : ', xây trại giam'}`, 1]);
+  else if (s.prisonCap && s.prisoners >= s.prisonCap - 1) al.push(['⛓️ Trại giam đã đầy: công an trấn áp kém hẳn, xây thêm trại giam', 1]);
   if (s.pop > 60 && s.unemployed > s.workers * 0.15) al.push(['Thiếu việc làm: quy hoạch thêm 🏬 thương mại, 🏭 công nghiệp']);
   if (s.pop > 60 && s.vacJobs > s.workers * 0.25 + 20) al.push(['Doanh nghiệp thiếu người: quy hoạch thêm nhà ở, mở trường để có lao động trình độ']);
   if (s.pop > 60 && c.demand.c > 0.5) al.push(['Nhu cầu thương mại đang cao']);
@@ -622,6 +674,14 @@ function bindInput() {
       const r = S.placeService(city, tool, hover.x, hover.y);
       if (!r.ok) toast(r.reason);
       else { const d = S.SERVICES[tool]; if ((d.power || d.water || d.sewage) && !r.linked) toast(`${d.name} đang ở xa đường: kéo ${d.power ? 'dây điện' : 'ống nước'} từ nó tới đường`); }
+      updatePreview(); updateHud(true);
+      return;
+    }
+    if (tool === 'roundabout' || tool === 'junction') {
+      const n = S.nodeAt(city, hover.wx, hover.wz, 14);
+      if (!n) { toast('Bấm vào một nút giao'); return; }
+      const r = tool === 'roundabout' ? S.makeRoundabout(city, n.id) : S.setJunction(city, n.id, ((n.ctl | 0) + 1) % 3);
+      toast(r.ok ? (tool === 'roundabout' ? `Đã làm vòng xuyến · ${money(r.cost)}` : `Nút giao: ${S.JUNCTION_CTL[r.ctl]}`) : r.reason);
       updatePreview(); updateHud(true);
       return;
     }
@@ -695,6 +755,7 @@ function bindUi() {
   $('bCity').addEventListener('click', () => openSide('people'));
   $('bDev').addEventListener('click', () => openSide('dev'));
   $('fare').addEventListener('input', (e) => { city.transit.fare = +e.target.value; renderCity(true); });
+  for (const b of document.querySelectorAll('[data-dis]')) b.addEventListener('click', () => { const r = S.triggerDisaster(city, b.dataset.dis); if (!r.ok) toast(r.reason); });
   $('bLayer').addEventListener('click', () => { layer = (layer + 1) % LAYERS.length; applyOverlay(); toast(LAYERS[layer][1]); $('bLayer').classList.toggle('on', layer > 0); });
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
   $('mStart').addEventListener('click', () => { $('modal').classList.remove('show'); try { localStorage.setItem(KEY + 'seen', '1'); } catch { /* bỏ qua */ } });
@@ -751,11 +812,21 @@ function frame(now) {
     if (ev.type === 'milestone') {
       toast(`Thưởng ${money(ev.reward)} và ${ev.points} điểm phát triển 🔬${ev.unlocked.length ? ` · mở khoá: ${ev.unlocked.join(', ')}` : ''}`, `🎉 ${city.name} trở thành ${ev.name}!`);
       refreshToolbar(); renderDev();
-    } else if (ev.type === 'fireStart') toast('🔥 Có đám cháy! Xe cứu hoả gần nhất đang chạy tới');
+    } else if (ev.type === 'fireStart') toast(`🔥 Có đám cháy${ev.cause ? ` (${ev.cause})` : ''}! Xe cứu hoả gần nhất đang chạy tới`);
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
-    else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
+    else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng', leisure: 'quán ăn, chỗ vui chơi' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
     else if (ev.type === 'loanPaid') toast('Đã trả xong một khoản vay');
+    else if (ev.type === 'accident') { if (performance.now() - (frame.accToast || 0) > 6000) { frame.accToast = performance.now(); toast(`💥 Tai nạn${ev.n > 1 ? ` liên hoàn ${ev.n} xe` : ''}${ev.fire ? ', xe bốc cháy' : ''}: công an và xe cứu hộ đang tới, đường bị chắn`); } }
+    else if (ev.type === 'robbery') toast('🚨 Có vụ cướp! Xe công an gần nhất đang tới');
+    else if (ev.type === 'robberyCaught') toast('🚓 Công an đã bắt được kẻ cướp');
+    else if (ev.type === 'robberyEscaped') toast('🏃 Kẻ cướp đã tẩu thoát: công an tới không kịp');
+    else if (ev.type === 'wildfire') toast('🔥 Cháy rừng! Lửa có thể lan vào nhà dân');
+    else if (ev.type === 'hail') toast('🌨️ Bão đá: nhà cửa hư hại, đường trơn dễ tai nạn');
+    else if (ev.type === 'tornadoWarn') toast('📡 Cảnh báo sớm: lốc xoáy sẽ tới trong 1 giờ, dân xuống hầm trú ẩn', '⚠️ Cảnh báo thiên tai');
+    else if (ev.type === 'tornado') toast('🌪️ Lốc xoáy xuất hiện! Nhà trên đường đi của nó sẽ bị phá huỷ', '⚠️ Thiên tai');
+    else if (ev.type === 'tornadoEnd') toast(`🌪️ Lốc xoáy đã tan · ${city.inc.day.killed || 0} người thiệt mạng hôm nay`);
+    else if (ev.type === 'research') { toast('🔬 Viện nghiên cứu vừa làm ra 1 điểm phát triển'); renderDev(); }
     else if (ev.type === 'bankrupt') { $('over').classList.add('show'); setSpeed(0); }
   }
   if (n && city.hour % 3 === 0) city.dirty.zones = true;

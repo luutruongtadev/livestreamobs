@@ -16,7 +16,7 @@ export const cellX = (i) => cellCenter(i % N);
 export const cellZ = (i) => cellCenter((i / N) | 0);
 
 // khu quy hoạch. res / jobs: sức chứa theo cấp 1..5; cat: thanh nhu cầu; biz: loại doanh nghiệp
-export const ZONE = { NONE: 0, R: 1, C: 2, I: 3, RH: 4, CH: 5, O: 6, M: 7, FARM: 8, WOOD: 9, MINE: 10, OIL: 11, FISH: 12 };
+export const ZONE = { NONE: 0, R: 1, C: 2, I: 3, RH: 4, CH: 5, O: 6, M: 7, FARM: 8, WOOD: 9, MINE: 10, OIL: 11, FISH: 12, RM: 13, ROW: 14, SENIOR: 15, DORM: 16, LEISURE: 17, TECH: 18, FIN: 19 };
 export const ZDEF = [
   { id: 0, name: 'Chưa quy hoạch', icon: '🧽', color: '#cfd6dc', rgb: [0, 0, 0] },
   { id: 1, name: 'Dân cư thấp tầng', short: 'Nhà ở', icon: '🏠', color: '#46c85a', rgb: [70, 200, 90], cat: 'r', res: [4, 6, 8, 10, 12], unlock: 0, desc: 'Nhà riêng, ít dân, yên tĩnh' },
@@ -32,6 +32,14 @@ export const ZDEF = [
   { id: 10, name: 'Khai khoáng', short: 'Mỏ', icon: '⛏️', color: '#8f93a8', rgb: [143, 147, 168], cat: 'x', jobs: [6, 9, 13, 18, 24], biz: 'res', raw: 'ore', tech: 'mine', desc: 'Mỏ khoáng sản ở vùng đồi núi: ồn và làm bẩn đất' },
   { id: 11, name: 'Dầu khí', short: 'Giếng dầu', icon: '🛢️', color: '#5b4a6b', rgb: [91, 74, 107], cat: 'x', jobs: [5, 8, 11, 15, 20], biz: 'res', raw: 'oil', tech: 'oil', desc: 'Giếng dầu: sản lượng cao nhất, ô nhiễm cũng nặng nhất' },
   { id: 12, name: 'Ngư nghiệp', short: 'Bến cá', icon: '🐟', color: '#3fb6dc', rgb: [63, 182, 220], cat: 'x', jobs: [3, 5, 7, 9, 12], biz: 'res', raw: 'fish', tech: 'fish', desc: 'Bến cá trên ô đất sát vùng nước có cá' },
+  // thêm sau nên mã khu nối tiếp (bản lưu cũ giữ nguyên mã 0..12)
+  { id: 13, name: 'Dân cư mật độ trung bình', short: 'Nhà phố', icon: '🏡', color: '#7fd35a', rgb: [127, 211, 90], cat: 'r', res: [6, 10, 16, 22, 30], unlock: 120, desc: 'Nhà phố, chung cư thấp tầng 3–6 tầng: đông hơn nhà riêng, vẫn yên tĩnh' },
+  { id: 14, name: 'Nhà liền kề', short: 'Liền kề', icon: '🏘️', color: '#9bd86a', rgb: [155, 216, 106], cat: 'r', res: [5, 8, 11, 14, 18], unlock: 0, desc: 'Dãy nhà ống chung tường, mặt tiền hẹp: nhiều hộ trên một ô hơn nhà riêng' },
+  { id: 15, name: 'Nhà dưỡng lão', short: 'Dưỡng lão', icon: '👵', color: '#c7a6e0', rgb: [199, 166, 224], cat: 'r', res: [8, 14, 20, 28, 36], who: 'senior', unlock: 1000, desc: 'Chỉ người từ 65 tuổi: người già sống vui hơn, khoẻ hơn và nhường nhà cho gia đình trẻ' },
+  { id: 16, name: 'Ký túc xá sinh viên', short: 'Ký túc xá', icon: '🎒', color: '#f2a65a', rgb: [242, 166, 90], cat: 'r', res: [10, 18, 28, 40, 54], who: 'student', unlock: 1000, desc: 'Chỉ sinh viên 18–24 tuổi, tiền thuê rẻ; nên đặt gần trường đại học' },
+  { id: 17, name: 'Ăn uống, giải trí', short: 'Giải trí', icon: '🍜', color: '#ef6f9a', rgb: [239, 111, 154], cat: 'c', jobs: [4, 7, 10, 14, 20], biz: 'leisure', unlock: 400, desc: 'Quán ăn, cà phê, rạp phim: không cần hàng hoá, sống nhờ khách tới chơi, ồn về đêm' },
+  { id: 18, name: 'Văn phòng công nghệ', short: 'Công nghệ', icon: '💻', color: '#6b7fe8', rgb: [107, 127, 232], cat: 'o', jobs: [12, 24, 40, 60, 90], biz: 'office', inc: 1.4, unlock: 2500, desc: 'Công ty phần mềm, dịch vụ số: cần lao động trung học trở lên, làm ăn tốt hơn nữa khi gần viện nghiên cứu' },
+  { id: 19, name: 'Văn phòng tài chính', short: 'Tài chính', icon: '🏦', color: '#5a4fb8', rgb: [90, 79, 184], cat: 'o', jobs: [10, 20, 34, 52, 80], biz: 'office', inc: 1.7, unlock: 2500, desc: 'Ngân hàng, bảo hiểm: doanh thu cao nhất, cần người học đại học và giá đất cao mới lên cấp' },
 ];
 // nguyên liệu thô: id trùng mã tài nguyên trên bản đồ (c.res), rate = sản lượng mỗi người mỗi giờ
 export const RAW = {
@@ -52,16 +60,22 @@ export const utilUse = (z, L) => { const u = resCap(z, L) + jobCap(z, L) * (z ==
 /** Rác tồn quá mức này (khoảng hơn một ngày rác của toà nhà) thì coi là ngập rác. */
 export const garbageLimit = (z, L) => 8 + (resCap(z, L) + jobCap(z, L)) * 0.6;
 // học vấn tối thiểu của một chỗ làm theo khu và cấp
-const REQ = { 2: [0, 0, 0, 1, 1], 3: [0, 0, 0, 1, 1], 5: [0, 0, 1, 1, 2], 6: [1, 2, 2, 2, 3], 7: [0, 0, 0, 1, 1], 8: [0, 0, 0, 0, 1], 9: [0, 0, 0, 0, 1], 10: [0, 0, 0, 1, 1], 11: [0, 0, 1, 1, 2], 12: [0, 0, 0, 0, 1] };
+const REQ = { 2: [0, 0, 0, 1, 1], 3: [0, 0, 0, 1, 1], 5: [0, 0, 1, 1, 2], 6: [1, 2, 2, 2, 3], 7: [0, 0, 0, 1, 1], 8: [0, 0, 0, 0, 1], 9: [0, 0, 0, 0, 1], 10: [0, 0, 0, 1, 1], 11: [0, 0, 1, 1, 2], 12: [0, 0, 0, 0, 1], 17: [0, 0, 0, 1, 1], 18: [2, 2, 2, 3, 3], 19: [2, 3, 3, 3, 3] };
 export const reqEdu = (z, L) => (REQ[z] ? REQ[z][L - 1] : 0);
 export const EDU_NAME = ['Chưa đi học', 'Tiểu học', 'Trung học', 'Đại học'];
 
-// loại đường: w = bề rộng cả vỉa hè, cost / upkeep tính theo đơn vị chiều dài
+// loại đường: w = bề rộng cả vỉa hè, cost / upkeep tính theo đơn vị chiều dài.
+// elevated: chạy trên cao, cắt qua đường dưới đất mà không tạo nút giao (cầu vượt), không có ô quy hoạch hai bên, không cho người đi bộ
 export const ROADS = {
   small: { name: 'Đường nhỏ 2 làn', icon: '🛣️', w: 10, asphalt: 6.4, cost: 4, upkeep: 0.05, speed: 1, lanes: 1, desc: 'Hai làn hai chiều, bám tâm ô' },
   large: { name: 'Đại lộ 4 làn', icon: '🛤️', w: 20, asphalt: 15.6, cost: 11, upkeep: 0.13, speed: 1.35, lanes: 2, desc: 'Bốn làn có dải phân cách, rộng 2 ô, thông xe gấp đôi và chạy nhanh hơn' },
   oneway: { name: 'Đường một chiều', icon: '➡️', w: 10, asphalt: 6.4, cost: 4.5, upkeep: 0.05, speed: 1.15, lanes: 2, desc: 'Hai làn cùng chiều theo hướng vẽ; nâng cấp lần nữa để đảo chiều' },
+  overpass: { name: 'Cầu vượt 2 làn', icon: '🌉', w: 10, asphalt: 8.4, cost: 14, upkeep: 0.14, speed: 1.15, lanes: 1, elevated: true, unlock: 400, desc: 'Đường nhỏ trên cao: bắc qua đường khác mà không cắt ngang, hai đầu dốc xuống nối vào đường có sẵn' },
+  highway: { name: 'Cao tốc 6 làn', icon: '🛣️', w: 22, asphalt: 21, cost: 26, upkeep: 0.26, speed: 1.9, lanes: 3, elevated: true, unlock: 1000, desc: 'Ba làn mỗi chiều chạy trên cao, nhanh gần gấp đôi; chỉ ra vào ở hai đầu (nút giao khác mức), không có nhà hai bên' },
 };
+/** Đoạn đường mới loại `a` gặp đường có sẵn loại `b`: chỉ tạo nút giao khi cùng tầng (cùng trên cao hoặc cùng dưới đất). */
+export const sameLevel = (a, b) => !!ROADS[a].elevated === !!ROADS[b].elevated;
+export const LIFT = 7; // độ cao mặt đường trên cao so với mặt đất
 export const BRIDGE_MULT = 4.5;
 export const LINES = {
   power: { name: 'Dây điện', icon: '🗼', cost: 1.2, upkeep: 0.012, desc: 'Nối nhà máy điện ở xa vào đường hoặc vào công trình khác' },
@@ -85,11 +99,26 @@ export const SERVICES = {
   clinic: { name: 'Trạm y tế', icon: '🏥', group: 'civic', cost: 9000, upkeep: 190, size: 2, cover: 'health', radius: 14, ambulances: 2, road: true, unlock: 120, desc: 'Xe cứu thương chạy tới nhà người bệnh; kẹt xe thì tới muộn' },
   school: { name: 'Trường tiểu học', icon: '🏫', group: 'civic', cost: 9500, upkeep: 200, size: 2, cover: 'edu', radius: 14, eduLevel: 1, students: 200, road: true, unlock: 120, desc: 'Trẻ 6–11 tuổi trong bán kính được đi học' },
   highschool: { name: 'Trường trung học', icon: '📚', group: 'civic', cost: 14000, upkeep: 260, size: 2, cover: 'edu', radius: 22, eduLevel: 2, students: 260, road: true, unlock: 400, desc: 'Học sinh 12–17 tuổi; cần cho việc làm ở cửa hàng lớn và văn phòng' },
-  police: { name: 'Đồn công an', icon: '🚓', group: 'civic', cost: 8000, upkeep: 160, size: 2, cover: 'police', radius: 16, road: true, unlock: 400, desc: 'An ninh, tăng giá trị đất' },
+  police: { name: 'Đồn công an', icon: '🚓', group: 'civic', cost: 8000, upkeep: 160, size: 2, cover: 'police', radius: 16, cars: 2, road: true, unlock: 400, desc: 'An ninh, tăng giá trị đất; xe công an tới hiện trường tai nạn và vụ cướp' },
   fire: { name: 'Trạm cứu hoả', icon: '🚒', group: 'civic', cost: 7500, upkeep: 150, size: 2, cover: 'fire', radius: 16, trucks: 2, road: true, unlock: 400, desc: 'Xe cứu hoả phải chạy tới kịp trước khi nhà cháy rụi' },
   university: { name: 'Trường đại học', icon: '🎓', group: 'civic', cost: 30000, upkeep: 600, size: 3, cover: 'edu', radius: 40, eduLevel: 3, students: 300, road: true, unlock: 1000, desc: 'Đào tạo lao động trình độ cao cho văn phòng' },
   parking: { name: 'Bãi đỗ xe', icon: '🅿️', group: 'transit', cost: 2500, upkeep: 30, size: 2, spots: 60, radius: 7, road: true, unlock: 120, desc: 'Chỗ đỗ cho xe tới các toà nhà trong bán kính, đỡ cảnh chạy vòng tìm chỗ' },
   port: { name: 'Cảng hàng hoá', icon: '⚓', group: 'transit', cost: 35000, upkeep: 500, size: 3, needWater: true, road: true, outside: true, ground: 2, unlock: 1000, desc: 'Cửa ngõ xuất nhập khẩu thứ hai: xe tải khỏi phải chạy ra tận đường cao tốc' },
+  depot: { name: 'Bến xe, xưởng bảo dưỡng', icon: '🚏', group: 'transit', cost: 9000, upkeep: 110, size: 2, depot: 12, road: true, unlock: 120, desc: 'Chỗ xe buýt, tàu điện nghỉ đêm và bảo dưỡng: chưa có bến thì mọi tuyến chạy chung tối đa 4 xe, mỗi bến cho thêm 12 xe' },
+  ferry: { name: 'Bến tàu khách', icon: '⛴️', group: 'transit', cost: 15000, upkeep: 180, size: 2, needWater: true, road: true, unlock: 400, bonus: { pull: 0.03, happy: 1 }, desc: 'Tàu khách, du thuyền ven sông biển: dân vui hơn chút, thành phố hút khách hơn' },
+  train: { name: 'Ga tàu hoả', icon: '🚆', group: 'transit', cost: 40000, upkeep: 420, size: 3, road: true, outside: true, noise: 6, unlock: 1000, bonus: { pull: 0.06 }, desc: 'Tàu khách và tàu hàng liên tỉnh: thêm một cửa ngõ xuất nhập khẩu, người nơi khác tới ở dễ hơn' },
+  airport: { name: 'Sân bay', icon: '✈️', group: 'transit', cost: 180000, upkeep: 1400, size: 5, road: true, outside: true, noise: 16, unlock: 6000, bonus: { pull: 0.1, comm: 0.06 }, desc: 'Khách du lịch và hàng không: hút dân, thuế thương mại +6%; máy bay cất cánh ồn trên vùng rất rộng' },
+  nuclear: { name: 'Nhà máy điện hạt nhân', icon: '☢️', group: 'power', cost: 150000, upkeep: 1500, size: 4, power: 1800, needWater: true, noise: 4, unlock: 6000, desc: 'Điện rất nhiều mà không có khói; phải đặt sát bờ nước để làm mát, giá xây và phí vận hành cao' },
+  recycle: { name: 'Nhà máy tái chế', icon: '♻️', group: 'trash', cost: 18000, upkeep: 280, size: 2, trash: 1200, trucks: 3, cover: 'trash', radius: 30, recycle: 0.3, road: true, unlock: 1000, desc: 'Xe rác thu gom như bãi rác nhưng không làm bẩn đất; phế liệu phân loại bán được tiền' },
+  hospital: { name: 'Bệnh viện', icon: '🏨', group: 'civic', cost: 40000, upkeep: 700, size: 3, cover: 'health', care: true, radius: 30, ambulances: 5, road: true, unlock: 1000, desc: 'Nhiều xe cứu thương, chữa được bệnh nặng: người ốm trong vùng ít tử vong hơn, người già sống lâu hơn' },
+  cemetery: { name: 'Nghĩa trang', icon: '🪦', group: 'civic', cost: 12000, upkeep: 140, size: 3, graves: 400, hearses: 2, cover: 'death', radius: 40, road: true, unlock: 400, desc: 'Xe tang tới tận nhà đưa người mất về an táng; đầy chỗ thì phải xây thêm hoặc dùng đài hoá thân' },
+  crematorium: { name: 'Đài hoá thân hoàn vũ', icon: '⚱️', group: 'civic', cost: 24000, upkeep: 300, size: 2, cremate: 30, hearses: 3, cover: 'death', radius: 50, air: 2, road: true, unlock: 1000, desc: 'Hoả táng mỗi ngày tối đa 30 người, không bao giờ đầy chỗ; có chút khói' },
+  research: { name: 'Viện nghiên cứu', icon: '🔬', group: 'civic', cost: 60000, upkeep: 900, size: 3, cover: 'sci', radius: 24, research: 1, road: true, unlock: 2500, desc: 'Người học đại học làm ra điểm phát triển 🔬 đều đặn; văn phòng công nghệ trong vùng làm ăn tốt hơn' },
+  roadmaint: { name: 'Trạm bảo trì, cứu hộ đường bộ', icon: '🚧', group: 'transit', budget: 'roads', cost: 10000, upkeep: 150, size: 2, tows: true, trucks: 3, radius: 32, road: true, unlock: 120, desc: 'Sửa dần mặt đường xuống cấp trong bán kính (đường xấu dễ tai nạn); xe cứu hộ tới kéo xe tai nạn đi cho thông đường' },
+  firewatch: { name: 'Tháp canh lửa', icon: '🗼', group: 'civic', cost: 4000, upkeep: 50, size: 1, cover: 'watch', radius: 26, unlock: 120, desc: 'Phát hiện cháy rừng sớm: rừng trong vùng ít bắt lửa hơn, lửa lan chậm và tắt nhanh' },
+  shelter: { name: 'Hầm trú ẩn khẩn cấp', icon: '🛖', group: 'civic', cost: 12000, upkeep: 120, size: 2, cover: 'shelter', radius: 18, road: true, unlock: 1000, desc: 'Lốc xoáy tới thì dân trong vùng xuống hầm: thương vong giảm mạnh, nhất là khi có cảnh báo sớm' },
+  ews: { name: 'Trạm cảnh báo thiên tai sớm', icon: '📡', group: 'civic', cost: 25000, upkeep: 300, size: 1, ews: true, unique: true, unlock: 2500, desc: 'Báo trước lốc xoáy một giờ để dân kịp trú ẩn; báo bão đá để xe chạy chậm lại và đồ đạc được che chắn' },
+  prison: { name: 'Trại giam', icon: '⛓️', group: 'civic', cost: 30000, upkeep: 520, size: 3, cells: 150, gloom: 6, road: true, unlock: 1000, desc: 'Giam người phạm tội bị bắt: còn chỗ giam thì công an trấn áp tội phạm mạnh gấp đôi; giá đất quanh trại giảm' },
   // công trình biểu tượng: mỗi thành phố một cái, mở trong cây công nghệ; bonus cộng cho cả thành phố
   monument: { name: 'Tượng đài trung tâm', icon: '🗿', group: 'landmark', budget: 'park', cost: 30000, upkeep: 120, size: 2, cover: 'park', radius: 14, unique: true, tech: 'lm1', bonus: { happy: 2 }, desc: 'Dân cả thành phố hài lòng hơn 2 điểm' },
   market: { name: 'Chợ trung tâm', icon: '🏮', group: 'landmark', budget: 'park', cost: 55000, upkeep: 260, size: 3, cover: 'park', radius: 12, road: true, unique: true, tech: 'lm2', bonus: { comm: 0.1 }, desc: 'Thuế thương mại cả thành phố +10%' },
@@ -107,8 +136,8 @@ export const MODULES = {
   sorter: { name: 'Dây chuyền phân loại', icon: '♻️', for: ['landfill', 'incinerator'], costK: 0.4, mul: { trash: 1.6 }, add: { trucks: 2 }, tech: 'm_city', desc: 'Xử lý rác +60%, thêm 2 xe rác' },
   deck: { name: 'Tầng đỗ xe', icon: '🅿️', for: ['parking'], costK: 0.8, mul: { spots: 2 }, add: { radius: 3 }, tech: 'm_city', desc: 'Gấp đôi chỗ đỗ, bán kính +3 ô' },
   wing: { name: 'Dãy phòng học mới', icon: '🏫', for: ['school', 'highschool', 'university'], costK: 0.45, mul: { students: 1.6 }, tech: 'm_edu', desc: 'Chỗ học +60%' },
-  ward: { name: 'Khoa nội trú', icon: '🛏️', for: ['clinic'], costK: 0.5, add: { radius: 6, ambulances: 2 }, tech: 'm_health', desc: 'Bán kính +6 ô, thêm 2 xe cứu thương' },
-  post: { name: 'Chốt trực', icon: '🚨', for: ['police', 'fire'], costK: 0.45, add: { radius: 6, trucks: 2 }, tech: 'm_safety', desc: 'Bán kính +6 ô; trạm cứu hoả thêm 2 xe' },
+  ward: { name: 'Khoa nội trú', icon: '🛏️', for: ['clinic', 'hospital'], costK: 0.5, add: { radius: 6, ambulances: 2 }, tech: 'm_health', desc: 'Bán kính +6 ô, thêm 2 xe cứu thương' },
+  post: { name: 'Chốt trực', icon: '🚨', for: ['police', 'fire'], costK: 0.45, add: { radius: 6, trucks: 2, cars: 2 }, tech: 'm_safety', desc: 'Bán kính +6 ô; trạm cứu hoả thêm 2 xe' },
   garden: { name: 'Vườn hoa mở rộng', icon: '🌷', for: ['park', 'plaza', 'stadium'], costK: 0.6, add: { radius: 3 }, tech: 'm_leisure', desc: 'Vùng tăng giá đất rộng thêm 3 ô' },
 };
 export const moduleCost = (type, m) => Math.round((SERVICES[type].cost * MODULES[m].costK) / 100) * 100;
@@ -133,8 +162,8 @@ export const TECH = {
   m_power: { name: 'Tổ máy phụ, lọc khói', icon: '⚙️', branch: 'infra', cost: 2, desc: 'Module tăng công suất nhà máy điện và giảm khói' },
   m_city: { name: 'Phân loại rác, tầng đỗ xe', icon: '♻️', branch: 'infra', cost: 2, desc: 'Module cho bãi rác, lò đốt và bãi đỗ xe' },
   m_edu: { name: 'Dãy phòng học', icon: '🏫', branch: 'civic', cost: 2, desc: 'Module thêm chỗ học cho mọi cấp trường' },
-  m_health: { name: 'Khoa nội trú', icon: '🛏️', branch: 'civic', cost: 2, desc: 'Module mở rộng trạm y tế' },
-  m_safety: { name: 'Chốt trực', icon: '🚨', branch: 'civic', cost: 2, desc: 'Module mở rộng đồn công an và trạm cứu hoả' },
+  m_health: { name: 'Khoa nội trú', icon: '🛏️', branch: 'civic', cost: 2, desc: 'Module mở rộng trạm y tế và bệnh viện' },
+  m_safety: { name: 'Chốt trực', icon: '🚨', branch: 'civic', cost: 2, desc: 'Module mở rộng đồn công an (thêm xe) và trạm cứu hoả' },
   m_leisure: { name: 'Vườn hoa', icon: '🌷', branch: 'civic', cost: 1, desc: 'Module mở rộng công viên, quảng trường, sân vận động' },
   lm1: { name: 'Tượng đài trung tâm', icon: '🗿', branch: 'lm', cost: 2, rank: 1, desc: 'Công trình biểu tượng đầu tiên' },
   lm2: { name: 'Chợ trung tâm', icon: '🏮', branch: 'lm', cost: 3, req: 'lm1', rank: 2, desc: 'Thuế thương mại +10%' },
@@ -168,9 +197,12 @@ export const BANKRUPT_DAYS = 4; // hoặc âm tiền liên tục chừng này ng
 
 // giao thông công cộng
 export const TRANSIT = {
-  bus: { name: 'Tuyến xe buýt', icon: '🚌', stopCost: 300, vehCost: 1500, upkeep: 40, cap: 40, speed: 19, walk: 110, desc: 'Bấm lên đường để đặt trạm theo thứ tự, bấm chuột phải để chốt tuyến (xe chạy vòng)' },
+  bus: { name: 'Tuyến xe buýt', icon: '🚌', stopCost: 300, vehCost: 1500, upkeep: 40, cap: 40, speed: 19, walk: 110, road: true, desc: 'Bấm lên đường để đặt trạm theo thứ tự, bấm chuột phải để chốt tuyến (xe chạy vòng)' },
+  tram: { name: 'Tuyến tàu điện', icon: '🚋', stopCost: 1500, vehCost: 5000, upkeep: 90, cap: 110, speed: 22, walk: 125, road: true, unlock: 1000, desc: 'Ray đặt giữa lòng đường, chở gần gấp 3 xe buýt nhưng vẫn kẹt cùng xe khác; bấm lên đường để đặt trạm, chuột phải để chốt tuyến' },
   metro: { name: 'Tuyến metro', icon: '🚇', stopCost: 6000, trackCost: 9, vehCost: 6000, upkeep: 160, cap: 150, speed: 46, walk: 140, unlock: 2500, desc: 'Đường ray trên cao đi thẳng giữa các ga, không kẹt xe; bấm chuột phải để chốt tuyến' },
 };
+
+export const DEPOT_FREE = 4; // chưa có bến xe thì các tuyến xe buýt + tàu điện chạy chung tối đa chừng này xe
 
 // giá hàng trong chuỗi cung ứng (mỗi đơn vị)
 export const PRICE = { raw: 3, goods: 8, retail: 15, importMult: 1.4, rawImportMult: 1.2, exportMult: 0.85, load: 8 };

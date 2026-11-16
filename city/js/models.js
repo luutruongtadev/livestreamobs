@@ -1,6 +1,6 @@
 // Phố Mới — mô hình 3D dựng bằng code (không cần file .glb). Mỗi ô = T đơn vị, mặt tiền nhìn về +z.
 import * as THREE from '../vendor/three.module.min.js';
-import { mulberry32, T } from './sim.js';
+import { mulberry32, T, ZDEF } from './sim.js';
 
 export { T };
 const FOUND = 0x8b857a; // móng chìm dưới đất để nhà đứng được trên sườn dốc
@@ -144,7 +144,7 @@ function house(g, r, level, variant) {
 }
 
 function tower(g, r, floors, wall, opt = {}) {
-  const { podium = 0, w = 6.8, d = 6.6, glass = false, sign = null, shop = false } = opt;
+  const { podium = 0, w = 6.8, d = 6.6, glass = false, sign = null, shop = false, green = false, crown = false } = opt;
   g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa);
   let y = 0.14;
   if (podium) {
@@ -158,10 +158,84 @@ function tower(g, r, floors, wall, opt = {}) {
   y += h;
   if (glass && floors >= 12) { const h2 = Math.round(floors * 0.25) * FLOOR; g.box(0, y, -0.2, w * 0.72, h2, d * 0.72, wall, true); y += h2; }
   g.box(0, y, -0.2, w * (glass && floors >= 12 ? 0.76 : 1.04), 0.4, d * (glass && floors >= 12 ? 0.76 : 1.04), 0x5f5d5a);
-  g.box(0.8, y + 0.4, -0.6, 2.2, 1.6, 2, 0x8d9499);
-  if (floors >= 9) g.cyl(-1.4, y + 0.4, 0.8, 0.09, 0.05, 3.5 + floors * 0.15, 0x999999, 4);
+  if (green) { g.box(0, y + 0.4, -0.2, w * 0.7, 0.3, d * 0.6, 0x5a9a44); g.tree(-w * 0.22, y + 0.7, -0.2, 0.6, 0x4f9440); g.tree(w * 0.22, y + 0.7, 0.4, 0.55, 0x58a046); } // vườn trên mái
+  else g.box(0.8, y + 0.4, -0.6, 2.2, 1.6, 2, 0x8d9499);
+  if (crown) { g.box(0, y + 0.4, -0.2, w * 0.5, 2.6, d * 0.5, 0xd8b93a, false, 0x8a7a3a); g.cyl(0, y + 3, -0.2, 0.12, 0.05, 6, 0xd8d4cc, 4); } // chóp toà tài chính
+  if (floors >= 9 && !crown) g.cyl(-1.4, y + 0.4, 0.8, 0.09, 0.05, 3.5 + floors * 0.15, 0x999999, 4);
   if (sign && !shop) g.box(0, y - 1.6, d / 2 - 0.1, w * 0.6, 1.2, 0.25, sign);
   if (!podium) { g.box(0, 0.14, d / 2 - 0.15, 1.6, 2.4, 0.1, 0x4b5b68); g.tree(-3.9, 0.14, 4, 0.75); g.tree(3.9, 0.14, 4, 0.75, 0x4b8c3f); }
+}
+
+/** Nhà phố, chung cư thấp tầng (3–6 tầng) có ban công và bồn nước trên mái. */
+function midrise(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xbcb8ae);
+  const floors = [2, 3, 4, 5, 6][level - 1] + (variant === 2 ? 1 : 0), h = floors * FLOOR, wall = pick(r, WALLS), w = 8, d = 7;
+  g.box(0, 0.14, -0.8, w, h, d, wall, true);
+  for (let f = 1; f < floors; f++) for (const x of [-2.3, 2.3]) { g.box(x, 0.14 + f * FLOOR, -0.8 + d / 2 + 0.45, 2.8, 0.15, 0.9, 0xd8d4cc); g.box(x, 0.29 + f * FLOOR, -0.8 + d / 2 + 0.88, 2.8, 0.75, 0.06, 0x6f7a82); }
+  g.box(0, 0.14 + h, -0.8, w + 0.3, 0.35, d + 0.3, 0x77726c);
+  g.cyl(-2.2, 0.49 + h, -2.2, 0.7, 0.7, 1.4, 0xd8dde0, 10); g.cyl(2.4, 0.49 + h, -2.6, 0.55, 0.55, 1.2, 0x3f79ad, 10); // bồn nước
+  g.box(0, 0.14, -0.8 + d / 2 + 0.05, 1.6, 2.4, 0.1, 0x4b5b68);
+  g.tree(-3.9, 0.14, 4, 0.7); g.box(3.4, 0.14, 4, 1.6, 0.5, 0.6, 0x5c7b4a);
+}
+
+/** Dãy 3 nhà ống chung tường, mặt tiền hẹp, tầng trệt cửa cuốn, mỗi căn cao một kiểu. */
+function rowhouses(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa);
+  for (let k = 0; k < 3; k++) {
+    const x = -3.15 + k * 3.15, fl = 1 + Math.max(1, Math.round(level * 0.8 + r() * 1.4)), h = fl * FLOOR, wall = pick(r, [0xf0e6d2, 0xf3d9a4, 0xd9e8d4, 0xe8d0d8, 0xd4e0ec, 0xf4efe6]);
+    g.box(x, 0.14, -0.6, 3.1, h, 7.4, wall, true);
+    g.box(x, 0.14, 3.15, 2.5, 2.4, 0.08, pick(r, [0x8a949c, 0x6f7a82, 0xa3633f])); // cửa cuốn
+    for (let f = 1; f < fl; f++) { g.box(x, 0.14 + f * FLOOR, 3.55, 2.9, 0.12, 0.8, 0xd8d4cc); g.box(x, 0.26 + f * FLOOR, 3.92, 2.9, 0.7, 0.05, 0x5b6670); }
+    if (variant === 1 && k === 1) g.gable(x, 0.14 + h, -0.6, 3.2, 1.2, 7.6, pick(r, ROOFS), false, wall);
+    else { g.box(x, 0.14 + h, -0.6, 3.2, 0.3, 7.5, 0x77726c); if (r() > 0.4) g.cyl(x, 0.44 + h, -2.6, 0.45, 0.45, 1, 0xd8dde0, 8); }
+    if (r() > 0.5) g.box(x, 0.14, 4.4, 0.7, 0.7, 0.7, 0x5c7b4a); // chậu cây trước nhà
+  }
+}
+
+/** Nhà dưỡng lão: hai dãy thấp tầng hình chữ L, mái ngói, vườn có ghế đá. */
+function seniorHome(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6da44b);
+  const fl = level >= 4 ? 3 : level >= 2 ? 2 : 1, h = fl * FLOOR, wall = pick(r, [0xf4efe6, 0xefe2cf, 0xe9eef0]), roof = pick(r, [0x8e4a3c, 0x7a5a48, 0x5d6672]);
+  g.box(-1.6, 0.14, -2.6, 6.4, h, 4.2, wall, true); g.gable(-1.6, 0.14 + h, -2.6, 6.9, 1.4, 4.7, roof, true, wall);
+  g.box(3, 0.14, -0.6, 3.4, h, 8, wall, true); g.gable(3, 0.14 + h, -0.6, 3.9, 1.4, 8.5, roof, false, wall);
+  g.box(-1.6, 0.14, -0.3, 3, 0.25, 1.2, 0xc9b99a); g.box(-1.6, 2.6, -0.3, 3, 0.12, 1.2, 0xd8d4cc); // hiên
+  for (const x of [-3.6, -1]) g.box(x, 0.14, 2.8, 1.4, 0.45, 0.5, 0x8a5a36); // ghế đá
+  g.tree(-3.8, 0.14, 4, 0.9, 0x4f9440); g.tree(0.6, 0.14, 4, 0.8);
+  g.cyl(-2.2, 0.14, 1.4, 0.9, 0.9, 0.3, 0xb9b3a8, 10, 0x69b4e0); // bể cá nhỏ
+  if (variant) g.box(3, 0.14, 4.2, 3, 0.04, 1.2, 0xe2557a);
+}
+
+/** Ký túc xá: khối nhà dài nhiều tầng có dải màu, sân để xe đạp. */
+function dorm(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xc9c2ae);
+  const floors = [3, 4, 6, 8, 10][level - 1] + (variant === 2 ? 1 : 0), h = floors * FLOOR, accent = pick(r, [0xe07b2e, 0x2f7fd0, 0x2aa37a, 0xd9483b]);
+  g.box(0, 0.14, -1.4, 8.6, h, 5.6, pick(r, [0xe6e1d6, 0xdfe6ea, 0xefe6d6]), true);
+  for (let f = 1; f <= floors; f += 2) g.box(0, 0.14 + f * FLOOR - 0.2, -1.4 + 2.82, 8.62, 0.4, 0.06, accent);
+  g.box(-3.6, 0.14, -1.4, 1.4, h + 1.4, 1.4, accent, false, 0x5b5552); // cầu thang
+  g.box(0, 0.14 + h, -1.4, 8.8, 0.35, 5.8, 0x77726c);
+  for (let k = 0; k < 6; k++) { const x = -3 + k * 1.2; g.box(x, 0.3, 3.3, 0.08, 0.7, 1.4, [0x2d3640, 0xc0392b, 0x2f6fb0][k % 3]); } // xe đạp
+  g.box(0, 0.14, 3.3, 7.6, 0.06, 2, 0x8d8a84); g.box(0, 1.6, 3.3, 7.6, 0.1, 2.2, 0xd8d4cc);
+  g.tree(4, 0.14, 4.2, 0.7);
+}
+
+/** Ăn uống, giải trí: quán có mái hiên và bàn ô ngoài trời; cấp cao có rạp phim biển đèn. */
+function leisure(g, r, level, variant) {
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xc2b59a);
+  const wall = pick(r, [0xf3d9a4, 0xe8b7a8, 0xf0e6d2, 0xd9c3e8]), sign = pick(r, SIGNS);
+  if (level >= 3 && variant !== 1) { // rạp phim / khu vui chơi
+    const h = 5 + level * 1.4;
+    g.box(0, 0.14, -1.6, 8.6, h, 6, 0x8a7fb0, false, 0x4a4560);
+    g.box(0, h * 0.55, 1.45, 8.8, 1.6, 0.4, sign); g.box(0, h * 0.55 + 1.6, 1.45, 6, 0.8, 0.3, 0xfdf6c8);
+    g.box(0, 0.14, 1.5, 4, 3, 0.1, 0x9cc4e4);
+  } else {
+    const fl = Math.min(3, level), h = fl * FLOOR;
+    g.box(0, 0.14, -1.8, 8, h, 5.2, wall, fl > 1);
+    g.box(0, 0.14 + h, -1.8, 8.2, 0.3, 5.4, 0x77726c);
+    g.at(new THREE.Matrix4().makeTranslation(0, 2.6, 1.3).multiply(new THREE.Matrix4().makeRotationX(0.35))).box(0, 0, 0, 8, 0.12, 1.8, sign).at(null); // mái hiên
+    g.box(0, h - 0.6, 0.83, 4.5, 0.9, 0.2, sign);
+  }
+  for (let k = 0; k < 3; k++) { const x = -3 + k * 3; g.cyl(x, 0.14, 3.6, 0.5, 0.5, 0.75, 0xe9e4da, 8); g.cyl(x, 0.14, 3.6, 0.05, 0.05, 2.2, 0x6f7a82, 4); g.cyl(x, 2.1, 3.6, 1.4, 0.05, 0.6, [0xd9483b, 0xe6a01e, 0x2aa37a][(k + variant) % 3], 8); } // ô dù
+  if (level >= 2) for (const x of [-4.3, 4.3]) g.cyl(x, 0.14, 4.4, 0.06, 0.06, 2.6, 0x333333, 4); // cột đèn lồng
 }
 
 function shop(g, r, level, variant) {
@@ -271,8 +345,15 @@ export function growable(zone, level, variant) {
   const g = new GB();
   g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
   const v = variant + ((r() * 2) | 0);
-  if (zone >= 8) { resource(g, r, zone, level, variant); return g.build(); }
+  if (ZDEF[zone].raw) { resource(g, r, zone, level, variant); return g.build(); }
   if (zone === 1) house(g, r, level, variant);
+  else if (zone === 13) midrise(g, r, level, variant);
+  else if (zone === 14) rowhouses(g, r, level, variant);
+  else if (zone === 15) seniorHome(g, r, level, variant);
+  else if (zone === 16) dorm(g, r, level, variant);
+  else if (zone === 17) leisure(g, r, level, variant);
+  else if (zone === 18) tower(g, r, [3, 5, 8, 12, 17][level - 1] + v, pick(r, [0x8fd0c8, 0x9fc4e8, 0xa6d7b4]), { glass: true, podium: level >= 3 ? 4.2 : 0, w: 7.2, d: 7, sign: pick(r, [0x2aa37a, 0x2f7fd0, 0x8a4fd0]), green: true });
+  else if (zone === 19) tower(g, r, [5, 9, 15, 24, 36][level - 1] + v * 2, pick(r, [0x7f97b2, 0x8aa0b8, 0x7590ab]), { glass: true, podium: 4.8, w: 7.4, d: 7.2, sign: 0xd8b93a, crown: level >= 3 });
   else if (zone === 4) tower(g, r, [4, 7, 11, 16, 24][level - 1] + v, pick(r, APT), { podium: level >= 3 ? 4 : 0 });
   else if (zone === 2) shop(g, r, level, variant);
   else if (zone === 5) tower(g, r, [2, 4, 7, 11, 17][level - 1] + v, pick(r, [0xdcd3c4, 0xc8d2d8, 0xe2c9a8, 0x9fb6c8]), { podium: 4.4, shop: true, sign: pick(r, SIGNS), w: 7.6, d: 7 });
@@ -320,10 +401,24 @@ export function busGeometry() {
   return g.build();
 }
 
-/** Trạm chờ xe buýt (mặt quay về +z) và ga metro trên cao. */
+/** Tàu điện hai toa có khớp nối. */
+export function tramGeometry() {
+  const g = new GB();
+  for (const z of [-3.3, 3.3]) { g.box(0, 0.35, z, 2.4, 2.5, 6.4, 0xffffff); g.box(0, 1.3, z, 2.46, 0.9, 5.8, 0x2f3b45); g.box(0, 2.85, z, 1.4, 0.2, 4, 0xd8dde0); }
+  g.box(0, 0.35, 0, 2.2, 2.4, 0.4, 0x39454f);
+  g.box(0, 2.85, -1.5, 0.08, 0.9, 0.08, 0x333333); g.box(0, 3.75, -1.5, 1.4, 0.06, 0.08, 0x333333); // cần lấy điện
+  return g.build();
+}
+
+/** Trạm chờ xe buýt / tàu điện (mặt quay về +z) và ga metro trên cao. */
 export function stopGeometry(mode) {
   const g = new GB();
-  if (mode === 'bus') {
+  if (mode === 'tram') {
+    g.box(0, 0, 0, 7, 0.3, 1.8, 0xc9c5ba);
+    for (const x of [-3, 3]) g.box(x, 0.3, -0.5, 0.15, 2.6, 0.15, 0x5b6670);
+    g.box(0, 2.9, -0.2, 7.2, 0.15, 1.8, 0x3d8a5a); g.box(0, 0.3, -0.8, 6.4, 2.6, 0.06, 0x9cc4e4);
+    g.box(2.6, 2.2, 0.6, 1.2, 0.5, 0.08, 0xe6a01e);
+  } else if (mode === 'bus') {
     g.box(0, 0, 0, 3.2, 0.12, 1.4, 0xb9b5aa);
     g.box(-1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670); g.box(1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670);
     g.box(0, 2.42, -0.2, 3.4, 0.12, 1.4, 0xffffff); g.box(0, 0.12, -0.55, 3, 2.3, 0.06, 0x9cc4e4);
@@ -622,6 +717,107 @@ export function serviceModel(type, size) {
       g.cyl(0, y, 0, 2.4, 0.6, 12, 0xd9dde0, 8); g.cyl(0, y + 12, 0, 0.3, 0.08, 16, 0xd0342c, 5);
       for (const [x, z] of [[-17, 17], [17, 17], [-17, -17], [17, -17]]) g.tree(x, 0.14, z, 1.3, 0x4f9440);
       g.box(0, 0.14, 15.06, 8, 4.6, 0.1, 0x9cc4e4);
+      break;
+    }
+    case 'depot': {
+      pave(0x8d8a84);
+      g.box(0, 0.14, -4, 17, 6, 10, 0xd8d4cc, false, 0x5b6670);
+      for (let k = 0; k < 4; k++) g.box(-6 + k * 4, 0.14, 1.06, 3.2, 4.6, 0.1, 0x4f5a62); // cửa xưởng
+      for (let k = 0; k < 3; k++) { g.box(-5 + k * 5, 0.4, 6, 2.2, 2.3, 6.6, [0x2f7fd0, 0xd9483b, 0x2aa37a][k], false, 0xe9e9e9); g.box(-5 + k * 5, 1.4, 6, 2.26, 0.8, 6, 0x2f3b45); }
+      g.box(7.8, 0.14, 8.2, 2, 3.4, 1.6, 0xe6e9ec, false, 0x2c5aa0);
+      break;
+    }
+    case 'ferry': {
+      pave(0xc9c2ae);
+      g.box(-3, 0.14, -3, 11, 5, 8, 0xf0e6d2, true); g.gable(-3, 5.14, -3, 11.6, 2.2, 8.6, 0x2f6fb0, true, 0xf0e6d2);
+      g.box(4, 0.14, 4, 8, 0.6, 9, 0x9c7a52); for (let k = 0; k < 4; k++) g.box(0.6 + k * 2.4, 0.74, 8.4, 0.3, 1, 0.3, 0x6a4a30); // cầu tàu
+      g.box(5, 0.5, 2, 3.6, 1.6, 7.4, 0xffffff); g.box(5, 2.1, 2.2, 2.8, 1.4, 4.6, 0x2f6fb0); g.box(5, 3.5, 2.6, 2, 0.8, 2.4, 0xffffff); // tàu khách
+      break;
+    }
+    case 'train': {
+      pave(0xb9b5aa);
+      g.box(0, 0.14, -8, 27, 8, 8, 0xe2c9a8, true); g.gable(0, 8.14, -8, 28, 3.2, 9, 0x8e4a3c, true, 0xe2c9a8);
+      g.box(0, 8.14, -3.8, 6, 6, 0.4, 0xe2c9a8); g.cyl(0, 11.2, -3.5, 1.4, 1.4, 0.05, 0xf4efe6, 12); // đồng hồ
+      g.box(0, 0.14, 2.5, 28, 1.1, 5, 0xc9c5ba); g.box(0, 5.2, 2.5, 28, 0.25, 5.4, 0x5b6670); for (let k = 0; k < 6; k++) g.box(-12.5 + k * 5, 1.24, 2.5, 0.25, 4, 0.25, 0x5b6670); // sân ga có mái
+      for (const z of [7, 11.5]) { g.box(0, 0.14, z, 29.6, 0.3, 3.4, 0x8a7f70); g.box(0, 0.44, z - 0.75, 29.6, 0.15, 0.2, 0x5b6670); g.box(0, 0.44, z + 0.75, 29.6, 0.15, 0.2, 0x5b6670); } // đường ray
+      g.box(-4, 0.6, 7, 16, 3.2, 3, 0xd0342c, false, 0x5b5552); g.box(-4, 2, 8.52, 15, 0.9, 0.05, 0x2f3b45); // đoàn tàu
+      break;
+    }
+    case 'airport': {
+      g.box(0, 0, 0, e, 0.14, e, 0x7da55a);
+      g.box(0, 0.14, 12, e - 2, 0.06, 9, 0x4a4d52); for (let k = 0; k < 9; k++) g.box(-22 + k * 5.5, 0.21, 12, 3, 0.02, 0.5, 0xf2f2f2); // đường băng
+      g.box(0, 0.14, 2.5, 40, 0.05, 6, 0x6f7377); // đường lăn
+      g.box(-6, 0.14, -12, 30, 7, 12, 0xdfe6ea, true); g.box(-6, 7.14, -12, 31, 0.8, 13, 0x5b6670); // nhà ga
+      g.box(-6, 0.14, -5.2, 30, 5, 1.6, 0x9cc4e4);
+      g.cyl(16, 0.14, -14, 1.6, 1.4, 16, 0xe6e9ec, 10); g.cyl(16, 16.14, -14, 3, 2.6, 3, 0x6fa8ff, 12, 0x5b6670); // đài kiểm soát
+      for (const [x, z, a] of [[-14, -2, 0], [2, -2, 0], [18, 13, Math.PI / 2]]) { // máy bay
+        g.at(rotY(x, 0.9, z, a)).box(0, 0, 0, 2.4, 2.4, 14, 0xf4f4f4).box(0, 0.6, -1, 14, 0.3, 3.2, 0xe9e9e9).box(0, 0.6, 5.8, 5, 0.2, 1.6, 0xe9e9e9).box(0, 1.2, 6.2, 0.3, 3.2, 1.8, 0x2f6fb0).at(null);
+      }
+      g.box(18, 0.14, -2, 8, 4, 6, 0x9aa3aa, false, 0x5b6670); // kho hàng
+      break;
+    }
+    case 'nuclear': {
+      pave(0x9c9a92);
+      for (const [x, z] of [[-10, -9], [-10, 6]]) g.cyl(x, 0.14, z, 7.5, 4.6, 24, 0xd9d6cf, 20, 0x8a8f94); // tháp làm mát
+      g.cyl(8, 0.14, -6, 6, 6, 10, 0xe6e3dc, 18); g.cyl(8, 10.14, -6, 6, 0.6, 5, 0xd5d1c8, 18); // vỏ lò
+      g.box(8, 0.14, 8, 12, 7, 8, 0xc9cdd0, true); g.box(8, 7.14, 8, 12.4, 0.5, 8.4, 0xe6a01e);
+      g.box(-2, 0.14, 15, 6, 3, 3, 0x8a949c);
+      out.smoke = [[-10, 25, -9], [-10, 25, 6]];
+      break;
+    }
+    case 'recycle': {
+      pave(0x9c9a92);
+      g.box(-2, 0.14, -3, 13, 6, 9, 0x3d8a5a, false, 0x2b6a44); g.box(-2, 3, 1.56, 6, 3, 0.1, 0x2f3b45);
+      for (let k = 0; k < 3; k++) g.box(-6 + k * 4, 0.14, 6, 3, 1.6, 2.4, [0x2f6fb0, 0xe6a01e, 0x8a949c][k]); // kiện phế liệu
+      g.at(new THREE.Matrix4().makeTranslation(6, 3.4, -3).multiply(new THREE.Matrix4().makeRotationZ(-0.5))).box(0, 0, 0, 7, 0.4, 1.2, 0x4a4d52).at(null);
+      g.box(7.6, 0.14, 6.5, 2.2, 2.2, 2.2, 0x3d8a5a); g.box(7.6, 2.34, 6.5, 0.5, 0.05, 2.22, 0xffffff); g.box(7.6, 2.34, 6.5, 2.22, 0.05, 0.5, 0xffffff);
+      break;
+    }
+    case 'hospital': {
+      pave(0xc4c0b6);
+      g.box(-2, 0.14, -4, 22, 15, 12, 0xf3f4f2, true); g.box(-2, 15.14, -4, 22.4, 0.5, 12.4, 0x8a949c);
+      g.box(9, 0.14, 4, 9, 9, 10, 0xe6ebee, true, 0x8a949c);
+      g.box(-6, 0.14, 4.6, 9, 3.4, 4, 0xe2e6e8, false, 0xc0392b); g.box(-6, 3.54, 6.4, 9.4, 0.3, 1.4, 0xd0342c); // sảnh cấp cứu
+      g.box(-2, 11, 2.06, 1.2, 3.6, 0.12, 0xd0342c); g.box(-2, 12.2, 2.06, 3.6, 1.2, 0.12, 0xd0342c);
+      g.cyl(-2, 15.64, -4, 3.4, 3.4, 0.1, 0x6f7a82, 16); g.box(-2, 15.76, -4, 0.6, 0.02, 3, 0xffffff); // bãi trực thăng
+      g.tree(-13, 0.14, 12, 1.1); g.tree(13, 0.14, 12.5, 1, 0x4f9440);
+      break;
+    }
+    case 'cemetery': {
+      g.box(0, 0, 0, e, 0.14, e, 0x5f9446);
+      const rr = mulberry32(17);
+      for (let ix = 0; ix < 8; ix++) for (let iz = 0; iz < 6; iz++) { const x = -11 + ix * 3.1, z = -11 + iz * 3.2; g.box(x, 0.14, z, 1.4, 0.3, 2.2, 0xb9b3a8); g.box(x, 0.14, z - 1.2, 1.2, 0.9 + rr() * 0.6, 0.3, [0xd8d4cc, 0x9a968e, 0x8d8a84][(ix + iz) % 3]); }
+      g.box(0, 0.14, 9.5, 5, 6, 4, 0xe9e4da); g.gable(0, 6.14, 9.5, 5.6, 2.6, 4.6, 0x5d6672, false, 0xe9e4da); // nhà tang lễ
+      for (const [x, z] of [[-13, 13], [13, 13], [-13, 3], [13, 3]]) g.tree(x, 0.14, z, 1.2, 0x3c7a38);
+      for (const a of [0, 1, 2, 3]) g.at(new THREE.Matrix4().makeRotationY(a * Math.PI / 2)).box(0, 0.14, 14.4, e, 1.2, 0.3, 0x8a8478).at(null);
+      break;
+    }
+    case 'crematorium': {
+      pave(0xc9c2ae);
+      g.box(-1, 0.14, -2, 13, 6, 9, 0xe9e4da, true); g.box(-1, 6.14, -2, 13.6, 0.5, 9.6, 0x5b6670);
+      for (let k = 0; k < 5; k++) g.cyl(-5.4 + k * 2.2, 0.14, 3.2, 0.35, 0.35, 5.5, 0xf4efe6, 8);
+      g.box(-1, 5.64, 3.2, 11, 0.5, 1.2, 0xe9e4da);
+      g.cyl(6.5, 0.14, -5, 0.9, 0.7, 13, 0xb9b3a8, 10, 0x333333);
+      g.tree(-8, 0.14, 7.8, 0.9, 0x3c7a38); g.tree(7.6, 0.14, 7.8, 0.9, 0x3c7a38);
+      out.smoke = [[6.5, 13.4, -5]];
+      break;
+    }
+    case 'research': {
+      pave(0xc4c0b6);
+      g.box(-4, 0.14, -4, 16, 10, 12, 0xdfe6ea, true); g.box(-4, 10.14, -4, 16.4, 0.5, 12.4, 0x5b6670);
+      g.cyl(9, 0.14, -6, 5, 5, 7, 0xe6e9ec, 16); g.cyl(9, 7.14, -6, 5, 0.4, 5, 0xd9dde0, 16, 0xffffff); // đài quan sát
+      g.box(9, 9.5, -1.4, 1.2, 1.2, 0.6, 0x2f3b45);
+      g.box(-4, 10.64, -4, 4, 0.2, 4, 0x27457a); g.cyl(-9, 10.64, -8, 0.1, 0.05, 5, 0xaaaaaa, 4); g.cyl(-9, 15.4, -8, 1.4, 0.2, 0.6, 0xe9e9e9, 10); // ăng-ten chảo
+      g.box(4, 0.14, 8, 9, 0.04, 6, 0x69ad4a); g.tree(-12, 0.14, 11, 1.1, 0x4f9440); g.tree(0, 0.14, 11, 1, 0x4f9440);
+      break;
+    }
+    case 'prison': {
+      g.box(0, 0, 0, e, 0.14, e, 0x8d8a84);
+      g.box(0, 0.14, -3, 18, 8, 10, 0xa9a69c, true, 0x6f7a82);
+      g.box(-7, 0.14, 7, 8, 0.04, 6, 0x9c8a6a); // sân
+      for (const a of [0, 1, 2, 3]) g.at(new THREE.Matrix4().makeRotationY(a * Math.PI / 2)).box(0, 0.14, 14.2, e, 6, 0.6, 0xc9c5ba, false, 0xd8d4cc).at(null); // tường bao
+      for (const [x, z] of [[-14, -14], [14, -14], [-14, 14], [14, 14]]) { g.box(x, 0.14, z, 2.4, 10, 2.4, 0xb9b5aa); g.box(x, 10.14, z, 3, 1.6, 3, 0x5b6670); } // chòi gác
+      g.box(4, 0.14, 13.9, 5, 5, 1, 0x4f5a62);
       break;
     }
     default: pave(0xaaaaaa); g.box(0, 0.14, 0, S * 0.6, 4, S * 0.6, 0xcccccc);

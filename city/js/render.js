@@ -3,10 +3,11 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
-import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated } from './sim.js';
+import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
+const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
 const WATER_Y = -0.9;
 const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520, MAX_ANIMALS = 16, DOG_COUNT = 10;
 // Mô hình người / vật tạo bằng Meshy (assets/models/*.glb): tải lỗi hoặc chưa tải xong thì giữ người hộp dựng bằng code.
@@ -21,7 +22,7 @@ const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
 const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
-const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6] };
+const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], highway: [2.1, 5.4, 8.7] };
 
 function noiseTexture() {
   const S = 256, cv = document.createElement('canvas');
@@ -50,8 +51,14 @@ function roadTexture(type) {
   for (let k = 0; k < 90; k++) g.fillRect(sw + ((k * 37) % (Wd - 2 * sw - 3)), (k * 53) % Hd, 2, 5);
   const dash = (x, color = '#e9e4cf') => { g.fillStyle = color; for (let y = 10; y < Hd; y += 64) g.fillRect(x - 1.3, y, 2.6, 34); };
   const solid = (x, color) => { g.fillStyle = color; g.fillRect(x - 1.2, 0, 2.4, Hd); };
-  if (type === 'small') dash(mid);
-  else if (type === 'oneway') {
+  if (ROADS[type].elevated) { g.fillStyle = '#c9c5ba'; g.fillRect(0, 0, sw, Hd); g.fillRect(Wd - sw, 0, sw, Hd); } // lan can bê tông
+  if (type === 'small' || type === 'overpass') dash(mid);
+  else if (type === 'highway') {
+    g.fillStyle = '#5b5e58'; g.fillRect(mid - 0.45 * ppu, 0, 0.9 * ppu, Hd);
+    solid(mid - 0.45 * ppu, '#e3c34a'); solid(mid + 0.45 * ppu, '#e3c34a');
+    for (const o of [3.75, 7.05]) { dash(mid - o * ppu); dash(mid + o * ppu); }
+    solid(sw + 4, '#f2f2f2'); solid(Wd - sw - 4, '#f2f2f2');
+  } else if (type === 'oneway') {
     dash(mid);
     g.fillStyle = '#e9e4cf';
     for (const x of [mid - 1.6 * ppu, mid + 1.6 * ppu]) { // mũi tên chỉ chiều a → b (hướng lên trên canvas)
@@ -163,6 +170,7 @@ export class View {
     this.motoMesh = this._inst(motoGeometry(), vehMat, MAX_MOTO, true);
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
+    this.tramMesh = this._inst(tramGeometry(), vehMat, MAX_BUS, true);
     this.pedVariants = []; // người dựng từ mô hình Meshy, nạp xong thì thế dần người hộp
     this.animalMesh = null; // chó thả rông, nạp xong mới có
     this.animals = [];
@@ -208,6 +216,15 @@ export class View {
     this.smokeMesh.count = 0; this.smokeMesh.frustumCulled = false;
     s.add(this.smokeMesh);
 
+    // thời tiết, thiên tai
+    const funnel = new THREE.ConeGeometry(16, 44, 18, 6, true); funnel.translate(0, 22, 0); funnel.rotateX(Math.PI); funnel.translate(0, 44, 0);
+    this.tornadoMesh = new THREE.Mesh(funnel, new THREE.MeshLambertMaterial({ color: 0x6f6a66, transparent: true, opacity: 0.72, side: THREE.DoubleSide, depthWrite: false }));
+    this.tornadoMesh.visible = false; s.add(this.tornadoMesh);
+    this.debris = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 0.6, 0.9), new THREE.MeshLambertMaterial({ color: 0x5a4a3a }), 60); this.debris.visible = false; this.debris.frustumCulled = false; s.add(this.debris);
+    this.rain = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 5, 0.12), new THREE.MeshBasicMaterial({ color: 0xa9c4dc, transparent: true, opacity: 0.55, depthWrite: false }), 1400);
+    this.rain.visible = false; this.rain.frustumCulled = false; s.add(this.rain);
+    this.beacons = new THREE.InstancedMesh(new THREE.SphereGeometry(1.1, 8, 6), new THREE.MeshBasicMaterial(), 64); this.beacons.count = 0; this.beacons.frustumCulled = false; s.add(this.beacons);
+    this._fogTarget = new THREE.Color();
     this.serviceGroup = new THREE.Group(); s.add(this.serviceGroup);
     this.lineGroup = new THREE.Group(); s.add(this.lineGroup);
     this.ghostGroup = new THREE.Group(); s.add(this.ghostGroup);
@@ -487,6 +504,7 @@ export class View {
         else if (mode === 'power') { if (c.acc[i]) { [r, g, b] = st[c.pOk[i]]; a = 125; } }
         else if (mode === 'water') { if (c.acc[i]) { const w = c.wOk[i], s = c.sOk[i]; [r, g, b] = st[w === 1 && s === 1 ? 1 : w === 0 || s === 0 ? 0 : 2]; a = 125; } }
         else if (mode === 'air' || mode === 'ground' || mode === 'noise') { const v = c[mode][i]; if (mode === 'air') { r = 120 + 110 * v; g = 110 * (1 - v); b = 40; } else if (mode === 'ground') { r = 130 + 60 * v; g = 90 * (1 - v) + 30; b = 20; } else { r = 200; g = 70; b = 200 + 40 * v; } a = v > 0.03 ? 50 + 170 * v : 0; }
+        else if (mode === 'crime') { const v = c.crime[i]; r = 120 + 110 * v; g = 40; b = 160 - 60 * v; a = v > 0.04 ? 40 + 180 * v : 0; }
         else if (mode === 'service') { const cv = c.cover; const v = Math.min(1, (cv.police[i] + cv.fire[i] + cv.health[i] + cv.edu[i] + cv.trash[i]) / 3); r = 40; g = 120 + 100 * v; b = 220; a = v > 0.02 ? 50 + 130 * v : 0; }
         if (mode === 'garbage' && c.level[i]) { const v = Math.min(1, c.garbage[i] / (2 * garbageLimit(c.zone[i], c.level[i]))); r = 120 + 120 * v; g = 190 * (1 - v) + 30; b = 40; a = 150; }
       }
@@ -532,6 +550,7 @@ export class View {
       const n = c.nodes.get(nid);
       let y = this.roadY(n.x, n.z);
       for (const [dx, dz] of [[9, 0], [-9, 0], [0, 9], [0, -9], [6, 6], [-6, 6], [6, -6], [-6, -6]]) y = Math.max(y, this.roadY(n.x + dx, n.z + dz));
+      if (nodeElevated(c, nid)) y += LIFT;
       nodeY.set(nid, y);
       const arr = list.map((id) => {
         const e = c.edges.get(id), atA = e.a === nid, p = pointAt(e.pts, e.cum, atA ? Math.min(6, e.len / 2) : Math.max(e.len - 6, e.len / 2));
@@ -557,9 +576,10 @@ export class View {
     for (const e of c.edges.values()) {
       const def = ROADS[e.type], half = def.w / 2, [ra, rb] = trim.get(e.id), ps = this._ribbonPoints(e, ra, rb), tr = tris[e.type];
       const ya = nodeY.get(e.a), yb = nodeY.get(e.b), last = ps.length - 1;
+      const high = !!def.elevated;
       const rows = ps.map((p, i) => {
         const rx = -p.tz, rz = p.tx;
-        let y = this._crossY(p.x, p.z, rx, rz, half);
+        let y = this._crossY(p.x, p.z, rx, rz, half) + (high ? liftAt(c, e, p.s) : 0);
         const da = p.s - ra, db = e.len - rb - p.s; // hoà dần vào cao độ nút giao
         if (c.adj.get(e.a).length > 1 && da < 14) y = ya + (y - ya) * (da / 14);
         if (c.adj.get(e.b).length > 1 && db < 14) y = yb + (y - yb) * Math.max(0, db / 14);
@@ -572,8 +592,9 @@ export class View {
         const v = r.s / 20;
         const L = tr.v(r.x - r.rx * half, r.y, r.z - r.rz * half, 0, v), R = tr.v(r.x + r.rx * half, r.y, r.z + r.rz * half, 1, v);
         // mép đứng hai bên để che khe hở với mặt đất
-        const L1 = tr.v(r.x - r.rx * half, r.y, r.z - r.rz * half, 0.4, v), L2 = tr.v(r.x - r.rx * half, r.y - 3, r.z - r.rz * half, 0.4, v);
-        const R1 = tr.v(r.x + r.rx * half, r.y, r.z + r.rz * half, 0.4, v), R2 = tr.v(r.x + r.rx * half, r.y - 3, r.z + r.rz * half, 0.4, v);
+        const deep = high && r.y - this.roadY(r.x, r.z) > 1.5 ? 1.3 : 3; // đường trên cao: mép dày bằng mặt cầu
+        const L1 = tr.v(r.x - r.rx * half, r.y, r.z - r.rz * half, 0.4, v), L2 = tr.v(r.x - r.rx * half, r.y - deep, r.z - r.rz * half, 0.4, v);
+        const R1 = tr.v(r.x + r.rx * half, r.y, r.z + r.rz * half, 0.4, v), R2 = tr.v(r.x + r.rx * half, r.y - deep, r.z + r.rz * half, 0.4, v);
         if (prev) {
           tr.tri(prev.L, prev.R, L, true); tr.tri(prev.R, R, L, true);
           tr.tri(prev.L1, L1, prev.L2); tr.tri(L1, L2, prev.L2); tr.tri(prev.R1, prev.R2, R1); tr.tri(R1, prev.R2, R2);
@@ -581,10 +602,14 @@ export class View {
         prev = { L, R, L1, L2, R1, R2 };
       }
       cross.set(e.id, [rows[0], rows[last]]);
-      // trụ cầu
-      for (let s = 9; s < e.len; s += 18) {
-        const p = pointAt(e.pts, e.cum, s);
-        if (np < 800 && isWaterAt(c, p[0], p[1]) && heightAt(c, p[0], p[1]) < -1) { pm.makeTranslation(p[0], 0.4, p[1]); this.pillars.setMatrixAt(np++, pm); }
+      // trụ cầu: qua nước, và dọc đường trên cao
+      for (let s = 9; s < e.len; s += high ? 16 : 18) {
+        const p = pointAt(e.pts, e.cum, s), lift = high ? liftAt(c, e, s) : 0;
+        if (np >= 800) break;
+        if (lift > 2.5) {
+          const ground = Math.max(heightAt(c, p[0], p[1]), -3), top = this._crossY(p[0], p[1], -p[3], p[2], half) + lift - 1.2, sy = Math.max(0.2, (top - ground + 0.5) / 4.4);
+          pm.compose(_v3.set(p[0], top - 0.2 * sy, p[1]), _q0, _v3b.set(high && half > 6 ? 1.6 : 1, sy, high && half > 6 ? 1.6 : 1)); this.pillars.setMatrixAt(np++, pm);
+        } else if (isWaterAt(c, p[0], p[1]) && heightAt(c, p[0], p[1]) < -1) { pm.makeTranslation(p[0], 0.4 + lift, p[1]); this.pillars.setMatrixAt(np++, pm); }
       }
     }
     this.pillars.count = np; this.pillars.instanceMatrix.needsUpdate = true;
@@ -612,12 +637,20 @@ export class View {
       const m = new THREE.Mesh(tris[t].build(), this.roadMats[t]);
       m.receiveShadow = true; m.frustumCulled = false; this.roadGroup.add(m);
     }
+    // đảo cỏ giữa vòng xuyến
+    const cG = new THREE.Color(0x5f9a45);
+    for (const ring of c.rings || []) {
+      const y = this.roadY(ring.x, ring.z) + 0.12, ctr = jt.v(ring.x, y, ring.z, cG.r, cG.g, cG.b), rr = ROUNDABOUT_R - 5.6, ids = [];
+      for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; ids.push(jt.v(ring.x + Math.cos(a) * rr, y, ring.z + Math.sin(a) * rr, cG.r, cG.g, cG.b)); }
+      for (let k = 0; k < 24; k++) jt.tri(ctr, ids[k], ids[(k + 1) % 24], true);
+    }
     if (jt.i.length) { const m = new THREE.Mesh(jt.build(), this.junctionMat); m.receiveShadow = true; m.frustumCulled = false; this.roadGroup.add(m); }
-    // vị trí đèn tín hiệu: bên phải mỗi nhánh đi vào nút có đèn
+    // vị trí đèn tín hiệu / biển dừng: bên phải mỗi nhánh đi vào nút
     this.sigArms = [];
-    for (const nid of c.traffic.signals.keys()) {
-      const n = c.nodes.get(nid), y = nodeY.get(nid);
-      for (const en of ends.get(nid) || []) { const r = trim.get(en.e.id)[en.atA ? 0 : 1] + 1.5; this.sigArms.push({ nid, eid: en.e.id, x: n.x + en.ox * r + en.oz * (en.half - 0.9), y: y + 3.6, z: n.z + en.oz * r - en.ox * (en.half - 0.9) }); }
+    const stops = [...c.nodes.values()].filter((n) => n.ctl === 2 && (c.adj.get(n.id) || []).length >= 3).map((n) => n.id);
+    for (const nid of [...c.traffic.signals.keys(), ...stops]) {
+      const n = c.nodes.get(nid), y = nodeY.get(nid), stop = n.ctl === 2;
+      for (const en of ends.get(nid) || []) { const r = trim.get(en.e.id)[en.atA ? 0 : 1] + 1.5; this.sigArms.push({ nid, eid: en.e.id, stop, x: n.x + en.ox * r + en.oz * (en.half - 0.9), y: y + (stop ? 2.2 : 3.6), z: n.z + en.oz * r - en.ox * (en.half - 0.9) }); }
     }
   }
 
@@ -820,11 +853,11 @@ export class View {
   _vehicles(realDt) {
     const c = this.city, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
     const PAL = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c, 0x3d8a5a, 0xf2f2f2];
-    const FIX = { garbage: 0x3d8a5a, ambulance: 0xffffff, fire: 0xd0342c };
+    const FIX = { garbage: 0x3d8a5a, ambulance: 0xffffff, fire: 0xd0342c, hearse: 0x26262a, police: 0x2c5aa0, tow: 0xe6a01e };
     const ease = 1 - Math.exp(-realDt * 10);
-    let nc = 0, nb = 0, nu = 0, nm = 0, np = 0;
+    let nc = 0, nb = 0, nu = 0, nm = 0, np = 0, nt = 0;
     for (const v of c.traffic.vehicles) {
-      const e = v.e, pt = pointAt(e.pts, e.cum, v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s));
+      const e = v.e, sa = v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s), pt = pointAt(e.pts, e.cum, sa), lift = ROADS[e.type].elevated ? liftAt(c, e, sa) : 0;
       const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
       const gx = pt[0] - tz * off, gz = pt[1] + tx * off;
       if (v.rx == null) { v.rx = gx; v.rz = gz; v.ryaw = Math.atan2(tx, tz); }
@@ -832,10 +865,12 @@ export class View {
       v.rx += (gx - v.rx) * ease; v.rz += (gz - v.rz) * ease;
       const mx = v.rx - ox, mz = v.rz - oz;
       if (mx * mx + mz * mz > 1e-5) v.ryaw = Math.atan2(mx, mz);
-      p.set(v.rx, this.roadY(v.rx, v.rz) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
+      if (v.wreck && !v.crashed) { v.crashed = true; v.ryaw += v.crashYaw || 0.6; } // xe tai nạn nằm chéo đường
+      p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
       if (v.kind === 'moto') { if (nm < MAX_MOTO) { this.motoMesh.setMatrixAt(nm, m); this.motoMesh.setColorAt(nm++, col.setHSL(v.color, 0.6, 0.5)); } }
-      else if (v.kind === 'car') { if (nc < MAX_CARS) { this.carMesh.setMatrixAt(nc, m); this.carMesh.setColorAt(nc++, col.set(PAL[(v.color * PAL.length) | 0])); } }
+      else if (v.kind === 'car' || v.kind === 'police') { if (nc < MAX_CARS) { this.carMesh.setMatrixAt(nc, m); this.carMesh.setColorAt(nc++, v.kind === 'police' ? col.set(0x2c5aa0) : v.wreck ? col.set(0x3a3a3a) : col.set(PAL[(v.color * PAL.length) | 0])); } }
       else if (v.kind === 'bus') { if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
+      else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
       else if (nb < MAX_BIG) { this.bigMesh.setMatrixAt(nb, m); this.bigMesh.setColorAt(nb++, FIX[v.kind] ? col.set(FIX[v.kind]) : col.setHSL(v.color, 0.35, 0.62)); }
     }
     // tàu metro chạy trên ray cao
@@ -865,7 +900,7 @@ export class View {
       } else if (np < MAX_PEDS) { this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55)); }
     }
     s.set(1, 1, 1);
-    for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu], [this.motoMesh, nm], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    for (const [mesh, n] of [[this.carMesh, nc], [this.bigMesh, nb], [this.busMesh, nu], [this.tramMesh, nt], [this.motoMesh, nm], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };
@@ -873,7 +908,7 @@ export class View {
     for (const a of this.sigArms || []) {
       if (nl >= 800) break;
       m.makeTranslation(a.x, a.y, a.z); this.lampMesh.setMatrixAt(nl, m);
-      this.lampMesh.setColorAt(nl++, col.set(LC[signalState(c, a.nid, a.eid)] || 0x555555));
+      this.lampMesh.setColorAt(nl++, col.set(a.stop ? 0xc8102e : LC[signalState(c, a.nid, a.eid)] || 0x555555));
     }
     this.lampMesh.count = nl; this.lampMesh.instanceMatrix.needsUpdate = true; if (this.lampMesh.instanceColor) this.lampMesh.instanceColor.needsUpdate = true;
   }
@@ -885,21 +920,37 @@ export class View {
     const c = this.city, grp = this.transitGroup;
     for (const o of [...grp.children]) { o.geometry.dispose(); grp.remove(o); }
     this.routeMeshes = [];
-    if (!this.stopGeo) this.stopGeo = { bus: stopGeometry('bus'), metro: stopGeometry('metro') };
+    if (!this.stopGeo) this.stopGeo = { bus: stopGeometry('bus'), tram: stopGeometry('tram'), metro: stopGeometry('metro') };
+    const railT = new Tris(true), rc = new THREE.Color(0x3a3d42);
     const g = new GB(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
     let rails = false;
     for (const line of c.transit.lines) {
       const col = new THREE.Color().setHSL(line.hue, 0.8, 0.55), n = line.stops.length;
       line.stops.forEach((st, k) => {
         let yaw = 0, x = st.x, z = st.z;
-        if (line.mode === 'bus' && st.edge) { const pt = pointAt(st.edge.pts, st.edge.cum, st.along), half = ROADS[st.edge.type].w / 2 - 0.9; x = pt[0] - pt[3] * half; z = pt[1] + pt[2] * half; yaw = Math.atan2(pt[3], -pt[2]); }
+        if (TRANSIT[line.mode].road && st.edge) { const pt = pointAt(st.edge.pts, st.edge.cum, st.along), half = ROADS[st.edge.type].w / 2 - 0.9; x = pt[0] - pt[3] * half; z = pt[1] + pt[2] * half; yaw = Math.atan2(pt[3], -pt[2]); }
         else if (line.mode === 'metro') { const o = line.stops[k === n - 1 ? k - 1 : k + 1]; yaw = Math.atan2(o.x - st.x, o.z - st.z); }
         const mesh = new THREE.Mesh(this.stopGeo[line.mode].clone(), this.matBuilding);
-        mesh.position.set(x, line.mode === 'bus' ? this.roadY(x, z) : Math.max(heightAt(c, x, z), 0), z); mesh.rotation.y = yaw; mesh.castShadow = true;
+        mesh.position.set(x, TRANSIT[line.mode].road ? this.roadY(x, z) : Math.max(heightAt(c, x, z), 0), z); mesh.rotation.y = yaw; mesh.castShadow = true;
         grp.add(mesh);
         const flag = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), new THREE.MeshBasicMaterial({ color: col }));
-        flag.position.set(x, mesh.position.y + (line.mode === 'bus' ? 3.2 : 10.4), z); grp.add(flag);
+        flag.position.set(x, mesh.position.y + (line.mode === 'metro' ? 10.4 : 3.4), z); grp.add(flag);
       });
+      if (line.mode === 'tram' && (line.path || []).length >= 4) { // hai ray tàu điện trên mặt đường, luôn hiện
+        const pts = line.path;
+        for (const off of [-0.75, 0.75]) {
+          let prev = null;
+          for (let k = 0; k < pts.length / 2; k++) {
+            const a = Math.max(0, k - 1), b = Math.min(pts.length / 2 - 1, k + 1);
+            let tx = pts[b * 2] - pts[a * 2], tz = pts[b * 2 + 1] - pts[a * 2 + 1];
+            const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+            const ox = pts[k * 2] - tz * (LANES.small[0] + off), oz = pts[k * 2 + 1] + tx * (LANES.small[0] + off), y = this.roadY(ox, oz) + 0.09;
+            const L = railT.v(ox - tz * 0.12, y, oz + tx * 0.12, rc.r, rc.g, rc.b), R = railT.v(ox + tz * 0.12, y, oz - tx * 0.12, rc.r, rc.g, rc.b);
+            if (prev && Math.hypot(pts[k * 2] - pts[k * 2 - 2], pts[k * 2 + 1] - pts[k * 2 - 1]) < 30) { railT.tri(prev[0], prev[1], L); railT.tri(prev[1], R, L); }
+            prev = [L, R];
+          }
+        }
+      }
       if (line.mode === 'metro') {
         for (let k = 1; k < n; k++) {
           const a = line.stops[k - 1], b = line.stops[k], dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz), yaw = Math.atan2(dx, dz), seg = Math.max(1, Math.round(len / 28));
@@ -934,6 +985,7 @@ export class View {
       }
     }
     if (rails) { const mesh = new THREE.Mesh(g.build(), this.matBuilding); mesh.castShadow = true; mesh.frustumCulled = false; grp.add(mesh); }
+    if (railT.i.length) { const mesh = new THREE.Mesh(railT.build(), this.railMat || (this.railMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }))); mesh.frustumCulled = false; grp.add(mesh); }
   }
 
   setRoutesVisible(on) { this.showRoutes = on; for (const m of this.routeMeshes || []) m.visible = on; }
@@ -949,7 +1001,7 @@ export class View {
         const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
         let tx = pts[b * 2] - pts[a * 2], tz = pts[b * 2 + 1] - pts[a * 2 + 1];
         const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-        const x = pts[k * 2], z = pts[k * 2 + 1], y = this.roadY(x, z) + 0.6;
+        const x = pts[k * 2], z = pts[k * 2 + 1], y = this.roadY(x, z) + 0.6 + (ROADS[e.type].elevated ? liftAt(c, e, e.cum[k]) : 0);
         const L = t.v(x + tz * half, y, z - tx * half, col.r, col.g, col.b), R = t.v(x - tz * half, y, z + tx * half, col.r, col.g, col.b);
         if (prev) { t.tri(prev[0], prev[1], L); t.tri(prev[1], R, L); }
         prev = [L, R];
@@ -965,14 +1017,58 @@ export class View {
     const c = this.city, m = new THREE.Matrix4();
     let n = 0;
     for (const i of this.fireCells) {
-      if (!c.fire[i]) continue;
-      for (let k = 0; k < 3 && n < 300; k++) {
+      if (!c.fire[i] && !c.inc.wild[i]) continue;
+      for (let k = 0; k < (c.fire[i] ? 3 : 2) && n < 300; k++) {
         const f = 0.7 + 0.5 * Math.abs(Math.sin(this.time * (5 + k * 1.7) + i));
         m.makeScale(f, f * (1 + k * 0.2), f).setPosition(cellCenter(i % N) + (k - 1) * 2.4, c.cellH[i] + 3 + k * 1.5, cellCenter((i / N) | 0) + (k % 2 ? 1.5 : -1.5));
         this.flameMesh.setMatrixAt(n++, m);
       }
     }
+    for (const a of c.inc.accidents) if (a.fire && n < 300) { // xe tai nạn bốc cháy
+      const f = 0.6 + 0.4 * Math.abs(Math.sin(this.time * 6 + a.id));
+      m.makeScale(f, f, f).setPosition(a.x, this.roadY(a.x, a.z) + 2.5, a.z); this.flameMesh.setMatrixAt(n++, m);
+    }
     this.flameMesh.count = n; this.flameMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Lốc xoáy, mưa / mưa đá, đèn chớp ở hiện trường tai nạn và vụ cướp. */
+  _weather(dt) {
+    const c = this.city, inc = c.inc, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+    // phễu lốc xoáy
+    const t = inc.tornado;
+    this.tornadoMesh.visible = !!t;
+    if (t) {
+      this.tornadoMesh.position.set(t.x, Math.max(heightAt(c, clamp(t.x, -HALF + 1, HALF - 1), clamp(t.z, -HALF + 1, HALF - 1)), 0), t.z);
+      this.tornadoMesh.rotation.y -= dt * 7;
+      for (let k = 0; k < this.debris.count; k++) { // mảnh vỡ bay quanh phễu
+        const a = this.time * (3 + (k % 5) * 0.4) + k * 2.4, r = 6 + (k % 7) * 2.2, y = 2 + ((k * 13 + this.time * 9) % 34);
+        m.makeRotationY(a).setPosition(t.x + Math.cos(a) * r, this.tornadoMesh.position.y + y, t.z + Math.sin(a) * r); this.debris.setMatrixAt(k, m);
+      }
+      this.debris.instanceMatrix.needsUpdate = true;
+    }
+    this.debris.visible = !!t;
+    // mưa / mưa đá quanh tâm camera
+    const w = inc.weather, wet = w === 'rain' || w === 'hail';
+    this.rain.visible = wet;
+    if (wet) {
+      const cx = this.cam.x, cz = this.cam.z, span = Math.min(700, this.cam.dist * 1.6), fall = w === 'hail' ? 80 : 140;
+      this.rain.material.color.set(w === 'hail' ? 0xf4f8ff : 0xa9c4dc);
+      for (let k = 0; k < this.rain.count; k++) {
+        const hx = hash2(k, 1, 7), hz = hash2(k, 2, 7), hy = (hash2(k, 3, 7) * 120 - this.time * fall) % 120;
+        m.makeScale(w === 'hail' ? 2.2 : 1, w === 'hail' ? 0.25 : 1, w === 'hail' ? 2.2 : 1).setPosition(cx + (hx - 0.5) * span, (hy < 0 ? hy + 120 : hy) + 2, cz + (hz - 0.5) * span); this.rain.setMatrixAt(k, m);
+      }
+      this.rain.instanceMatrix.needsUpdate = true;
+    }
+    const sky = w === 'hail' || t ? 0x7d8a96 : w === 'rain' ? 0x9aa9b6 : 0xbfd9ee;
+    this.scene.fog.color.lerp(this._fogTarget.set(sky), Math.min(1, dt * 2));
+    this.sun.intensity += ((wet || t ? 1.4 : 3.1) - this.sun.intensity) * Math.min(1, dt * 2);
+    // đèn chớp xanh đỏ: tai nạn và vụ cướp
+    let n = 0;
+    const blink = Math.sin(this.time * 12) > 0, col = new THREE.Color();
+    const put = (x, y, z, k) => { if (n >= 64) return; m.compose(_v3.set(x, y, z), q.setFromAxisAngle(up, 0), _v3b.set(1, 1, 1)); this.beacons.setMatrixAt(n, m); this.beacons.setColorAt(n++, col.set((blink ^ k) ? 0x2f6fff : 0xff3030)); };
+    for (const a of inc.accidents) put(a.x, this.roadY(a.x, a.z) + 5, a.z, 0);
+    for (const r of inc.robberies) put(cellCenter(r.cell % N), c.cellH[r.cell] + 14, cellCenter((r.cell / N) | 0), 1);
+    this.beacons.count = n; this.beacons.instanceMatrix.needsUpdate = true; if (this.beacons.instanceColor) this.beacons.instanceColor.needsUpdate = true;
   }
 
   _smoke(dt) {
@@ -1010,12 +1106,13 @@ export class View {
     if (d.trees) { this._trees(); d.trees = false; }
     if (d.services) { this._services(); d.services = false; }
     if (d.transit) { this._transit(); d.transit = false; }
-    if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i]) this.fireCells.push(i); d.fx = false; }
+    if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i] || c.inc.wild[i]) this.fireCells.push(i); d.fx = false; }
     if (d.zones) { this._zones(); d.zones = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
     this._vehicles(dt);
     this._animals(simDt);
     this._flames();
+    this._weather(dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._camera(dt);
