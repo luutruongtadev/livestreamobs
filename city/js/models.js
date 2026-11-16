@@ -1,8 +1,9 @@
 // Phố Mới — mô hình 3D dựng bằng code (không cần file .glb). Mỗi ô = T đơn vị, mặt tiền nhìn về +z.
 import * as THREE from '../vendor/three.module.min.js';
-import { mulberry32 } from './sim.js';
+import { mulberry32, T } from './sim.js';
 
-export const T = 10;
+export { T };
+const FOUND = 0x8b857a; // móng chìm dưới đất để nhà đứng được trên sườn dốc
 const FLOOR = 3, BAY = 2.4;
 
 /** Gom hình hộp / mái / trụ thành một BufferGeometry có màu đỉnh; mặt có cửa sổ dùng UV lặp của texture cửa sổ. */
@@ -125,6 +126,7 @@ const SIGNS = [0xd9483b, 0x2f7fd0, 0xe6a01e, 0x2aa37a, 0x8a4fd0];
 export function growable(zone, level, variant) {
   const r = mulberry32(zone * 1000 + level * 100 + variant * 7 + 5);
   const g = new GB();
+  g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
   if (zone === 1) {
     if (level === 1) {
       g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6da44b);
@@ -254,6 +256,7 @@ export function serviceModel(type, size) {
   const g = new GB(), S = size * T, e = S - 0.3;
   const out = {};
   const pave = (c) => g.box(0, 0, 0, e, 0.14, e, c);
+  g.box(0, -7, 0, e, 7, e, FOUND);
   switch (type) {
     case 'wind': {
       pave(0x76a852);
@@ -308,6 +311,38 @@ export function serviceModel(type, size) {
       g.cyl(5.5, 0.14, 4, 2.6, 2.6, 3.6, 0x5d9bd0, 14, 0x7fb6e2);
       g.box(5.5, 1, -0.2, 0.7, 0.7, 6, 0x4c88bd);
       g.box(1.5, 1, 4, 6, 0.7, 0.7, 0x4c88bd);
+      break;
+    }
+    case 'outlet': {
+      pave(0x9c9a92);
+      g.box(0, 0.14, -1, 5, 2.6, 4, 0xb9b3a8, false, 0x6e6a66);
+      g.cyl(0, 0.9, 2.6, 1.1, 1.1, 0.01, 0x2b2b2b, 10);
+      g.at(new THREE.Matrix4().makeTranslation(0, 1.2, 1).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))).cyl(0, 0, 0, 1.2, 1.2, 3.6, 0x7d868c, 12, 0x3a3f33).at(null);
+      g.box(-3.2, 0.14, 2.5, 1, 1.6, 1, 0x4c88bd);
+      break;
+    }
+    case 'treat': {
+      pave(0x9c9a92);
+      g.box(-5, 0.14, -5, 8, 4.4, 7, 0xdfe4e6, true); g.box(-5, 4.54, -5, 8.3, 0.4, 7.3, 0x3f8f6a);
+      for (const [x, z] of [[4.5, -4.5], [4.5, 4], [-4.5, 4.5]]) { g.cyl(x, 0.14, z, 3.6, 3.6, 1.3, 0xb9b3a8, 16, 0x4f7f72); g.box(x, 1.5, z, 7, 0.2, 0.5, 0x8a949c); }
+      break;
+    }
+    case 'landfill': {
+      g.box(0, 0, 0, e, 0.14, e, 0x8a7a5c);
+      const rr = mulberry32(31);
+      for (let k = 0; k < 9; k++) g.cyl(-9 + rr() * 16, 0.14, -9 + rr() * 14, 3 + rr() * 3, 0.6, 1.5 + rr() * 3, [0x6d6552, 0x7b6f58, 0x5e5a4c][k % 3], 7);
+      for (let k = 0; k < 26; k++) g.box(-12 + rr() * 24, 0.2 + rr() * 2, -12 + rr() * 22, 0.9, 0.5, 0.7, [0xd9d4c8, 0x4c88bd, 0xc0392b, 0x2b2b2b, 0xe6a01e][k % 5]);
+      g.box(10, 0.14, 11.5, 6, 3, 4, 0xb9b3a8, false, 0x6e6a66);
+      g.box(3, 0.34, 12, 2, 1.6, 4.4, 0x3d8a5a); g.box(3, 1.0, 13.6, 1.8, 1.2, 1.4, 0xe9e9e9);
+      for (const a of [0, 1, 2, 3]) g.at(new THREE.Matrix4().makeRotationY(a * Math.PI / 2)).box(0, 0.14, 14.4, e, 1.6, 0.2, 0x7d868c).at(null);
+      break;
+    }
+    case 'incinerator': {
+      pave(0x9c9a92);
+      g.box(-2, 0.14, -2, 13, 8, 12, 0xc9cdd0, true); g.box(-2, 8.14, -2, 13.4, 0.5, 12.4, 0xd66a2c);
+      g.box(-2, 0.14, 5, 6, 4, 3, 0x8a949c);
+      g.cyl(7, 0.14, 6.5, 1.3, 0.9, 22, 0xd9dde0, 12, 0x2b2b2b); g.cyl(7, 19, 6.5, 1.05, 1, 1.4, 0xd0342c, 12);
+      out.smoke = [[7, 22.5, 6.5]];
       break;
     }
     case 'park': {
@@ -397,4 +432,13 @@ export function serviceModel(type, size) {
   }
   out.geometry = g.build();
   return out;
+}
+
+/** Cột điện cao thế (gốc ở chân cột, xà ngang theo trục x). */
+export function pylonParts(g) {
+  g.cyl(0, 0, 0, 0.9, 0.3, 13, 0x8e979d, 4);
+  g.box(0, 10.4, 0, 6, 0.3, 0.3, 0x8e979d);
+  g.box(0, 12.2, 0, 3.6, 0.3, 0.3, 0x8e979d);
+  g.box(0, -1, 0, 2.4, 1.2, 2.4, 0x9a968e);
+  return g;
 }

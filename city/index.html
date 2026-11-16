@@ -12,6 +12,7 @@
   canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   .panel { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px); box-shadow: 0 8px 28px rgba(0, 0, 0, .3); }
   button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:disabled { opacity: .4; cursor: default; }
 
   #top { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; gap: 10px; align-items: stretch; pointer-events: none; flex-wrap: wrap; }
   #top > * { pointer-events: auto; }
@@ -34,19 +35,24 @@
   #bottom { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: calc(100vw - 20px); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
   #hint { pointer-events: none; padding: 6px 14px; font-size: 13px; min-height: 32px; max-width: 100%; text-align: center; }
   #hint b { color: var(--acc); }
-  #tools { pointer-events: auto; display: flex; gap: 4px; padding: 6px; overflow-x: auto; max-width: 100%; }
-  #tools .sep { width: 1px; background: var(--line); margin: 4px 3px; flex: none; }
-  .tool { flex: none; width: 58px; height: 58px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; }
+  .bar { pointer-events: auto; display: flex; gap: 4px; padding: 6px; overflow-x: auto; max-width: 100%; }
+  #sub:empty { display: none; }
+  .bar .sep { width: 1px; background: var(--line); margin: 4px 3px; flex: none; }
+  .tool { flex: none; width: 64px; height: 58px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; }
   .tool span { font-size: 23px; line-height: 1.1; }
-  .tool small { font-size: 9.5px; color: var(--dim); white-space: nowrap; max-width: 56px; overflow: hidden; text-overflow: ellipsis; }
+  .tool small { font-size: 9.5px; color: var(--dim); white-space: nowrap; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }
   .tool:hover { background: rgba(255, 255, 255, .1); }
   .tool.on { background: var(--acc); }
   .tool.on small { color: #3a2a00; }
+  .tool.open { background: rgba(255, 255, 255, .14); }
   .tool.locked { opacity: .38; }
   .tool.locked::after { content: "🔒"; position: absolute; right: 3px; top: 2px; font-size: 11px; }
   .tool .dot { position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 50%; }
+  .tool.mode { width: 58px; }
+  .tool.mode.on { background: rgba(255, 194, 74, .28); outline: 1px solid var(--acc); }
+  .tool.mode.on small { color: var(--txt); }
 
-  #alerts { position: fixed; left: 10px; top: 84px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: 300px; }
+  #alerts { position: fixed; left: 10px; top: 84px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: 320px; }
   .alert { padding: 7px 12px; font-size: 13px; border-left: 3px solid var(--acc); border-radius: 10px; }
   .alert.bad { border-left-color: var(--bad); }
   #toasts { position: fixed; left: 50%; top: 90px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; z-index: 5; }
@@ -54,29 +60,39 @@
   .toast h3 { margin: 0 0 2px; font-size: 18px; color: var(--acc); }
   @keyframes pop { from { transform: translateY(-12px) scale(.9); opacity: 0; } }
 
-  .side { position: fixed; right: 10px; top: 84px; width: 280px; padding: 14px 16px; display: none; }
+  .side { position: fixed; right: 10px; top: 84px; width: 300px; padding: 14px 16px; display: none; max-height: calc(100vh - 230px); overflow-y: auto; }
   .side.show { display: block; }
   .side h3 { margin: 0 0 10px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
   .side h3 button { font-size: 16px; color: var(--dim); }
-  .row { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
-  .row span:first-child { color: var(--dim); }
+  .side h4 { margin: 14px 0 6px; font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .row > span:first-child { color: var(--dim); }
   .row.total { border-top: 1px solid var(--line); margin-top: 5px; padding-top: 7px; font-weight: 700; }
   .meter { height: 8px; background: rgba(255, 255, 255, .1); border-radius: 4px; overflow: hidden; margin: 3px 0 9px; }
   .meter i { display: block; height: 100%; background: var(--good); border-radius: 4px; transition: width .4s; }
   .meter i.over { background: var(--bad); }
-  input[type=range] { width: 100%; accent-color: var(--acc); }
-  #info { top: auto; bottom: 120px; }
+  input[type=range] { width: 100%; accent-color: var(--acc); margin: 0 0 6px; }
+  .mini { background: rgba(255, 255, 255, .1); border-radius: 8px; padding: 5px 10px; font-size: 13px; }
+  .mini:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+  .mini.acc { background: var(--acc); color: #2a1e00; font-weight: 600; }
+  .slot { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .slot div { flex: 1; min-width: 0; }
+  .slot small { color: var(--dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .needs { margin: 6px 0 0; padding: 0; list-style: none; }
+  .needs li { padding: 2px 0; color: var(--bad); }
+  .needs li.ok { color: var(--good); }
+  #info { top: auto; bottom: 150px; right: auto; left: 10px; }
 
-  #modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .55); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
-  #modal.show { display: flex; }
-  #modal .panel { max-width: 560px; padding: 22px 26px; max-height: 92vh; overflow: auto; }
-  #modal h2 { margin: 0 0 6px; font-size: 24px; }
-  #modal h2 em { font-style: normal; color: var(--acc); }
-  #modal ol { padding-left: 20px; margin: 10px 0; }
-  #modal li { margin: 5px 0; }
-  #modal kbd { background: rgba(255, 255, 255, .12); border-radius: 5px; padding: 1px 6px; font: 12px ui-monospace, monospace; }
-  #modal .keys { color: var(--dim); font-size: 13px; }
-  .cta { background: var(--acc); color: #2a1e00; font-weight: 700; padding: 10px 22px; border-radius: 10px; margin-top: 10px; }
+  .modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .55); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .modal.show { display: flex; }
+  .modal .panel { max-width: 600px; padding: 22px 26px; max-height: 92vh; overflow: auto; }
+  .modal h2 { margin: 0 0 6px; font-size: 24px; }
+  .modal h2 em { font-style: normal; color: var(--acc); }
+  .modal ol { padding-left: 20px; margin: 10px 0; }
+  .modal li { margin: 5px 0; }
+  .modal kbd { background: rgba(255, 255, 255, .12); border-radius: 5px; padding: 1px 6px; font: 12px ui-monospace, monospace; }
+  .modal .keys { color: var(--dim); font-size: 13px; }
+  .cta { background: var(--acc); color: #2a1e00; font-weight: 700; padding: 10px 22px; border-radius: 10px; margin-top: 12px; }
   .cta.ghost { background: rgba(255, 255, 255, .1); color: var(--txt); font-weight: 500; margin-left: 6px; }
   @media (max-width: 760px) { .stat { min-width: 0; padding: 6px 10px; } .stat b { font-size: 14px; } #cityname { width: 100px; font-size: 14px; } }
 </style>
@@ -102,10 +118,9 @@
     <button data-s="4" title="Tốc độ 3 (phím 3)">▶▶▶</button>
   </div>
   <div class="panel btns">
-    <button id="bBudget" title="Ngân sách và thuế">📊</button>
-    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giá đất / ô nhiễm / dịch vụ">🗺️</button>
-    <button id="bSave" title="Lưu">💾</button>
-    <button id="bNew" title="Thành phố mới">🆕</button>
+    <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
+    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giá đất / ô nhiễm / dịch vụ / điện / nước">🗺️</button>
+    <button id="bSave" title="Lưu và tải">💾</button>
     <button id="bHelp" title="Hướng dẫn">❓</button>
   </div>
 </div>
@@ -115,19 +130,37 @@
 
 <div class="panel side" id="budget">
   <h3>Ngân sách tháng <button data-close>✕</button></h3>
-  <div class="row"><span>Thuế</span><b id="taxv">9%</b></div>
-  <input type="range" id="tax" min="1" max="20" step="1" value="9" aria-label="Thuế suất">
+  <div class="row"><span>🏠 Thuế dân cư</span><b id="taxRv"></b></div><input type="range" id="taxR" min="1" max="20" step="1" aria-label="Thuế dân cư">
+  <div class="row"><span>🏬 Thuế thương mại</span><b id="taxCv"></b></div><input type="range" id="taxC" min="1" max="20" step="1" aria-label="Thuế thương mại">
+  <div class="row"><span>🏭 Thuế công nghiệp</span><b id="taxIv"></b></div><input type="range" id="taxI" min="1" max="20" step="1" aria-label="Thuế công nghiệp">
   <div class="row"><span>Thu thuế</span><span id="bInc" class="pos"></span></div>
   <div class="row"><span>Đường sá</span><span id="eRoad"></span></div>
   <div class="row"><span>Điện</span><span id="ePower"></span></div>
-  <div class="row"><span>Nước</span><span id="eWater"></span></div>
+  <div class="row"><span>Nước và thoát nước</span><span id="eWater"></span></div>
+  <div class="row"><span>Rác</span><span id="eTrash"></span></div>
   <div class="row"><span>Công viên</span><span id="ePark"></span></div>
   <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
+  <div class="row"><span>Trả nợ</span><span id="eLoan"></span></div>
   <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
-  <h3 style="margin-top:14px">Hạ tầng</h3>
+  <h4>Vay nợ</h4>
+  <div id="loans"></div>
+  <h4>Hạ tầng (đã nối mạng)</h4>
   <div class="row"><span>⚡ Điện</span><span id="pTxt"></span></div><div class="meter"><i id="pBar"></i></div>
-  <div class="row"><span>💧 Nước</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
+  <div class="row"><span>💧 Nước sạch</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
+  <div class="row"><span>🕳️ Thoát nước</span><span id="sTxt"></span></div><div class="meter"><i id="sBar"></i></div>
+  <div class="row"><span>🗑️ Rác</span><span id="tTxt"></span></div><div class="meter"><i id="tBar"></i></div>
   <div class="row"><span>Việc làm / lao động</span><span id="jTxt"></span></div>
+</div>
+
+<div class="panel side" id="saves">
+  <h3>Lưu và tải <button data-close>✕</button></h3>
+  <div id="slots"></div>
+  <h4>File</h4>
+  <button class="mini" id="bExport">⬇️ Xuất file</button>
+  <button class="mini" id="bImport">⬆️ Nhập file</button>
+  <input type="file" id="fImport" accept="application/json,.json" hidden>
+  <h4>Khác</h4>
+  <button class="mini" id="bNew">🆕 Thành phố mới</button>
 </div>
 
 <div class="panel side" id="info">
@@ -137,25 +170,36 @@
 
 <div id="bottom">
   <div class="panel" id="hint"></div>
-  <div class="panel" id="tools"></div>
+  <div class="panel bar" id="sub"></div>
+  <div class="panel bar" id="tools"></div>
 </div>
 
-<div id="modal">
+<div class="modal" id="modal">
   <div class="panel">
     <h2>Chào thị trưởng của <em>Phố Mới</em></h2>
-    <div>Một vùng đất trống cạnh sông đang chờ bạn. Bốn bước để có những cư dân đầu tiên:</div>
+    <div>Một vùng đất trống cạnh sông đang chờ bạn. Năm bước để có những cư dân đầu tiên:</div>
     <ol>
-      <li><b>🛣️ Đường</b>: kéo chuột từ đoạn đường có sẵn để mở phố.</li>
-      <li><b>Quy hoạch</b>: tô khu 🏠 dân cư, 🏬 thương mại, 🏭 công nghiệp dọc hai bên đường (cách đường tối đa 2 ô).</li>
-      <li><b>⚡ Điện và 💧 nước</b>: đặt tua-bin gió và tháp nước ở chỗ trống.</li>
-      <li>Bấm ▶ rồi chờ nhà mọc. Thêm công viên, trường, trạm y tế để nhà lên cấp cao hơn.</li>
+      <li><b>🛣️ Đường</b>: bấm điểm đầu rồi điểm cuối (hoặc kéo chuột), bắt đầu từ đoạn đường có sẵn. Đổi sang <b>Cong</b> để bấm thêm điểm uốn. Đường cắt nhau tự thành nút giao.</li>
+      <li><b>🎨 Quy hoạch</b>: hai bên đường tự có 2 hàng ô đất; tô khu 🏠 dân cư, 🏬 thương mại, 🏭 công nghiệp lên đó.</li>
+      <li><b>⚡ Điện</b>: đặt tua-bin gió gần đường (trong 2 ô) hoặc kéo dây điện từ nó tới đường. Điện chạy dọc theo đường.</li>
+      <li><b>💧 Nước</b>: tháp nước cấp nước sạch, cống xả thải (đặt sát bờ nước) nhận nước thải. Ở xa đường thì nối bằng ống nước.</li>
+      <li>Bấm ▶ rồi chờ nhà mọc. Thêm bãi rác, công viên, trường, y tế, cứu hoả để nhà lên cấp và dân vui hơn.</li>
     </ol>
     <div class="keys">
-      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay · lăn chuột để phóng to ·
-      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>B</kbd> san ủi · <kbd>Esc</kbd> bỏ công cụ.
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to ·
+      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · chuột phải hoặc <kbd>Esc</kbd> để bỏ.
       Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
+  </div>
+</div>
+
+<div class="modal" id="over">
+  <div class="panel">
+    <h2>💸 Thành phố <em>phá sản</em></h2>
+    <div>Ngân sách âm quá lâu hoặc nợ vượt quá khả năng chi trả, hội đồng thành phố đã bãi nhiệm thị trưởng.</div>
+    <button class="cta" id="oNew">Thành phố mới</button>
+    <button class="cta ghost" id="oLoad">Tải bản lưu cũ</button>
   </div>
 </div>
 
