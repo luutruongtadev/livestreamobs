@@ -79,6 +79,9 @@ export function resolveStatic(urlPath, root = ROOT) {
   if (p === '/app' || p === '/app/') return path.join(root, 'web', 'app.html');
   if (p === '/demo' || p === '/demo/') return path.join(root, 'web', 'demo.html');
   if (/^\/o\/[A-Za-z0-9]{8,80}\/?$/.test(p)) return path.join(root, 'web', 'overlay.html');
+  // Phố Mới: game xây thành phố chơi một mình, tách khỏi nền tảng livestream
+  if (p === '/city' || p === '/city/') return path.join(root, 'city', 'index.html');
+  if (p.startsWith('/city/')) return safeJoin(path.join(root, 'city'), p.slice(6));
   if (p.startsWith('/web/')) return safeJoin(path.join(root, 'web'), p.slice(5));
   if (p.startsWith('/sdk/')) {
     const rel = p.slice(5);

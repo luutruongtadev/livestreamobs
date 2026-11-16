@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Phố Mới — xây thành phố</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg: rgba(20, 28, 36, .88); --line: rgba(255, 255, 255, .1); --txt: #eef3f6; --dim: #9fb0bd; --acc: #ffc24a; --good: #62d98b; --bad: #ff7262; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc6ea; color: var(--txt); font: 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .panel { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px); box-shadow: 0 8px 28px rgba(0, 0, 0, .3); }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+
+  #top { position: fixed; top: 10px; left: 10px; right: 10px; display: flex; gap: 10px; align-items: stretch; pointer-events: none; flex-wrap: wrap; }
+  #top > * { pointer-events: auto; }
+  .stat { padding: 7px 14px; display: flex; flex-direction: column; justify-content: center; min-width: 96px; }
+  .stat small { color: var(--dim); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+  .stat b { font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stat .sub { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--good); } .neg { color: var(--bad); }
+  #cityname { font-size: 17px; font-weight: 700; background: none; border: 0; color: inherit; width: 150px; padding: 0; outline: none; user-select: text; -webkit-user-select: text; }
+  #demand { padding: 7px 14px; display: flex; gap: 7px; align-items: flex-end; }
+  #demand .bar { width: 14px; height: 38px; background: rgba(255, 255, 255, .08); border-radius: 4px; position: relative; overflow: hidden; }
+  #demand .bar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px; transition: height .4s; }
+  #demand .col { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; color: var(--dim); }
+  .spacer { flex: 1; }
+  .btns { display: flex; padding: 5px; gap: 3px; align-items: center; }
+  .btns button { height: 38px; min-width: 38px; padding: 0 9px; border-radius: 9px; font-size: 15px; }
+  .btns button:hover { background: rgba(255, 255, 255, .1); }
+  .btns button.on { background: var(--acc); color: #2a1e00; }
+
+  #bottom { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: calc(100vw - 20px); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  #hint { pointer-events: none; padding: 6px 14px; font-size: 13px; min-height: 32px; max-width: 100%; text-align: center; }
+  #hint b { color: var(--acc); }
+  #tools { pointer-events: auto; display: flex; gap: 4px; padding: 6px; overflow-x: auto; max-width: 100%; }
+  #tools .sep { width: 1px; background: var(--line); margin: 4px 3px; flex: none; }
+  .tool { flex: none; width: 58px; height: 58px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; }
+  .tool span { font-size: 23px; line-height: 1.1; }
+  .tool small { font-size: 9.5px; color: var(--dim); white-space: nowrap; max-width: 56px; overflow: hidden; text-overflow: ellipsis; }
+  .tool:hover { background: rgba(255, 255, 255, .1); }
+  .tool.on { background: var(--acc); }
+  .tool.on small { color: #3a2a00; }
+  .tool.locked { opacity: .38; }
+  .tool.locked::after { content: "🔒"; position: absolute; right: 3px; top: 2px; font-size: 11px; }
+  .tool .dot { position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 50%; }
+
+  #alerts { position: fixed; left: 10px; top: 84px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: 300px; }
+  .alert { padding: 7px 12px; font-size: 13px; border-left: 3px solid var(--acc); border-radius: 10px; }
+  .alert.bad { border-left-color: var(--bad); }
+  #toasts { position: fixed; left: 50%; top: 90px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; z-index: 5; }
+  .toast { padding: 12px 22px; text-align: center; animation: pop .35s ease-out; border-color: var(--acc); }
+  .toast h3 { margin: 0 0 2px; font-size: 18px; color: var(--acc); }
+  @keyframes pop { from { transform: translateY(-12px) scale(.9); opacity: 0; } }
+
+  .side { position: fixed; right: 10px; top: 84px; width: 280px; padding: 14px 16px; display: none; }
+  .side.show { display: block; }
+  .side h3 { margin: 0 0 10px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+  .side h3 button { font-size: 16px; color: var(--dim); }
+  .row { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .row span:first-child { color: var(--dim); }
+  .row.total { border-top: 1px solid var(--line); margin-top: 5px; padding-top: 7px; font-weight: 700; }
+  .meter { height: 8px; background: rgba(255, 255, 255, .1); border-radius: 4px; overflow: hidden; margin: 3px 0 9px; }
+  .meter i { display: block; height: 100%; background: var(--good); border-radius: 4px; transition: width .4s; }
+  .meter i.over { background: var(--bad); }
+  input[type=range] { width: 100%; accent-color: var(--acc); }
+  #info { top: auto; bottom: 120px; }
+
+  #modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .55); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  #modal.show { display: flex; }
+  #modal .panel { max-width: 560px; padding: 22px 26px; max-height: 92vh; overflow: auto; }
+  #modal h2 { margin: 0 0 6px; font-size: 24px; }
+  #modal h2 em { font-style: normal; color: var(--acc); }
+  #modal ol { padding-left: 20px; margin: 10px 0; }
+  #modal li { margin: 5px 0; }
+  #modal kbd { background: rgba(255, 255, 255, .12); border-radius: 5px; padding: 1px 6px; font: 12px ui-monospace, monospace; }
+  #modal .keys { color: var(--dim); font-size: 13px; }
+  .cta { background: var(--acc); color: #2a1e00; font-weight: 700; padding: 10px 22px; border-radius: 10px; margin-top: 10px; }
+  .cta.ghost { background: rgba(255, 255, 255, .1); color: var(--txt); font-weight: 500; margin-left: 6px; }
+  @media (max-width: 760px) { .stat { min-width: 0; padding: 6px 10px; } .stat b { font-size: 14px; } #cityname { width: 100px; font-size: 14px; } }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="top">
+  <div class="panel stat"><input id="cityname" maxlength="24" spellcheck="false" aria-label="Tên thành phố"><small id="rank">Vùng đất mới</small></div>
+  <div class="panel stat"><small>Dân số</small><b id="pop">0</b><span class="sub" id="jobs" style="color:var(--dim)"></span></div>
+  <div class="panel stat"><small>Ngân sách</small><b id="money">0</b><span class="sub" id="net"></span></div>
+  <div class="panel stat"><small>Hài lòng</small><b id="happy">–</b><span class="sub" id="date" style="color:var(--dim)"></span></div>
+  <div class="panel" id="demand" title="Nhu cầu: dân cư / thương mại / công nghiệp">
+    <div class="col"><div class="bar"><i id="dr" style="background:#46c85a"></i></div>Dân</div>
+    <div class="col"><div class="bar"><i id="dc" style="background:#468cec"></i></div>TM</div>
+    <div class="col"><div class="bar"><i id="di" style="background:#f0be32"></i></div>CN</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="panel btns" id="speed">
+    <button data-s="0" title="Tạm dừng (Space)">⏸</button>
+    <button data-s="1" title="Tốc độ 1 (phím 1)">▶</button>
+    <button data-s="2" title="Tốc độ 2 (phím 2)">▶▶</button>
+    <button data-s="4" title="Tốc độ 3 (phím 3)">▶▶▶</button>
+  </div>
+  <div class="panel btns">
+    <button id="bBudget" title="Ngân sách và thuế">📊</button>
+    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giá đất / ô nhiễm / dịch vụ">🗺️</button>
+    <button id="bSave" title="Lưu">💾</button>
+    <button id="bNew" title="Thành phố mới">🆕</button>
+    <button id="bHelp" title="Hướng dẫn">❓</button>
+  </div>
+</div>
+
+<div id="alerts"></div>
+<div id="toasts"></div>
+
+<div class="panel side" id="budget">
+  <h3>Ngân sách tháng <button data-close>✕</button></h3>
+  <div class="row"><span>Thuế</span><b id="taxv">9%</b></div>
+  <input type="range" id="tax" min="1" max="20" step="1" value="9" aria-label="Thuế suất">
+  <div class="row"><span>Thu thuế</span><span id="bInc" class="pos"></span></div>
+  <div class="row"><span>Đường sá</span><span id="eRoad"></span></div>
+  <div class="row"><span>Điện</span><span id="ePower"></span></div>
+  <div class="row"><span>Nước</span><span id="eWater"></span></div>
+  <div class="row"><span>Công viên</span><span id="ePark"></span></div>
+  <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
+  <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
+  <h3 style="margin-top:14px">Hạ tầng</h3>
+  <div class="row"><span>⚡ Điện</span><span id="pTxt"></span></div><div class="meter"><i id="pBar"></i></div>
+  <div class="row"><span>💧 Nước</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
+  <div class="row"><span>Việc làm / lao động</span><span id="jTxt"></span></div>
+</div>
+
+<div class="panel side" id="info">
+  <h3><span id="iTitle">Ô đất</span> <button data-close>✕</button></h3>
+  <div id="iBody"></div>
+</div>
+
+<div id="bottom">
+  <div class="panel" id="hint"></div>
+  <div class="panel" id="tools"></div>
+</div>
+
+<div id="modal">
+  <div class="panel">
+    <h2>Chào thị trưởng của <em>Phố Mới</em></h2>
+    <div>Một vùng đất trống cạnh sông đang chờ bạn. Bốn bước để có những cư dân đầu tiên:</div>
+    <ol>
+      <li><b>🛣️ Đường</b>: kéo chuột từ đoạn đường có sẵn để mở phố.</li>
+      <li><b>Quy hoạch</b>: tô khu 🏠 dân cư, 🏬 thương mại, 🏭 công nghiệp dọc hai bên đường (cách đường tối đa 2 ô).</li>
+      <li><b>⚡ Điện và 💧 nước</b>: đặt tua-bin gió và tháp nước ở chỗ trống.</li>
+      <li>Bấm ▶ rồi chờ nhà mọc. Thêm công viên, trường, trạm y tế để nhà lên cấp cao hơn.</li>
+    </ol>
+    <div class="keys">
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay · lăn chuột để phóng to ·
+      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>B</kbd> san ủi · <kbd>Esc</kbd> bỏ công cụ.
+      Game tự lưu trong trình duyệt này.
+    </div>
+    <button class="cta" id="mStart">Bắt đầu xây</button>
+  </div>
+</div>
+
+<script type="module" src="/city/js/main.js"></script>
+</body>
+</html>
