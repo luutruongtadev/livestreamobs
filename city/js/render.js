@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint } from './sim.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -1054,11 +1054,35 @@ export class View {
       if (Math.abs(hx) + Math.abs(hz) < 1e-3) { at(sh, 0, a); at(sh, 8, b); hx = b[0] - a[0]; hz = b[1] - a[1]; }
       const yaw = Math.atan2(hx, hz), bob = Math.sin(this.time * 1.3 + sh.off) * 0.12;
       q.setFromAxisAngle(up, yaw); p.set(n[0], WATER_Y + bob, n[1]);
-      const mesh = this.shipMeshes[sh.type === 'port' ? 1 : 0], cnt = mesh.count;
+      const mesh = this.shipMeshes[1], cnt = mesh.count;
       if (cnt >= mesh.userData.cap) continue;
       mesh.setMatrixAt(cnt, m.compose(p, q, sc)); mesh.count = cnt + 1;
     }
+    // tàu khách: vị trí lấy từ mô phỏng (chở khách thật)
+    const fm = this.shipMeshes[0];
+    for (const line of c.ferries || []) for (const sl of line.veh) {
+      if (line.out && sl.s > line.len - 30) continue; // đã ra ngoài bản đồ
+      if (fm.count >= fm.userData.cap) break;
+      const [x, z, hx, hz] = ferryPoint(line, sl), bob = Math.sin(this.time * 1.3 + x * 0.01) * 0.12;
+      q.setFromAxisAngle(up, Math.atan2(hx, hz)); p.set(x, WATER_Y + bob, z);
+      fm.setMatrixAt(fm.count++, m.compose(p, q, sc));
+    }
+    this._ferryLines();
     for (const mesh of this.shipMeshes) { mesh.instanceMatrix.needsUpdate = true; }
+  }
+
+  /** Vạch tuyến tàu khách mờ trên mặt nước, dựng lại khi tuyến đổi. */
+  _ferryLines() {
+    const c = this.city, key = (c.ferries || []).map((l) => l.key + ':' + l.wpath.length + ':' + Math.round(l.len)).join('|');
+    if (key === this._ferryKey) return;
+    this._ferryKey = key;
+    if (this.ferryLineObj) { this.scene.remove(this.ferryLineObj); this.ferryLineObj.geometry.dispose(); }
+    const pts = [];
+    for (const l of c.ferries || []) for (let k = 1; k < l.wpath.length; k++) pts.push(l.wpath[k - 1][0], WATER_Y + 0.6, l.wpath[k - 1][1], l.wpath[k][0], WATER_Y + 0.6, l.wpath[k][1]);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.ferryLineMat = this.ferryLineMat || new THREE.LineDashedMaterial({ color: 0xeaf6ff, dashSize: 5, gapSize: 3, transparent: true, opacity: 0.8, depthWrite: false });
+    this.ferryLineObj = new THREE.LineSegments(geo, this.ferryLineMat); this.ferryLineObj.computeLineDistances(); this.ferryLineObj.frustumCulled = false; this.ferryLineObj.renderOrder = 10; // vẽ sau mặt nước trong suốt
+    this.scene.add(this.ferryLineObj);
   }
 
   /** Đổi phong cách nhà cửa / phố xá: dựng lại mọi mô hình nhà, cây, đường. */

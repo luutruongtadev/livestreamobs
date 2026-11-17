@@ -5,6 +5,7 @@
 import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
+import { ferryDay } from './ships.js';
 import { incidentArrive } from './incidents.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
@@ -24,7 +25,7 @@ export function initPeople(c) {
   c.dead = new Uint8Array(N * N); c.hearseTo = new Uint8Array(N * N); // người mất chờ xe tang ở từng nhà; nhà đã có xe tang đang tới
   c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N) };
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
-  c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, tram: 0, metro: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
+  c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
   c.carSample = 1; c.gbusy = new Set();
 }
 
@@ -263,6 +264,16 @@ export function die(c, id) {
   const home = c.pp.home[id];
   removeCitizen(c, id); c.econ.died++; c.econ.day.died++;
   if (home >= 0 && c.pp.count >= 400 && c.dead[home] < 250) c.dead[home]++;
+}
+
+/** Du khách tới bằng tàu: mỗi người tiêu ít tiền ở quán ăn, chỗ vui chơi, cửa hàng ngẫu nhiên trong thành phố. */
+export function touristSpend(c, n) {
+  if (!n) return;
+  const spots = [];
+  for (let i = 0; i < N * N; i++) if (isLeisure(c, i) || isShop(c, i)) spots.push(i);
+  if (!spots.length) return;
+  const rng = c.rng || Math.random;
+  for (let k = 0; k < n; k++) saleIncome(c, spots[Math.floor(rng() * spots.length)], 8, 'c');
 }
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
@@ -566,9 +577,10 @@ function peopleDay(c) {
   // sổ sách theo ngày
   c.econ.last = { ...day, riders: c.transit.riders, mode: { ...ps.mode } };
   for (const k of Object.keys(day)) day[k] = 0;
-  ps.mode = { car: 0, bus: 0, tram: 0, metro: 0, walk: 0 };
+  ps.mode = { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 };
   c.transit.ridersDay = c.transit.riders; c.transit.riders = 0;
   for (const l of c.transit.lines) { l.ridersDay = l.riders; l.riders = 0; }
+  ferryDay(c);
 }
 
 /**

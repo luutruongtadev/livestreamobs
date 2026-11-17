@@ -111,7 +111,7 @@ export const SERVICES = {
   parking: { name: 'Bãi đỗ xe', icon: '🅿️', group: 'transit', cost: 2500, upkeep: 30, size: 2, spots: 60, radius: 7, road: true, unlock: 120, desc: 'Chỗ đỗ cho xe tới các toà nhà trong bán kính, đỡ cảnh chạy vòng tìm chỗ' },
   port: { name: 'Cảng hàng hoá', icon: '⚓', group: 'transit', cost: 35000, upkeep: 500, size: 3, needWater: true, road: true, outside: true, ground: 2, unlock: 1000, desc: 'Cửa ngõ xuất nhập khẩu thứ hai: xe tải khỏi phải chạy ra tận đường cao tốc' },
   depot: { name: 'Bến xe, xưởng bảo dưỡng', icon: '🚏', group: 'transit', cost: 9000, upkeep: 110, size: 2, depot: 12, road: true, unlock: 120, desc: 'Chỗ xe buýt, tàu điện nghỉ đêm và bảo dưỡng: chưa có bến thì mọi tuyến chạy chung tối đa 4 xe, mỗi bến cho thêm 12 xe' },
-  ferry: { name: 'Bến tàu khách', icon: '⛴️', group: 'transit', cost: 15000, upkeep: 180, size: 2, needWater: true, road: true, unlock: 400, bonus: { pull: 0.03, happy: 1 }, desc: 'Tàu khách, du thuyền ven sông biển: dân vui hơn chút, thành phố hút khách hơn' },
+  ferry: { name: 'Bến tàu khách', icon: '⛴️', group: 'transit', cost: 15000, upkeep: 180, size: 2, needWater: true, road: true, unlock: 400, bonus: { pull: 0.03, happy: 1 }, desc: 'Tàu khách chở dân, thu vé như xe buýt: từ 2 bến cùng một vùng nước là thành tuyến; chỉ một bến thì tàu chạy ra cửa biển, đưa du khách tới tiêu tiền và chở dân đi chơi xa' },
   train: { name: 'Ga tàu hoả', icon: '🚆', group: 'transit', cost: 40000, upkeep: 420, size: 3, road: true, outside: true, noise: 6, unlock: 1000, bonus: { pull: 0.06 }, desc: 'Tàu khách và tàu hàng liên tỉnh: thêm một cửa ngõ xuất nhập khẩu, người nơi khác tới ở dễ hơn' },
   airport: { name: 'Sân bay', icon: '✈️', group: 'transit', cost: 180000, upkeep: 1400, size: 5, road: true, outside: true, noise: 16, unlock: 6000, bonus: { pull: 0.1, comm: 0.06 }, desc: 'Khách du lịch và hàng không: hút dân, thuế thương mại +6%; máy bay cất cánh ồn trên vùng rất rộng' },
   nuclear: { name: 'Nhà máy điện hạt nhân', icon: '☢️', group: 'power', cost: 150000, upkeep: 1500, size: 4, power: 1800, needWater: true, noise: 4, unlock: 6000, desc: 'Điện rất nhiều mà không có khói; phải đặt sát bờ nước để làm mát, giá xây và phí vận hành cao' },
@@ -205,6 +205,7 @@ export const BANKRUPT_DAYS = 4; // hoặc âm tiền liên tục chừng này ng
 export const TRANSIT = {
   bus: { name: 'Tuyến xe buýt', icon: '🚌', stopCost: 300, vehCost: 1500, upkeep: 40, cap: 40, speed: 19, walk: 110, road: true, desc: 'Bấm lên đường để đặt trạm theo thứ tự, bấm chuột phải để chốt tuyến (xe chạy vòng)' },
   tram: { name: 'Tuyến tàu điện', icon: '🚋', stopCost: 1500, vehCost: 5000, upkeep: 90, cap: 110, speed: 22, walk: 125, road: true, unlock: 1000, desc: 'Ray đặt giữa lòng đường, chở gần gấp 3 xe buýt nhưng vẫn kẹt cùng xe khác; bấm lên đường để đặt trạm, chuột phải để chốt tuyến' },
+  ferry: { name: 'Tuyến tàu khách', icon: '⛴️', cap: 80, speed: 26, walk: 150, auto: true, desc: 'Tự mở khi có từ 2 bến tàu khách cùng một vùng nước (một bến thì tàu chạy ra cửa biển)' },
   metro: { name: 'Tuyến metro', icon: '🚇', stopCost: 6000, trackCost: 9, vehCost: 6000, upkeep: 160, cap: 150, speed: 46, walk: 140, unlock: 2500, desc: 'Đường ray trên cao đi thẳng giữa các ga, không kẹt xe; bấm chuột phải để chốt tuyến' },
 };
 

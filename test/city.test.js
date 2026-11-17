@@ -702,22 +702,41 @@ test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', 
   assert.equal(resolveStatic('/city/%2e%2e/config.json', ROOT), null);
 });
 
-test('tàu thuỷ: bến tàu khách nối nhau qua sông, cảng hàng chạy ra mép bản đồ', () => {
+test('tàu khách: hai bến cùng sông thành tuyến chở khách thu vé; một bến thì chạy ra cửa biển đón du khách', () => {
   const c = S.newCity(7);
   c.water.fill(0);
-  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1; // sông chạy dọc bản đồ
+  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1; // sông chạy dọc bản đồ, chảy ra mép
   for (let x = 46; x < 70; x++) for (let y = 30; y < 34; y++) c.water[y * S.N + x] = 1; // nhánh rẽ ngang
-  c.services = [{ type: 'ferry', x: 37, y: 10, dir: 0 }, { type: 'ferry', x: 66, y: 34, dir: 0 }, { type: 'port', x: 46, y: 70, dir: 0 }];
-  const r = S.shipRoutes(c);
-  assert.equal(r.length, 3);
-  const f = r[0], end = f.path[f.path.length - 1];
-  assert.equal(f.out, false);
-  assert.ok(Math.hypot(end[0] - S.cellCenter(67), end[1] - S.cellCenter(33)) < 25, 'tàu khách cập bến bên kia');
-  for (const q of r.slice(0, 2)) for (let i = 1; i < q.path.length; i++) for (let k = 0; k <= 10; k++) { // cả tuyến nằm trên mặt nước
-    const x = q.path[i - 1][0] + ((q.path[i][0] - q.path[i - 1][0]) * k) / 10, z = q.path[i - 1][1] + ((q.path[i][1] - q.path[i - 1][1]) * k) / 10;
+  c.services = [{ type: 'ferry', x: 37, y: 10, dir: 0, uid: 901 }, { type: 'ferry', x: 66, y: 34, dir: 0, uid: 902 }, { type: 'port', x: 46, y: 70, dir: 0, uid: 903 }];
+  const lines = S.syncFerries(c);
+  assert.equal(lines.length, 1); const L = lines[0];
+  assert.equal(L.out, false); assert.equal(L.stops.length, 2); assert.equal(L.count, 2);
+  assert.equal(c.ferryState[901], 'line'); assert.equal(c.ferryState[902], 'line');
+  for (let i = 1; i < L.wpath.length; i++) for (let k = 0; k <= 10; k++) { // cả tuyến nằm trên mặt nước
+    const x = L.wpath[i - 1][0] + ((L.wpath[i][0] - L.wpath[i - 1][0]) * k) / 10, z = L.wpath[i - 1][1] + ((L.wpath[i][1] - L.wpath[i - 1][1]) * k) / 10;
     assert.ok(S.isWaterAt(c, x, z), `điểm (${x}, ${z}) trên bờ`);
   }
-  assert.equal(r[2].type, 'port'); assert.equal(r[2].out, true);
-  c.water.fill(0); // hết nước: không còn tàu
-  assert.equal(S.shipRoutes(c).length, 0);
+  // đi từ cạnh bến này sang cạnh bến kia: tàu là một lựa chọn
+  const ride = S.planRide(c, cell(36, 11), cell(68, 37));
+  assert.ok(ride && ride.line === L, 'có tuyến tàu để đi');
+  // khách xuống bến bên kia, thành phố thu vé
+  const arrived = [], money0 = c.money; c.onArrive = (cc, cb) => { arrived.push(cb); };
+  L.stops[ride.from].waiting.push({ cb: { t: 'test' }, to: ride.to, since: 0 });
+  for (let k = 0; k < 600 && !arrived.length; k++) S.stepFerries(c, 0.5);
+  assert.equal(arrived.length, 1, 'khách tới bến bên kia');
+  assert.equal(c.money - money0, c.transit.ferryFare);
+  // tàu hàng của cảng ra cửa biển
+  const r = S.shipRoutes(c); assert.equal(r.length, 1); assert.equal(r[0].out, true);
+  // bỏ một bến: bến còn lại chạy ra cửa biển, đón du khách
+  c.services = c.services.filter((q) => q.uid !== 902);
+  const [sea] = S.syncFerries(c);
+  assert.equal(sea.out, true); assert.equal(c.ferryState[901], 'sea');
+  c.pstats.pop = 2000; c.pstats.happy = 70;
+  let spent = 0; c.onTourists = (cc, n) => { spent += n; };
+  const m1 = c.money;
+  for (let k = 0; k < 2000 && !spent; k++) S.stepFerries(c, 0.5);
+  assert.ok(spent > 0, 'du khách tới thành phố'); assert.ok(c.money > m1, 'thu vé tàu');
+  // hồ kín một bến: không có tuyến
+  c.water.fill(0); for (let y = 12; y < 20; y++) for (let x = 40; x < 48; x++) c.water[y * S.N + x] = 1;
+  assert.equal(S.syncFerries(c).length, 0); assert.equal(c.ferryState[901], 'pond');
 });

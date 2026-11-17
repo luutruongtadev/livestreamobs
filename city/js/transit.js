@@ -2,12 +2,14 @@
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
 import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
 import { spawnVehicle, reroute, findPath } from './traffic.js';
+import { syncFerries } from './ships.js';
 
 const WALK_SPEED = 7; // đơn vị / giây mô phỏng
 const HUES = [0.02, 0.58, 0.13, 0.78, 0.33, 0.9, 0.48, 0.68];
 
 export function initTransit(c) {
-  c.transit = { lines: [], fare: 2, nextId: 1, riders: 0, ridersDay: 0, income: 0 };
+  c.transit = { lines: [], fare: 2, ferryFare: 4, nextId: 1, riders: 0, ridersDay: 0, income: 0 };
+  c.ferries = [];
 }
 
 /** Đoạn đường mặt đất gần nhất (trạm xe buýt, tàu điện không đặt trên đường trên cao). */
@@ -122,6 +124,7 @@ export function maintainTransit(c) {
     while (line.veh.length < line.count) line.veh.push({ v: null, next: 0, riders: [], s: (line.loop / 2 / line.count) * line.veh.length, dir: 1, dwell: 0, at: -1 });
     if (def.road && !line.broken) line.veh.forEach((slot, k) => { if (!slot.v || !c.traffic.vehicles.includes(slot.v)) spawnBus(c, line, slot, Math.floor((k * n) / line.count) % n); });
   }
+  syncFerries(c);
 }
 
 function exchange(c, line, slot, at) {
@@ -190,7 +193,7 @@ export function metroPoint(line, slot) {
 export function planRide(c, fromCell, toCell) {
   const fx = cellX(fromCell), fz = cellZ(fromCell), tx = cellX(toCell), tz = cellZ(toCell);
   let best = null;
-  for (const line of c.transit.lines) {
+  for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.out))) {
     if (line.broken || !line.count) continue;
     const def = TRANSIT[line.mode];
     let i = -1, j = -1, di = def.walk, dj = def.walk;
@@ -213,7 +216,7 @@ export function board(c, ride, cb) {
 /** Mỗi giờ: khách chờ quá lâu thì bỏ về (tính là tới nơi rất muộn). */
 export function transitHour(c) {
   const t = c.traffic.time;
-  for (const line of c.transit.lines) for (const s of line.stops) {
+  for (const line of c.transit.lines.concat(c.ferries || [])) for (const s of line.stops) {
     const gone = s.waiting.filter((r) => t - r.since > 45);
     if (gone.length) { s.waiting = s.waiting.filter((r) => t - r.since <= 45); for (const r of gone) c.onArrive(c, { ...r.cb, late: true }, null); }
   }

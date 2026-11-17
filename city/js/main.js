@@ -491,6 +491,11 @@ function showInfo(tile) {
     if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${val('spots')}`);
     if (d.radius) add('Bán kính phục vụ', `${val('radius')} ô`);
     if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
+    if (sv.type === 'ferry') {
+      const st = (c.ferryState || {})[sv.uid], fl = (c.ferries || []).find((l) => l.stops.some((s) => s.uid === sv.uid));
+      add('Tuyến tàu', st === 'line' ? `✔ nối ${fl ? fl.stops.length - 1 : '?'} bến khác · ${fmt(fl ? fl.ridersDay : 0)} khách hôm qua` : st === 'sea' ? `✔ chạy ra cửa biển · ${fmt(fl ? fl.guestsDay : 0)} du khách tới hôm qua` : st === 'pond' ? '⚠ hồ kín: xây thêm một bến cùng vùng nước, hoặc đào kênh ra mép bản đồ' : st === 'dry' ? '✖ không sát mặt nước' : 'đang dựng tuyến…');
+      add('Giá vé', `${c.transit.ferryFare ?? 4} ₫ (chỉnh ở bảng 👥)`);
+    }
     if (d.outside) add('Cửa ngõ xuất nhập khẩu', sv.cell >= 0 ? '✔ xe tải ra vào được' : '✖ chưa sát đường');
     if (d.power || d.water || d.sewage) add('Nối mạng', sv.linked ? '✔ đã nối' : '✖ chưa, kéo dây / ống tới đường');
     mods = { k: c.occ[i] - 1, list: S.moduleList(c, sv) };
@@ -619,7 +624,7 @@ function renderCity(force) {
   if (!$('people').classList.contains('show')) return;
   const c = city, ps = c.pstats, s = c.stats, last = c.econ.last || {}, mode = last.mode || ps.mode, box = $('pBody');
   const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
-  const adults = ps.edu.reduce((a, b) => a + b, 0), trips = mode.car + mode.bus + (mode.tram || 0) + mode.metro + mode.walk;
+  const adults = ps.edu.reduce((a, b) => a + b, 0), trips = mode.car + mode.bus + (mode.tram || 0) + mode.metro + (mode.ferry || 0) + mode.walk;
   const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
   box.innerHTML = [
     row('Trẻ em · lao động · người già', `${fmt(ps.kids)} · ${fmt(ps.adults)} · ${fmt(ps.seniors)}`),
@@ -633,7 +638,7 @@ function renderCity(force) {
     row('Trung học · đại học', `${pct(ps.edu[2], adults)} · ${pct(ps.edu[3], adults)}`),
     row('Đang đi học', fmt(ps.students || 0)),
     '<h4>Đi lại (hôm qua)</h4>',
-    row('Xe riêng · buýt · tàu điện · metro · đi bộ', `${pct(mode.car, trips)} · ${pct(mode.bus, trips)} · ${pct(mode.tram || 0, trips)} · ${pct(mode.metro, trips)} · ${pct(mode.walk, trips)}`),
+    row('Xe riêng · buýt · tàu điện · metro · tàu thuỷ · đi bộ', `${pct(mode.car, trips)} · ${pct(mode.bus, trips)} · ${pct(mode.tram || 0, trips)} · ${pct(mode.metro, trips)} · ${pct(mode.ferry || 0, trips)} · ${pct(mode.walk, trips)}`),
     row('Thời gian đi làm trung bình', ps.commute ? `${ps.commute.toFixed(1)} giờ` : '–'),
     row('Tốc độ xe so với đường thoáng', `${Math.round(c.traffic.speedEma * 100)}%`),
     row('Xe đang chạy · xe phải tìm chỗ đỗ', `${c.traffic.vehicles.length} · ${last.parkSearch || 0}`),
@@ -656,11 +661,11 @@ function renderCity(force) {
     row('Thiệt mạng vì lốc xoáy', fmt(c.inc.total.killed)),
   ].join('');
   // tuyến giao thông công cộng: chỉ dựng lại khi danh sách đổi để nút bấm không bị giật
-  const tr = c.transit, sig = tr.lines.map((l) => `${l.id}:${l.count}:${l.broken ? 1 : 0}:${l.ridersDay}`).join('|');
+  const tr = c.transit, sig = tr.lines.map((l) => `${l.id}:${l.count}:${l.broken ? 1 : 0}:${l.ridersDay}`).join('|') + '#' + (c.ferries || []).map((l) => `${l.key}:${l.ridersDay}:${l.guestsDay}`).join('|') + '#' + tr.ferryFare;
   if (!force && sig === renderCity.sig) return;
   renderCity.sig = sig;
   const lb = $('pLines'); lb.textContent = '';
-  if (!tr.lines.length) lb.append(el('div', 'row', 'Chưa có tuyến nào. Mở nhóm 🚌 Vận tải để vẽ tuyến.'));
+  if (!tr.lines.length && !(c.ferries || []).length) lb.append(el('div', 'row', 'Chưa có tuyến nào. Mở nhóm 🚌 Vận tải để vẽ tuyến.'));
   for (const l of tr.lines) {
     const d = S.TRANSIT[l.mode], r = el('div', 'slot'), info = el('div');
     info.append(el('b', null, `${d.icon} Tuyến ${l.id}${l.broken ? ' ⚠ đứt tuyến' : ''}`), el('small', null, `${l.stops.length} trạm · ${l.count} xe · ${fmt(l.ridersDay || 0)} khách hôm qua`));
@@ -670,7 +675,14 @@ function renderCity(force) {
     del.addEventListener('click', () => { S.removeTransit(city, l.id); renderCity(true); updateHud(true); });
     r.append(info, minus, plus, del); lb.append(r);
   }
+  for (const l of c.ferries || []) { // tuyến tàu khách tự mở theo các bến, không thêm bớt tay
+    const r = el('div', 'slot'), info = el('div');
+    info.append(el('b', null, l.out ? '⛴️ Tàu ra cửa biển' : `⛴️ Tuyến tàu ${l.stops.length} bến`),
+      el('small', null, l.out ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua · ${fmt(l.guestsDay || 0)} du khách tới, ${fmt(l.travellersDay || 0)} dân đi chơi xa` : `${l.count} tàu · ${fmt(l.ridersDay || 0)} khách hôm qua`));
+    r.append(info); lb.append(r);
+  }
   $('fareV').textContent = `${tr.fare} ₫ · ${fmt(tr.ridersDay || 0)} khách hôm qua`;
+  $('ferryFareV').textContent = `${tr.ferryFare ?? 4} ₫`;
 }
 
 let hudAt = 0;
@@ -940,6 +952,7 @@ function bindUi() {
   $('bCity').addEventListener('click', () => openSide('people'));
   $('bDev').addEventListener('click', () => openSide('dev'));
   $('fare').addEventListener('input', (e) => { city.transit.fare = +e.target.value; renderCity(true); });
+  $('ferryFare').addEventListener('input', (e) => { city.transit.ferryFare = +e.target.value; renderCity(true); });
   for (const b of document.querySelectorAll('[data-dis]')) b.addEventListener('click', () => { const r = S.triggerDisaster(city, b.dataset.dis); if (!r.ok) toast(r.reason); });
   $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
   $('bNight').addEventListener('click', toggleNight);
@@ -972,7 +985,7 @@ function startCity(c) {
   city = c; window.__city = c;
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
-  $('cityname').value = c.name; $('fare').value = c.transit.fare; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
+  $('cityname').value = c.name; $('fare').value = c.transit.fare; $('ferryFare').value = c.transit.ferryFare ?? 4; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
   updateHud.key = null; renderLoans.sig = '';
   stroke = null; tool = 'info'; group = 'info'; mini.at = 0;
   buildToolbar(); setTool('info'); updateHud(true); renderDev();
