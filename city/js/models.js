@@ -888,13 +888,29 @@ export function serviceModel(type, size) {
       g.box(8.9, 0.14, -8.9, 0.3, 5, 0.3, 0x8a949c); g.box(8.9, 5, -8.9, 1.8, 1.8, 0.2, 0x2c5aa0);
       break;
     }
-    case 'port': {
-      pave(0x8d8a84);
-      g.box(-6, 0.14, -8, 14, 6, 9, 0x9aa7b0, true); g.box(-6, 6.14, -8, 14.4, 0.4, 9.4, 0x5b6670);
-      const rr = mulberry32(71), cols = [0xc0392b, 0x2f6fb0, 0xd8b93a, 0x3d8a5a, 0xe07b2e, 0x8a949c];
-      for (let k = 0; k < 16; k++) g.box(-11 + (k % 4) * 3.2, 0.14 + ((k / 8) | 0) * 2.5, 3 + (((k / 4) | 0) % 2) * 6.4, 2.9, 2.5, 6, cols[(rr() * 6) | 0]);
-      for (const x of [5, 11]) { g.box(x, 0.14, 2, 0.8, 16, 0.8, 0xe6a01e); g.box(x, 0.14, 11, 0.8, 16, 0.8, 0xe6a01e); g.box(x, 15.4, 3, 0.9, 0.9, 22, 0xe6a01e); g.box(x, 11, 14, 1.6, 1.4, 1.6, 0x39454f); }
-      g.box(8, 0.14, -10, 6, 3, 5, 0xd8d4cc, false, 0x77726c);
+    case 'port': { // cảng container: bãi bê tông, mép cầu cảng phía sau, 2 cẩu giàn, bãi container, kho, nhà điều hành
+      pave(0x9a968e);
+      g.box(0, 0.14, -12.6, e, 0.06, 0.4, 0xf2c14e); // vạch vàng mép cầu cảng
+      for (let k = 0; k < 7; k++) g.box(-13 + k * 4.3, 0.2, -14.2, 0.6, 0.5, 0.6, 0x2f3b45); // cọc buộc tàu
+      for (let k = 0; k < 6; k++) g.box(-12.5 + k * 5, 0.14, -14.6, 1, 1.2, 0.4, 0x222222); // đệm va lốp xe
+      for (const x of [-6, 6]) { // cẩu giàn STS: 4 chân, dầm ngang, cần vươn ra biển, cabin
+        for (const z of [-11, -5]) for (const dx of [-2.4, 2.4]) g.box(x + dx, 0.14, z, 0.6, 13, 0.6, 0xe6a01e);
+        for (const z of [-11, -5]) g.box(x, 12.6, z, 5.6, 0.7, 0.7, 0xe6a01e);
+        for (const dx of [-2.4, 2.4]) g.box(x + dx, 13.3, -9, 0.6, 0.8, 18, 0xe6a01e);
+        g.box(x, 13.3, -17.5, 5.4, 0.5, 0.5, 0xe6a01e); g.box(x, 13.3, -1, 5.4, 0.5, 0.5, 0xe6a01e);
+        g.box(x, 14.1, -6, 2.2, 3, 2.2, 0xe6a01e); g.cyl(x, 17.1, -6, 0.15, 0.15, 3, 0xe6a01e, 5); // tháp đỡ cáp
+        g.box(x, 11.6, -13, 1.6, 1.1, 1.4, 0x39454f); g.box(x, 9.8, -13, 0.1, 1.8, 0.1, 0x222222); g.box(x, 9.2, -13, 2.4, 0.4, 1.2, 0xd9483b); // xe con, cáp, container đang cẩu
+      }
+      const rr = mulberry32(71), cols = [0xc0392b, 0x2f6fb0, 0xd8b93a, 0x3d8a5a, 0xe07b2e, 0x8a949c, 0xe6e6e6];
+      for (let row = 0; row < 3; row++) for (let k = 0; k < 4; k++) { // bãi container 3 dãy
+        const h = 1 + ((rr() * 3) | 0), x = -12 + k * 3.1, z = 2.5 + row * 3;
+        for (let q = 0; q < h; q++) g.box(x, 0.14 + q * 1.3, z, 2.8, 1.25, 2.5, cols[(rr() * cols.length) | 0]);
+      }
+      g.box(-3.4, 0.14, 5.5, 0.5, 5.4, 0.5, 0x3c4a55); g.box(1.4, 0.14, 5.5, 0.5, 5.4, 0.5, 0x3c4a55); g.box(-1, 5.3, 5.5, 5.4, 0.5, 9, 0x3c4a55); // cẩu khung bánh lốp
+      g.box(9, 0.14, 7, 10, 5, 12, 0xb9c2c8, true); for (let k = 0; k < 4; k++) g.gable(9, 5.14, 2 + k * 3, 10.4, 1.4, 3, 0x7d8c94, true, 0xb9c2c8); // kho mái răng cưa
+      g.box(9, 0.14, 13.4, 4, 3, 0.1, 0x55606a);
+      g.box(-9.5, 0.14, 12, 7, 5, 4, 0xe9ecef, true); g.box(-9.5, 5.14, 12, 7.4, 0.3, 4.4, 0x2f6fb0); g.box(-9.5, 3.6, 14.05, 4, 0.8, 0.06, 0x2f6fb0); // nhà điều hành
+      for (const [x, z] of [[-14, 0], [14, -2], [0, 14]]) { g.cyl(x, 0.14, z, 0.18, 0.12, 12, 0x8a949c, 6); g.box(x, 12, z, 1.6, 0.4, 0.8, 0xfff2c0); } // cột đèn pha
       break;
     }
     case 'park': {
@@ -1077,11 +1093,44 @@ export function serviceModel(type, size) {
       g.box(7.8, 0.14, 8.2, 2, 3.4, 1.6, 0xe6e9ec, false, 0x2c5aa0);
       break;
     }
-    case 'ferry': {
-      pave(0xc9c2ae);
-      g.box(-3, 0.14, -3, 11, 5, 8, 0xf0e6d2, true); g.gable(-3, 5.14, -3, 11.6, 2.2, 8.6, 0x2f6fb0, true, 0xf0e6d2);
-      g.box(4, 0.14, 4, 8, 0.6, 9, 0x9c7a52); for (let k = 0; k < 4; k++) g.box(0.6 + k * 2.4, 0.74, 8.4, 0.3, 1, 0.3, 0x6a4a30); // cầu tàu
-      for (let k = 0; k < 3; k++) g.box(1 + k * 3, 0.74, 8.6, 0.5, 0.9, 0.5, 0x2f3b45); // cọc buộc tàu (tàu khách chạy riêng, xem shipGeometry)
+    case 'ferry': { // bến tàu khách: nhà ga mái vòm kính, cầu dẫn có mái che ra phao nổi phía sau (mặt nước), quầy vé, ghế chờ
+      pave(0xd8d0bd);
+      g.box(0, 0.14, 3, 15, 4.4, 7, 0xf4efe6); glassBand(g, 0, 1.2, 3, 15, 2.6, 7, 0x3b6f8f); // sảnh chờ kính
+      for (let k = 0; k < 6; k++) { // mái vòm: các dải nghiêng tạo cung
+        const a0 = (k / 6) * Math.PI, a1 = ((k + 1) / 6) * Math.PI, r = 4.4;
+        const am = (a0 + a1) / 2, nl = Math.hypot(Math.sin(am) / 2.2, Math.cos(am) / r);
+        g.poly([[-8, 4.54 + Math.sin(a0) * 2.2, 3 - Math.cos(a0) * r], [8, 4.54 + Math.sin(a0) * 2.2, 3 - Math.cos(a0) * r], [8, 4.54 + Math.sin(a1) * 2.2, 3 - Math.cos(a1) * r], [-8, 4.54 + Math.sin(a1) * 2.2, 3 - Math.cos(a1) * r]], [0, Math.sin(am) / 2.2 / nl, -Math.cos(am) / r / nl], k % 2 ? 0x2f6fb0 : 0x3d7fc0);
+      }
+      g.box(0, 4.4, 7.55, 8, 1.1, 0.12, 0xffffff); g.box(0, 4.55, 7.62, 7.2, 0.8, 0.05, 0x2f6fb0); // biển BẾN TÀU KHÁCH
+      g.box(-6, 0.14, 8.6, 2.2, 2.4, 1.6, 0xe8894a); g.box(-6, 2.54, 8.6, 2.6, 0.2, 2, 0xd0342c); // quầy vé
+      for (let k = 0; k < 3; k++) g.box(1 + k * 2.4, 0.14, 8.8, 1.8, 0.45, 0.6, 0x8a6a45); // ghế chờ ngoài trời
+      g.box(0, 0.14, -4, 2.4, 0.5, 6, 0x9c7a52); g.box(0, 2.6, -4, 3, 0.15, 6.2, 0x2f6fb0); // cầu dẫn có mái
+      for (const x of [-1.3, 1.3]) for (const z of [-6.6, -1.4]) g.box(x, 0.64, z, 0.12, 2, 0.12, 0xdddddd);
+      g.box(0, 0, -8.4, 12, 0.5, 2.8, 0x6f7a84); g.box(0, 0.5, -8.4, 12, 0.08, 2.8, 0xb9a27a); // phao nổi
+      for (const x of [-5.4, -1.8, 1.8, 5.4]) g.box(x, 0.58, -9.6, 0.4, 0.6, 0.4, 0x2f3b45); // cọc buộc
+      for (const x of [-5.8, 5.8]) { g.cyl(x, 0.58, -7.2, 0.1, 0.08, 3.4, 0x8a949c, 6); g.box(x, 3.9, -7.2, 0.6, 0.3, 0.6, 0xfff2c0); } // đèn
+      g.cyl(-6.5, 0.58, -9.2, 0.35, 0.35, 0.5, 0xf28a1e, 8); // phao cứu sinh
+      break;
+    }
+    case 'beach': { // bãi biển: cát hai tông, dù che nắng, ghế nằm, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa
+      g.box(0, 0, 0, e, 0.14, e, 0xecd9a8);
+      g.box(0, 0.141, -9, e, 0.02, 11, 0xdcc48d); // cát ướt phía mép nước (sau)
+      g.box(0, 0.16, -14.2, e, 0.02, 1.2, 0xf4f8fa); // bọt sóng
+      const rr = mulberry32(53), um = [0xd0342c, 0x2f8fd0, 0xf2c14e, 0x2aa37a, 0xe8894a, 0xffffff];
+      for (let k = 0; k < 9; k++) {
+        const x = -11 + (k % 5) * 5.5 + (rr() - 0.5), z = -4 + ((k / 5) | 0) * 6 + (rr() - 0.5) * 1.5;
+        g.cyl(x, 0.14, z, 0.07, 0.07, 2.6, 0xeeeeee, 4); g.cyl(x, 2.3, z, 1.5, 0.05, 0.7, um[(rr() * um.length) | 0], 8); // dù
+        for (const dx of [-0.8, 0.8]) { g.box(x + dx, 0.14, z + 1.3, 0.6, 0.25, 1.6, 0xffffff); g.box(x + dx, 0.39, z + 0.65, 0.6, 0.35, 0.3, 0xffffff); } // ghế nằm
+        g.box(x + 1.8, 0.15, z - 0.8, 0.8, 0.02, 1.6, um[(rr() * um.length) | 0]); // khăn tắm
+      }
+      g.box(10.5, 0.14, -9, 0.2, 3.4, 0.2, 0xffffff); g.box(12, 0.14, -9, 0.2, 3.4, 0.2, 0xffffff); g.box(11.25, 3.5, -9, 2.2, 0.2, 2, 0xd0342c); g.box(11.25, 3.7, -9, 1.6, 1.4, 1.6, 0xffffff); g.gable(11.25, 5.1, -9, 2.2, 0.8, 2.2, 0xd0342c); // chòi cứu hộ
+      g.box(-11, 0.14, 10, 6, 2.8, 3.4, 0x9c7a52); g.gable(-11, 2.94, 10, 7, 1.6, 4.4, 0xc9a77c, true); g.box(-11, 0.14, 12, 6, 1.1, 0.6, 0x7a5d3c); // quán nước mái lá
+      for (const x of [-0.5, 6.5]) g.cyl(x, 0.14, 8, 0.06, 0.06, 2.4, 0xeeeeee, 4); g.box(3, 1.7, 8, 7, 0.7, 0.04, 0xf4f4f4); // lưới bóng chuyền
+      for (const [x, z] of [[-13, 3], [13.5, 4], [6, 13], [-4, 13.5]]) { // dừa
+        for (let k = 0; k < 6; k++) g.cyl(x + k * 0.12, 0.14 + k * 1.1, z, 0.28 - k * 0.02, 0.26 - k * 0.02, 1.15, 0x8a6a45, 6);
+        for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; g.at(new THREE.Matrix4().makeTranslation(x + 0.7, 6.8, z).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeRotationX(0.45))).box(0, 0, 1.3, 0.7, 0.07, 2.6, k % 2 ? 0x4f9440 : 0x5fa848).at(null); }
+      }
+      for (let k = 0; k < 4; k++) g.box(-6 + k * 3.5, 0.14, -12.5 + (k % 2), 0.5, 0.5, 0.5, 0xf2c14e); // phao bơi
       break;
     }
     case 'train': {
@@ -1279,22 +1328,89 @@ export function growableVN(zone, level, variant) {
 }
 
 /** Cây dừa: thân cong nhẹ có đốt, tàu lá dài rủ xuống đầu ngọn, buồng dừa. */
-/** Tàu thuỷ, mũi hướng +z, đáy ở mặt nước (y = 0). kind 0 = tàu khách hai tầng, 1 = tàu hàng chở container. */
+/**
+ * Thân tàu thon mũi: một dải vỏ từ y0 tới y1, bề rộng đáy dải = f0 × rộng mạn, đỉnh dải = f1 × rộng mạn.
+ * Mũi tàu hướng +z, dài L, rộng B, đoạn mũi thon dài bow; lái tàu bo tròn nhẹ.
+ */
+function hullBand(g, L, B, bow, y0, y1, f0, f1, color, lift = 0) {
+  const n = 9, prof = [];
+  const zs = -L / 2, zb = L / 2 - bow;
+  prof.push([zs, 0.78], [zs + 0.6, 0.94], [zs + 1.6, 1]);
+  for (let k = 0; k <= n; k++) { const t = k / n; prof.push([zb + bow * t, Math.max(0, 1 - t ** 1.9)]); }
+  const rise = (z, y) => (z > zb ? ((z - zb) / bow) ** 2 * lift * (y - y0 + 0.4) / (y1 - y0 + 0.4) : 0); // mũi hếch lên
+  for (let k = 0; k < prof.length - 1; k++) {
+    const [za, wa] = prof[k], [zc, wc] = prof[k + 1];
+    for (const sgn of [-1, 1]) {
+      const A0 = [sgn * wa * f0 * B / 2, y0 + rise(za, y0), za], C0 = [sgn * wc * f0 * B / 2, y0 + rise(zc, y0), zc];
+      const A1 = [sgn * wa * f1 * B / 2, y1 + rise(za, y1), za], C1 = [sgn * wc * f1 * B / 2, y1 + rise(zc, y1), zc];
+      if (Math.abs(A0[0] - C0[0]) + Math.abs(A1[0] - C1[0]) + Math.abs(za - zc) < 1e-4) continue;
+      g.poly(sgn > 0 ? [A0, C0, C1, A1] : [C0, A0, A1, C1], null, color);
+    }
+  }
+  const w0 = 0.78 * B / 2;
+  g.poly([[-w0 * f0, y0, zs], [w0 * f0, y0, zs], [w0 * f1, y1, zs], [-w0 * f1, y1, zs]], [0, 0, -1], color); // vách lái
+  return prof;
+}
+/** Sàn tàu phẳng theo đường viền thân ở cao độ y. */
+function hullDeck(g, L, B, bow, y, color, f = 1) {
+  const n = 9, zs = -L / 2, zb = L / 2 - bow, prof = [[zs, 0.78], [zs + 0.6, 0.94], [zs + 1.6, 1]];
+  for (let k = 0; k <= n; k++) { const t = k / n; prof.push([zb + bow * t, Math.max(0, 1 - t ** 1.9)]); }
+  for (let k = 0; k < prof.length - 1; k++) {
+    const [za, wa] = prof[k], [zc, wc] = prof[k + 1], ha = wa * f * B / 2, hc = wc * f * B / 2;
+    if (hc < 1e-3) g.poly([[-ha, y, za], [ha, y, za], [0, y, zc]], [0, 1, 0], color);
+    else g.poly([[-ha, y, za], [ha, y, za], [hc, y, zc], [-hc, y, zc]], [0, 1, 0], color);
+  }
+}
+/** Dải cửa kính chạy quanh một tầng (hai bên mạn + phía trước). */
+function glassBand(g, x, y, z, w, h, d, color = 0x22303a) {
+  g.box(x, y, z, w + 0.06, h, d - 0.4, color); g.box(x, y, z + d / 2 - 0.1, w - 0.4, h, 0.24, color);
+}
+
+/** Tàu thuỷ, mũi hướng +z, mặt nước ở y = 0. kind 0 = tàu khách hai tầng, 1 = tàu hàng chở container. */
 export function shipGeometry(kind) {
   const g = new GB();
-  if (kind === 1) {
-    g.box(0, -0.8, 0, 5.4, 2.6, 24, 0x2b4a6e); g.box(0, -0.8, 12.6, 3.6, 2.6, 2, 0x2b4a6e); g.box(0, -0.85, 0, 5.5, 0.5, 26, 0xa8382e); // thân, mũi, vạch nước
-    const cols = [0xd9483b, 0x2f7fd0, 0x2aa37a, 0xe0a030, 0x8a5fb0];
-    for (let k = 0; k < 6; k++) for (let j = 0; j < 2; j++) g.box(-1.3 + j * 2.6, 1.8, 6.5 - k * 2.7, 2.4, 1.2 + ((k + j) % 3 ? 1.1 : 0), 2.5, cols[(k * 2 + j * 3) % 5]);
-    g.box(0, 1.8, -9.5, 4.8, 3.6, 3.4, 0xf2f2f2); g.box(0, 5.4, -9.5, 5.2, 0.3, 3.8, 0xdedede); g.box(0, 4, -7.8, 4.6, 0.7, 0.05, 0x2f3b45);
-    g.cyl(0, 5.7, -10.5, 0.55, 0.55, 2.2, 0xd9483b, 8);
+  if (kind === 1) { // tàu container
+    const L = 30, B = 6.4, bow = 7;
+    hullBand(g, L, B, bow, -1.6, -0.5, 0.55, 0.92, 0xa8382e, 0.6); // đáy đỏ dưới nước
+    hullBand(g, L, B, bow, -0.5, 0.15, 0.92, 0.97, 0xf2f2f2, 0.6); // vạch trắng mớn nước
+    hullBand(g, L, B, bow, 0.15, 2.1, 0.97, 1, 0x1f3a5c, 1.2); // mạn xanh than
+    hullDeck(g, L, B, bow, 2.1 + 0.001, 0x4a5560);
+    g.box(0, 2.1, 12.2, 3.2, 0.9, 1.4, 0x1f3a5c); g.cyl(0, 3, 13.4, 0.08, 0.08, 3.2, 0xdedede, 4); // mũi, cột mũi
+    const cols = [0xd9483b, 0x2f7fd0, 0x2aa37a, 0xe0a030, 0x8a5fb0, 0xe6e6e6, 0x3d4f5f];
+    const rr = mulberry32(17);
+    for (let row = 0; row < 7; row++) for (let col = 0; col < 3; col++) {
+      const h = 1 + ((rr() * 3) | 0), z = 8.2 - row * 2.5;
+      for (let k = 0; k < h; k++) g.box(-2 + col * 2, 2.1 + k * 1.05, z, 1.9, 1, 2.4, cols[(rr() * cols.length) | 0]);
+    }
+    // đài chỉ huy phía lái: khối trắng nhiều tầng, cánh gà, ống khói
+    g.box(0, 2.1, -11, 5.6, 2, 3.6, 0xf2f2f2); g.box(0, 4.1, -11, 5, 2, 3.2, 0xf2f2f2); g.box(0, 6.1, -11, 4.4, 1.7, 3, 0xf2f2f2);
+    for (const y of [2.8, 4.8]) glassBand(g, 0, y, -11, y < 4 ? 5.6 : 5, 0.55, y < 4 ? 3.6 : 3.2);
+    g.box(0, 6.6, -9.45, 4.2, 0.7, 0.06, 0x22303a); g.box(0, 7.8, -11, 7.4, 0.2, 2, 0xdedede); // kính lái, cánh gà
+    g.cyl(0, 7.8, -12.2, 0.7, 0.8, 2.6, 0xd9483b, 10, 0x222222); g.cyl(0, 9.2, -12.2, 0.72, 0.72, 0.4, 0x222222, 10);
+    g.cyl(0, 8, -10.6, 0.06, 0.06, 2.6, 0xdedede, 4); g.box(0, 10.2, -10.6, 1.4, 0.08, 0.08, 0xdedede); // cột ra đa
     return g.build();
   }
-  g.box(0, -0.6, 0, 4.2, 1.5, 13, 0xffffff); g.box(0, -0.6, 6.9, 2.6, 1.5, 1.4, 0xffffff); g.box(0, -0.62, 0, 4.3, 0.35, 14, 0x2f6fb0); // thân, mũi, vạch xanh
-  g.box(0, 0.9, -0.6, 3.6, 1.6, 9, 0xf4f4f4); g.box(0, 1.55, -0.6, 3.66, 0.7, 8.6, 0x2f3b45); // tầng dưới, dãy cửa sổ
-  g.box(0, 2.5, -1.4, 3.2, 1.3, 5.6, 0xf4f4f4); g.box(0, 2.95, -1.4, 3.26, 0.55, 5.2, 0x2f3b45); g.box(0, 2.95, 1.31, 2.6, 0.55, 0.05, 0x6fa8ff); // tầng trên, buồng lái
-  g.box(0, 3.8, -1.4, 3.6, 0.18, 6.2, 0x2f6fb0); g.cyl(0, 3.98, -3.2, 0.4, 0.5, 1.4, 0xd9483b, 8); // mái, ống khói
-  for (const x of [-1.9, 1.9]) g.box(x, 0.9, 4.6, 0.08, 0.6, 2.8, 0xdedede); // lan can mũi
+  // tàu khách: thân trắng sọc xanh, hai tầng khoang kính, boong ngắm cảnh, xuồng cứu sinh, ống khói
+  const L = 16, B = 4.8, bow = 5;
+  hullBand(g, L, B, bow, -1.2, -0.3, 0.6, 0.9, 0x1f4f8a, 0.4);
+  hullBand(g, L, B, bow, -0.3, 0.25, 0.9, 0.96, 0x2f8fd0, 0.5); // sọc xanh mớn nước
+  hullBand(g, L, B, bow, 0.25, 1.2, 0.96, 1, 0xffffff, 0.9);
+  hullDeck(g, L, B, bow, 1.2, 0xc9b38a); // sàn gỗ
+  for (const x of [-1, 1]) g.box(x * (B / 2 - 0.05), 1.2, -1.5, 0.08, 0.7, 10, 0xe8e8e8); // lan can mạn
+  g.box(0, 1.2, 5.6, 1.6, 0.7, 0.08, 0xe8e8e8);
+  // tầng 1
+  g.box(0, 1.2, -1.4, 4.2, 1.7, 9.2, 0xffffff); glassBand(g, 0, 1.75, -1.4, 4.2, 0.75, 9.2);
+  g.box(0, 2.9, -1.4, 4.5, 0.15, 9.6, 0x2f8fd0);
+  // tầng 2 lùi về sau, buồng lái kính nghiêng phía trước
+  g.box(0, 3.05, -2.4, 3.8, 1.5, 6.2, 0xffffff); glassBand(g, 0, 3.5, -2.4, 3.8, 0.7, 6.2);
+  g.poly([[-1.9, 3.05, 0.7], [1.9, 3.05, 0.7], [1.9, 4.55, 0.2], [-1.9, 4.55, 0.2]], null, 0x1a2a36);
+  g.box(0, 4.55, -2.6, 4, 0.14, 6.8, 0xf2f2f2);
+  for (const x of [-1, 1]) g.box(x * 1.95, 4.69, -3.2, 0.06, 0.6, 5.2, 0xe8e8e8); // lan can boong trên
+  for (let k = 0; k < 3; k++) for (const x of [-0.9, 0.9]) g.box(x, 4.69, -4.6 + k * 1.4, 0.8, 0.4, 0.5, 0x2f8fd0); // ghế boong
+  g.cyl(0, 4.69, -0.6, 0.05, 0.05, 2.6, 0xdedede, 4); g.box(0.45, 6.8, -0.6, 0.8, 0.5, 0.03, 0xd0342c); // cột cờ
+  g.cyl(0, 4.69, -5.4, 0.45, 0.55, 1.5, 0xf2f2f2, 10); g.cyl(0, 5.8, -5.4, 0.46, 0.46, 0.4, 0x2f8fd0, 10, 0x222222); // ống khói
+  for (const x of [-1, 1]) for (const z of [-4.4, 0.6]) g.box(x * 2.3, 2.95, z, 0.6, 0.55, 1.8, 0xf28a1e); // xuồng cứu sinh
+  g.box(0, 1.2, -7.6, 3.6, 0.3, 0.8, 0xc9b38a); // bậc lên xuống phía lái
   return g.build();
 }
 

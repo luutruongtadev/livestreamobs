@@ -899,6 +899,7 @@ export function moveService(c, k, x, y, dry = false) {
   }
   s.x = fp.x; s.y = fp.y;
   if (Math.max(...votes)) s.dir = votes.indexOf(Math.max(...votes));
+  if (SERVICES[s.type].faceWater) s.dir = waterDir(c, fp, s.dir);
   back();
   c.money -= fee;
   c.dirty.services = c.dirty.zones = c.dirty.trees = c.dirty.buildings = true;
@@ -1188,6 +1189,18 @@ export function unlockTech(c, id) {
   return { ok: true };
 }
 
+/** Hướng đặt để mặt sau công trình (cầu tàu, mép sóng) nhìn ra phía có nhiều ô nước nhất. dir: 0 mặt tiền +x, 1 +z, 2 −x, 3 −z. */
+function waterDir(c, fp, dflt) {
+  const n = fp.size, wet = (x, y) => (inMap(x, y) && c.water[idx(x, y)] ? 1 : 0);
+  const side = [0, 0, 0, 0]; // nước ở phía +x, +y, −x, −y
+  for (let k = -1; k <= n; k++) for (let d = 1; d <= 2; d++) {
+    side[0] += wet(fp.x + n - 1 + d, fp.y + k); side[2] += wet(fp.x - d, fp.y + k);
+    side[1] += wet(fp.x + k, fp.y + n - 1 + d); side[3] += wet(fp.x + k, fp.y - d);
+  }
+  const best = side.indexOf(Math.max(...side));
+  return Math.max(...side) ? [2, 3, 0, 1][best] : dflt; // nước phía +x thì mặt tiền quay −x, ...
+}
+
 export function placeService(c, type, x, y) {
   const r = canPlace(c, type, x, y);
   if (!r.ok) return r;
@@ -1199,7 +1212,8 @@ export function placeService(c, type, x, y) {
     if (c.acc[i] === 1) votes[c.rdir[i]]++;
     c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i);
   }
-  const dir = Math.max(...votes) ? votes.indexOf(Math.max(...votes)) : 1;
+  let dir = Math.max(...votes) ? votes.indexOf(Math.max(...votes)) : 1;
+  if (SERVICES[type].faceWater) dir = waterDir(c, fp, dir); // bến tàu, cảng, bãi biển: quay cầu tàu / mép sóng ra phía nước
   c.services.push({ type, x: fp.x, y: fp.y, dir, uid: c.nextId++ });
   c.money -= SERVICES[type].cost;
   rebuildOcc(c);

@@ -38,6 +38,7 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 - **Ngân sách theo ngành** (bảng 📊): giáo dục, y tế, an ninh (công an, cứu hoả, trại giam), giao thông chỉnh 50–150%. Chi ít thì phí duy trì giảm nhưng công trình yếu đi (bán kính nhỏ hơn, ít xe, ít chỗ học, đường xuống cấp nhanh, điểm phát triển ra chậm) và dân kém vui; chi nhiều thì ngược lại.
 - **Giá thị trường**: giá bên ngoài của 5 loại nguyên liệu và hàng hoá trôi mỗi ngày quanh giá gốc (45–190%), thỉnh thoảng có tin sốc giá. Áp vào giá nhập khẩu và xuất khẩu; bảng 📊 có biểu đồ 60 ngày.
 - **Du lịch** (nhóm 🧳): điểm tham quan (🛕 chùa cổ, 🏺 bảo tàng, quảng trường, sân vận động, công trình biểu tượng, quán ăn giải trí) tạo sức hút; du khách tới qua cửa ngõ (đường vào, ga, sân bay, tàu ra biển), tiêu tiền ở quán xá, cửa hàng. 🛎️ Khách sạn, 🏖️ khu nghỉ dưỡng cho khách ở lại qua đêm: thu tiền phòng (chỉnh giá ở 📊) và khách tiêu nhiều hơn.
+- **🏝️ Bãi biển** (nhóm 🧳): đặt sát bờ sông, hồ, biển; dù, ghế nằm, chòi cứu hộ, quán nước, bóng chuyền; sức hút du lịch +6, dân vui hơn. Bến tàu khách, cảng hàng và bãi biển tự quay cầu tàu / mép sóng ra phía nước.
 - **🧺 Chợ truyền thống**: sạp bán thẳng nông sản, cá từ nông trại, bến cá (không qua nhà máy), giá rẻ hơn cửa hàng. **🏚️ Xưởng chế biến**: xưởng nhỏ chế biến nông sản, cá, gỗ thành hàng hoá, ít ô nhiễm, đặt gần nhà được.
 - **🎨 Chế độ Open**: nút trên màn hình chào hoặc bảng 💾. Mở khoá mọi công trình, khu, công nghệ; có cả bản đồ; tiền không giới hạn; không bao giờ phá sản. Bật cho thành phố đang chơi được (không tắt lại).
 
