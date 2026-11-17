@@ -1,6 +1,6 @@
 // Phố Mới — giao thông thật trên graph đường: tìm đường theo thời gian đi (có tính xe đang đông),
 // xe bám làn, giữ khoảng cách, đổi làn, dừng đèn đỏ / nhường ở ngã ba, kẹt xe tự nhiên khi đường đầy.
-import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt } from './base.js';
+import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt, roadLvl } from './base.js';
 
 export const VKIND = {
   car: { len: 3.4, speed: 24 },
@@ -58,6 +58,22 @@ export function loadOf(c, e, fwd) {
 }
 export const edgeLoad = (c, e) => Math.max(loadOf(c, e, true), e.type === 'oneway' ? 0 : loadOf(c, e, false));
 
+/**
+ * Chân dốc cầu vượt / hầm nằm giữa đại lộ: nút có đúng 2 nhánh mặt đất thẳng hàng, các nhánh còn lại là cầu / hầm
+ * rời nút gần song song với đại lộ. Đây là chỗ nhập làn, không phải ngã ba: không đèn, không vạch qua đường.
+ */
+export function rampMerge(c, nid) {
+  const list = c.adj.get(nid) || [], n = c.nodes.get(nid);
+  if (!n || list.length < 3) return false;
+  const dir = (e) => { const k = e.a === nid ? 2 : e.pts.length - 4, dx = e.pts[k] - n.x, dz = e.pts[k + 1] - n.z, l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+  const ground = [], other = [];
+  for (const id of list) { const e = c.edges.get(id); (roadLvl(e.type) === 0 ? ground : other).push(dir(e)); }
+  if (ground.length !== 2 || !other.length) return false;
+  const [g0, g1] = ground;
+  if (g0[0] * g1[0] + g0[1] * g1[1] > -0.9) return false; // hai nhánh mặt đất phải thẳng hàng
+  return other.every((d) => Math.abs(d[0] * g0[1] - d[1] * g0[0]) < 0.42);
+}
+
 /** Gọi sau mỗi lần graph đường đổi: dựng lại đèn tín hiệu, bỏ xe đang nằm trên đoạn đường đã mất. */
 export function rebuildTraffic(c) {
   const tr = c.traffic;
@@ -66,6 +82,7 @@ export function rebuildTraffic(c) {
     if (list.length < 3) continue;
     const edges = list.map((id) => c.edges.get(id)), n = c.nodes.get(nid);
     if (n.rb || n.ctl === 2 || edges.every((e) => ROADS[e.type].elevated)) continue; // vòng xuyến, biển dừng, nút trên cao: không đèn
+    if (n.ctl !== 1 && rampMerge(c, nid)) continue; // chân dốc cầu giữa đại lộ: nhập làn, không đèn
     if (n.ctl !== 1 && list.length < 4 && !edges.some((e) => e.type === 'large' || e.type === 'highway')) continue; // ngã ba đường nhỏ: nhường nhau, không đèn
     const arms = edges.map((e) => { const k = e.a === nid ? 2 : e.pts.length - 4; return { id: e.id, ang: Math.atan2(e.pts[k + 1] - n.z, e.pts[k] - n.x) }; });
     const groups = [], left = [...arms];
@@ -159,6 +176,7 @@ function place(v, path) {
   v.granted = false; v.wait = 0; v.stopT = 0;
   if (v.emergency) { const st = path.steps[path.steps.length - 1], p = pointAt(st.e.pts, st.e.cum, st.fwd ? path.endS : st.e.len - path.endS); v.tx = p[0]; v.tz = p[1]; } // đích theo toạ độ
   if (v.lane >= ROADS[v.e.type].lanes) v.lane = 0;
+  if (v.e.squeeze) v.lane = ROADS[v.e.type].lanes - 1;
 }
 
 /** Thả một xe thật xuống đường. Trả về xe, hoặc null nếu không có đường đi. */
@@ -229,7 +247,7 @@ function tryGrant(c, v, force) {
   // còn chỗ ở đầu làn sắp vào?
   const lanes = ROADS[next.e.type].lanes;
   let pick = -1, bestRoom = -1;
-  for (let l = 0; l < lanes; l++) {
+  for (let l = next.e.squeeze ? lanes - 1 : 0; l < lanes; l++) { // đại lộ có cầu chạy giữa: chỉ làn ngoài
     const k = laneKey(next.e, next.fwd, l);
     if (!force && (tr.reserve.get(k) || 0) > tr.time) continue;
     let minS = 1e6;
@@ -286,7 +304,7 @@ export function stepTraffic(c, dt) {
     }
     // đổi làn khi bị xe trước cản mà làn bên trống
     const nLanes = ROADS[v.e.type].lanes;
-    if (nLanes > 1 && gap < 9 && !v.granted && Math.random() < dt * 0.9) {
+    if (nLanes > 1 && !v.e.squeeze && gap < 9 && !v.granted && Math.random() < dt * 0.9) {
       const other = v.lane === 0 ? 1 : v.lane >= nLanes - 1 ? v.lane - 1 : v.lane + (Math.random() < 0.5 ? -1 : 1), oarr = lanes.get(laneKey(v.e, v.fwd, other)) || [];
       if (!oarr.some((o) => o.s > v.s - 8 && o.s < v.s + 11)) {
         arr.splice(arr.indexOf(v), 1); v.lane = other;

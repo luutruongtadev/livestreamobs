@@ -3,7 +3,7 @@
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  ROADS, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
@@ -15,7 +15,7 @@ import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budge
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
-export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook } from './traffic.js';
+export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
 export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
@@ -559,6 +559,9 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
         for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
           const r = segInt(pts[k * 2], pts[k * 2 + 1], pts[k * 2 + 2], pts[k * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
           if (!r) continue;
+          // hai đoạn gần song song (chạy dọc theo nhau): không phải chỗ cắt ngang, phần chồng lên nhau xét riêng ở dưới
+          const ux = pts[k * 2 + 2] - pts[k * 2], uz = pts[k * 2 + 3] - pts[k * 2 + 1], wx = q[j * 2 + 2] - q[j * 2], wz = q[j * 2 + 3] - q[j * 2 + 1];
+          if (Math.abs(ux * wz - uz * wx) < 0.42 * Math.hypot(ux, uz) * Math.hypot(wx, wz)) continue;
           const x = pts[k * 2] + (pts[k * 2 + 2] - pts[k * 2]) * r.t, z = pts[k * 2 + 1] + (pts[k * 2 + 3] - pts[k * 2 + 1]) * r.t;
           if ((Math.hypot(x - A.x, z - A.z) < 9 && touches(A, e)) || (Math.hypot(x - B.x, z - B.z) < 9 && touches(B, e))) continue;
           const h1 = myH(cum[k] + (cum[k + 1] - cum[k]) * r.t), h2 = liftAt(c, e, e.cum[j] + (e.cum[j + 1] - e.cum[j]) * r.u);
@@ -603,11 +606,63 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     for (const e of c.edges.values()) { if (!sameLevel(type, e.type)) continue; const d = nearestOnEdge(e, x, z).d; if (d < 4 || (near > 40 && d < (ROADS[e.type].w + def.w) / 2 - 1)) { over += cum[k] - cum[k - 1]; break; } }
   }
   if (over > 7) return { ...out, reason: 'Trùng hoặc quá sát đường khác' };
+  // chạy dọc chồng lên đường khác tầng (cầu vượt giữa đại lộ): chỉ được khi bên dưới là đại lộ đủ rộng, trụ cầu đứng ở dải phân cách
+  const stack = stackedOver(c, type, pts, cum);
+  if (stack.len > 6) {
+    if (roadLvl(type) < 0) return { ...out, reason: 'Hầm chui chưa chạy dọc dưới lòng đường được: cho hầm cắt ngang đường, hoặc làm cầu vượt giữa đại lộ' };
+    if (stack.upper) return { ...out, reason: 'Hai cầu khác tầng không chạy chồng dọc lên nhau được: cho chúng cắt chéo nhau' };
+    if (stack.narrow) return { ...out, reason: `Cầu vượt chạy dọc phía trên đường chỉ làm được trên ${ROADS.large.name.toLowerCase()} (trụ cầu ở dải phân cách, hai bên vẫn có làn xe): hãy nâng cấp đường bên dưới trước` };
+  }
   let blocked = false;
   cellsUnder(pts, def.w / 2, (i) => { if (c.occ[i]) blocked = true; });
   if (blocked) return { ...out, reason: 'Vướng công trình, hãy san ủi trước' };
   if (out.cost > c.money) return { ...out, reason: 'Không đủ tiền' };
   return { ...out, ok: true };
+}
+
+/**
+ * Phần đoạn mới (đường khác tầng) chạy dọc chồng lên đường có sẵn: { len, narrow (đường bên dưới hẹp hơn đại lộ), upper (chồng lên đường trên cao / hầm khác) }.
+ * Chồng = điểm mẫu nằm trong lòng đường kia và hướng gần song song (lệch dưới 25°).
+ */
+function stackedOver(c, type, pts, cum) {
+  const L = roadLvl(type), res = { len: 0, narrow: false, upper: false };
+  if (!L) return res;
+  const n = pts.length / 2 - 1;
+  for (let k = 0; k < n; k++) {
+    const x = (pts[k * 2] + pts[k * 2 + 2]) / 2, z = (pts[k * 2 + 1] + pts[k * 2 + 3]) / 2, l = cum[k + 1] - cum[k] || 1;
+    const tx = (pts[k * 2 + 2] - pts[k * 2]) / l, tz = (pts[k * 2 + 3] - pts[k * 2 + 1]) / l;
+    for (const e of c.edges.values()) {
+      const le = roadLvl(e.type);
+      if (le === L) continue;
+      const r = nearestOnEdge(e, x, z);
+      if (r.d > Math.min(ROADS[e.type].w, ROADS[type].w) / 2 - 1) continue;
+      const pe = pointAt(e.pts, e.cum, r.along);
+      if (Math.abs(tx * pe[3] - tz * pe[2]) > 0.42) continue; // cắt ngang, không phải chạy dọc
+      res.len += l;
+      if (le !== 0) res.upper = true;
+      else if (ROADS[e.type].w < 20) res.narrow = true;
+      break;
+    }
+  }
+  return res;
+}
+
+/** Đường mặt đất có cầu vượt chạy dọc phía trên (giữa đại lộ): xe chỉ chạy làn ngoài, nhường dải giữa cho trụ, chân dốc cầu. */
+function markStacked(c) {
+  for (const e of c.edges.values()) {
+    e.squeeze = false;
+    if (roadLvl(e.type) !== 0 || ROADS[e.type].lanes < 2) continue;
+    for (let s = 2; s < e.len - 2 && !e.squeeze; s += 6) {
+      const p = pointAt(e.pts, e.cum, s);
+      for (const o of c.edges.values()) {
+        if (roadLvl(o.type) === 0) continue;
+        const r = nearestOnEdge(o, p[0], p[1]);
+        if (r.d > 2.5) continue;
+        const po = pointAt(o.pts, o.cum, r.along);
+        if (Math.abs(p[2] * po[3] - p[3] * po[2]) < 0.42) { e.squeeze = true; break; }
+      }
+    }
+  }
 }
 
 /** Cắt một đoạn đường tại các tham số ts, trả về id nút tương ứng từng t. */
@@ -732,6 +787,7 @@ function roadsChanged(c) {
   rebuildAdj(c);
   for (const [id, list] of c.adj) if (!list.length) { c.nodes.delete(id); c.adj.delete(id); }
   rebuildRoadCells(c);
+  markStacked(c);
   computeNetworks(c);
   rebuildTraffic(c);
   maintainTransit(c);

@@ -895,3 +895,31 @@ test('city: kiểu cầu qua sông có giá riêng, đổi được, lưu lại;
   assert.equal(placed.build, undefined);
   assert.ok(t.events.some((ev) => ev.type === 'built'));
 });
+
+test('cầu vượt giữa đại lộ qua ngã tư: hai bên vẫn có làn xe, chân dốc nhập làn không đèn; đường hẹp, hầm dọc đường bị chặn', () => {
+  const c = openCity(12345), sx = c.start.x;
+  c.milestone = S.MILESTONES.length; c.money = 1e7;
+  assert.ok(road(c, sx, 7, sx, 50, 'large').ok && road(c, sx - 20, 25, sx + 20, 25, 'large').ok);
+  const r = road(c, sx, 13, sx, 38, 'overpass');
+  assert.ok(r.ok, r.reason);
+  const ov = [...c.edges.values()].find((e) => e.type === 'overpass');
+  assert.ok(S.liftAt(c, ov, ov.len / 2) > 6, 'giữa cầu ở trên cao');
+  // đại lộ bên dưới vẫn liền: đi từ bắc xuống nam bằng đường mặt đất qua ngã tư
+  const north = [...c.edges.values()].find((e) => e.type === 'large' && Math.min(e.pts[1], e.pts[e.pts.length - 1]) < S.cellCenter(10));
+  const west = [...c.edges.values()].find((e) => e.type === 'large' && Math.min(e.pts[0], e.pts[e.pts.length - 2]) < S.cellCenter(sx - 15));
+  const p = S.findPath(c, { edge: north, along: 1 }, { edge: west, along: 1 });
+  assert.ok(p && p.steps.every((st) => st.e.type === 'large'), 'từ đại lộ phía bắc rẽ vào nhánh tây qua ngã tư dưới cầu');
+  // đoạn đại lộ dưới cầu: xe chỉ chạy làn ngoài; chân dốc không đèn
+  assert.ok([...c.edges.values()].some((e) => e.squeeze), 'đánh dấu đại lộ có cầu chạy giữa');
+  for (const id of [ov.a, ov.b]) assert.ok(S.rampMerge(c, id), 'chân dốc là chỗ nhập làn');
+  for (const id of [ov.a, ov.b]) assert.ok(!c.traffic.signals.has(id), 'không đèn ở chân dốc');
+  const junction = [...c.adj.entries()].find(([, l]) => l.length === 4)[0];
+  assert.ok(c.traffic.signals.has(junction), 'ngã tư bên dưới vẫn có đèn');
+  // đường nhỏ: không đủ chỗ cho trụ ở giữa
+  const d = openCity(12345), dx = d.start.x;
+  d.milestone = S.MILESTONES.length; d.money = 1e7;
+  road(d, dx, 7, dx, 50); road(d, dx - 20, 25, dx + 20, 25);
+  assert.match(road(d, dx, 13, dx, 38, 'overpass').reason || '', /đại lộ/);
+  assert.match(road(d, dx, 13, dx, 38, 'tunnel').reason || '', /Hầm chui/);
+  assert.ok(road(d, dx - 15, 33, dx + 15, 33, 'overpass').ok, 'cầu cắt ngang đường nhỏ vẫn được');
+});

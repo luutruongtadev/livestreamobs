@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge } from './sim.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -202,6 +202,7 @@ uniform vec4 uMap; // 1 / T, HALF, BORDER, số đỉnh mỗi cạnh
 uniform vec4 uTSeg[${MAX_TRENCH}];
 uniform float uTHw[${MAX_TRENCH}];
 uniform int uTN;
+uniform vec4 uTBox;
 varying vec3 vW;
 #include <common>
 #include <fog_pars_fragment>
@@ -211,6 +212,7 @@ float waves(vec2 p) {
   return nNoise(p * 0.11 + vec2(t * 0.16, t * 0.1)) * 0.5 + nNoise(p * 0.31 - vec2(t * 0.24, -t * 0.17)) * 0.32 + nNoise(p * 0.83 + vec2(-t * 0.4, t * 0.5)) * 0.18;
 }
 void main() {
+  if (vW.x >= uTBox.x && vW.z >= uTBox.y && vW.x <= uTBox.z && vW.z <= uTBox.w)
   for (int i = 0; i < ${MAX_TRENCH}; i++) {
     if (i >= uTN) break;
     vec2 a = uTSeg[i].xy, ba = uTSeg[i].zw - a, pa = vW.xz - a;
@@ -386,7 +388,7 @@ export class View {
     Object.assign(wu, {
       uTime: this.uTime, uLight: { value: 1 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color(0xfff1d6) },
       uSkyTop: { value: new THREE.Color(0x3f86d4) }, uSkyHor: { value: new THREE.Color(0xbfd9ee) }, uDeep: { value: new THREE.Color(0x1d5f96) }, uShallow: { value: new THREE.Color(0x4fb7c4) },
-      tH: { value: this.depthTex }, uMap: { value: new THREE.Vector4(1 / T, HALF, BORDER, TV) }, uTSeg: TRENCH.seg, uTHw: TRENCH.hw, uTN: TRENCH.n,
+      tH: { value: this.depthTex }, uMap: { value: new THREE.Vector4(1 / T, HALF, BORDER, TV) }, uTSeg: TRENCH.seg, uTHw: TRENCH.hw, uTN: TRENCH.n, uTBox: TRENCH.box,
     });
     const water = this.water = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), waterMaterial(wu));
     water.position.y = WATER_Y; water.renderOrder = 1;
@@ -892,12 +894,21 @@ export class View {
     for (const e of c.edges.values()) {
       if (roadLvl(e.type) >= 0) continue;
       const half = ROADS[e.type].w / 2 + 0.25;
-      let prev = null;
+      // lấy mẫu mỗi 5 m rồi gộp các đoạn gần thẳng hàng: hầm thẳng dài chỉ tốn vài đoạn (uniform có hạn, shader duyệt từng đoạn)
+      let run = null;
+      const flush = () => { if (run && run.length > 1) for (let k = 1; k < run.length; k++) this.trench.push([run[k - 1][0], run[k - 1][1], run[k][0], run[k][1], half]); run = null; };
       for (let sa = 0; sa <= e.len + 0.01; sa += 5) {
         const s1 = Math.min(sa, e.len), deep = this.edgeLift(e, s1) < -0.3, p = pointAt(e.pts, e.cum, s1);
-        if (deep && prev) this.trench.push([prev[0], prev[1], p[0], p[1], half]);
-        prev = deep ? p : null;
+        if (!deep) { flush(); continue; }
+        if (!run) { run = [[p[0], p[1]]]; continue; }
+        const n = run.length;
+        if (n >= 2) { // bỏ điểm giữa nếu ba điểm gần thẳng hàng (lệch dưới 0,6 m)
+          const a = run[n - 2], b = run[n - 1], dx = p[0] - a[0], dz = p[1] - a[1], l = Math.hypot(dx, dz) || 1;
+          if (Math.abs((b[0] - a[0]) * dz - (b[1] - a[1]) * dx) / l < 0.6) { run[n - 1] = [p[0], p[1]]; continue; }
+        }
+        run.push([p[0], p[1]]);
       }
+      flush();
     }
     const nT = Math.min(MAX_TRENCH, this.trench.length);
     for (let k = 0; k < nT; k++) { const t = this.trench[k]; TRENCH.seg.value[k].set(t[0], t[1], t[2], t[3]); TRENCH.hw.value[k] = t[4]; }
@@ -956,6 +967,17 @@ export class View {
         const ctr = jt.v(mx / poly.length, y + dy, mz / poly.length, col.r, col.g, col.b);
         const ids = poly.map((p) => jt.v(p[0], y + dy, p[1], col.r, col.g, col.b));
         for (let k = 0; k < ids.length; k++) jt.tri(ctr, ids[k], ids[(k + 1) % ids.length], true);
+        const lift = y - this.roadY(mx / poly.length, mz / poly.length);
+        if (raw === outer && lift > 1.5) { // nút giao trên cao: thành dầm quanh mép, mặt dưới, một trụ lớn đỡ ở giữa (nếu bên dưới trống)
+          const cx = mx / poly.length, cz = mz / poly.length;
+          for (let k = 0; k < poly.length; k++) {
+            const p0 = poly[k], p1 = poly[(k + 1) % poly.length], ox = (p0[0] + p1[0]) / 2 - cx, oz = (p0[1] + p1[1]) / 2 - cz, ol = Math.hypot(ox, oz) || 1;
+            st.poly([[p0[0], y, p0[1]], [p1[0], y, p1[1]], [p1[0], y - 1.15, p1[1]], [p0[0], y - 1.15, p0[1]]], [ox / ol, 0, oz / ol], 0xa8a399);
+            st.poly([[p0[0], y - 1.15, p0[1]], [p1[0], y - 1.15, p1[1]], [cx, y - 1.15, cz]], [0, -1, 0], 0x8d887e);
+          }
+          const gy = Math.max(heightAt(c, cx, cz), -3.2), any = arr.find((en) => roadLvl(en.e.type) !== 0);
+          if (y - 1.2 - gy > 1.2 && !(any && this._groundRoadAt(cx, cz, 1.6, any.e))) st.cyl(cx, gy - 0.5, cz, 1.6, 1.4, y - 1.15 - gy + 0.5, 0x9a968e, 10);
+        }
       }
     }
     for (const t of Object.keys(ROADS)) {
@@ -975,7 +997,7 @@ export class View {
     const cZ = new THREE.Color(0xeeeadb), zt = new Tris(true);
     for (const [nid, arr] of ends) {
       const n = c.nodes.get(nid);
-      if (arr.length < 3 || n.rb || nodeElevated(c, nid)) continue;
+      if (arr.length < 3 || n.rb || nodeElevated(c, nid) || rampMerge(c, nid)) continue;
       const y = nodeY.get(nid) + 0.09;
       for (const en of arr) {
         const r = cross.get(en.e.id)[en.atA ? 0 : 1], sg = en.atA ? 1 : -1, ah = ROADS[en.e.type].asphalt / 2 - 0.4;
@@ -1123,6 +1145,31 @@ export class View {
     for (const k in this.growMeshes) { const mm = this.growMeshes[k]; this.scene.remove(mm); mm.dispose(); }
     this.growMeshes = {};
     Object.assign(this.city.dirty, { buildings: true, trees: true, roads: true });
+  }
+
+  /**
+   * Trụ cầu của đoạn e đặt ở (x, z), tay trụ rộng reach: có đè lên mặt đường / nút giao mặt đất bên dưới không.
+   * Đại lộ chạy dọc ngay dưới cầu thì trụ đứng ở dải phân cách giữa, không tính là đè.
+   */
+  _groundRoadAt(x, z, reach, e) {
+    const c = this.city, pe = pointAt(e.pts, e.cum, nearestOnEdge(e, x, z).along);
+    for (const n of c.nodes.values()) {
+      if (Math.abs(n.x - x) > 40 || Math.abs(n.z - z) > 40 || nodeH(c, n.id) !== 0) continue;
+      const deg = (c.adj.get(n.id) || []).length;
+      if (deg >= 3 && Math.hypot(n.x - x, n.z - z) < 14 + reach) return true; // nút giao
+    }
+    const mine = roadLvl(e.type);
+    for (const o of c.edges.values()) {
+      const lo = roadLvl(o.type);
+      if (o === e || lo >= mine) continue; // chỉ xét đường tầng thấp hơn: mặt đất, hầm, cầu tầng dưới
+      const r = nearestOnEdge(o, x, z), hw = ROADS[o.type].w / 2 + (lo < 0 ? 0.6 : 0); // hầm: tính cả tường chắn
+      if (r.d > hw + reach) continue;
+      if (lo > 0 && liftAt(c, o, r.along) < 1) continue; // chân dốc cầu tầng dưới đã sát đất: trụ không vướng
+      const po = pointAt(o.pts, o.cum, r.along);
+      if (lo === 0 && ROADS[o.type].lanes >= 2 && r.d < 1.5 && Math.abs(pe[2] * po[3] - pe[3] * po[2]) < 0.42) continue; // dải phân cách giữa đại lộ
+      return true;
+    }
+    return false;
   }
 
   /** Điểm (x, z) nằm trên lòng hầm chui đang mở không. */
@@ -1319,8 +1366,9 @@ export class View {
         });
         if (b.s >= nextPillar && !spans.some((r) => r.free && b.s > r.s0 - 2 && b.s < r.s1 + 2)) { // nhịp vòm / dây văng / treo: không trụ giữa sông
           nextPillar = b.s + (half > 7 ? 18 : 22);
-          const gy = Math.max(heightAt(c, b.x, b.z), -3.2), top = b.y - 1.2;
-          if (top - gy > 1.2) {
+          const gy = Math.max(heightAt(c, b.x, b.z), -3.2), top = b.y - 1.2, below = this._groundRoadAt(b.x, b.z, half > 7 ? half - 3 : 1.4, e);
+          if (below) nextPillar = b.s + 2; // trụ không đứng giữa lòng đường / nút giao bên dưới: dời tới chỗ trống kế tiếp
+          else if (top - gy > 1.2) {
             if (half > 7) for (const sd of [-1, 1]) st.cyl(b.x + b.rx * sd * (half - 3), gy - 0.5, b.z + b.rz * sd * (half - 3), 1.05, 0.95, top - gy + 0.5, 0x9a968e, 8);
             else st.cyl(b.x, gy - 0.5, b.z, 1.15, 1, top - gy + 0.5, 0x9a968e, 8);
             st.at(m4.compose(v3.set(b.x, top - 0.45, b.z), q.setFromEuler(e3.set(0, Math.atan2(b.rx, b.rz), 0)), one)).box(0, 0, 0, 2.2, 0.9, half * 2 - 0.6, 0x8d887e).at(null); // xà mũ
@@ -1465,6 +1513,7 @@ export class View {
     const shore = (x, y) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const a = x + dx, b = y + dy; if (a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a]) return true; } return false; };
     const put = (kind, wx, wz, sc, sy, yaw, hue, light) => {
       if (n[kind] >= TREE_CAP[kind]) return;
+      if (this.trench && this.trench.length && this.overTrench(wx, wz, 3)) return; // cây không mọc trên lòng hầm hở
       p.set(wx, heightAt(c, wx, wz) - 0.15, wz); q.setFromAxisAngle(up, yaw); s.set(sc, sc * sy, sc);
       m.compose(p, q, s);
       this.treeMeshes[kind].setMatrixAt(n[kind], m);
