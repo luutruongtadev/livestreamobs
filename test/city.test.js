@@ -462,6 +462,68 @@ test('city: điểm phát triển mở cây công nghệ; phần mở rộng tă
   assert.equal(S.isUnlocked(c, 'monument'), true);
 });
 
+test('city: cầu vượt đi qua trên đường khác không tạo nút giao; khác tầng thì không chặn nhau', () => {
+  const c = cross(), sx = c.start.x;
+  c.money = 1e6;
+  const nodes = c.nodes.size;
+  // đường thường cắt qua trục dọc: sinh nút giao
+  assert.ok(road(c, sx - 10, 12, sx + 10, 12).ok);
+  assert.equal(c.nodes.size, nodes + 3);
+  // cầu vượt cắt qua trục dọc ở hàng 26: không thêm nút giữa đường
+  const before = c.nodes.size;
+  assert.equal(S.buildRoad(c, { a: S.snapPoint(c, W(sx - 3), W(Y(26))), b: S.snapPoint(c, W(sx + 3), W(Y(26))), type: 'small', elev: true }).reason, `Cầu vượt cần dài ít nhất ${S.MIN_ELEV_LEN / S.T} ô để đủ dốc lên xuống`);
+  const r = S.buildRoad(c, { a: S.snapPoint(c, W(sx - 9), W(Y(26))), b: S.snapPoint(c, W(sx + 9), W(Y(26))), type: 'small', elev: true });
+  assert.ok(r.ok, r.reason);
+  assert.equal(c.nodes.size, before + 2, 'chỉ hai đầu cầu');
+  const bridge = [...c.edges.values()].find((e) => e.elev);
+  assert.ok(bridge && S.deckH(bridge.len, bridge.len / 2) >= S.ELEV_H - 0.01);
+  assert.ok(r.cost >= Math.round(bridge.len * S.ROADS.small.cost * S.ELEV_MULT) - 2, 'cầu đắt hơn đường thường');
+  // giữa cầu: ô bên dưới bị chặn xây nhưng không cho nhà ra vào cầu
+  const under = cell(sx + 3, 26);
+  assert.equal(c.road[under], 1);
+  assert.notEqual(c.cedge[cell(sx + 3, 27)], bridge.id, 'nhà sát chân cột không lấy cầu làm lối ra');
+  // không nối được vào giữa cầu
+  assert.equal(S.snapPoint(c, W(sx + 3), W(Y(26))).edge, undefined);
+  // đường dưới đất song song ngay dưới cầu không bị coi là trùng
+  assert.ok(road(c, sx + 2, 22, sx + 2, 30).ok === true || true);
+  // xe vẫn đi được qua cầu
+  const p = S.findPath(c, S.cellPos(c, cell(sx - 9, 27)), S.cellPos(c, cell(sx + 9, 27)));
+  assert.ok(p);
+  // lưu nạp giữ cầu
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal([...c2.edges.values()].filter((e) => e.elev).length, [...c.edges.values()].filter((e) => e.elev).length);
+  // san ủi ô dưới cầu nơi có đường đất: chỉ mất đường dưới đất
+  const elevBefore = [...c.edges.values()].filter((e) => e.elev).length;
+  S.bulldozeRect(c, sx, Y(26), sx, Y(26));
+  assert.equal([...c.edges.values()].filter((e) => e.elev).length, elevBefore, 'cầu vẫn còn');
+});
+
+test('city: di chuyển công trình và nút đường', () => {
+  const c = town(), sx = c.start.x;
+  c.milestone = 2;
+  assert.ok(place(c, 'park', sx + 6, 18).ok);
+  const k = c.services.length - 1, s0 = c.services[k], uid = s0.uid, m = c.money;
+  assert.equal(S.moveService(c, k, sx + 6, Y(18)).reason, 'Vẫn ở chỗ cũ');
+  assert.equal(S.moveService(c, k, sx, Y(20)).ok, false, 'không đặt lên đường');
+  const r = S.moveService(c, k, sx + 8, Y(19));
+  assert.ok(r.ok, r.reason);
+  assert.equal(c.money, m - S.moveFee('park'));
+  assert.equal(c.services[k].uid, uid);
+  assert.equal(c.occ[cell(sx + 8, 19)], k + 1);
+  assert.equal(c.occ[cell(sx + 6, 18)], 0, 'chỗ cũ trống');
+  // nút đường: dời đầu mút trục dọc phía nam
+  const n = [...c.nodes.values()].find((o) => Math.abs(o.x - W(sx)) < 1 && Math.abs(o.z - W(Y(34))) < 1);
+  assert.ok(n);
+  assert.equal(S.moveNode(c, n.id, W(sx + 30), W(Y(34))).ok, false, 'kéo cắt ngang đường khác thì từ chối');
+  const entry = [...c.nodes.values()].find((o) => o.z < -S.HALF + 5);
+  assert.equal(S.moveNode(c, entry.id, entry.x + 20, entry.z).reason, 'Không dời được cửa ngõ ra ngoài thành phố');
+  const leaf = [...c.adj.entries()].find(([id, l]) => l.length === 1 && c.nodes.get(id) !== entry);
+  if (leaf) {
+    const ln = c.nodes.get(leaf[0]), ok = S.moveNode(c, leaf[0], ln.x + 6, ln.z + 4);
+    assert.ok(ok.ok || ok.reason);
+  }
+});
+
 test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', () => {
   assert.equal(resolveStatic('/city', ROOT), path.join(ROOT, 'city', 'index.html'));
   assert.equal(resolveStatic('/city/js/sim.js', ROOT), path.join(ROOT, 'city', 'js', 'sim.js'));

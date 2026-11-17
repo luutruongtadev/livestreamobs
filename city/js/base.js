@@ -56,6 +56,15 @@ export const ROADS = {
   oneway: { name: 'Đường một chiều', icon: '➡️', w: 10, asphalt: 6.4, cost: 4.5, upkeep: 0.05, speed: 1.15, lanes: 2, desc: 'Hai làn cùng chiều theo hướng vẽ; nâng cấp lần nữa để đảo chiều' },
 };
 export const BRIDGE_MULT = 4.5;
+// đường trên cao (cầu vượt): lên dốc từ hai đầu tới độ cao ELEV_H, giữa cầu không tạo nút giao với đường bên dưới
+export const ELEV_H = 9, RAMP = 42, ELEV_MULT = 3, MIN_ELEV_LEN = 70;
+/** Độ cao mặt cầu so với mặt đất tại quãng đường s (tính từ đầu a) trên một đoạn đường trên cao dài len. */
+export function deckH(len, s) {
+  const r = Math.min(RAMP, len / 2), peak = ELEV_H * (r / RAMP), u = clamp(Math.min(s, len - s) / r, 0, 1);
+  return peak * u * u * (3 - 2 * u);
+}
+/** Độ cao mặt đường của đoạn e tại quãng đường s (0 với đường thường). */
+export const edgeH = (e, s) => (e.elev ? deckH(e.len, s) : 0);
 export const LINES = {
   power: { name: 'Dây điện', icon: '🗼', cost: 1.2, upkeep: 0.012, desc: 'Nối nhà máy điện ở xa vào đường hoặc vào công trình khác' },
   pipe: { name: 'Ống nước', icon: '🚰', cost: 1, upkeep: 0.012, desc: 'Nối trạm nước, cống xả ở xa vào đường (ống ngầm chở cả nước sạch và nước thải)' },

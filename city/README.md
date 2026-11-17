@@ -8,6 +8,8 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 ## Cách chơi
 
 1. **Đường**: bấm điểm đầu rồi điểm cuối (hoặc kéo chuột). Chế độ *Cong* thêm một điểm uốn. Ba loại: đường nhỏ 2 làn, đại lộ 4 làn, đường một chiều. *Nâng cấp* đổi loại một đoạn có sẵn, bấm lần nữa lên đường một chiều để đảo chiều. Đường cắt nhau tự sinh nút giao; ngã tư và ngã ba có đại lộ tự có đèn.
+   - **🌉 Cầu vượt** (nút trong nhóm Đường, phím `V`): đường lên dốc từ hai đầu tới cao 9 m, đi qua trên đường khác, sông hay thung lũng mà không tạo nút giao. Dài tối thiểu 7 ô, giá gấp 3 và phí bảo trì gấp đôi. Hai cầu vượt không được cắt nhau giữa không trung, dốc cầu cũng không được cắt ngang đường khác. San ủi một ô có cả đường dưới đất lẫn cầu bên trên thì chỉ mất đường dưới đất.
+   - **✋ Di chuyển** (nhóm 🛠️ Công cụ, phím `M`): bấm công trình hoặc nút đường để nhấc lên, bấm chỗ mới để đặt. Dời công trình mất 10% giá xây và giữ nguyên phần mở rộng; dời nút đường miễn phí, các đoạn nối vào uốn theo, bị từ chối nếu đường mới cắt ngang đường khác cùng tầng.
 2. **Quy hoạch**: hai bên đường tự có 2 hàng ô đất. Bảy loại khu: nhà ở, chung cư, hỗn hợp, cửa hàng, trung tâm thương mại, văn phòng, công nghiệp. Nhà tự mọc theo nhu cầu và lên tới cấp 5.
 3. **Điện, nước**: đường dẫn điện và ống ngầm. Nhà máy đặt trong 2 ô cạnh đường là tự nối; ở xa thì kéo dây điện / ống nước. Cần đủ điện, nước sạch và chỗ xả nước thải thì nhà mới mọc.
 4. **Người dân**: mỗi người có tuổi, học vấn, nhà, chỗ làm, tiền, sức khoẻ. Họ dọn tới khi có nhà trống và việc làm, sáng đi làm, chiều về, cuối tuần đi mua sắm; sinh con, đi học, nghỉ hưu, qua đời. Một ngày trong game dài 2 phút ở tốc độ 1 và mỗi ngày là một tuổi.
