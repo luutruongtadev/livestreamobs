@@ -558,6 +558,34 @@ test('city: xe đủ kiểu — xe con, xe máy, xe đạp; xe tải chọn hìn
   for (const v of c.traffic.vehicles) if (S.LOOKS[v.look]) assert.equal(v.len, S.LOOKS[v.look].len);
 });
 
+test('city: di chuyển công trình và nút đường', () => {
+  const c = town(), sx = c.start.x;
+  assert.ok(S.placeService(c, 'park', sx + 6, 18).ok);
+  const k = c.services.length - 1, uid = c.services[k].uid, m = c.money;
+  assert.equal(S.moveService(c, k, sx + 6, 18).reason, 'Vẫn ở chỗ cũ');
+  assert.equal(S.moveService(c, k, sx, 20).ok, false, 'không đặt lên đường');
+  assert.ok(S.moveService(c, k, sx + 8, 19, true).ok, 'xem trước');
+  assert.equal(c.money, m, 'xem trước không mất tiền');
+  const r = S.moveService(c, k, sx + 8, 19);
+  assert.ok(r.ok, r.reason);
+  assert.equal(c.money, m - S.moveFee('park'));
+  assert.equal(c.services[k].uid, uid);
+  assert.equal(c.occ[cell(sx + 8, 19)], k + 1);
+  assert.equal(c.occ[cell(sx + 6, 18)], 0, 'chỗ cũ trống');
+  // nút đường
+  const entry = [...c.nodes.values()].find((o) => o.z < -S.HALF + 5);
+  assert.equal(S.moveNode(c, entry.id, entry.x + 20, entry.z).reason, 'Không dời được cửa ngõ ra ngoài thành phố');
+  const corner = S.nodeAt(c, W(sx + 14), W(34), 2);
+  assert.ok(corner);
+  assert.equal(S.moveNode(c, corner.id, W(sx - 20), W(30)).ok, false, 'kéo cắt ngang đường khác thì từ chối');
+  const edges = c.edges.size, len = [...c.adj.get(corner.id)].map((id) => c.edges.get(id).len).reduce((a, b) => a + b, 0);
+  const ok = S.moveNode(c, corner.id, W(sx + 16), W(36));
+  assert.ok(ok.ok, ok.reason);
+  assert.equal(c.edges.size, edges);
+  assert.ok([...c.adj.get(corner.id)].map((id) => c.edges.get(id).len).reduce((a, b) => a + b, 0) > len, 'đường nối vào dài ra');
+  assert.ok(S.findPath(c, S.cellPos(c, cell(sx + 5, 33)), S.cellPos(c, cell(sx + 13, 25))), 'vẫn đi được qua nút đã dời');
+});
+
 test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', () => {
   assert.equal(resolveStatic('/city', ROOT), path.join(ROOT, 'city', 'index.html'));
   assert.equal(resolveStatic('/city/js/sim.js', ROOT), path.join(ROOT, 'city', 'js', 'sim.js'));

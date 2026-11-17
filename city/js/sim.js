@@ -686,6 +686,82 @@ export function setJunction(c, nid, ctl) {
   return { ok: true, ctl: n.ctl };
 }
 
+// ───────────────────────── di chuyển ─────────────────────────
+
+/** Phí dời một công trình: 10% giá xây. */
+export const moveFee = (type) => Math.round(SERVICES[type].cost * 0.1);
+
+/** Thử dời công trình thứ k tới ô (x, y); dry = chỉ kiểm tra. Giữ nguyên uid, phần mở rộng và mọi thuộc tính khác. */
+export function moveService(c, k, x, y, dry = false) {
+  const s = c.services[k];
+  if (!s) return { ok: false, reason: 'Không có công trình ở đây' };
+  const fee = moveFee(s.type);
+  c.services.splice(k, 1); rebuildOcc(c);
+  const back = () => { c.services.splice(k, 0, s); rebuildOcc(c); };
+  const r = canPlace(c, s.type, x, y, { move: true });
+  if (!r.ok) { back(); return r; }
+  if (r.fp.x === s.x && r.fp.y === s.y) { back(); return { ok: false, reason: 'Vẫn ở chỗ cũ', fp: r.fp }; }
+  if (fee > c.money) { back(); return { ok: false, reason: 'Không đủ tiền', fp: r.fp }; }
+  if (dry) { back(); return { ok: true, fee, fp: r.fp }; }
+  const { fp } = r, votes = [0, 0, 0, 0];
+  for (let dy = 0; dy < fp.size; dy++) for (let dx = 0; dx < fp.size; dx++) {
+    const i = idx(fp.x + dx, fp.y + dy);
+    if (c.acc[i] === 1) votes[c.rdir[i]]++;
+    c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i);
+  }
+  s.x = fp.x; s.y = fp.y;
+  if (Math.max(...votes)) s.dir = votes.indexOf(Math.max(...votes));
+  back();
+  c.money -= fee;
+  c.dirty.services = c.dirty.zones = c.dirty.trees = c.dirty.buildings = true;
+  computeMaps(c); computeNetworks(c); rebuildTraffic(c); recalc(c);
+  return { ok: true, fee, fp };
+}
+
+/**
+ * Dời một nút đường (ngã ba, ngã tư, đầu đường) tới (x, z); các đoạn nối vào uốn theo.
+ * Từ chối nếu đường mới cắt ngang đường khác cùng tầng, quá ngắn, vướng công trình, ra khỏi đất đã mua.
+ */
+export function moveNode(c, nid, x, z, dry = false) {
+  const n = c.nodes.get(nid);
+  if (!n) return { ok: false, reason: 'Không có nút đường ở đây' };
+  if (n.rb) return { ok: false, reason: 'Nút thuộc vòng xuyến: hãy san ủi vòng xuyến trước' };
+  if (Math.abs(n.z + HALF - 1) < 2 || Math.abs(n.x) > HALF - 3 || Math.abs(n.z) > HALF - 3) return { ok: false, reason: 'Không dời được cửa ngõ ra ngoài thành phố' };
+  if (Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2 || !ownedAt(c, x, z)) return { ok: false, reason: LOCKED };
+  for (const o of c.nodes.values()) if (o !== n && Math.hypot(o.x - x, o.z - z) < 9) return { ok: false, reason: 'Quá sát nút đường khác' };
+  const list = (c.adj.get(nid) || []).map((id) => c.edges.get(id));
+  const dx = x - n.x, dz = z - n.z, ox = n.x, oz = n.z, old = list.map((e) => ({ e, cx: e.cx, cz: e.cz, pts: e.pts, cum: e.cum, len: e.len }));
+  n.x = x; n.z = z;
+  for (const e of list) {
+    e.cx += dx / 2; e.cz += dz / 2;
+    const A = c.nodes.get(e.a), B = c.nodes.get(e.b);
+    e.pts = sampleCurve(A.x, A.z, e.cx, e.cz, B.x, B.z, 4); e.cum = measure(e.pts); e.len = e.cum[e.cum.length - 1];
+  }
+  const restore = () => { n.x = ox; n.z = oz; for (const o of old) Object.assign(o.e, { cx: o.cx, cz: o.cz, pts: o.pts, cum: o.cum, len: o.len }); };
+  let reason = '';
+  for (const e of list) {
+    if (e.len < 8) { reason = 'Đoạn đường quá ngắn'; break; }
+    for (let k = 0; k < e.pts.length && !reason; k += 2) if (!ownedAt(c, e.pts[k], e.pts[k + 1])) reason = LOCKED;
+    if (reason) break;
+    cellsUnder(e.pts, ROADS[e.type].w / 2, (i) => { if (c.occ[i]) reason = 'Vướng công trình, hãy san ủi trước'; });
+    if (reason) break;
+    const p = e.pts, m = p.length / 2 - 1;
+    for (const o of c.edges.values()) {
+      if (o === e || o.a === e.a || o.a === e.b || o.b === e.a || o.b === e.b) continue;
+      const q = o.pts, mo = q.length / 2 - 1;
+      for (let k = 0; k < m && !reason; k++) for (let j = 0; j < mo; j++) {
+        const r = segInt(p[k * 2], p[k * 2 + 1], p[k * 2 + 2], p[k * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
+        if (r && Math.abs(liftAt(c, e, e.cum[k]) - liftAt(c, o, o.cum[j])) < 3) { reason = 'Đường sẽ cắt ngang đường khác: hãy dùng cầu vượt hoặc vẽ nút giao'; break; }
+      }
+      if (reason) break;
+    }
+    if (reason) break;
+  }
+  if (reason || dry) { restore(); return reason ? { ok: false, reason } : { ok: true }; }
+  roadsChanged(c);
+  return { ok: true };
+}
+
 // ───────────────────────── dây điện, ống nước ─────────────────────────
 
 function serviceAt(c, x, z, slack = 0) {
@@ -855,7 +931,7 @@ export function footprint(type, x, y) {
 }
 
 /** Kiểm tra đặt công trình, (x, y) là ô dưới con trỏ. */
-export function canPlace(c, type, x, y) {
+export function canPlace(c, type, x, y, { move = false } = {}) {
   const def = SERVICES[type];
   if (!def) return { ok: false, reason: 'Không có công trình này' };
   const fp = footprint(type, x, y);
@@ -876,6 +952,7 @@ export function canPlace(c, type, x, y) {
   }
   if (def.needWater && !nearWater) return { ok: false, reason: 'Phải đặt sát bờ nước', fp };
   if (def.road && !nearRoad) return { ok: false, reason: 'Phải đặt sát đường', fp };
+  if (move) return { ok: true, fp }; // dời công trình đã có: không xét mở khoá, phí trả riêng
   if (!isUnlocked(c, type)) return { ok: false, reason: `${def.name}: ${lockText(def)}`, fp };
   if (def.unique && c.services.some((s) => s.type === type)) return { ok: false, reason: 'Mỗi thành phố chỉ có một công trình biểu tượng này', fp };
   if (def.cost > c.money) return { ok: false, reason: 'Không đủ tiền', fp };
