@@ -1,6 +1,7 @@
 // Phố Mới — mô hình 3D dựng bằng code (không cần file .glb). Mỗi ô = T đơn vị, mặt tiền nhìn về +z.
 import * as THREE from '../vendor/three.module.min.js';
 import { mulberry32, T, ZDEF } from './sim.js';
+import { containerPort, trainStation, airport, metroStation } from './transport3d.js';
 
 export { T };
 const FOUND = 0x8b857a; // móng chìm dưới đất để nhà đứng được trên sườn dốc
@@ -661,13 +662,7 @@ export function stopGeometry(mode) {
     g.box(-1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670); g.box(1.5, 0.12, -0.5, 0.12, 2.3, 0.12, 0x5b6670);
     g.box(0, 2.42, -0.2, 3.4, 0.12, 1.4, 0xffffff); g.box(0, 0.12, -0.55, 3, 2.3, 0.06, 0x9cc4e4);
     g.box(0, 0.5, 0, 2.4, 0.1, 0.4, 0x8a5a36);
-  } else {
-    for (const [x, z] of [[-3, -5], [3, -5], [-3, 5], [3, 5]]) g.cyl(x, 0, z, 0.5, 0.5, 6.4, 0x9a968e, 8);
-    g.box(0, 6.4, 0, 8, 0.6, 14, 0xc9c5ba);
-    g.box(0, 9.4, 0, 8.4, 0.3, 14.4, 0xffffff);
-    for (const z of [-6.5, 0, 6.5]) { g.box(-3.9, 7, z, 0.25, 2.4, 0.25, 0x5b6670); g.box(3.9, 7, z, 0.25, 2.4, 0.25, 0x5b6670); }
-    g.box(4.6, 0, 3, 1.4, 6.6, 3, 0x8d9499, true);
-  }
+  } else metroStation(g);
   return g.build();
 }
 
@@ -888,29 +883,8 @@ export function serviceModel(type, size) {
       g.box(8.9, 0.14, -8.9, 0.3, 5, 0.3, 0x8a949c); g.box(8.9, 5, -8.9, 1.8, 1.8, 0.2, 0x2c5aa0);
       break;
     }
-    case 'port': { // cảng container: bãi bê tông, mép cầu cảng phía sau, 2 cẩu giàn, bãi container, kho, nhà điều hành
-      pave(0x9a968e);
-      g.box(0, 0.14, -12.6, e, 0.06, 0.4, 0xf2c14e); // vạch vàng mép cầu cảng
-      for (let k = 0; k < 7; k++) g.box(-13 + k * 4.3, 0.2, -14.2, 0.6, 0.5, 0.6, 0x2f3b45); // cọc buộc tàu
-      for (let k = 0; k < 6; k++) g.box(-12.5 + k * 5, 0.14, -14.6, 1, 1.2, 0.4, 0x222222); // đệm va lốp xe
-      for (const x of [-6, 6]) { // cẩu giàn STS: 4 chân, dầm ngang, cần vươn ra biển, cabin
-        for (const z of [-11, -5]) for (const dx of [-2.4, 2.4]) g.box(x + dx, 0.14, z, 0.6, 13, 0.6, 0xe6a01e);
-        for (const z of [-11, -5]) g.box(x, 12.6, z, 5.6, 0.7, 0.7, 0xe6a01e);
-        for (const dx of [-2.4, 2.4]) g.box(x + dx, 13.3, -9, 0.6, 0.8, 18, 0xe6a01e);
-        g.box(x, 13.3, -17.5, 5.4, 0.5, 0.5, 0xe6a01e); g.box(x, 13.3, -1, 5.4, 0.5, 0.5, 0xe6a01e);
-        g.box(x, 14.1, -6, 2.2, 3, 2.2, 0xe6a01e); g.cyl(x, 17.1, -6, 0.15, 0.15, 3, 0xe6a01e, 5); // tháp đỡ cáp
-        g.box(x, 11.6, -13, 1.6, 1.1, 1.4, 0x39454f); g.box(x, 9.8, -13, 0.1, 1.8, 0.1, 0x222222); g.box(x, 9.2, -13, 2.4, 0.4, 1.2, 0xd9483b); // xe con, cáp, container đang cẩu
-      }
-      const rr = mulberry32(71), cols = [0xc0392b, 0x2f6fb0, 0xd8b93a, 0x3d8a5a, 0xe07b2e, 0x8a949c, 0xe6e6e6];
-      for (let row = 0; row < 3; row++) for (let k = 0; k < 4; k++) { // bãi container 3 dãy
-        const h = 1 + ((rr() * 3) | 0), x = -12 + k * 3.1, z = 2.5 + row * 3;
-        for (let q = 0; q < h; q++) g.box(x, 0.14 + q * 1.3, z, 2.8, 1.25, 2.5, cols[(rr() * cols.length) | 0]);
-      }
-      g.box(-3.4, 0.14, 5.5, 0.5, 5.4, 0.5, 0x3c4a55); g.box(1.4, 0.14, 5.5, 0.5, 5.4, 0.5, 0x3c4a55); g.box(-1, 5.3, 5.5, 5.4, 0.5, 9, 0x3c4a55); // cẩu khung bánh lốp
-      g.box(9, 0.14, 7, 10, 5, 12, 0xb9c2c8, true); for (let k = 0; k < 4; k++) g.gable(9, 5.14, 2 + k * 3, 10.4, 1.4, 3, 0x7d8c94, true, 0xb9c2c8); // kho mái răng cưa
-      g.box(9, 0.14, 13.4, 4, 3, 0.1, 0x55606a);
-      g.box(-9.5, 0.14, 12, 7, 5, 4, 0xe9ecef, true); g.box(-9.5, 5.14, 12, 7.4, 0.3, 4.4, 0x2f6fb0); g.box(-9.5, 3.6, 14.05, 4, 0.8, 0.06, 0x2f6fb0); // nhà điều hành
-      for (const [x, z] of [[-14, 0], [14, -2], [0, 14]]) { g.cyl(x, 0.14, z, 0.18, 0.12, 12, 0x8a949c, 6); g.box(x, 12, z, 1.6, 0.4, 0.8, 0xfff2c0); } // cột đèn pha
+    case 'port': { // cảng container (transport3d.js)
+      out.movers = containerPort(g, e);
       break;
     }
     case 'park': {
@@ -1133,26 +1107,12 @@ export function serviceModel(type, size) {
       for (let k = 0; k < 4; k++) g.box(-6 + k * 3.5, 0.14, -12.5 + (k % 2), 0.5, 0.5, 0.5, 0xf2c14e); // phao bơi
       break;
     }
-    case 'train': {
-      pave(0xb9b5aa);
-      g.box(0, 0.14, -8, 27, 8, 8, 0xe2c9a8, true); g.gable(0, 8.14, -8, 28, 3.2, 9, 0x8e4a3c, true, 0xe2c9a8);
-      g.box(0, 8.14, -3.8, 6, 6, 0.4, 0xe2c9a8); g.cyl(0, 11.2, -3.5, 1.4, 1.4, 0.05, 0xf4efe6, 12); // đồng hồ
-      g.box(0, 0.14, 2.5, 28, 1.1, 5, 0xc9c5ba); g.box(0, 5.2, 2.5, 28, 0.25, 5.4, 0x5b6670); for (let k = 0; k < 6; k++) g.box(-12.5 + k * 5, 1.24, 2.5, 0.25, 4, 0.25, 0x5b6670); // sân ga có mái
-      for (const z of [7, 11.5]) { g.box(0, 0.14, z, 29.6, 0.3, 3.4, 0x8a7f70); g.box(0, 0.44, z - 0.75, 29.6, 0.15, 0.2, 0x5b6670); g.box(0, 0.44, z + 0.75, 29.6, 0.15, 0.2, 0x5b6670); } // đường ray
-      g.box(-4, 0.6, 7, 16, 3.2, 3, 0xd0342c, false, 0x5b5552); g.box(-4, 2, 8.52, 15, 0.9, 0.05, 0x2f3b45); // đoàn tàu
+    case 'train': { // ga tàu hoả (transport3d.js)
+      out.movers = trainStation(g, e);
       break;
     }
-    case 'airport': {
-      g.box(0, 0, 0, e, 0.14, e, 0x7da55a);
-      g.box(0, 0.14, 12, e - 2, 0.06, 9, 0x4a4d52); for (let k = 0; k < 9; k++) g.box(-22 + k * 5.5, 0.21, 12, 3, 0.02, 0.5, 0xf2f2f2); // đường băng
-      g.box(0, 0.14, 2.5, 40, 0.05, 6, 0x6f7377); // đường lăn
-      g.box(-6, 0.14, -12, 30, 7, 12, 0xdfe6ea, true); g.box(-6, 7.14, -12, 31, 0.8, 13, 0x5b6670); // nhà ga
-      g.box(-6, 0.14, -5.2, 30, 5, 1.6, 0x9cc4e4);
-      g.cyl(16, 0.14, -14, 1.6, 1.4, 16, 0xe6e9ec, 10); g.cyl(16, 16.14, -14, 3, 2.6, 3, 0x6fa8ff, 12, 0x5b6670); // đài kiểm soát
-      for (const [x, z, a] of [[-14, -2, 0], [2, -2, 0], [18, 13, Math.PI / 2]]) { // máy bay
-        g.at(rotY(x, 0.9, z, a)).box(0, 0, 0, 2.4, 2.4, 14, 0xf4f4f4).box(0, 0.6, -1, 14, 0.3, 3.2, 0xe9e9e9).box(0, 0.6, 5.8, 5, 0.2, 1.6, 0xe9e9e9).box(0, 1.2, 6.2, 0.3, 3.2, 1.8, 0x2f6fb0).at(null);
-      }
-      g.box(18, 0.14, -2, 8, 4, 6, 0x9aa3aa, false, 0x5b6670); // kho hàng
+    case 'airport': { // sân bay (transport3d.js)
+      out.movers = airport(g, e);
       break;
     }
     case 'nuclear': {

@@ -4,6 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR } from './sim.js';
+import { metroGeometry } from './transport3d.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -439,6 +440,7 @@ export class View {
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
     this.tramMesh = this._inst(tramGeometry(), vehMat, MAX_BUS, true);
+    { const mg = metroGeometry(); this.metroMesh = this._inst(mg.body, vehMat, MAX_BUS, true); this.metroStripe = this._inst(mg.stripe, vehMat, MAX_BUS, false); } // tàu metro 3 toa, vạch màu tuyến
     this.shipMeshes = [this._inst(shipGeometry(0), vehMat, 40, true), this._inst(shipGeometry(1), vehMat, 40, true)]; // tàu khách, tàu hàng
     this.shipT = 0;
     this.pedVariants = []; // người dựng từ mô hình Meshy, nạp xong thì thế dần người hộp
@@ -1209,6 +1211,31 @@ export class View {
     return false;
   }
 
+  /** Vật chuyển động trong công trình (xem transport3d.js): nội suy khung khoá theo thời gian. */
+  _movers(dt) {
+    if (!this.movers || !this.movers.length) return;
+    const t = (this.moverT = (this.moverT || 0) + dt);
+    for (const mv of this.movers) {
+      const d = mv.d, ks = d.keys, u = (((t / d.period + (d.phase || 0) + mv.ph) % 1) + 1) % 1;
+      let i = 0;
+      while (i < ks.length - 2 && ks[i + 1][0] <= u) i++;
+      const a = ks[i], b = ks[i + 1];
+      let f = clamp((u - a[0]) / Math.max(1e-6, b[0] - a[0]), 0, 1);
+      if (b[6].includes('s')) f = f * f * (3 - 2 * f); else if (b[6].includes('i')) f = f * f; else if (b[6].includes('o')) f = 1 - (1 - f) * (1 - f);
+      const hide = a[6].includes('h'), noCargo = a[6].includes('c');
+      let dyaw = b[4] - a[4];
+      dyaw = ((dyaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      const x = a[1] + (b[1] - a[1]) * f, y = a[2] + (b[2] - a[2]) * f, z = a[3] + (b[3] - a[3]) * f, yaw = a[4] + dyaw * f, pitch = a[5] + (b[5] - a[5]) * f;
+      const fx = Math.sin(yaw), fz = Math.cos(yaw);
+      d.parts.forEach((pt, k) => {
+        const o = mv.meshes[k], px = x - fx * pt.off, pz = z - fz * pt.off;
+        const vis = !hide && !(pt.cargo && noCargo) && !(d.clip && (Math.abs(px) > d.clip - 1 || Math.abs(pz) > d.clip - 1));
+        o.visible = vis;
+        if (vis) { o.position.set(px, y, pz); o.rotation.set(pitch, yaw, 0, 'YXZ'); }
+      });
+    }
+  }
+
   /** Điểm (x, z) nằm trên lòng hầm chui đang mở không. */
   overTrench(x, z, pad = 0) {
     for (const t of this.trench || []) {
@@ -1613,7 +1640,7 @@ export class View {
     const c = this.city;
     this.serviceGroup.traverse((o) => { if (o.userData.own) o.geometry.dispose(); }); // giàn giáo công trường dựng riêng từng lần
     this.serviceGroup.clear();
-    this.spinners = []; this.chimneys = []; this.siteAnims = [];
+    this.spinners = []; this.chimneys = []; this.siteAnims = []; this.movers = [];
     for (const s of c.services) {
       const def = SERVICES[s.type], grp = this._serviceObject(s.type);
       if (s.build > 0) { // công trường: nhà mọc dần theo tiến độ, giàn giáo, hàng rào, xe công trình
@@ -1631,6 +1658,10 @@ export class View {
       grp.updateMatrixWorld(true);
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
+      for (const d of this._svc(s.type).movers || []) { // máy bay, tàu hoả, cẩu, xe tải chạy trong công trình
+        const meshes = d.parts.map((pt) => { const o = new THREE.Mesh(pt.geometry, this.matBuilding); o.castShadow = true; o.visible = false; grp.add(o); return o; });
+        this.movers.push({ d, meshes, ph: hash2(s.x, s.y, 7) });
+      }
       this.serviceGroup.add(grp);
     }
   }
@@ -1790,15 +1821,16 @@ export class View {
       else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
       else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));
     }
-    // tàu metro chạy trên ray cao
-    const s2 = new THREE.Vector3(1.15, 1.1, 2.1);
+    // tàu metro 3 toa chạy trên ray cao, vạch sơn theo màu tuyến
+    let nm = 0;
+    s.set(1, 1, 1);
     for (const line of c.transit.lines) {
       if (line.mode !== 'metro' || line.stops.length < 2) continue;
       for (const slot of line.veh) {
-        if (nu >= MAX_BUS) break;
+        if (nm >= MAX_BUS) break;
         const pt = metroPoint(line, slot);
-        p.set(pt[0], this._railY(pt[0], pt[1]) + 0.3, pt[1]); q.setFromAxisAngle(up, Math.atan2(pt[2], pt[3])); m.compose(p, q, s2);
-        this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(line.hue, 0.75, 0.52));
+        p.set(pt[0], this._railY(pt[0], pt[1]) + 0.2, pt[1]); q.setFromAxisAngle(up, Math.atan2(pt[2], pt[3])); m.compose(p, q, s);
+        this.metroMesh.setMatrixAt(nm, m); this.metroStripe.setMatrixAt(nm, m); this.metroStripe.setColorAt(nm++, col.setHSL(line.hue, 0.75, 0.5));
       }
     }
     // người đi bộ trên vỉa hè: có mô hình Meshy thì luân phiên theo id (ổn định qua từng khung hình), chưa có thì người hộp dựng bằng code
@@ -1819,7 +1851,7 @@ export class View {
     s.set(1, 1, 1);
     this.beamMesh.count = nb; this.beamMesh.instanceMatrix.needsUpdate = true;
     for (const k in this.vehMeshes) { const mesh = this.vehMeshes[k]; mesh.count = vc[k] || 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
-    for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np], [this.metroMesh, nm], [this.metroStripe, nm]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };
@@ -2093,6 +2125,7 @@ export class View {
     this._weather(dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
+    this._movers(simDt);
     if (this.siteAnims && this.siteAnims.length) { // công trường: máy xúc xoay gầu, xe chạy qua lại, cần cẩu quay
       const t = (this.siteT = (this.siteT || 0) + simDt);
       for (const a of this.siteAnims) {
