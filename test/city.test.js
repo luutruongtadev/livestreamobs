@@ -493,9 +493,12 @@ test('city: tai nạn chắn đường tới khi công an và xe cứu hộ tớ
   assert.ok(v, 'có xe đang chạy');
   const acc = S.crash(c, v);
   assert.ok(v.wreck && c.traffic.vehicles.includes(v), 'xác xe nằm lại trên đường');
-  assert.ok(acc.sentCops && acc.sentClean, 'gửi xe công an và xe cứu hộ');
+  // xe công an có thể đang bận việc khác (vụ cướp, tuần tra): khi đó hiện trường chờ, lượt sau gửi lại
   let t = 0;
-  while (c.inc.accidents.includes(acc) && t < 80) { S.advance(c, 0.5); t += 0.5; }
+  while (!(acc.sentCops && acc.sentClean) && t < 120) { S.advance(c, 0.5); t += 0.5; }
+  assert.ok(acc.sentCops && acc.sentClean, 'gửi xe công an và xe cứu hộ');
+  t = 0;
+  while (c.inc.accidents.includes(acc) && t < 120) { S.advance(c, 0.5); t += 0.5; }
   assert.ok(!c.inc.accidents.includes(acc), 'hiện trường đã được dọn');
   assert.ok(acc.cops && acc.clean);
   assert.ok(!c.traffic.vehicles.includes(v));
