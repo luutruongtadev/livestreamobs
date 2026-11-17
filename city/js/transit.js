@@ -1,6 +1,6 @@
-// Phố Mới — giao thông công cộng: tuyến xe buýt (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
+// Phố Mới — giao thông công cộng: xe buýt và tàu điện (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
-import { TRANSIT, MILESTONES, HALF, N, cellOf, nearestOnEdge, cellX, cellZ, clamp, hasTech } from './base.js';
+import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
 import { spawnVehicle, reroute, findPath } from './traffic.js';
 
 const WALK_SPEED = 7; // đơn vị / giây mô phỏng
@@ -10,13 +10,23 @@ export function initTransit(c) {
   c.transit = { lines: [], fare: 2, nextId: 1, riders: 0, ridersDay: 0, income: 0 };
 }
 
+/** Đoạn đường mặt đất gần nhất (trạm xe buýt, tàu điện không đặt trên đường trên cao). */
 function nearestEdge(c, x, z, max = 12) {
   let best = null, bd = max;
-  for (const e of c.edges.values()) { const r = nearestOnEdge(e, x, z); if (r.d < bd) { bd = r.d; best = { edge: e, along: r.along, x: r.x, z: r.z }; } }
+  for (const e of c.edges.values()) { if (e.type === 'highway' || e.type === 'overpass') continue; const r = nearestOnEdge(e, x, z); if (r.d < bd) { bd = r.d; best = { edge: e, along: r.along, x: r.x, z: r.z }; } }
   return best;
 }
 
-export function metroUnlocked(c) { return MILESTONES.some((m, k) => k < c.milestone && m.pop >= TRANSIT.metro.unlock); }
+export function modeUnlocked(c, mode) { const u = TRANSIT[mode].unlock; return !u || MILESTONES.some((m, k) => k < c.milestone && m.pop >= u); }
+export function metroUnlocked(c) { return modeUnlocked(c, 'metro'); }
+
+/** Xe buýt + tàu điện đang chạy và sức chứa của các bến xe. */
+export function roadFleet(c) {
+  let used = 0, cap = DEPOT_FREE;
+  for (const l of c.transit.lines) if (TRANSIT[l.mode].road) used += l.count;
+  for (const s of c.services) cap += SERVICES[s.type].depot || 0;
+  return { used, cap };
+}
 
 /** Kiểm tra + tính giá một tuyến sắp tạo. pts: [{ x, z }] theo thứ tự trạm. */
 export function planLine(c, mode, pts) {
@@ -25,10 +35,11 @@ export function planLine(c, mode, pts) {
   for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z);
   if (mode === 'metro') cost += Math.round(len * def.trackCost);
   const out = { ok: false, cost, len };
-  if (mode === 'metro' && !metroUnlocked(c)) return { ...out, reason: `Metro mở khoá khi đạt ${def.unlock} dân` };
+  if (!modeUnlocked(c, mode)) return { ...out, reason: `${def.name} mở khoá khi đạt ${def.unlock} dân` };
+  if (def.road) { const f = roadFleet(c); if (f.used + 1 > f.cap) return { ...out, reason: `Hết chỗ cho xe: ${f.used} / ${f.cap} xe, xây thêm 🚏 bến xe` }; }
   if (pts.some((p) => Math.abs(p.x) > HALF || Math.abs(p.z) > HALF)) return { ...out, reason: 'Ra ngoài bản đồ' };
-  if (pts.some((p) => !c.fn.ownedAt(c, p.x, p.z))) return { ...out, reason: 'Ngoài phần đất của thành phố, hãy mua thêm đất' };
-  if (mode === 'bus' && pts.some((p) => !nearestEdge(c, p.x, p.z))) return { ...out, reason: 'Trạm xe buýt phải nằm trên đường' };
+  if (pts.some((p) => !c.own[idx(clamp(cellOf(p.x), 0, N - 1), clamp(cellOf(p.z), 0, N - 1))])) return { ...out, reason: 'Đất chưa mua: mở rộng bằng 🧭 Mua đất' };
+  if (def.road && pts.some((p) => !nearestEdge(c, p.x, p.z))) return { ...out, reason: `Trạm ${mode === 'bus' ? 'xe buýt' : 'tàu điện'} phải nằm trên đường` };
   for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z) < 25) return { ...out, reason: 'Hai trạm quá gần nhau' };
   if (pts.length < 2) return { ...out, reason: 'Cần ít nhất 2 trạm' };
   if (cost > c.money) return { ...out, reason: 'Không đủ tiền' };
@@ -40,7 +51,7 @@ export function addLine(c, mode, pts, free = false) {
   if (!r.ok) return r;
   const tr = c.transit, id = tr.nextId++;
   const line = { id, mode, count: 1, hue: HUES[(id - 1) % HUES.length], stops: pts.map((p) => ({ x: p.x, z: p.z, waiting: [] })), veh: [], riders: 0, ridersDay: 0 };
-  if (mode === 'bus') for (const s of line.stops) { const e = nearestEdge(c, s.x, s.z); if (e) { s.x = e.x; s.z = e.z; } }
+  if (TRANSIT[mode].road) for (const s of line.stops) { const e = nearestEdge(c, s.x, s.z); if (e) { s.x = e.x; s.z = e.z; } }
   tr.lines.push(line);
   c.money -= r.cost;
   maintainTransit(c);
@@ -65,6 +76,7 @@ export function setVehicles(c, id, n) {
   n = clamp(n | 0, 1, 8);
   const cost = Math.max(0, n - line.count) * TRANSIT[line.mode].vehCost;
   if (cost > c.money) return { ok: false, reason: 'Không đủ tiền' };
+  if (TRANSIT[line.mode].road && n > line.count) { const f = roadFleet(c); if (f.used + n - line.count > f.cap) return { ok: false, reason: `Hết chỗ cho xe: ${f.used} / ${f.cap} xe, xây thêm 🚏 bến xe` }; }
   c.money -= cost; line.count = n;
   maintainTransit(c);
   return { ok: true, cost };
@@ -76,7 +88,7 @@ function spawnBus(c, line, slot, at) {
   const n = line.stops.length;
   for (let tryK = 0; tryK < n; tryK++) {
     const from = line.stops[(at + tryK) % n], to = line.stops[(at + tryK + 1) % n];
-    const v = spawnVehicle(c, 'bus', stopPos(from), stopPos(to), { t: 'bus', line: line.id, slot: line.veh.indexOf(slot) }, line.hue);
+    const v = spawnVehicle(c, line.mode, stopPos(from), stopPos(to), { t: 'bus', line: line.id, slot: line.veh.indexOf(slot) }, line.hue);
     if (v) { slot.v = v; slot.next = (at + tryK + 1) % n; return true; }
   }
   slot.v = null;
@@ -88,11 +100,11 @@ export function maintainTransit(c) {
   for (const line of c.transit.lines) {
     const def = TRANSIT[line.mode], n = line.stops.length;
     line.broken = false; line.pos = [0]; line.path = [];
-    if (line.mode === 'bus') {
+    if (def.road) {
       for (const s of line.stops) { const e = nearestEdge(c, s.x, s.z, 14); if (e) { s.edge = e.edge; s.along = e.along; } else { s.edge = null; line.broken = true; } }
       line.legLen = [];
       for (let k = 0; k < n && !line.broken; k++) {
-        const p = findPath(c, stopPos(line.stops[k]), stopPos(line.stops[(k + 1) % n]), 'bus');
+        const p = findPath(c, stopPos(line.stops[k]), stopPos(line.stops[(k + 1) % n]), line.mode);
         if (!p) { line.broken = true; break; }
         let len = 0;
         for (const st of p.steps) { len += st.e.len; const q = st.e.pts; for (let j = 0; j < q.length; j += 2) { const jj = st.fwd ? j : q.length - 2 - j; line.path.push(q[jj], q[jj + 1]); } }
@@ -108,20 +120,18 @@ export function maintainTransit(c) {
     // đủ số xe
     while (line.veh.length > line.count) { const slot = line.veh.pop(); for (const r of slot.riders) c.onArrive(c, r.cb, null); if (slot.v) c.traffic.vehicles = c.traffic.vehicles.filter((v) => v !== slot.v); }
     while (line.veh.length < line.count) line.veh.push({ v: null, next: 0, riders: [], s: (line.loop / 2 / line.count) * line.veh.length, dir: 1, dwell: 0, at: -1 });
-    if (line.mode === 'bus' && !line.broken) line.veh.forEach((slot, k) => { if (!slot.v || !c.traffic.vehicles.includes(slot.v)) spawnBus(c, line, slot, Math.floor((k * n) / line.count) % n); });
+    if (def.road && !line.broken) line.veh.forEach((slot, k) => { if (!slot.v || !c.traffic.vehicles.includes(slot.v)) spawnBus(c, line, slot, Math.floor((k * n) / line.count) % n); });
   }
 }
 
 function exchange(c, line, slot, at) {
-  const def = TRANSIT[line.mode], stop = line.stops[at], cap = def.cap * (hasTech(c, 'ebus') ? 1.5 : 1);
-  const sx = cellOf(stop.x), sz = cellOf(stop.z), free = sx >= 0 && sz >= 0 && sx < N && sz < N && c.fn.hasPolicy(c, sz * N + sx, 'freeBus');
+  const def = TRANSIT[line.mode], stop = line.stops[at];
   const stay = [];
   for (const r of slot.riders) { if (r.to === at) c.onArrive(c, r.cb, null); else stay.push(r); }
   slot.riders = stay;
-  while (stop.waiting.length && slot.riders.length < cap) {
+  while (stop.waiting.length && slot.riders.length < def.cap) {
     slot.riders.push(stop.waiting.shift());
-    if (!free) { c.money += c.transit.fare; c.transit.income += c.transit.fare; }
-    c.transit.riders++; line.riders++;
+    c.money += c.transit.fare; c.transit.income += c.transit.fare; c.transit.riders++; line.riders++;
   }
 }
 
@@ -187,11 +197,10 @@ export function planRide(c, fromCell, toCell) {
     line.stops.forEach((s, k) => { const a = Math.hypot(s.x - fx, s.z - fz), b = Math.hypot(s.x - tx, s.z - tz); if (a < di) { di = a; i = k; } if (b < dj) { dj = b; j = k; } });
     if (i < 0 || j < 0 || i === j) continue;
     let ride;
-    if (line.mode === 'bus') { ride = 0; for (let k = i; k !== j; k = (k + 1) % line.stops.length) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);
-    const stops = line.mode === 'bus' ? (j - i + line.stops.length) % line.stops.length : Math.abs(j - i);
+    if (def.road) { ride = 0; for (let k = i; k !== j; k = (k + 1) % line.stops.length) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);
+    const stops = def.road ? (j - i + line.stops.length) % line.stops.length : Math.abs(j - i);
     const eta = (di + dj) / WALK_SPEED + line.headway / 2 + ride / def.speed + stops * 1.6;
-    const st = line.stops[i], bx = cellOf(st.x), bz = cellOf(st.z), free = bx >= 0 && bz >= 0 && bx < N && bz < N && c.fn.hasPolicy(c, bz * N + bx, 'freeBus');
-    if (!best || eta < best.eta) best = { line, from: i, to: j, eta, free };
+    if (!best || eta < best.eta) best = { line, from: i, to: j, eta };
   }
   return best;
 }
@@ -215,5 +224,5 @@ export function transitHour(c) {
 export function transitUpkeep(c) {
   let u = 0;
   for (const l of c.transit.lines) u += l.count * TRANSIT[l.mode].upkeep + l.stops.length * 4;
-  return u * (hasTech(c, 'ebus') ? 0.7 : 1);
+  return u;
 }

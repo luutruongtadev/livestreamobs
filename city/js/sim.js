@@ -2,68 +2,93 @@
 // Đường là một graph (nút giao + đoạn đường cong Bezier bậc 2); ô đất theo lưới N x N.
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
-  N, LN, OFF, TILE, TILES, T, HALF, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  MODS, TECH, POLICIES, DISTRICTS, MILESTONE_POINTS, svcVal, hasTech, outerMask,
-  ROADS, BRIDGE_MULT, ELEV_MULT, MIN_ELEV_LEN, deckH, edgeH, LINES, SERVICES, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
-  mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge,
+  N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
+  ROADS, BRIDGE_MULT, LINES, sameLevel, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind } from './people.js';
+import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
+import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
-export { edgeLoad, signalState, findPath, cellPos, VKIND } from './traffic.js';
-export { bizKind, wageAt, rentAt, outsidePositions, ST } from './people.js';
-export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked } from './transit.js';
+export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook } from './traffic.js';
+export { bizKind, wageAt, rentAt, outsidePositions, ST, die } from './people.js';
+export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
+export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
 
 export const ZONE_NAME = ZDEF.map((z) => z.name);
 
 // ───────────────────────── địa hình (heightmap) ─────────────────────────
 
-/** Độ cao đất liền tại đỉnh lưới (gx, gy): đồi thoải ở vùng trung tâm, núi cao dần ở vùng ngoài; bằng 0 ở sát bờ nước. */
-export function hillHeight(seed, f, gx, gy) {
-  const u = gx - OFF, v = gy - OFF, land = clamp((f(gx, gy) - 1.6) / 9, 0, 1);
-  const n = vnoise(u * 0.034, v * 0.034, seed + 41) * 0.75 + vnoise(u * 0.09, v * 0.09, seed + 43) * 0.25;
-  let h = 15 * Math.pow(n, 1.5) * land;
-  const m = outerMask(gx, gy);
-  if (m > 0) {
-    const range = clamp(vnoise(u * 0.013, v * 0.013, seed + 73) * 1.9 - 0.55, 0, 1); // chỗ nào có dãy núi
-    h += m * land * range * (Math.pow(vnoise(u * 0.035, v * 0.035, seed + 71), 1.7) * 110 + vnoise(u * 0.11, v * 0.11, seed + 75) * 10);
-  }
-  return h;
-}
+const STEEP = 6; // ô chênh cao quá mức này giữa các đỉnh thì không xây nhà / công trình được
 
-/** Cao độ một đỉnh lưới: đáy nước -3.2, mép bờ 0, đất liền theo đồi. isWater(tx, ty) cho ô bất kỳ. */
-export function vertexHeight(seed, f, isWater, gx, gy) {
-  const wn = isWater(gx - 1, gy - 1) + isWater(gx, gy - 1) + isWater(gx - 1, gy) + isWater(gx, gy);
-  if (wn === 4) return -3.2;
-  if (wn > 0) return 0;
-  return hillHeight(seed, f, gx, gy);
+/**
+ * Hàm cao độ của một thành phố: { f, isWater(tx, ty), mount(gx, gy), height(gx, gy) }.
+ * Đáy nước -3.2, mép bờ 0, đất liền theo đồi thoải; bản đồ đời mới (tgen ≥ 2) có thêm dãy núi ở xa điểm xuất phát.
+ */
+export function heightFn(c) {
+  const seed = c.seed, f = makeField(seed), sx = c.start.x, sy = c.start.y, mountains = c.tgen >= 2;
+  const isWater = (tx, ty) => (inMap(tx, ty) ? c.water[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
+  const mount = (gx, gy) => {
+    if (!mountains) return 0;
+    const far = clamp((Math.hypot(gx - sx, gy - sy) - 40) / 18, 0, 1);
+    if (!far) return 0;
+    const r = clamp((vnoise(gx * 0.045, gy * 0.045, seed + 51) - 0.5) / 0.3, 0, 1);
+    return 38 * r * r * (3 - 2 * r) * far * far * (3 - 2 * far) * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
+  };
+  const height = (gx, gy) => {
+    const wn = isWater(gx - 1, gy - 1) + isWater(gx, gy - 1) + isWater(gx - 1, gy) + isWater(gx, gy);
+    if (wn === 4) return -3.2;
+    if (wn > 0) return 0;
+    const n = vnoise(gx * 0.034, gy * 0.034, seed + 41) * 0.75 + vnoise(gx * 0.09, gy * 0.09, seed + 43) * 0.25;
+    return (15 * Math.pow(n, 1.5) + mount(gx, gy)) * clamp((f(gx, gy) - 1.6) / 9, 0, 1);
+  };
+  return { f, isWater, mount, height };
 }
 
 function makeTerrain(c) {
-  const f = makeField(c.seed);
-  const isWater = (tx, ty) => (inMap(tx, ty) ? c.water[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
-  const V = N + 1;
+  const hf = heightFn(c), V = N + 1;
   c.hv = new Float32Array(V * V);
-  for (let gy = 0; gy <= N; gy++) for (let gx = 0; gx <= N; gx++) c.hv[gy * V + gx] = vertexHeight(c.seed, f, isWater, gx, gy);
+  for (let gy = 0; gy <= N; gy++) for (let gx = 0; gx <= N; gx++) c.hv[gy * V + gx] = hf.height(gx, gy);
   c.cellH = new Float32Array(N * N); // cao độ nền nhà của ô = đỉnh cao nhất
-  c.steep = new Uint8Array(N * N); // sườn quá dốc: không xây nhà, không quy hoạch (đường vẫn đi qua được)
+  c.steep = new Uint8Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const a = c.hv[y * V + x], b = c.hv[y * V + x + 1], d = c.hv[(y + 1) * V + x], e = c.hv[(y + 1) * V + x + 1], hi = Math.max(a, b, d, e);
-    c.cellH[idx(x, y)] = hi;
-    if (hi - Math.min(a, b, d, e) > 5.5) c.steep[idx(x, y)] = 1;
+    const a = c.hv[y * V + x], b = c.hv[y * V + x + 1], d = c.hv[(y + 1) * V + x], e = c.hv[(y + 1) * V + x + 1], i = idx(x, y);
+    c.cellH[i] = Math.max(a, b, d, e);
+    if (c.tgen >= 2 && c.cellH[i] - Math.min(a, b, d, e) > STEEP) c.steep[i] = 1;
   }
-  // tài nguyên thiên nhiên: 1 đất màu mỡ (đồng bằng), 2 vỉa quặng (vùng đồi núi), 3 túi dầu
-  c.res = new Uint8Array(N * N);
-  const s = c.seed;
+  makeResources(c, hf);
+}
+
+/**
+ * Bản đồ tài nguyên (sinh lại từ seed, không lưu): c.res[i] = 1 đất màu mỡ, 2 rừng, 3 khoáng sản, 4 dầu trên đất liền;
+ * 5 = vùng nước có cá. c.fishShore[i] = ô đất nằm sát vùng nước có cá.
+ */
+function makeResources(c, hf) {
+  const seed = c.seed;
+  c.res = new Uint8Array(N * N); c.fishShore = new Uint8Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const i = idx(x, y), u = x - OFF, v = y - OFF;
-    if (c.water[i] || c.steep[i]) continue;
-    if (vnoise(u * 0.045, v * 0.045, s + 85) > 0.74) c.res[i] = 3;
-    else if (vnoise(u * 0.06, v * 0.06, s + 83) > 0.66 && c.cellH[i] > 4) c.res[i] = 2;
-    else if (vnoise(u * 0.05, v * 0.05, s + 81) > 0.55 && c.cellH[i] < 7) c.res[i] = 1;
+    const i = idx(x, y);
+    if (c.water[i]) { if (vnoise(x * 0.07, y * 0.07, seed + 71) > 0.45) c.res[i] = 5; continue; }
+    const h = c.cellH[i], fv = hf.f(x + 0.5, y + 0.5);
+    const rocky = c.tgen >= 2 ? hf.mount(x + 0.5, y + 0.5) > 5 : h > 6.5;
+    if (rocky && vnoise(x * 0.13, y * 0.13, seed + 63) > 0.36) c.res[i] = 3;
+    else if (h < 9 && vnoise(x * 0.06, y * 0.06, seed + 61) > 0.76) c.res[i] = 4;
+    else if (fv < 12 && h < 5 && vnoise(x * 0.07, y * 0.07, seed + 65) > 0.38) c.res[i] = 1;
+    else if (vnoise(x * 0.09, y * 0.09, seed + 11) > 0.55) c.res[i] = 2;
   }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (c.res[idx(x, y)] !== 5) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (inMap(x + dx, y + dy) && !c.water[idx(x + dx, y + dy)]) c.fishShore[idx(x + dx, y + dy)] = 1;
+  }
+}
+
+/** Ô i có đúng tài nguyên cho khu chuyên biệt z không (khu thường thì luôn đúng). */
+export function hasResource(c, i, z) {
+  const raw = ZDEF[z].raw;
+  if (!raw) return true;
+  return raw === 'fish' ? c.fishShore[i] === 1 : c.res[i] === RAW[raw].id;
 }
 
 /** Cao độ mặt đất tại toạ độ thế giới (khớp đúng lưới tam giác của địa hình). */
@@ -83,75 +108,131 @@ export function isWaterAt(c, wx, wz) {
 
 export function newCity(seed = (Math.random() * 1e9) | 0) {
   const c = {
-    v: 4, seed, name: 'Phố Mới',
+    v: 4, tgen: 2, seed, name: 'Phố Mới',
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
-    zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N), district: new Uint8Array(N * N),
-    nodes: new Map(), edges: new Map(), nextId: 1, lines: [],
+    zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N),
+    nodes: new Map(), edges: new Map(), nextId: 1, lines: [], rings: [],
     services: [], money: 70000, hour: 0, day: 0, tax: { r: 9, c: 9, i: 9 }, milestone: 0, loans: [], debtHours: 0, over: false,
-    owned: startTiles(), tech: {}, points: 0, policy: DISTRICTS.map(() => ({})), distName: DISTRICTS.map((d) => (d ? d[0] : '')),
+    tech: new Set(), points: START_POINTS, owned: new Uint8Array(LT * LT),
   };
   genLand(c);
-  // đường cao tốc từ mép bắc bản đồ dẫn vào vùng đất của thành phố (cũng là cửa ngõ xuất nhập khẩu), chọn cột toàn đất liền
-  const mid = OFF + ((LN * 0.55) | 0);
-  let sx = mid;
-  for (let k = 0; k < LN; k++) {
-    const x = mid + (k % 2 ? -1 : 1) * ((k + 1) >> 1);
-    if (x < OFF + 6 || x >= OFF + LN - 6) continue;
+  // đường cao tốc dẫn vào thành phố từ mép bắc (cũng là cửa ngõ xuất nhập khẩu), chọn cột toàn đất liền
+  let sx = (N * 0.55) | 0;
+  for (let k = 0; k < N; k++) {
+    const x = ((N * 0.55) | 0) + (k % 2 ? -1 : 1) * ((k + 1) >> 1);
+    if (x < 6 || x >= N - 6) continue;
     let ok = true;
-    for (let y = 0; y < OFF + 14; y++) for (let d = -4; d <= 4; d++) if (c.water[idx(x + d, y)]) ok = false;
+    for (let y = 0; y < 14; y++) for (let d = -4; d <= 4; d++) if (c.water[idx(x + d, y)]) ok = false;
     if (ok) { sx = x; break; }
   }
-  c.start = { x: sx, y: OFF + 7 };
-  c.entry = { x: cellCenter(sx), z: -HALF + 1 };
+  c.start = { x: sx, y: 7 };
+  startLand(c);
   attach(c);
-  const a = addNode(c, c.entry.x, c.entry.z), b = addNode(c, cellCenter(sx), cellCenter(OFF + 7));
+  const a = addNode(c, cellCenter(sx), -HALF + 1), b = addNode(c, cellCenter(sx), cellCenter(7));
   addEdge(c, a, b, 'small');
   roadsChanged(c);
   computeMaps(c);
   return c;
 }
 
-/** Lúc đầu thành phố có 3 x 3 lô đất ở giữa bản đồ. */
-function startTiles() {
-  const o = new Uint8Array(TILES * TILES);
-  for (let ty = 1; ty <= 3; ty++) for (let tx = 1; tx <= 3; tx++) o[ty * TILES + tx] = 1;
-  return o;
-}
-
 function genLand(c) {
   const f = makeField(c.seed), seed = c.seed;
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const i = idx(x, y), u = x - OFF, v = y - OFF;
+    const i = idx(x, y);
     if (f(x + 0.5, y + 0.5) < 0.15) { c.water[i] = 1; continue; }
-    const n = vnoise(u * 0.09, v * 0.09, seed + 11), h = hash2(u, v, seed + 13);
+    const n = vnoise(x * 0.09, y * 0.09, seed + 11), h = hash2(x, y, seed + 13);
     if ((n > 0.6 && h > 0.25) || h > 0.975) c.tree[i] = 1;
-    else if (outerMask(x, y) > 0.5 && vnoise(u * 0.04, v * 0.04, seed + 15) > 0.52 && h > 0.2) c.tree[i] = 1; // rừng rậm hơn ở vùng ngoài
   }
 }
+
+// ───────────────────────── đất đã mua ─────────────────────────
+
+/** Ô đất (0..LT*LT-1) chứa ô lưới (x, y). */
+export const landOf = (x, y) => ((y / LAND) | 0) * LT + ((x / LAND) | 0);
+
+/** Phần đất lúc mới chơi: 3 × 3 ô đất quanh đường dẫn vào, nới thêm tới khi chạm bờ nước (cống xả cần bờ nước). */
+function startLand(c) {
+  const tx = (c.start.x / LAND) | 0, wet = new Uint8Array(LT * LT);
+  for (let i = 0; i < N * N; i++) if (c.water[i]) wet[landOf(i % N, (i / N) | 0)] = 1;
+  for (let ty = 0; ty < 3; ty++) for (let dx = -1; dx <= 1; dx++) if (tx + dx >= 0 && tx + dx < LT) c.owned[ty * LT + tx + dx] = 1;
+  if (c.owned.some((v, t) => v && wet[t])) return;
+  const from = new Int32Array(LT * LT).fill(-2), queue = [];
+  c.owned.forEach((v, t) => { if (v) { from[t] = -1; queue.push(t); } });
+  for (let q = 0; q < queue.length; q++) {
+    const t = queue[q];
+    if (wet[t]) { for (let k = t; k >= 0; k = from[k]) c.owned[k] = 1; return; }
+    for (const n of landNear(t)) if (from[n] === -2) { from[n] = t; queue.push(n); }
+  }
+}
+
+function landNear(t) {
+  const x = t % LT, y = (t / LT) | 0, out = [];
+  if (x > 0) out.push(t - 1); if (x < LT - 1) out.push(t + 1); if (y > 0) out.push(t - LT); if (y < LT - 1) out.push(t + LT);
+  return out;
+}
+
+/** Chép c.owned (theo ô đất) ra c.own (theo ô lưới) để tra nhanh. */
+function syncLand(c) {
+  for (let i = 0; i < N * N; i++) c.own[i] = c.owned[landOf(i % N, (i / N) | 0)];
+  c.dirty.zones = c.dirty.land = true;
+}
+
+export function landPrice(c, t) {
+  let have = 0, water = 0;
+  for (const v of c.owned) have += v;
+  const x0 = (t % LT) * LAND, y0 = ((t / LT) | 0) * LAND;
+  for (let dy = 0; dy < LAND; dy++) for (let dx = 0; dx < LAND; dx++) water += c.water[idx(x0 + dx, y0 + dy)];
+  const p = (LAND_PRICE.base + LAND_PRICE.step * have) * (1 - 0.5 * water / (LAND * LAND)) * (c.tech.has('landdeal') ? 0.75 : 1);
+  return Math.round(p / 100) * 100;
+}
+
+export function canBuyLand(c, t) {
+  if (!(t >= 0 && t < LT * LT)) return { ok: false, reason: 'Ngoài bản đồ' };
+  const price = landPrice(c, t);
+  if (c.owned[t]) return { ok: false, reason: 'Ô đất này đã là của thành phố', price };
+  if (!landNear(t).some((n) => c.owned[n])) return { ok: false, reason: 'Chỉ mua được ô đất kề phần đất đã có', price };
+  if (price > c.money) return { ok: false, reason: 'Không đủ tiền', price };
+  return { ok: true, price };
+}
+
+export function buyLand(c, t) {
+  const r = canBuyLand(c, t);
+  if (!r.ok) return r;
+  c.owned[t] = 1; c.money -= r.price;
+  syncLand(c);
+  return r;
+}
+
+const LOCKED = 'Đất chưa mua: mở rộng bằng 🧭 Mua đất';
+const ownedAt = (c, wx, wz) => c.own[idx(clamp(cellOf(wx), 0, N - 1), clamp(cellOf(wz), 0, N - 1))] === 1;
 
 /** Gắn phần dữ liệu tính lại được (không lưu). */
 function attach(c) {
   const mk = () => new Uint8Array(N * N), fl = () => new Float32Array(N * N);
+  c.own = mk(); c.bonus = { happy: 0, pull: 0, comm: 0 };
   c.road = mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
   c.pOk = mk(); c.wOk = mk(); c.sOk = mk();
   c.age = new Uint16Array(N * N);
   c.occ = new Int16Array(N * N);
   c.landValue = fl().fill(30);
   c.pollution = fl(); c.air = fl(); c.ground = fl(); c.noise = fl(); c.waterPol = fl();
-  c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl() };
+  c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl(), care: fl(), death: fl(), sci: fl(), watch: fl(), shelter: fl() };
+  c.crime = fl(); c.gloom = fl();
   c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true };
+  syncLand(c);
   c.events = [];
+  c.research = c.research || 0; c.prisoners = c.prisoners || 0;
   c.stats = { pop: 0, jobs: 0, housing: 0, workers: 0, employed: 0, powerCap: 0, powerUse: 0, waterCap: 0, waterUse: 0, sewCap: 0, trashCap: 0, trashUse: 0, noPower: 0, noWater: 0, income: 0, expense: 0, roadLen: 0, happy: 55, exp: { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, loans: 0 }, inc: { r: 0, c: 0, i: 0, t: 0 }, none: {}, tight: {} };
-  c.demand = { r: 0.6, c: 0.2, i: 0.2, o: 0 };
+  c.demand = { r: 0.6, c: 0.2, i: 0.2, o: 0, x: 0.6 };
   c.rng = mulberry32(c.seed ^ Math.imul(c.hour + 1, 2654435761));
   c.adj = new Map();
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
-  if (!c.entry) c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { clearBuilding, cellHappy, taxAdj, hasPolicy, ownedAt };
+  c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
+  c.fn = { clearBuilding, cellHappy, die };
   c.onArrive = onArrive;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
-  initTraffic(c); initPeople(c); initTransit(c);
+  initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
   makeTerrain(c);
   rebuildOcc(c);
   return c;
@@ -189,10 +270,10 @@ function measure(pts) {
 }
 
 /** Thêm đoạn đường giữa hai nút; (cx, cz) là điểm điều khiển, bỏ trống = đường thẳng. */
-function addEdge(c, a, b, type, cx, cz, elev = 0) {
+function addEdge(c, a, b, type, cx, cz) {
   const A = c.nodes.get(a), B = c.nodes.get(b);
   if (cx == null) { cx = (A.x + B.x) / 2; cz = (A.z + B.z) / 2; }
-  const e = { id: c.nextId++, a, b, type, cx, cz, elev: elev ? 1 : 0 };
+  const e = { id: c.nextId++, a, b, type, cx, cz };
   e.pts = sampleCurve(A.x, A.z, cx, cz, B.x, B.z, 4);
   e.cum = measure(e.pts); e.len = e.cum[e.cum.length - 1];
   c.edges.set(e.id, e);
@@ -239,7 +320,6 @@ export function snapPoint(c, x, z, { grid = true, type = 'small' } = {}) {
   let be = null, br = null;
   for (const e of c.edges.values()) {
     const r = nearestOnEdge(e, x, z);
-    if (edgeH(e, r.along) > 1) continue; // không nối vào giữa cầu vượt
     if (r.d < ROADS[e.type].w / 2 + 3 && (!br || r.d < br.d)) { br = r; be = e; }
   }
   if (be) {
@@ -279,13 +359,12 @@ function cellsUnder(pts, half, fn) {
   }
 }
 
-function pathCost(c, pts, perUnit, elev = false) {
+function pathCost(c, pts, perUnit) {
   let cost = 0;
   const n = pts.length / 2 - 1;
   for (let k = 0; k < n; k++) {
     const l = Math.hypot(pts[k * 2 + 2] - pts[k * 2], pts[k * 2 + 3] - pts[k * 2 + 1]);
-    const water = isWaterAt(c, (pts[k * 2] + pts[k * 2 + 2]) / 2, (pts[k * 2 + 1] + pts[k * 2 + 3]) / 2);
-    cost += l * perUnit * (elev ? Math.max(ELEV_MULT, water ? BRIDGE_MULT : 1) : water ? BRIDGE_MULT : 1);
+    cost += l * perUnit * (isWaterAt(c, (pts[k * 2] + pts[k * 2 + 2]) / 2, (pts[k * 2 + 1] + pts[k * 2 + 3]) / 2) ? BRIDGE_MULT : 1);
   }
   return Math.round(cost);
 }
@@ -294,9 +373,10 @@ function pathCost(c, pts, perUnit, elev = false) {
  * Tính trước một đoạn đường sắp vẽ: a, b là kết quả snapPoint; ctrl = điểm điều khiển (đường cong) hoặc null.
  * Tự tìm chỗ cắt đường khác để tạo nút giao. Trả về { ok, reason, cost, pts, len, stops, ... }.
  */
-export function planRoad(c, { a, b, ctrl = null, type = 'small', elev = false }) {
+export function planRoad(c, { a, b, ctrl = null, type = 'small' }) {
   const def = ROADS[type];
   if (!def) return { ok: false, reason: 'Không có loại đường này' };
+  if (!roadUnlocked(c, type)) return { ok: false, reason: `${def.name}: mở khi đạt ${def.unlock} dân` };
   const fix = (s) => {
     if (s.node != null && c.nodes.has(s.node)) { const n = c.nodes.get(s.node); return { x: n.x, z: n.z, node: s.node }; }
     if (s.edge != null && c.edges.has(s.edge)) return { x: s.x, z: s.z, edge: s.edge, te: s.t };
@@ -305,19 +385,18 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', elev = false })
   const A = fix(a), B = fix(b);
   const cx = ctrl ? ctrl.x : (A.x + B.x) / 2, cz = ctrl ? ctrl.z : (A.z + B.z) / 2;
   const pts = sampleCurve(A.x, A.z, cx, cz, B.x, B.z, 2.5), n = pts.length / 2 - 1, cum = measure(pts), len = cum[n];
-  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz, elev: !!elev };
-  const myH = (k) => (elev ? deckH(len, cum[k]) : 0);
+  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz };
   if (len < 8 || (A.node != null && A.node === B.node)) return { ...out, reason: 'Đoạn quá ngắn' };
   for (let k = 0; k <= n; k++) if (Math.abs(pts[k * 2]) > HALF - 1 || Math.abs(pts[k * 2 + 1]) > HALF - 1) return { ...out, reason: 'Ra ngoài bản đồ' };
-  for (let k = 0; k <= n; k++) if (!ownedAt(c, pts[k * 2], pts[k * 2 + 1])) return { ...out, reason: 'Ngoài phần đất của thành phố, hãy mua thêm đất' };
-  if (elev && len < MIN_ELEV_LEN) return { ...out, reason: `Cầu vượt cần dài ít nhất ${MIN_ELEV_LEN / T} ô để đủ dốc lên xuống` };
-  out.cost = pathCost(c, pts, def.cost, elev);
+  for (let k = 0; k <= n; k++) if (!ownedAt(c, pts[k * 2], pts[k * 2 + 1])) return { ...out, reason: LOCKED };
+  out.cost = pathCost(c, pts, def.cost);
 
   const stops = [{ t: 0, ...A }, { t: 1, ...B }];
   const touches = (s, e) => s.edge === e.id || s.node === e.a || s.node === e.b;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (let k = 0; k <= n; k++) { minX = Math.min(minX, pts[k * 2]); maxX = Math.max(maxX, pts[k * 2]); minZ = Math.min(minZ, pts[k * 2 + 1]); maxZ = Math.max(maxZ, pts[k * 2 + 1]); }
   for (const e of c.edges.values()) {
+    if (!sameLevel(type, e.type)) continue; // khác tầng: cầu vượt bắc qua, không tạo nút giao
     const q = e.pts, m = q.length / 2 - 1, Na = c.nodes.get(e.a), Nb = c.nodes.get(e.b);
     let ex0 = Infinity, ex1 = -Infinity, ez0 = Infinity, ez1 = -Infinity;
     for (let j = 0; j <= m; j++) { ex0 = Math.min(ex0, q[j * 2]); ex1 = Math.max(ex1, q[j * 2]); ez0 = Math.min(ez0, q[j * 2 + 1]); ez1 = Math.max(ez1, q[j * 2 + 1]); }
@@ -328,10 +407,6 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', elev = false })
       if (!r) continue;
       const x = pts[k * 2] + (pts[k * 2 + 2] - pts[k * 2]) * r.t, z = pts[k * 2 + 1] + (pts[k * 2 + 3] - pts[k * 2 + 1]) * r.t, te = (j + r.u) / m;
       if ((Math.hypot(x - A.x, z - A.z) < 9 && touches(A, e)) || (Math.hypot(x - B.x, z - B.z) < 9 && touches(B, e))) continue;
-      // khác tầng: cầu vượt đi qua trên đầu, không có nút giao
-      const h1 = elev ? deckH(len, cum[k] + (cum[k + 1] - cum[k]) * r.t) : 0, h2 = edgeH(e, e.cum[j] + (e.cum[j + 1] - e.cum[j]) * r.u);
-      if (Math.abs(h1 - h2) > 3.5) continue;
-      if (Math.max(h1, h2) > 0.6) return { ...out, reason: h1 > 3.5 && h2 > 3.5 ? 'Hai cầu vượt không cắt nhau giữa không trung được' : 'Dốc cầu vượt không được cắt ngang đường khác' };
       if (found.some((o) => Math.abs(o.te - te) * e.len < 6)) continue;
       found.push({ te });
       const tn = (k + r.t) / n;
@@ -355,11 +430,7 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', elev = false })
     for (const s of uniq) near = Math.min(near, Math.hypot(s.x - x, s.z - z));
     if (near < 14) continue;
     // tim đường gần như trùng nhau, hoặc ở xa chỗ giao mà hai mặt đường vẫn đè lên nhau
-    for (const e of c.edges.values()) {
-      const r = nearestOnEdge(e, x, z), d = r.d;
-      if (Math.abs(myH(k) - edgeH(e, r.along)) > 3.5) continue; // khác tầng thì không tính là đè lên nhau
-      if (d < 4 || (near > 40 && d < (ROADS[e.type].w + def.w) / 2 - 1)) { over += cum[k] - cum[k - 1]; break; }
-    }
+    for (const e of c.edges.values()) { if (!sameLevel(type, e.type)) continue; const d = nearestOnEdge(e, x, z).d; if (d < 4 || (near > 40 && d < (ROADS[e.type].w + def.w) / 2 - 1)) { over += cum[k] - cum[k - 1]; break; } }
   }
   if (over > 7) return { ...out, reason: 'Trùng hoặc quá sát đường khác' };
   let blocked = false;
@@ -387,7 +458,7 @@ function splitEdge(c, e, ts) {
     c.edges.delete(e.id);
     for (let k = 0; k + 1 < chain.length; k++) {
       const m = subCtrl(A.x, A.z, e.cx, e.cz, B.x, B.z, chain[k].t, chain[k + 1].t);
-      addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1], e.elev);
+      addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1]);
     }
   }
   return res;
@@ -396,7 +467,7 @@ function splitEdge(c, e, ts) {
 export function buildRoad(c, spec) {
   const plan = planRoad(c, spec);
   if (!plan.ok) return plan;
-  const { stops, A, B, cx, cz, type, elev } = plan;
+  const { stops, A, B, cx, cz, type } = plan;
   const byEdge = new Map();
   for (const s of stops) if (s.node == null && s.edge != null) { if (!byEdge.has(s.edge)) byEdge.set(s.edge, []); byEdge.get(s.edge).push(s); }
   for (const [eid, list] of byEdge) {
@@ -409,7 +480,7 @@ export function buildRoad(c, spec) {
     const p = stops[k], q = stops[k + 1];
     if (p.node === q.node || edgeBetween(c, p.node, q.node)) continue;
     const m = subCtrl(A.x, A.z, cx, cz, B.x, B.z, p.t, q.t);
-    addEdge(c, p.node, q.node, type, m[0], m[1], elev);
+    addEdge(c, p.node, q.node, type, m[0], m[1]);
     made++;
   }
   if (!made) return { ...plan, ok: false, reason: 'Đã có đường ở đây' };
@@ -435,6 +506,8 @@ export function upgradeRoad(c, edgeId, type) {
     roadsChanged(c);
     return { ok: true, cost: 0, flipped: true };
   }
+  if (!roadUnlocked(c, type)) return { ok: false, reason: `${ROADS[type].name}: mở khi đạt ${ROADS[type].unlock} dân` };
+  if (!sameLevel(e.type, type)) return { ok: false, reason: 'Không đổi được giữa đường dưới đất và đường trên cao: hãy vẽ đường mới' };
   const cost = upgradeCost(e, type);
   if (cost > c.money) return { ok: false, reason: 'Không đủ tiền' };
   let blocked = false;
@@ -456,7 +529,6 @@ function roadsChanged(c) {
   rebuildAdj(c);
   for (const [id, list] of c.adj) if (!list.length) { c.nodes.delete(id); c.adj.delete(id); }
   rebuildRoadCells(c);
-  markEdges(c);
   computeNetworks(c);
   rebuildTraffic(c);
   maintainTransit(c);
@@ -472,25 +544,29 @@ function rebuildRoadCells(c) {
   const minD = new Float32Array(N * N).fill(1e9);
   c.road.fill(0); c.cedge.fill(-1);
   for (const e of c.edges.values()) {
-    const half = ROADS[e.type].w / 2, p = e.pts, n = p.length / 2 - 1, reach = half + 26;
+    const half = ROADS[e.type].w / 2, p = e.pts, n = p.length / 2 - 1, reach = half + 26, high = ROADS[e.type].elevated;
     for (let k = 0; k < n; k++) {
       const x0 = p[k * 2], z0 = p[k * 2 + 1], x1 = p[k * 2 + 2], z1 = p[k * 2 + 3];
-      const high = e.elev && Math.min(deckH(e.len, e.cum[k]), deckH(e.len, e.cum[k + 1])) > 1.5; // đoạn đang ở trên cao: chặn xây bên dưới nhưng nhà không ra vào được
       const l = Math.hypot(x1 - x0, z1 - z0) || 1, ext = 5 * (Math.abs((z1 - z0) / l) + Math.abs((x1 - x0) / l));
       const cx0 = Math.max(0, cellOf(Math.min(x0, x1) - reach)), cx1 = Math.min(N - 1, cellOf(Math.max(x0, x1) + reach));
       const cy0 = Math.max(0, cellOf(Math.min(z0, z1) - reach)), cy1 = Math.min(N - 1, cellOf(Math.max(z0, z1) + reach));
       for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
         const px = cellCenter(x), pz = cellCenter(y), r = distSeg(px, pz, x0, z0, x1, z1), i = idx(x, y);
         if (r.d < half + ext - 0.6) c.road[i] = 1;
-        if (high) continue;
         const dd = r.d - half;
-        if (dd < minD[i]) {
+        if (!high && dd < minD[i]) { // đường trên cao: chặn ô bên dưới nhưng không có nhà quay mặt ra
           minD[i] = dd; c.cedge[i] = e.id;
           const dx = r.x - px, dz = r.z - pz;
           c.rdir[i] = Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? 0 : 2) : dz >= 0 ? 1 : 3;
         }
       }
     }
+  }
+  // đảo giữa vòng xuyến: chặn như mặt đường; vòng nào đã bị phá hết nút thì bỏ
+  c.rings = c.rings.filter((g) => [...c.nodes.values()].some((n) => n.rb && Math.hypot(n.x - g.x, n.z - g.z) < ROUNDABOUT_R + 2));
+  for (const g of c.rings) {
+    const gx = cellOf(g.x), gy = cellOf(g.z);
+    for (let y = gy - 2; y <= gy + 2; y++) for (let x = gx - 2; x <= gx + 2; x++) if (inMap(x, y) && Math.hypot(cellCenter(x) - g.x, cellCenter(y) - g.z) < ROUNDABOUT_R) c.road[idx(x, y)] = 1;
   }
   for (let i = 0; i < N * N; i++) {
     c.acc[i] = c.road[i] || c.water[i] ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 ? 2 : 0;
@@ -508,6 +584,108 @@ export function roadDir(c, x, y) {
   return inMap(x, y) && c.acc[i] ? c.rdir[i] : -1;
 }
 
+export const roadUnlocked = (c, type) => !!ROADS[type] && unlockedAt(c, ROADS[type]);
+
+/** Nút giao gần điểm (x, z) nhất trong bán kính r, hoặc null. */
+export function nodeAt(c, x, z, r = 12) {
+  let best = null, bd = r;
+  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; best = n; } }
+  return best;
+}
+
+/** Nút nằm trên cao: mọi nhánh đều là đường trên cao (nút cụt thì dốc xuống mặt đất). */
+export function nodeElevated(c, nid) {
+  const l = c.adj.get(nid);
+  return !!l && l.length >= 2 && l.every((id) => ROADS[c.edges.get(id).type].elevated);
+}
+
+/** Độ cao mặt đường so với mặt đất tại quãng đường s trên đoạn e (đường trên cao dốc dần ở đầu nối xuống đất). */
+export function liftAt(c, e, s) {
+  if (!ROADS[e.type].elevated) return 0;
+  const ramp = (d) => { const t = clamp((d - 3) / 34, 0, 1); return t * t * (3 - 2 * t); };
+  return LIFT * Math.min(nodeElevated(c, e.a) ? 1 : ramp(s), nodeElevated(c, e.b) ? 1 : ramp(e.len - s));
+}
+
+/** Tham số t (0..1) trên đường cong của đoạn e ứng với quãng đường s tính từ đầu a. */
+function tAtLength(e, s) {
+  const n = e.cum.length - 1;
+  let k = 0;
+  while (k < n - 1 && e.cum[k + 1] < s) k++;
+  return (k + clamp((s - e.cum[k]) / (e.cum[k + 1] - e.cum[k] || 1), 0, 1)) / n;
+}
+
+export const ROUNDABOUT_R = 15;
+export const roundaboutCost = () => Math.round(2 * Math.PI * ROUNDABOUT_R * ROADS.oneway.cost * 1.6);
+
+/** Kiểm tra làm vòng xuyến tại nút nid. */
+export function canRoundabout(c, nid) {
+  const n = c.nodes.get(nid), list = c.adj.get(nid), cost = roundaboutCost();
+  if (!n || !list) return { ok: false, reason: 'Bấm vào một nút giao', cost };
+  if (n.rb) return { ok: false, reason: 'Nút này đã thuộc một vòng xuyến', cost };
+  if (list.length < 3) return { ok: false, reason: 'Chỉ làm vòng xuyến ở ngã ba, ngã tư trở lên', cost };
+  const edges = list.map((id) => c.edges.get(id));
+  if (edges.some((e) => ROADS[e.type].elevated)) return { ok: false, reason: 'Không làm vòng xuyến trên đường trên cao', cost };
+  if (edges.some((e) => e.len < ROUNDABOUT_R + 12)) return { ok: false, reason: 'Các nhánh quá ngắn, hãy kéo dài đường ra', cost };
+  const r = ROUNDABOUT_R + 4, cx = cellOf(n.x), cy = cellOf(n.z), rc = Math.ceil(r / T);
+  for (let y = cy - rc; y <= cy + rc; y++) for (let x = cx - rc; x <= cx + rc; x++) {
+    if (!inMap(x, y)) return { ok: false, reason: 'Sát mép bản đồ quá', cost };
+    if (Math.hypot(cellCenter(x) - n.x, cellCenter(y) - n.z) > r) continue;
+    if (c.occ[idx(x, y)]) return { ok: false, reason: 'Vướng công trình, hãy san ủi trước', cost };
+    if (!c.own[idx(x, y)]) return { ok: false, reason: LOCKED, cost };
+  }
+  if (cost > c.money) return { ok: false, reason: 'Không đủ tiền', cost };
+  return { ok: true, cost };
+}
+
+/**
+ * Đổi nút giao thành vòng xuyến: cắt mỗi nhánh cách tâm R, nối các đầu cắt bằng vòng đường một chiều
+ * chạy ngược chiều kim đồng hồ (xe đi bên phải). Xe trong vòng được ưu tiên, không có đèn.
+ */
+export function makeRoundabout(c, nid) {
+  const r = canRoundabout(c, nid);
+  if (!r.ok) return r;
+  const n = c.nodes.get(nid), R = ROUNDABOUT_R, arms = [];
+  for (const id of [...c.adj.get(nid)]) {
+    const e = c.edges.get(id), atA = e.a === nid;
+    const [arm] = splitEdge(c, e, [tAtLength(e, atA ? R : e.len - R)]);
+    const inner = edgeBetween(c, nid, arm);
+    if (inner) c.edges.delete(inner.id);
+    const A = c.nodes.get(arm);
+    arms.push({ id: arm, ang: Math.atan2(A.z - n.z, A.x - n.x) });
+  }
+  arms.sort((p, q) => q.ang - p.ang); // góc giảm dần = ngược chiều kim đồng hồ khi nhìn từ trên xuống
+  const ring = [];
+  arms.forEach((a, k) => {
+    const b = arms[(k + 1) % arms.length], span = k + 1 < arms.length ? a.ang - b.ang : a.ang - (b.ang - 2 * Math.PI);
+    const parts = Math.max(1, Math.ceil(span / (Math.PI / 2 + 0.01)));
+    let from = a.id;
+    for (let j = 1; j <= parts; j++) {
+      const ang = a.ang - (span * j) / parts, mid = a.ang - (span * (j - 0.5)) / parts, k2 = R / Math.cos(span / parts / 2);
+      const to = j === parts ? b.id : addNode(c, n.x + Math.cos(ang) * R, n.z + Math.sin(ang) * R);
+      addEdge(c, from, to, 'oneway', n.x + Math.cos(mid) * k2, n.z + Math.sin(mid) * k2);
+      ring.push(to); from = to;
+    }
+  });
+  for (const id of ring) c.nodes.get(id).rb = 1;
+  c.rings.push({ x: Math.round(n.x * 10) / 10, z: Math.round(n.z * 10) / 10 });
+  c.money -= r.cost;
+  roadsChanged(c);
+  return { ok: true, cost: r.cost };
+}
+
+export const JUNCTION_CTL = ['Tự động', 'Đèn tín hiệu', 'Biển dừng'];
+/** Đặt cách điều khiển nút giao: 0 tự động (ngã tư hoặc có đại lộ thì có đèn), 1 luôn có đèn, 2 biển dừng (dừng hẳn rồi lần lượt đi). */
+export function setJunction(c, nid, ctl) {
+  const n = c.nodes.get(nid), list = c.adj.get(nid);
+  if (!n || !list || list.length < 3) return { ok: false, reason: 'Chỉ đặt được ở ngã ba, ngã tư' };
+  if (n.rb) return { ok: false, reason: 'Vòng xuyến không cần đèn hay biển dừng' };
+  if (nodeElevated(c, nid)) return { ok: false, reason: 'Nút trên cao không đặt đèn' };
+  n.ctl = clamp(ctl | 0, 0, 2);
+  rebuildTraffic(c);
+  c.dirty.roads = true;
+  return { ok: true, ctl: n.ctl };
+}
+
 // ───────────────────────── dây điện, ống nước ─────────────────────────
 
 function serviceAt(c, x, z, slack = 0) {
@@ -523,7 +701,7 @@ export function planLine(c, kind, a, b) {
   const cost = Math.round(len * def.cost);
   if (len < 8) return { ok: false, reason: 'Đoạn quá ngắn', cost, len };
   if (Math.max(Math.abs(a.x), Math.abs(a.z), Math.abs(b.x), Math.abs(b.z)) > HALF) return { ok: false, reason: 'Ra ngoài bản đồ', cost, len };
-  if (!ownedAt(c, a.x, a.z) || !ownedAt(c, b.x, b.z)) return { ok: false, reason: 'Ngoài phần đất của thành phố, hãy mua thêm đất', cost, len };
+  for (let k = 0; k <= 24; k++) if (!ownedAt(c, a.x + ((b.x - a.x) * k) / 24, a.z + ((b.z - a.z) * k) / 24)) return { ok: false, reason: LOCKED, cost, len };
   if (cost > c.money) return { ok: false, reason: 'Không đủ tiền', cost, len };
   return { ok: true, cost, len };
 }
@@ -571,18 +749,17 @@ export function computeNetworks(c) {
   const pSup = new Float64Array(total), pUse = new Float64Array(total), wSup = new Float64Array(total), wUse = new Float64Array(total), sSup = new Float64Array(total);
   c.services.forEach((s, k) => {
     const d = SERVICES[s.type];
-    if (d.power) pSup[find(P, E + k)] += svcVal(c, s, 'power');
-    if (d.water) wSup[find(W, E + k)] += svcVal(c, s, 'water');
-    if (d.sewage) sSup[find(W, E + k)] += svcVal(c, s, 'sewage');
+    if (d.power) pSup[find(P, E + k)] += svcVal(s, 'power');
+    if (d.water) wSup[find(W, E + k)] += svcVal(s, 'water');
+    if (d.sewage) sSup[find(W, E + k)] += svcVal(s, 'sewage');
   });
   const rootP = new Int32Array(N * N).fill(-1), rootW = new Int32Array(N * N).fill(-1);
-  const pm = hasTech(c, 'grid') ? 0.85 : 1, wm = hasTech(c, 'reuse') ? 0.8 : 1;
   for (let i = 0; i < N * N; i++) {
     if (c.cedge[i] < 0 || !c.acc[i]) continue;
     const k = eIx.get(c.cedge[i]);
     rootP[i] = find(P, k); rootW[i] = find(W, k);
     const L2 = c.level[i];
-    if (L2) { const u = utilUse(c.zone[i], L2); pUse[rootP[i]] += u * pm; wUse[rootW[i]] += u * wm; }
+    if (L2) { const u = utilUse(c.zone[i], L2); pUse[rootP[i]] += u; wUse[rootW[i]] += u; }
   }
   const flag = (sup, use) => (sup <= 0 ? 0 : use > sup ? 2 : 1);
   let noP = 0, noW = 0;
@@ -608,122 +785,6 @@ export function computeNetworks(c) {
   c.stats.noPower = noP; c.stats.noWater = noW;
 }
 
-// ───────────────────────── đất đai, quận, công nghệ, phần mở rộng ─────────────────────────
-
-const tileOf = (x, y) => ((y / TILE) | 0) * TILES + ((x / TILE) | 0);
-export const ownedCell = (c, i) => c.owned[tileOf(i % N, (i / N) | 0)] === 1;
-export function ownedAt(c, wx, wz) { const x = cellOf(wx), y = cellOf(wz); return inMap(x, y) && c.owned[tileOf(x, y)] === 1; }
-/** Số lô đất tối đa được sở hữu ở mốc dân số hiện tại, và giá lô kế tiếp. */
-export const maxTiles = (c) => Math.min(TILES * TILES, 10 + c.milestone * 3);
-export function tileCost(c) { let n = 0; for (const o of c.owned) n += o; return 6000 + (n - 9) * 3000; }
-
-export function canBuyTile(c, t) {
-  if (!(t >= 0 && t < TILES * TILES)) return { ok: false, reason: 'Ngoài bản đồ' };
-  if (c.owned[t]) return { ok: false, reason: 'Lô này đã là của thành phố' };
-  const tx = t % TILES, ty = (t / TILES) | 0, cost = tileCost(c);
-  let near = false, n = 0;
-  for (const o of c.owned) n += o;
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = tx + dx, b = ty + dy; if (a >= 0 && b >= 0 && a < TILES && b < TILES && c.owned[b * TILES + a]) near = true; }
-  if (!near) return { ok: false, reason: 'Chỉ mua được lô liền kề đất đang có', cost };
-  if (n >= maxTiles(c)) return { ok: false, reason: 'Cần đạt mốc dân số tiếp theo để mua thêm đất', cost };
-  if (cost > c.money) return { ok: false, reason: 'Không đủ tiền', cost };
-  return { ok: true, cost };
-}
-
-export function buyTile(c, t) {
-  const r = canBuyTile(c, t);
-  if (!r.ok) return r;
-  c.owned[t] = 1; c.money -= r.cost;
-  c.dirty.land = c.dirty.zones = true;
-  return r;
-}
-
-/** Gán các ô trong hình chữ nhật vào quận d (0 = bỏ khỏi quận). */
-export function districtRect(c, x0, y0, x1, y1, d) {
-  if (!(d >= 0 && d < DISTRICTS.length)) return { ok: false };
-  let n = 0;
-  for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-    if (!inMap(x, y)) continue;
-    const i = idx(x, y);
-    if (c.water[i] || !ownedCell(c, i) || c.district[i] === d) continue;
-    c.district[i] = d; n++;
-  }
-  if (n) { markEdges(c); computeMaps(c); recalc(c); c.dirty.zones = true; }
-  return { ok: n > 0, count: n };
-}
-
-export const hasPolicy = (c, i, key) => { const d = c.district[i]; return d > 0 && !!c.policy[d][key]; };
-/** Điểm thuế cộng / trừ của quận chứa ô i. */
-export const taxAdj = (c, i) => { const d = c.district[i]; return d ? (c.policy[d].lowTax ? -3 : c.policy[d].highTax ? 3 : 0) : 0; };
-
-export function setPolicy(c, d, key, on) {
-  if (!(d > 0 && d < DISTRICTS.length) || !POLICIES[key]) return { ok: false };
-  if (on) { c.policy[d][key] = 1; if (POLICIES[key].not) delete c.policy[d][POLICIES[key].not]; } else delete c.policy[d][key];
-  markEdges(c); computeMaps(c); recalc(c); c.dirty.zones = true;
-  return { ok: true };
-}
-
-/** Đánh dấu đoạn đường nằm trong quận cấm xe tải. */
-function markEdges(c) {
-  for (const e of c.edges.values()) {
-    const k = (e.pts.length >> 2) << 1, x = cellOf(e.pts[k]), y = cellOf(e.pts[k + 1]);
-    e.noTruck = inMap(x, y) && hasPolicy(c, idx(x, y), 'noTruck');
-  }
-}
-
-export function canResearch(c, id) {
-  const t = TECH[id];
-  if (!t) return { ok: false, reason: 'Không có công nghệ này' };
-  if (c.tech[id]) return { ok: false, reason: 'Đã có' };
-  if (t.req && !c.tech[t.req]) return { ok: false, reason: `Cần "${TECH[t.req].name}" trước` };
-  if (c.points < t.cost) return { ok: false, reason: `Cần ${t.cost} điểm phát triển` };
-  return { ok: true };
-}
-
-export function research(c, id) {
-  const r = canResearch(c, id);
-  if (!r.ok) return r;
-  c.points -= TECH[id].cost; c.tech[id] = 1;
-  computeMaps(c); computeNetworks(c); recalc(c);
-  return r;
-}
-
-/** Điều kiện mở khoá công trình biểu tượng. */
-export function landmarkOk(c, type) {
-  const ps = c.pstats;
-  if (type === 'tvtower') return ps.pop >= 3000 && ps.happy >= 55;
-  if (type === 'museum') return ps.edu[3] >= 150;
-  if (type === 'nightmarket') return (ps.shops || 0) >= 40;
-  if (type === 'monument') return c.econ.exports >= 3000;
-  return true;
-}
-
-/** Gắn thêm một phần mở rộng vào công trình thứ k. */
-export function addModule(c, k, modId) {
-  const s = c.services[k], m = s && (MODS[s.type] || []).find((x) => x.id === modId);
-  if (!m) return { ok: false, reason: 'Công trình này không mở rộng kiểu đó được' };
-  s.mods = s.mods || {};
-  if ((s.mods[modId] || 0) >= m.max) return { ok: false, reason: 'Đã mở rộng tối đa' };
-  if (m.cost > c.money) return { ok: false, reason: 'Không đủ tiền' };
-  s.mods[modId] = (s.mods[modId] || 0) + 1; c.money -= m.cost;
-  c.dirty.services = true;
-  computeMaps(c); computeNetworks(c); recalc(c);
-  return { ok: true, cost: m.cost };
-}
-
-/** Ô i có hợp với loại khu z không (khu khai thác cần đúng tài nguyên). */
-export function zoneFits(c, z, i) {
-  const need = ZDEF[z].need;
-  if (!need) return true;
-  const x = i % N, y = (i / N) | 0;
-  if (need === 'fertile') return c.res[i] === 1;
-  if (need === 'ore') return c.res[i] === 2;
-  if (need === 'oil') return c.res[i] === 3;
-  let hit = false;
-  for (let dy = -1; dy <= 1 && !hit; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (inMap(a, b) && (need === 'forest' ? c.tree[idx(a, b)] : c.water[idx(a, b)])) { hit = true; break; } }
-  return hit;
-}
-
 // ───────────────────────── quy hoạch, công trình, san ủi ─────────────────────────
 
 function clearBuilding(c, i) {
@@ -732,25 +793,30 @@ function clearBuilding(c, i) {
   onBuildingCleared(c, i);
 }
 
-const unlockedAt = (c, need) => !need || MILESTONES.some((m, k) => k < c.milestone && m.pop >= need);
-export const zoneUnlocked = (c, z) => unlockedAt(c, ZDEF[z].unlock);
-export const isUnlocked = (c, type) => { const d = SERVICES[type]; return d.tech ? hasTech(c, d.tech) : d.landmark ? landmarkOk(c, type) : unlockedAt(c, d.unlock); };
+const unlockedAt = (c, d) => (!d.unlock || MILESTONES.some((m, k) => k < c.milestone && m.pop >= d.unlock)) && (!d.tech || c.tech.has(d.tech));
+export const zoneUnlocked = (c, z) => unlockedAt(c, ZDEF[z]);
+export const isUnlocked = (c, type) => unlockedAt(c, SERVICES[type]);
+/** Câu giải thích vì sao một khu / công trình còn khoá. */
+export const lockText = (d) => (d.tech ? `mở trong 🔬 Phát triển (${TECH[d.tech].name})` : `mở khi đạt ${d.unlock} dân`);
 
 /** Tô quy hoạch: chỉ ô quy hoạch tự sinh cạnh đường (acc > 0) mới nhận. z = 0 là bỏ quy hoạch. */
 export function zoneRect(c, x0, y0, x1, y1, z) {
   if (!ZDEF[z]) return { ok: false, reason: 'Không có loại khu này' };
-  if (!zoneUnlocked(c, z)) return { ok: false, reason: `${ZDEF[z].name} mở khoá khi đạt ${ZDEF[z].unlock} dân` };
-  let n = 0;
+  if (!zoneUnlocked(c, z)) return { ok: false, reason: `${ZDEF[z].name}: ${lockText(ZDEF[z])}` };
+  let n = 0, locked = 0, noRes = 0;
   for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
     if (!inMap(x, y)) continue;
     const i = idx(x, y);
-    if (c.water[i] || c.road[i] || c.occ[i] || c.zone[i] === z || !ownedCell(c, i)) continue;
-    if (z !== 0 && (!c.acc[i] || c.steep[i] || !zoneFits(c, z, i))) continue;
+    if (!c.own[i]) { locked++; continue; }
+    if (c.water[i] || c.road[i] || c.occ[i] || c.zone[i] === z) continue;
+    if (z !== 0 && (!c.acc[i] || c.steep[i])) continue;
+    if (!hasResource(c, i, z)) { noRes++; continue; }
     if (c.level[i]) { if (z !== 0) continue; clearBuilding(c, i); } // chỉ "bỏ quy hoạch" mới dỡ nhà
     c.zone[i] = z; n++;
   }
   if (n) { c.dirty.zones = true; computeNetworks(c); recalc(c); }
-  return { ok: n > 0, count: n, reason: n ? '' : ZDEF[z].need ? `${ZDEF[z].name} chỉ tô được trên ô cạnh đường có đúng tài nguyên (xem lớp 🗺️ tài nguyên)` : 'Chỉ quy hoạch được ô nằm cạnh đường (tối đa 2 ô), không quá dốc' };
+  const why = noRes ? `${ZDEF[z].name} chỉ đặt được trên ô có ${RAW[ZDEF[z].raw].name.toLowerCase()} (xem lớp 🗺️ tài nguyên)` : locked ? LOCKED : 'Chỉ quy hoạch được ô nằm cạnh đường (tối đa 2 ô), không quá dốc';
+  return { ok: n > 0, count: n, reason: n ? '' : why };
 }
 
 export function bulldozeRect(c, x0, y0, x1, y1) {
@@ -758,16 +824,10 @@ export function bulldozeRect(c, x0, y0, x1, y1) {
   const kill = new Set(), roads = new Set();
   const ax = Math.min(x0, x1), bx = Math.max(x0, x1), ay = Math.min(y0, y1), by = Math.max(y0, y1);
   for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) {
-    if (!inMap(x, y)) continue;
+    if (!inMap(x, y) || !c.own[idx(x, y)]) continue;
     const i = idx(x, y);
     if (c.occ[i]) { kill.add(c.occ[i] - 1); continue; }
-    if (c.road[i] || c.water[i]) {
-      // ô có cả đường dưới đất lẫn cầu vượt bên trên: chỉ phá đường dưới đất (muốn phá cầu thì san ủi ở chân cầu)
-      const hit = [];
-      for (const e of c.edges.values()) { const r = nearestOnEdge(e, cellCenter(x), cellCenter(y)); if (r.d < ROADS[e.type].w / 2 + 4.4) hit.push([e, edgeH(e, r.along)]); }
-      const ground = hit.some(([, h]) => h < 3);
-      for (const [e, h] of hit) if (!ground || h < 3) roads.add(e.id);
-    }
+    if (c.road[i] || c.water[i]) for (const e of c.edges.values()) if (nearestOnEdge(e, cellCenter(x), cellCenter(y)).d < ROADS[e.type].w / 2 + 4.4) roads.add(e.id);
     if (c.level[i]) { clearBuilding(c, i); n++; }
     if (c.tree[i]) { c.tree[i] = 0; n++; c.dirty.trees = true; }
   }
@@ -795,7 +855,7 @@ export function footprint(type, x, y) {
 }
 
 /** Kiểm tra đặt công trình, (x, y) là ô dưới con trỏ. */
-export function canPlace(c, type, x, y, { move = false } = {}) {
+export function canPlace(c, type, x, y) {
   const def = SERVICES[type];
   if (!def) return { ok: false, reason: 'Không có công trình này' };
   const fp = footprint(type, x, y);
@@ -806,20 +866,61 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
     if (!inMap(a, b)) { if (inside) return { ok: false, reason: 'Ra ngoài bản đồ', fp }; continue; }
     const i = idx(a, b);
     if (inside) {
-      if (!ownedCell(c, i)) return { ok: false, reason: 'Ngoài phần đất của thành phố, hãy mua thêm đất', fp };
+      if (!c.own[i]) return { ok: false, reason: LOCKED, fp };
       if (c.water[i]) return { ok: false, reason: 'Không xây được trên nước', fp };
-      if (c.steep[i]) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.road[i]) return { ok: false, reason: 'Đang có đường', fp };
       if (c.occ[i]) return { ok: false, reason: 'Đang có công trình khác', fp };
+      if (c.steep[i]) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.acc[i] === 1) nearRoad = true;
     } else if (c.water[i]) nearWater = true;
   }
   if (def.needWater && !nearWater) return { ok: false, reason: 'Phải đặt sát bờ nước', fp };
   if (def.road && !nearRoad) return { ok: false, reason: 'Phải đặt sát đường', fp };
-  if (move) return { ok: true, fp }; // dời công trình đã có: không xét mở khoá, phí trả riêng
-  if (!isUnlocked(c, type)) return { ok: false, reason: def.tech ? `Cần công nghệ "${TECH[def.tech].name}"` : def.landmark ? `Mở khoá khi: ${def.landmark}` : `Mở khoá khi đạt ${def.unlock} dân`, fp };
+  if (!isUnlocked(c, type)) return { ok: false, reason: `${def.name}: ${lockText(def)}`, fp };
+  if (def.unique && c.services.some((s) => s.type === type)) return { ok: false, reason: 'Mỗi thành phố chỉ có một công trình biểu tượng này', fp };
   if (def.cost > c.money) return { ok: false, reason: 'Không đủ tiền', fp };
   return { ok: true, fp };
+}
+
+// ───────────────────────── module, cây công nghệ ─────────────────────────
+
+/** Các module một công trình nhận được: [{ id, cost, state: 'done' | 'ok' | 'lock' | 'poor' }] */
+export function moduleList(c, s) {
+  return Object.keys(MODULES).filter((m) => MODULES[m].for.includes(s.type)).map((id) => {
+    const cost = moduleCost(s.type, id);
+    return { id, cost, state: s.mods && s.mods.includes(id) ? 'done' : !c.tech.has(MODULES[id].tech) ? 'lock' : cost > c.money ? 'poor' : 'ok' };
+  });
+}
+
+/** Gắn module id vào công trình thứ k. */
+export function addModule(c, k, id) {
+  const s = c.services[k], m = s && moduleList(c, s).find((o) => o.id === id);
+  if (!m) return { ok: false, reason: 'Công trình này không gắn được module đó' };
+  if (m.state !== 'ok') return { ok: false, reason: { done: 'Đã có module này', lock: `Module ${lockText(MODULES[id])}`, poor: 'Không đủ tiền' }[m.state] };
+  (s.mods || (s.mods = [])).push(id);
+  c.money -= m.cost;
+  c.dirty.services = true;
+  computeMaps(c); computeNetworks(c); recalc(c);
+  return { ok: true, cost: m.cost };
+}
+
+/** 'done' đã mở | 'ok' mở được | 'req' thiếu mục trước | 'rank' chưa đủ mốc dân số | 'poor' thiếu điểm */
+export function techState(c, id) {
+  const t = TECH[id];
+  if (!t) return 'none';
+  if (c.tech.has(id)) return 'done';
+  if (t.req && !c.tech.has(t.req)) return 'req';
+  if (t.rank && c.milestone < t.rank) return 'rank';
+  return c.points >= t.cost ? 'ok' : 'poor';
+}
+
+export function unlockTech(c, id) {
+  const st = techState(c, id), t = TECH[id];
+  if (st !== 'ok') return { ok: false, reason: { none: 'Không có mục này', done: 'Đã mở rồi', req: `Cần mở "${TECH[t?.req]?.name}" trước`, rank: `Cần đạt mốc ${MILESTONES[(t?.rank || 1) - 1].name}`, poor: 'Không đủ điểm phát triển' }[st] };
+  c.points -= t.cost; c.tech.add(id);
+  c.dirty.zones = true;
+  recalc(c);
+  return { ok: true };
 }
 
 export function placeService(c, type, x, y) {
@@ -842,90 +943,6 @@ export function placeService(c, type, x, y) {
   return { ok: true, cost: SERVICES[type].cost, linked: c.services[c.services.length - 1].linked };
 }
 
-// ───────────────────────── di chuyển ─────────────────────────
-
-/** Phí dời một công trình: 10% giá xây. */
-export const moveFee = (type) => Math.round(SERVICES[type].cost * 0.1);
-
-/** Thử dời công trình thứ k tới ô (x, y) — dry: chỉ kiểm tra. Giữ nguyên phần mở rộng. */
-export function moveService(c, k, x, y, dry = false) {
-  const s = c.services[k];
-  if (!s) return { ok: false, reason: 'Không có công trình ở đây' };
-  const fee = moveFee(s.type);
-  c.services.splice(k, 1); rebuildOcc(c);
-  const r = canPlace(c, s.type, x, y, { move: true });
-  const back = () => { c.services.splice(k, 0, s); rebuildOcc(c); };
-  if (!r.ok) { back(); return r; }
-  if (r.fp.x === s.x && r.fp.y === s.y) { back(); return { ok: false, reason: 'Vẫn ở chỗ cũ', fp: r.fp }; }
-  if (fee > c.money) { back(); return { ok: false, reason: 'Không đủ tiền', fp: r.fp }; }
-  if (dry) { back(); return { ok: true, fee, fp: r.fp }; }
-  const { fp } = r, votes = [0, 0, 0, 0];
-  for (let dy = 0; dy < fp.size; dy++) for (let dx = 0; dx < fp.size; dx++) {
-    const i = idx(fp.x + dx, fp.y + dy);
-    if (c.acc[i] === 1) votes[c.rdir[i]]++;
-    c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i);
-  }
-  s.x = fp.x; s.y = fp.y; s.dir = Math.max(...votes) ? votes.indexOf(Math.max(...votes)) : s.dir;
-  back();
-  c.money -= fee;
-  c.dirty.services = c.dirty.zones = c.dirty.trees = c.dirty.buildings = true;
-  computeMaps(c); computeNetworks(c); rebuildTraffic(c); recalc(c);
-  return { ok: true, fee, fp };
-}
-
-/** Nút đường gần điểm (x, z) trong bán kính r, hoặc null. */
-export function nodeAt(c, x, z, r = 7) {
-  let best = null, bd = r;
-  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; best = n; } }
-  return best;
-}
-
-/**
- * Dời một nút đường (ngã ba, ngã tư, đầu mút) tới (x, z); các đoạn nối vào nó uốn theo.
- * Từ chối nếu đường mới cắt ngang đường khác cùng tầng, quá ngắn, vướng công trình, ra khỏi đất của thành phố.
- */
-export function moveNode(c, nid, x, z, dry = false) {
-  const n = c.nodes.get(nid);
-  if (!n) return { ok: false, reason: 'Không có nút đường ở đây' };
-  if (c.entry && Math.hypot(n.x - c.entry.x, n.z - c.entry.z) < 12) return { ok: false, reason: 'Không dời được cửa ngõ ra ngoài thành phố' };
-  if (!ownedAt(c, x, z) || Math.abs(x) > HALF - 2 || Math.abs(z) > HALF - 2) return { ok: false, reason: 'Ngoài phần đất của thành phố' };
-  for (const o of c.nodes.values()) if (o !== n && Math.hypot(o.x - x, o.z - z) < 9) return { ok: false, reason: 'Quá sát nút đường khác' };
-  const list = (c.adj.get(nid) || []).map((id) => c.edges.get(id));
-  const dx = x - n.x, dz = z - n.z, old = list.map((e) => ({ e, cx: e.cx, cz: e.cz, pts: e.pts, cum: e.cum, len: e.len }));
-  const ox = n.x, oz = n.z;
-  n.x = x; n.z = z;
-  for (const e of list) {
-    e.cx += dx / 2; e.cz += dz / 2;
-    const A = c.nodes.get(e.a), B = c.nodes.get(e.b);
-    e.pts = sampleCurve(A.x, A.z, e.cx, e.cz, B.x, B.z, 4); e.cum = measure(e.pts); e.len = e.cum[e.cum.length - 1];
-  }
-  const restore = () => { n.x = ox; n.z = oz; for (const o of old) Object.assign(o.e, { cx: o.cx, cz: o.cz, pts: o.pts, cum: o.cum, len: o.len }); };
-  let reason = '';
-  for (const e of list) {
-    if (e.len < 8) { reason = 'Đoạn đường quá ngắn'; break; }
-    if (e.elev && e.len < MIN_ELEV_LEN) { reason = 'Cầu vượt quá ngắn'; break; }
-    for (let k = 0; k < e.pts.length; k += 2) if (!ownedAt(c, e.pts[k], e.pts[k + 1])) { reason = 'Ngoài phần đất của thành phố'; break; }
-    if (reason) break;
-    cellsUnder(e.pts, ROADS[e.type].w / 2, (i) => { if (c.occ[i]) reason = 'Vướng công trình, hãy san ủi trước'; });
-    if (reason) break;
-    // cắt ngang đường khác cùng tầng mà không có nút giao
-    const p = e.pts, m = p.length / 2 - 1;
-    for (const o of c.edges.values()) {
-      if (o === e || o.a === e.a || o.a === e.b || o.b === e.a || o.b === e.b) continue;
-      const q = o.pts, mo = q.length / 2 - 1;
-      for (let k = 0; k < m && !reason; k++) for (let j = 0; j < mo; j++) {
-        const r = segInt(p[k * 2], p[k * 2 + 1], p[k * 2 + 2], p[k * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
-        if (r && Math.abs(edgeH(e, e.cum[k]) - edgeH(o, o.cum[j])) <= 3.5) { reason = 'Đường sẽ cắt ngang đường khác: hãy dùng cầu vượt hoặc vẽ nút giao'; break; }
-      }
-      if (reason) break;
-    }
-    if (reason) break;
-  }
-  if (reason || dry) { restore(); return reason ? { ok: false, reason } : { ok: true }; }
-  roadsChanged(c);
-  return { ok: true };
-}
-
 // ───────────────────────── bản đồ phủ, ô nhiễm, giá đất ─────────────────────────
 
 function stamp(map, cx, cy, radius, strength, add) {
@@ -939,6 +956,7 @@ function stamp(map, cx, cy, radius, strength, add) {
 }
 
 const AIR = [0.3, 0.38, 0.45, 0.32, 0.2]; // khói công nghiệp theo cấp (cấp cao sạch dần)
+const RES_POL = { 8: [0, 0.04, 0], 9: [0, 0, 0.15], 10: [0.16, 0.35, 0.35], 11: [0.4, 0.42, 0.2] }; // khu chuyên biệt: [khí, đất, ồn]
 
 /**
  * Vùng phủ dịch vụ, bốn loại ô nhiễm (không khí, đất, nước, tiếng ồn) và giá trị đất.
@@ -946,14 +964,18 @@ const AIR = [0.3, 0.38, 0.45, 0.32, 0.2]; // khói công nghiệp theo cấp (c�
  */
 export function computeMaps(c) {
   for (const m of Object.values(c.cover)) m.fill(0);
-  c.air.fill(0); c.ground.fill(0); c.noise.fill(0); c.waterPol.fill(0);
+  c.air.fill(0); c.ground.fill(0); c.noise.fill(0); c.waterPol.fill(0); c.gloom.fill(0);
   for (const s of c.services) {
     const def = SERVICES[s.type], cx = s.x + ((def.size - 1) >> 1), cy = s.y + ((def.size - 1) >> 1);
-    const clean = hasTech(c, 'cleanOut') && (def.group === 'water' || def.group === 'trash') ? 0.5 : 1;
-    if (def.cover) stamp(c.cover[def.cover], cx, cy, svcVal(c, s, 'radius'), 1, false);
-    if (def.air) stamp(c.air, cx, cy, def.air, Math.min(1, def.air / 6) * clean, true);
-    if (def.ground) stamp(c.ground, cx, cy, def.ground, Math.min(1, def.ground / 5) * clean, true);
-    if (def.waterPol) stamp(c.waterPol, cx, cy, def.waterPol, Math.min(1, def.waterPol / 6) * clean, true);
+    const air = svcVal(s, 'air');
+    if (def.cover) stamp(c.cover[def.cover], cx, cy, svcVal(s, 'radius'), 1, false);
+    if (def.care) stamp(c.cover.care, cx, cy, svcVal(s, 'radius'), 1, false);
+    if (def.noise) stamp(c.noise, cx, cy, def.noise, Math.min(0.75, 0.25 + def.noise * 0.03), true);
+    if (def.gloom) stamp(c.gloom, cx, cy, def.gloom, 1, false);
+    if (def.graves) stamp(c.gloom, cx, cy, 3, 0.5, false);
+    if (def.air) stamp(c.air, cx, cy, air, Math.min(1, air / 6), true);
+    if (def.ground) stamp(c.ground, cx, cy, def.ground, Math.min(1, def.ground / 5), true);
+    if (def.waterPol) stamp(c.waterPol, cx, cy, def.waterPol, Math.min(1, def.waterPol / 6), true);
     if (def.air || def.ground) stamp(c.noise, cx, cy, 3, 0.3, true);
   }
   for (let i = 0; i < N * N; i++) {
@@ -961,15 +983,18 @@ export function computeMaps(c) {
     if (!L) continue;
     const z = c.zone[i], x = i % N, y = (i / N) | 0;
     if (z === 3) {
-      const k = hasTech(c, 'cleanInd') ? 0.6 : 1;
-      stamp(c.air, x, y, 6, AIR[L - 1] * k, true); stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.3, true);
-    } else if (z === 10) { stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.35, true); }
-    else if (z === 11) { stamp(c.air, x, y, 4, 0.2, true); stamp(c.ground, x, y, 3, 0.3, true); }
-    else if (ZDEF[z].biz === 'shop') stamp(c.noise, x, y, 2, 0.1 + 0.03 * L, true);
+      stamp(c.air, x, y, 6, AIR[L - 1], true); stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.3, true);
+    } else if (RES_POL[z]) {
+      const [a, g, n] = RES_POL[z];
+      if (a) stamp(c.air, x, y, 5, a, true);
+      if (g) stamp(c.ground, x, y, 3, g, true);
+      if (n) stamp(c.noise, x, y, 3, n, true);
+    } else if (ZDEF[z].biz === 'shop') stamp(c.noise, x, y, 2, 0.1 + 0.03 * L, true);
+    else if (ZDEF[z].biz === 'leisure') stamp(c.noise, x, y, 2.5, 0.16 + 0.03 * L, true);
   }
   // tiếng ồn giao thông: đường càng đông càng ồn
   for (const e of c.edges.values()) {
-    const s = (0.1 + 0.55 * edgeLoad(c, e)) * (e.type === 'large' ? 1.35 : 1);
+    const s = (0.1 + 0.55 * edgeLoad(c, e)) * (e.type === 'large' ? 1.35 : e.type === 'highway' ? 1.7 : 1);
     for (let k = 0; k < e.pts.length; k += 6) stamp(c.noise, cellOf(e.pts[k]), cellOf(e.pts[k + 1]), 2.6, s, false);
   }
   // trạm bơm hút phải nước bẩn?
@@ -980,10 +1005,11 @@ export function computeMaps(c) {
     let green = 0, shore = 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && c.tree[idx(x + dx, y + dy)]) green++;
     const filter = clamp(1 - green * 0.055 - c.cover.park[i] * 0.3, 0.3, 1);
-    c.air[i] *= filter; c.noise[i] *= filter * (hasPolicy(c, i, 'quiet') ? 0.6 : 1);
+    c.air[i] *= filter; c.noise[i] *= filter;
     c.pollution[i] = clamp(c.air[i] * 0.7 + c.ground[i] * 0.6 + c.noise[i] * 0.3 + (c.water[i] ? 0 : c.waterPol[i] * 0.3), 0, 1);
     let v = 26 + c.cover.park[i] * 20 + c.cover.police[i] * 10 + c.cover.fire[i] * 8 + c.cover.health[i] * 11 + c.cover.edu[i] * 13 - c.pollution[i] * 50;
     if (c.garbage && c.level[i] && c.garbage[i] > garbageLimit(c.zone[i], c.level[i])) v -= 10;
+    v -= c.gloom[i] * 12 + c.crime[i] * 14;
     for (let d = 0; d < 4 && !shore; d++) for (let k = 1; k <= 3; k++) { const a = x + [1, 0, -1, 0][d] * k, b = y + [0, 1, 0, -1][d] * k; if (inMap(a, b) && c.water[idx(a, b)]) { shore = 1; break; } }
     v += shore * (10 - c.waterPol[i] * 14);
     c.landValue[i] = clamp(v, 0, 100);
@@ -993,7 +1019,7 @@ export function computeMaps(c) {
 /** Mức hài lòng của một ô nhà (0..100) và những thứ đang thiếu. */
 export function cellHappy(c, i) {
   const needs = [], pop = c.pp.count;
-  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r + taxAdj(c, i) - 9) * 3;
+  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * 3 + c.bonus.happy;
   if (c.pOk[i] !== 1) { h -= 30; needs.push(c.pOk[i] ? 'Điện chập chờn' : 'Không có điện'); }
   if (c.wOk[i] !== 1) { h -= 20; needs.push(c.wOk[i] ? 'Nước yếu' : 'Không có nước'); }
   if (c.sOk[i] !== 1) { h -= 12; needs.push(c.sOk[i] ? 'Cống quá tải' : 'Không có chỗ xả nước thải'); }
@@ -1002,7 +1028,12 @@ export function cellHappy(c, i) {
   if (c.ground[i] > 0.25) needs.push('Đất ô nhiễm');
   if (c.noise[i] > 0.4) { h -= 6; needs.push('Ồn ào'); }
   if (c.dirtyWater) { h -= 6; needs.push('Nước máy bẩn: trạm bơm hút gần cống xả'); }
+  if (c.dead && c.dead[i]) { h -= 10; needs.push(c.cover.death[i] > 0.05 ? 'Người mất chưa được xe tang đưa đi' : 'Không có nghĩa trang hay đài hoá thân gần đây'); }
+  if (c.crime[i] > 0.3) { h -= Math.round(c.crime[i] * 16); needs.push(c.cover.police[i] < 0.05 ? 'Tội phạm nhiều, ngoài vùng công an' : 'Tội phạm nhiều'); }
+  const who = ZDEF[c.zone[i]].who;
+  if (who === 'senior') h += 8; else if (who === 'student') h += 4;
   if (c.cover.health[i] < 0.05 && pop >= 120) needs.push('Xa trạm y tế');
+  if (c.cover.death[i] < 0.05 && pop >= 1000) needs.push('Xa nghĩa trang, đài hoá thân');
   if (c.cover.fire[i] < 0.05 && pop >= 400) needs.push('Xa trạm cứu hoả');
   if (c.cover.police[i] < 0.05 && pop >= 400) needs.push('Ngoài vùng công an');
   return { happy: clamp(h, 0, 100), needs };
@@ -1012,32 +1043,33 @@ export function cellHappy(c, i) {
 export function recalc(c) {
   const s = c.stats, ps = c.pstats;
   quickStats(c);
-  let housing = 0, jc = 0, ji = 0, jo = 0, use = 0, companies = 0, shops = 0;
-  const inDist = new Array(DISTRICTS.length).fill(0);
+  let housing = 0, jc = 0, ji = 0, jo = 0, use = 0, companies = 0;
   for (let i = 0; i < N * N; i++) {
     const L = c.level[i];
     if (!L) continue;
     const z = c.zone[i], jb = jobCap(z, L);
     housing += resCap(z, L); use += utilUse(z, L);
-    if (c.district[i]) inDist[c.district[i]]++;
-    if (jb) { companies++; const bz = ZDEF[z].biz; if (bz === 'ind' || bz === 'raw') ji += jb; else if (bz === 'office') jo += jb; else { jc += jb; shops++; } }
+    if (jb) { companies++; if (ZDEF[z].biz === 'ind' || ZDEF[z].biz === 'res') ji += jb; else if (ZDEF[z].biz === 'office') jo += jb; else jc += jb; }
   }
   let pCap = 0, wCap = 0, sCap = 0, tCap = 0, civic = 0, roadLen = 0;
-  const exp = { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, extract: 0, policy: 0, loans: 0 };
-  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += e.len * ROADS[e.type].upkeep * (e.elev ? 2 : 1); }
-  if (hasTech(c, 'cheapRoad')) exp.roads *= 0.7;
+  const exp = { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, loans: 0 };
+  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += e.len * ROADS[e.type].upkeep; }
   const lineUp = { power: 0, pipe: 0 };
   for (const ln of c.lines) lineUp[ln.kind] += Math.hypot(ln.bx - ln.ax, ln.bz - ln.az) * LINES[ln.kind].upkeep;
+  const bonus = { happy: 0, pull: 0, comm: 0 };
   for (const sv of c.services) {
     const def = SERVICES[sv.type];
-    if (sv.linked) { pCap += svcVal(c, sv, 'power'); wCap += svcVal(c, sv, 'water'); sCap += svcVal(c, sv, 'sewage'); } // chưa nối mạng thì chưa tính
-    tCap += svcVal(c, sv, 'trash'); exp[def.group] = (exp[def.group] || 0) + def.upkeep;
-    if (sv.mods) for (const m of MODS[sv.type] || []) exp[def.group] += (sv.mods[m.id] || 0) * m.upkeep;
+    if (sv.linked) { pCap += svcVal(sv, 'power'); wCap += svcVal(sv, 'water'); sCap += svcVal(sv, 'sewage'); } // chưa nối mạng thì chưa tính
+    tCap += svcVal(sv, 'trash'); exp[def.budget || def.group] += def.upkeep;
+    for (const m of sv.mods || []) exp[def.budget || def.group] += moduleUpkeep(sv.type, m);
+    for (const k in def.bonus || {}) bonus[k] += def.bonus[k];
     if (def.group === 'civic') civic++;
   }
+  c.bonus = bonus;
+  let depots = 0, graves = 0, used = 0, cremate = 0, cells = 0;
+  for (const sv of c.services) { const d = SERVICES[sv.type]; depots += d.depot || 0; if (d.graves) { graves += d.graves; used += sv.fill || 0; } cremate += d.cremate || 0; cells += d.cells || 0; }
+  Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
   exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c);
-  ps.shops = shops;
-  for (let d = 1; d < DISTRICTS.length; d++) for (const k in c.policy[d]) exp.policy += (POLICIES[k].cost || 0) * inDist[d] + (inDist[d] ? POLICIES[k].flat || 0 : 0);
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
   for (const ln of c.loans) exp.loans += ln.daily;
   const jobs = jc + ji + jo, pop = ps.pop, workers = ps.workers, employed = ps.employed, unemployed = workers - employed, vacJobs = Math.max(0, jobs - employed);
@@ -1046,7 +1078,7 @@ export function recalc(c) {
   for (const k in inc) inc[k] = Math.round(inc[k]);
   Object.assign(s, {
     pop, jobs, jobsBy: { c: jc, i: ji, o: jo }, housing, workers, employed, unemployed, vacJobs, companies, happy: ps.happy,
-    powerCap: pCap, powerUse: Math.round(use * (hasTech(c, 'grid') ? 0.85 : 1)), waterCap: wCap, waterUse: Math.round(use * (hasTech(c, 'reuse') ? 0.8 : 1)), sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
+    powerCap: pCap, powerUse: use, waterCap: wCap, waterUse: use, sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
     inc, income: inc.r + inc.c + inc.i + inc.t, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
   });
   // nhu cầu: dân tới khi có việc và nhà trống ít; việc làm mở thêm khi có người làm và người mua
@@ -1057,21 +1089,21 @@ export function recalc(c) {
   // việc làm cần có tính theo số người trong tuổi lao động; có văn phòng thì bớt phần công nghiệp
   const needO = (ps.edu[2] + ps.edu[3]) * 0.5, needC = workers * 0.36 + 8, needI = Math.max(10, workers * 0.5 + 10 - jo * 0.7);
   // pull: sức hút người tới ở (có việc, sống ổn); nhu cầu xây thêm nhà = pull trừ phần nhà đang bỏ trống
-  c.pull = clamp(early + clamp((vacJobs - unemployed) / Math.max(40, workers * 0.3), -1, 0.6) + (ps.happy - 45) / 80 + tm(c.tax.r), -1, 1);
+  c.pull = clamp(early + clamp((vacJobs - unemployed) / Math.max(40, workers * 0.3), -1, 0.6) + (ps.happy - 45) / 80 + tm(c.tax.r) + bonus.pull, -1, 1);
+  c.demand.x = clamp(0.7 + tm(c.tax.i) - short * 2, -1, 1); // khu chuyên biệt bán ra ngoài được nên chỉ cần có người làm
   c.demand.r = clamp(c.pull - spare, -1, 1);
   c.demand.c = clamp((needC - jc) / Math.max(30, needC) + tm(c.tax.c) - short, -1, 1);
   c.demand.i = clamp((needI - ji) / Math.max(30, needI) + tm(c.tax.i) - short, -1, 1);
-  c.demand.x = clamp(0.3 + (unemployed - vacJobs) / Math.max(20, workers * 0.2), 0, 0.8); // khu khai thác: mở khi còn người cần việc
   c.demand.o = zoneUnlocked(c, 6) ? clamp((needO - jo) / Math.max(30, needO) + tm(c.tax.c) - short, -1, 1) : 0;
   return s;
 }
 
-const Z0 = [0, 0, 0, 0];
-const LV_NEED = { 8: Z0, 9: Z0, 10: Z0, 11: Z0, 12: Z0, 1: [38, 50, 62, 74], 4: [40, 52, 64, 76], 2: [34, 44, 54, 64], 5: [38, 48, 58, 68], 7: [38, 48, 58, 68], 6: [40, 50, 60, 70], 3: [0, 0, 0, 0] };
+const LV_NEED = { 1: [38, 50, 62, 74], 4: [40, 52, 64, 76], 2: [34, 44, 54, 64], 5: [38, 48, 58, 68], 7: [38, 48, 58, 68], 6: [40, 50, 60, 70], 13: [36, 46, 56, 68], 14: [34, 44, 54, 64], 15: [40, 50, 60, 70], 16: [30, 40, 50, 60], 17: [34, 44, 54, 64], 18: [42, 52, 62, 72], 19: [50, 60, 70, 80] };
+const lvNeed = (z, L) => (LV_NEED[z] ? LV_NEED[z][L - 1] : 0); // công nghiệp và khu chuyên biệt không cần giá đất
 
 function canLevelUp(c, i) {
   const z = c.zone[i], L = c.level[i];
-  if (L >= MAX_LEVEL || c.age[i] < 6 * L || c.landValue[i] < LV_NEED[z][L - 1]) return false;
+  if (L >= MAX_LEVEL || c.age[i] < 6 * L || c.landValue[i] < lvNeed(z, L)) return false;
   if (resCap(z, L) && c.resCount[i] < resCap(z, L) * 0.7) return false; // nhà còn vắng thì chưa cần xây to hơn
   if (jobCap(z, L)) {
     if (c.biz.eff[i] < 0.55 || c.biz.money[i] < 60) return false; // doanh nghiệp phải đang làm ăn được
@@ -1088,7 +1120,7 @@ export function levelHint(c, i) {
   const z = c.zone[i], L = c.level[i];
   if (!L || L >= MAX_LEVEL) return '';
   const out = [];
-  if (c.landValue[i] < LV_NEED[z][L - 1]) out.push(`giá trị đất từ ${LV_NEED[z][L - 1]}`);
+  if (c.landValue[i] < lvNeed(z, L)) out.push(`giá trị đất từ ${lvNeed(z, L)}`);
   if (resCap(z, L) && c.resCount[i] < resCap(z, L) * 0.7) out.push('nhà gần kín người');
   if (jobCap(z, L)) {
     if (c.biz.eff[i] < 0.55 || c.biz.money[i] < 60) out.push('doanh nghiệp làm ăn có lãi');
@@ -1127,10 +1159,10 @@ function growth(c) {
     const i = zoned[(rng() * zoned.length) | 0], z = c.zone[i], dm = c.demand[ZDEF[z].cat];
     const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1;
     if (!c.level[i]) {
-      if (!c.acc[i] || !ok || c.steep[i] || !c.room(i, utilUse(z, 1) + 1)) continue;
+      if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
       if (rng() < Math.max(0, dm) * 0.4) {
         c.level[i] = 1; c.variant[i] = (rng() * 3) | 0; c.dir[i] = c.rdir[i]; c.age[i] = 0; c.tree[i] = 0;
-        c.biz.money[i] = 150; c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) && ZDEF[z].biz !== 'raw' ? 10 : 0;
+        c.biz.money[i] = 150; c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) ? 10 : 0;
         c.dirty.buildings = c.dirty.trees = true; built = true;
         computeNetworks(c); // cập nhật phần công suất còn dư
       }
@@ -1155,25 +1187,25 @@ function hourTick(c) {
   if (c.hour % 3 === 0) computeMaps(c);
   computeNetworks(c);
   growth(c);
-  c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   peopleHour(c);
+  incidentsHour(c); // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
   transitHour(c);
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
   const fares = c.transit.income - c.fareSeen; c.fareSeen = c.transit.income;
   c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares };
   recalc(c);
   c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i - s.expense / 24;
+  c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   for (const ln of c.loans) ln.left -= 1 / 24;
   if (c.loans.some((ln) => ln.left <= 0)) { c.loans = c.loans.filter((ln) => ln.left > 0); c.events.push({ type: 'loanPaid' }); recalc(c); }
-  if (h === 0 && c.day % 5 === 0 && s.pop >= 200 && s.happy >= 50) { c.points++; c.events.push({ type: 'point' }); } // thành phố sống tốt thì có thêm điểm phát triển
   c.debtHours = c.money < 0 ? c.debtHours + 1 : 0;
   if (c.money < BANKRUPT_AT || c.debtHours > BANKRUPT_DAYS * 24) { c.over = true; c.events.push({ type: 'bankrupt' }); }
   while (c.milestone < MILESTONES.length && s.pop >= MILESTONES[c.milestone].pop) {
     const m = MILESTONES[c.milestone++];
-    c.money += m.reward; c.points += MILESTONE_POINTS[c.milestone - 1] || 0;
+    c.money += m.reward; c.points += m.points;
     const fresh = (d) => d.unlock && d.unlock <= m.pop && !MILESTONES.some((o, k) => k < c.milestone - 1 && o.pop >= d.unlock);
     const unlocked = [...Object.values(SERVICES), ...ZDEF.slice(1)].filter(fresh).map((d) => d.name);
-    c.events.push({ type: 'milestone', name: m.name, reward: m.reward, points: MILESTONE_POINTS[c.milestone - 1] || 0, unlocked });
+    c.events.push({ type: 'milestone', name: m.name, reward: m.reward, points: m.points, unlocked });
   }
 }
 
@@ -1182,7 +1214,7 @@ export function advance(c, dt) {
   if (c.over) return;
   while (dt > 0) {
     const step = Math.min(dt, 0.25);
-    stepTraffic(c, step); stepTransit(c, step);
+    stepTraffic(c, step); stepTransit(c, step); incidentsStep(c, step);
     c.clock += step; dt -= step;
     if (c.clock >= HOUR_SEC) { c.clock -= HOUR_SEC; hourTick(c); if (c.over) return; }
   }
@@ -1200,91 +1232,81 @@ const r1 = (v) => Math.round(v * 10) / 10;
 export function serialize(c) {
   const pack = (k) => b64(c[k]), pp = packPeople(c);
   return {
-    v: 4, n: N, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start, entry: c.entry,
-    loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId,
-    owned: [...c.owned], tech: Object.keys(c.tech), points: c.points, policy: c.policy, distName: c.distName, exports: Math.round(c.econ.exports),
-    nodes: [...c.nodes.values()].map((n) => [n.id, r1(n.x), r1(n.z)]),
-    edges: [...c.edges.values()].map((e) => [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz), e.elev]),
+    v: 4, n: N, tgen: c.tgen, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
+    loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
+    tech: [...c.tech], points: c.points, owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
+    edges: [...c.edges.values()].map((e) => (e.wear > 0.05 ? [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz), Math.round(e.wear * 100) / 100] : [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)])),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
-    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, mods: s.mods })),
+    rings: c.rings.map((g) => [g.x, g.z]),
+    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}) })),
     transit: { fare: c.transit.fare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
-    tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'), district: pack('district'),
+    tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
     people: { n: c.pp.count, age: b64(pp.age), edu: b64(pp.edu), home: b64(pp.home), work: b64(pp.work), money: b64(pp.money) },
   };
 }
 
 export function deserialize(o) {
-  if (!o || ![2, 3, 4].includes(o.v) || o.n !== (o.v === 4 ? N : LN)) throw new Error('Bản lưu không hợp lệ hoặc thuộc phiên bản cũ');
+  if (!o || ![2, 3, 4].includes(o.v) || o.n !== N) throw new Error('Bản lưu không hợp lệ hoặc thuộc phiên bản cũ');
   const num = (v, d) => (Number.isFinite(+v) ? +v : d);
-  const v2 = o.v === 2; // trước khi có người dân: giữ nguyên đường và nhà, dân sẽ tự dọn về
-  const small = o.v < 4, D = small ? OFF : 0; // bản đồ 96 x 96 đời trước nằm ở giữa bản đồ mới; toạ độ thế giới không đổi
-  const remap = (i) => (small ? ((Math.floor(i / LN) + OFF) * N + (i % LN) + OFF) : i);
-  const grid = (str) => {
-    if (!small) return unb64(str, N * N);
-    const a = unb64(str, LN * LN), out = new Uint8Array(N * N);
-    for (let i = 0; i < LN * LN; i++) out[remap(i)] = a[i];
-    return out;
-  };
+  const old = o.v === 2; // bản lưu trước khi có người dân: giữ nguyên đường và nhà, dân sẽ tự dọn về
+  const open = o.v < 4; // bản lưu trước khi có mua đất / cây công nghệ: đất mở sẵn cả bản đồ, địa hình giữ kiểu cũ, điểm tính bù theo mốc đã đạt
+  const ms = clamp(o.milestone | 0, 0, MILESTONES.length);
+  const mods = (s) => (Array.isArray(s.mods) ? [...new Set(s.mods)].filter((m) => MODULES[m] && MODULES[m].for.includes(s.type)) : []);
   const c = {
-    v: 4, seed: o.seed | 0, name: String(o.name || 'Phố Mới').slice(0, 24), money: num(o.money, 0), hour: Math.max(0, (v2 ? o.day : o.hour) | 0), milestone: clamp(o.milestone | 0, 0, MILESTONES.length),
+    v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2),
+    tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
+    points: open ? START_POINTS + MILESTONES.slice(0, ms).reduce((n, m) => n + m.points, 0) : clamp(o.points | 0, 0, 999),
+    owned: open ? new Uint8Array(LT * LT).fill(1) : unb64(o.owned, LT * LT).map((v) => (v ? 1 : 0)),
+    seed: o.seed | 0, name: String(o.name || 'Phố Mới').slice(0, 24), money: num(o.money, 0), hour: Math.max(0, (old ? o.day : o.hour) | 0), milestone: clamp(o.milestone | 0, 0, MILESTONES.length),
     tax: { r: clamp(num(o.tax?.r, 9), 1, 20), c: clamp(num(o.tax?.c, 9), 1, 20), i: clamp(num(o.tax?.i, 9), 1, 20) },
-    start: { x: clamp((o.start?.x | 0) + D, 0, N - 1), y: clamp((o.start?.y | 0) + D, 0, N - 1) },
-    loans: v2 ? [] : (o.loans || []).slice(0, MAX_LOANS).map((l) => ({ amount: num(l.amount, 0), daily: num(l.daily, 0), left: num(l.left, 0) })),
-    debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0),
-    nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N),
+    start: { x: clamp(o.start?.x | 0, 0, N - 1), y: clamp(o.start?.y | 0, 0, N - 1) },
+    loans: old ? [] : (o.loans || []).slice(0, MAX_LOANS).map((l) => ({ amount: num(l.amount, 0), daily: num(l.daily, 0), left: num(l.left, 0) })),
+    debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
+    nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
-    services: (o.services || []).map((s) => ({ ...s, x: (s.x | 0) + D, y: (s.y | 0) + D })).filter((s) => SERVICES[s.type] && inMap(s.x, s.y) && inMap(s.x + SERVICES[s.type].size - 1, s.y + SERVICES[s.type].size - 1)).map((s) => {
-      const out = { type: s.type, x: s.x, y: s.y, dir: s.dir & 3 };
-      if (s.mods) { out.mods = {}; for (const m of MODS[s.type] || []) if (s.mods[m.id] > 0) out.mods[m.id] = clamp(s.mods[m.id] | 0, 0, m.max); }
-      return out;
-    }),
-    owned: startTiles(), tech: {}, points: clamp(o.points | 0, 0, 999),
-    policy: DISTRICTS.map(() => ({})), distName: DISTRICTS.map((d) => (d ? d[0] : '')),
+    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}) })),
   };
-  if (!small) {
-    if (Array.isArray(o.owned)) o.owned.slice(0, TILES * TILES).forEach((v, k) => { if (v) c.owned[k] = 1; });
-    for (const id of o.tech || []) if (TECH[id]) c.tech[id] = 1;
-    (o.policy || []).forEach((pl, d) => { if (d > 0 && d < DISTRICTS.length && pl) for (const k in pl) if (POLICIES[k]) c.policy[d][k] = 1; });
-    (o.distName || []).forEach((nm, d) => { if (d > 0 && d < DISTRICTS.length && nm) c.distName[d] = String(nm).slice(0, 20); });
-    if (o.entry) c.entry = { x: num(o.entry.x, 0), z: num(o.entry.z, -HALF + 1) };
-  } else {
-    c.entry = { x: cellCenter(c.start.x), z: -(LN * T) / 2 + 1 }; // cửa ngõ cũ nằm ở mép bắc của vùng trung tâm
-    c.points = MILESTONE_POINTS.slice(0, c.milestone).reduce((a, b) => a + b, 0); // bù điểm cho các mốc đã đạt
-  }
-  for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = grid(o[k]);
-  c.district = small || !o.district ? new Uint8Array(N * N) : unb64(o.district, N * N);
-  for (let i = 0; i < N * N; i++) { if (c.zone[i] >= ZDEF.length) c.zone[i] = 0; if (c.level[i] > MAX_LEVEL || !c.zone[i]) c.level[i] = 0; if (c.district[i] >= DISTRICTS.length) c.district[i] = 0; }
+  if (!c.owned.some((v) => v)) c.owned.fill(1);
+  for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);
+  for (let i = 0; i < N * N; i++) { if (c.zone[i] >= ZDEF.length) c.zone[i] = 0; if (c.level[i] > MAX_LEVEL || !c.zone[i]) c.level[i] = 0; }
   const keepTree = c.tree;
-  c.tree = new Uint8Array(N * N); genLand(c);
-  if (small) { for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = idx(x, y); if (x >= OFF && y >= OFF && x < OFF + LN && y < OFF + LN) c.tree[i] = keepTree[i]; } } else c.tree = keepTree; // vùng ngoài bản đồ cũ: rừng sinh mới
+  c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước sinh lại từ seed
   for (let i = 0; i < N * N; i++) if (c.water[i]) { c.tree[i] = 0; c.zone[i] = 0; c.level[i] = 0; }
   attach(c);
-  c.econ.exports = num(o.exports, 0);
-  for (const n of o.nodes || []) { const id = n[0] | 0; c.nodes.set(id, { id, x: num(n[1], 0), z: num(n[2], 0) }); c.nextId = Math.max(c.nextId, id + 1); }
+  for (const n of o.nodes || []) {
+    const id = n[0] | 0, node = { id, x: num(n[1], 0), z: num(n[2], 0) };
+    if (n[3]) node.ctl = clamp(n[3] | 0, 0, 2);
+    if (n[4]) node.rb = 1;
+    c.nodes.set(id, node); c.nextId = Math.max(c.nextId, id + 1);
+  }
   for (const e of o.edges || []) {
     const id = e[0] | 0;
     if (!c.nodes.has(e[1]) || !c.nodes.has(e[2]) || !ROADS[e[3]] || e[1] === e[2]) continue;
     const keep = c.nextId; c.nextId = id;
-    addEdge(c, e[1], e[2], e[3], num(e[4], null), num(e[5], null), e[6] ? 1 : 0);
+    const made = addEdge(c, e[1], e[2], e[3], num(e[4], null), num(e[5], null));
+    if (e[6]) made.wear = clamp(num(e[6], 0), 0, 1);
     c.nextId = Math.max(keep, id + 1);
   }
   for (let i = 0; i < N * N; i++) if (c.level[i]) { c.age[i] = 30; c.biz.money[i] = 150; c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0; }
   roadsChanged(c);
   if (o.people && o.people.n) {
-    const n = o.people.n | 0, cells = (str) => { const a = new Uint16Array(unb64(str, n * 2).buffer); if (small) for (let k = 0; k < n; k++) if (a[k] !== 0xffff) a[k] = remap(a[k]); return new Uint8Array(a.buffer); };
-    unpackPeople(c, { age: unb64(o.people.age, n), edu: unb64(o.people.edu, n), home: cells(o.people.home), work: cells(o.people.work), money: unb64(o.people.money, n * 2) });
+    const n = o.people.n | 0;
+    unpackPeople(c, { age: unb64(o.people.age, n), edu: unb64(o.people.edu, n), home: unb64(o.people.home, n * 2), work: unb64(o.people.work, n * 2), money: unb64(o.people.money, n * 2) });
   }
   if (o.transit) {
     c.transit.fare = clamp(num(o.transit.fare, 2), 0, 10);
     for (const l of o.transit.lines || []) {
-      if (l.mode !== 'bus' && l.mode !== 'metro') continue;
+      if (!TRANSIT[l.mode]) continue;
       const r = addLine(c, l.mode, (l.stops || []).map((s) => ({ x: num(s[0], 0), z: num(s[1], 0) })), true);
       if (r.line) r.line.count = clamp(l.count | 0, 1, 8);
     }
     maintainTransit(c);
   }
+  if (Array.isArray(o.weather) && WEATHER_KINDS.includes(o.weather[0])) { c.inc.weather = o.weather[0]; c.inc.wUntil = num(o.weather[1], 0); }
   computeMaps(c); recalc(c);
   return c;
 }
+const WEATHER_KINDS = ['clear', 'rain', 'dry', 'hail'];
 
 void bizKind;

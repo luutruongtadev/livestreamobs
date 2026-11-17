@@ -82,6 +82,10 @@
   .needs li { padding: 2px 0; color: var(--bad); }
   .needs li.ok { color: var(--good); }
   #info { top: auto; bottom: 150px; right: auto; left: 10px; }
+  #devBody .slot small, #iBody .slot small { white-space: normal; }
+  #devBody .note { display: block; color: var(--dim); margin: 2px 0 4px; }
+  #devPts { color: var(--acc); font-size: 11px; font-weight: 700; margin-left: 1px; }
+  #bDev.on #devPts { color: #2a1e00; }
 
   .modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .55); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .modal.show { display: flex; }
@@ -121,9 +125,8 @@
   <div class="panel btns">
     <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
     <button id="bCity" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe">👥</button>
-    <button id="bTech" title="Cây công nghệ: dùng điểm phát triển">🔬</button>
-    <button id="bGov" title="Quận và chính sách">🗂️</button>
-    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giao thông / giá đất / ô nhiễm khí, đất, ồn, nước / rác / dịch vụ / điện / nước">🗺️</button>
+    <button id="bDev" title="Phát triển: tiêu điểm để mở khu tài nguyên, module, công trình biểu tượng">🔬<sup id="devPts"></sup></button>
+    <button id="bLayer" title="Đổi lớp xem: quy hoạch / giao thông / giá đất / ô nhiễm khí, đất, ồn, nước / rác / dịch vụ / tài nguyên / điện / nước">🗺️</button>
     <button id="bSave" title="Lưu và tải">💾</button>
     <button id="bHelp" title="Hướng dẫn">❓</button>
   </div>
@@ -146,8 +149,6 @@
   <div class="row"><span>Công viên</span><span id="ePark"></span></div>
   <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
   <div class="row"><span>Xe buýt, metro</span><span id="eTransit"></span></div>
-  <div class="row"><span>Công trình khai thác</span><span id="eExtract"></span></div>
-  <div class="row"><span>Chính sách quận</span><span id="ePolicy"></span></div>
   <div class="row"><span>Trả nợ</span><span id="eLoan"></span></div>
   <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
   <h4>Vay nợ</h4>
@@ -166,19 +167,13 @@
   <div class="row"><span>Giá vé</span><b id="fareV"></b></div>
   <input type="range" id="fare" min="0" max="8" step="1" aria-label="Giá vé">
   <div id="pLines"></div>
+  <h4>Thử thiên tai</h4>
+  <div class="row" id="disasters"><button class="mini" data-dis="tornado">🌪️ Lốc xoáy</button><button class="mini" data-dis="hail">🌨️ Bão đá</button><button class="mini" data-dis="wildfire">🔥 Cháy rừng</button></div>
 </div>
 
-<div class="panel side" id="tech">
-  <h3>Cây công nghệ <button data-close>✕</button></h3>
-  <div class="row"><span>Nhận điểm khi đạt mốc dân số, và mỗi 5 ngày nếu dân hài lòng từ 50%</span></div>
-  <div class="row total"><span>Đang có</span><b id="tPoints"></b></div>
-  <div id="tBody"></div>
-</div>
-
-<div class="panel side" id="gov">
-  <h3>Quận và chính sách <button data-close>✕</button></h3>
-  <div class="row"><span>Vẽ quận bằng nhóm 🧭 Đất, quận ở thanh dưới; đổi tên bằng cách sửa trực tiếp.</span></div>
-  <div id="gBody"></div>
+<div class="panel side" id="dev">
+  <h3>Phát triển <button data-close>✕</button></h3>
+  <div id="devBody"></div>
 </div>
 
 <div class="panel side" id="saves">
@@ -214,11 +209,12 @@
       <li><b>💧 Nước</b>: tháp nước cấp nước sạch, cống xả thải (đặt sát bờ nước) nhận nước thải. Ở xa đường thì nối bằng ống nước.</li>
       <li>Bấm ▶: người dân dọn tới, đi làm, đi chợ bằng xe thật trên đường. Thêm 🏬 cửa hàng, 🏭 công nghiệp để có việc; hàng hoá do xe tải chở giữa nhà máy, cửa hàng và đường cao tốc.</li>
       <li>Về sau: bãi rác, y tế, cứu hoả (xe phải chạy tới nơi), trường học để có lao động trình độ, xe buýt / metro khi kẹt xe. Xem 👥 để biết thành phố đang thiếu gì.</li>
-      <li>Mở rộng: 🧭 mua thêm lô đất quanh thành phố (núi, đảo, hồ), ⛏️ khai thác nông sản, gỗ, quặng, dầu, cá ở nơi có tài nguyên, 🔬 mở công nghệ bằng điểm phát triển, 🗂️ chia quận và đặt chính sách riêng. Bấm vào trường, trạm y tế, bãi rác... để xây thêm phần mở rộng.</li>
+      <li><b>🧭 Mua đất</b>: lúc đầu chỉ có một góc bản đồ (phần sáng). Mua thêm ô đất kề bên để vươn tới rừng, núi, mỏ dầu, vùng nước có cá.</li>
+      <li><b>🔬 Phát triển</b>: mỗi mốc dân số thưởng điểm; tiêu điểm để mở <b>⛏️ khu tài nguyên</b> (nông sản, gỗ, khoáng sản, dầu, cá nuôi nhà máy và xuất khẩu), module nâng cấp công trình (bấm vào công trình để gắn) và <b>🗽 công trình biểu tượng</b>.</li>
     </ol>
     <div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to ·
-      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · <kbd>M</kbd> di chuyển · <kbd>V</kbd> cầu vượt · chuột phải hoặc <kbd>Esc</kbd> để bỏ.
+      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · chuột phải hoặc <kbd>Esc</kbd> để bỏ.
       Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
