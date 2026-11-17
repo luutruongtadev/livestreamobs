@@ -964,3 +964,50 @@ test('hầm chui qua sông: được khi hầm xuống hết độ sâu trước
   const lo = S.changeLevel(c, at(75).id, -1); assert.ok(lo.ok, lo.reason);
   assert.match(S.planLevel(c, at(88).id, -1).reason || '', /qua sông/);
 });
+
+test('khách quốc tế: sân bay có chuyến bay đưa du khách, người nhập cư; thị thực, quảng bá, phí hạ cánh tác động; lưu / nạp chính sách', () => {
+  const c = town(), sx = c.start.x; c.milestone = S.MILESTONES.length; c.money = 1e7;
+  assert.equal(S.intlOutlook(c).flights, 0, 'chưa có sân bay thì không có chuyến bay');
+  road(c, sx + 14, 24, sx + 22, 24);
+  const r = S.placeService(c, 'airport', sx + 17, 27); assert.ok(r.ok, r.reason);
+  for (const s of c.services) s.build = 0;
+  const base = S.intlOutlook(c);
+  assert.ok(base.flights > 0 && base.tourPer > 0);
+  c.intl.visa = 'open'; c.intl.promo = 3; const big = S.intlOutlook(c);
+  c.intl.visa = 'strict'; c.intl.promo = 0; c.intl.fee = 30; const small = S.intlOutlook(c);
+  assert.ok(big.flights > base.flights && base.flights > small.flights, 'mở cửa + quảng bá thì nhiều chuyến hơn, hạn chế + phí cao thì ít');
+  assert.ok(big.tourPer > base.tourPer && small.tourPer < base.tourPer);
+  // quảng bá tốn tiền mỗi ngày
+  c.intl.visa = 'open'; c.intl.fee = 5; c.intl.promo = 3; S.recalc(c); const e3 = c.stats.exp.tourism;
+  c.intl.promo = 0; S.recalc(c); assert.equal(e3 - c.stats.exp.tourism, S.PROMO[3].cost);
+  c.intl.promo = 3;
+  const pop0 = c.pp.count, seen = [];
+  let tourists = 0, fees = 0;
+  for (let h = 0; h < 24 * 8; h++) {
+    run(c, 1); for (const ev of c.events.splice(0)) if (ev.type === 'arrival') seen.push(ev);
+    if (c.hour % 24 === 0 && c.intl.last) { tourists += c.intl.last.tourists; fees += c.intl.last.fees; }
+  }
+  assert.ok(seen.length >= 3, `có chuyến bay hạ cánh (${seen.length})`);
+  assert.ok(seen.every((ev) => /hạ cánh/.test(ev.text)));
+  assert.ok(tourists > 0 && fees > 0, 'du khách tới, thu phí hạ cánh');
+  assert.ok(c.pp.count > pop0, 'dân số tăng');
+  for (const e of c.intl.sched) if (e.kind === 'plane') assert.equal(e.t1 - e.t0, S.FLY_H * S.HOUR_SEC);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(d.intl.visa, 'open'); assert.equal(d.intl.promo, 3); assert.equal(d.intl.fee, 5);
+});
+
+test('khách quốc tế: tàu nước ngoài chạy từ biển vào cảng, neo rồi ra khơi; hết nhà thì người nhập cư quay về', () => {
+  const c = S.newCity(7);
+  c.water.fill(0);
+  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1; // sông chảy ra mép bản đồ
+  c.services = [{ type: 'port', x: 46, y: 70, dir: 0, uid: 903 }];
+  const g = S.seaGates(c); assert.equal(g.length, 1); assert.ok(g[0].path.length >= 2);
+  c.pull = 0.5; c.intl.visa = 'open';
+  const o = S.intlOutlook(c); assert.equal(o.sea, 1); assert.ok(o.ships > 0 && o.immigPer > 0);
+  const seen = [];
+  for (let h = 0; h < 24 * 30 && !seen.length; h++) { S.tick(c); for (const ev of c.events.splice(0)) if (ev.type === 'arrival') seen.push(ev); }
+  assert.ok(seen.length, 'có tàu cập cảng'); assert.match(seen[0].text, /cập cảng/);
+  const e = c.intl.sched.find((q) => q.kind === 'ship');
+  assert.ok(e && e.landed && e.path === undefined ? true : e.path.length >= 2);
+  if (e.immig) assert.equal(e.placed, 0, 'không có nhà trống thì không ai ở lại'), assert.equal(e.turned, e.immig);
+});

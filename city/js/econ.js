@@ -1,5 +1,6 @@
 // Phố Mới — kinh tế mở rộng: ngân sách theo ngành, giá thị trường xuất nhập khẩu, du lịch.
 import { SERVICES, RAW, RAW_KINDS, ZDEF, N, clamp } from './base.js';
+import { initIntl, packIntl } from './intl.js';
 
 // ───────────────────────── ngân sách theo ngành ─────────────────────────
 
@@ -118,9 +119,10 @@ export function initEcon(c, o = {}) {
   if (m && Array.isArray(m.hist)) c.market.hist = m.hist.filter((r) => Array.isArray(r) && r.length === MKT_KINDS.length).slice(-60).map((r) => r.map((v) => clamp(+v || 1, 0.45, 1.9)));
   if (!c.market.hist.length) c.market.hist.push(MKT_KINDS.map((k) => c.market.p[k]));
   const t = o.tour || {};
+  initIntl(c, o.intl || {});
   c.tour = { guests: Math.max(0, t.guests | 0), roomFee: clamp(Number.isFinite(+t.roomFee) ? +t.roomFee : 12, 0, 40), day: { visitors: 0, stayed: 0, rooms: 0, ferry: 0 }, last: null, score: null };
 }
 
 export function packEcon(c) {
-  return { budget: c.budget, market: { p: c.market.p, hist: c.market.hist }, tour: { guests: c.tour.guests, roomFee: c.tour.roomFee } };
+  return { budget: c.budget, market: { p: c.market.p, hist: c.market.hist }, tour: { guests: c.tour.guests, roomFee: c.tour.roomFee }, intl: packIntl(c) };
 }

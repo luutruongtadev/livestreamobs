@@ -132,6 +132,18 @@ export function shipRoutes(c) {
   return out;
 }
 
+/** Cảng và bến tàu khách ra được biển: [{ s, path }] (path từ bến ra quá mép bản đồ) — cho tàu nước ngoài ghé. */
+export function seaGates(c) {
+  const nv = nav(c), out = [];
+  for (const s of c.services) {
+    if (s.type !== 'port' && s.type !== 'ferry') continue;
+    const d = dockOf(c, s, nv); if (!d || nv.size[nv.compOf(d.cell)] < 12) continue;
+    const path = routeToSea(c, nv, d);
+    if (path) out.push({ s, path });
+  }
+  return out;
+}
+
 // ───────────────────────── tuyến tàu khách ─────────────────────────
 
 /**

@@ -3,8 +3,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR } from './sim.js';
-import { metroGeometry } from './transport3d.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC } from './sim.js';
+import { metroGeometry, planeGeometry } from './transport3d.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -1211,6 +1211,82 @@ export class View {
     return false;
   }
 
+  /**
+   * Chuyến bay / tàu nước ngoài đang tới (c.intl.sched): máy bay từ ngoài bản đồ bay ngang qua thành phố, vòng vào hướng
+   * đường băng, hạ độ cao, chạm bánh và giảm tốc đúng lúc mô phỏng tính là đã đáp; tàu chạy từ biển vào bến, neo rồi ra khơi.
+   */
+  _intl() {
+    const c = this.city, it = c.intl;
+    if (!this.intlObj) this.intlObj = new Map();
+    const live = new Set(), now = simTime(c);
+    for (const e of it ? it.sched : []) {
+      const s = c.services.find((v) => v.uid === e.uid);
+      if (!s) continue;
+      let o = this.intlObj.get(e.id);
+      if (!o) {
+        const LIV = [0xd0342c, 0x2c5aa0, 0x2f8f5a, 0xe6a01e, 0x6a3d8a, 0x1f8a8a];
+        const geo = e.kind === 'plane' ? planeGeometry(LIV[e.id % LIV.length]) : (this._linerGeo || (this._linerGeo = shipGeometry(0).clone().scale(1.7, 1.7, 1.7)));
+        o = new THREE.Mesh(geo, this.vehMat); o.castShadow = true; o.frustumCulled = false; o.userData.own = e.kind === 'plane';
+        this.scene.add(o); this.intlObj.set(e.id, o);
+      }
+      live.add(e.id);
+      const u = (now - e.t0) / (e.t1 - e.t0);
+      o.visible = e.kind === 'plane' ? this._intlPlane(o, e, s, u) : this._intlShip(o, e, now);
+    }
+    for (const [id, o] of this.intlObj) if (!live.has(id)) { this.scene.remove(o); if (o.userData.own) o.geometry.dispose(); this.intlObj.delete(id); }
+  }
+
+  _intlPlane(o, e, s, u) {
+    if (u < 0 || u > 1.15) return false;
+    const def = SERVICES[s.type], r = ROT[s.dir & 3], cr = Math.cos(r), sr = Math.sin(r);
+    const cx = (s.x + def.size / 2) * T - HALF, cz = (s.y + def.size / 2) * T - HALF, gy = this._padY(s.x, s.y, def.size) + 0.2;
+    const W = (lx, lz) => [cx + lx * cr + lz * sr, cz - lx * sr + lz * cr]; // toạ độ trong lô sân bay -> thế giới
+    const RZ = -18.5, dir = [cr, -sr]; // hướng đường băng (+x của lô)
+    const fin = W(-200, RZ), td = W(-14, RZ), stop = W(12, RZ);
+    // điểm xuất phát ngoài bản đồ, phía bên kia thành phố so với sân bay: máy bay bay ngang qua trung tâm
+    const a0 = Math.atan2(-cz, -cx) + (e.ang || 0), R = HALF + 300;
+    const P0 = [Math.cos(a0) * R, Math.sin(a0) * R], C = [fin[0] - dir[0] * 260, fin[1] - dir[1] * 260];
+    let x, z, y, hx, hz, pitch = 0, roll = 0;
+    if (u < 0.62) { // bay vào: đường cong bậc hai, cuối đường thẳng hàng với đường băng
+      const t = u / 0.62, m = 1 - t;
+      x = m * m * P0[0] + 2 * m * t * C[0] + t * t * fin[0]; z = m * m * P0[1] + 2 * m * t * C[1] + t * t * fin[1];
+      hx = 2 * m * (C[0] - P0[0]) + 2 * t * (fin[0] - C[0]); hz = 2 * m * (C[1] - P0[1]) + 2 * t * (fin[1] - C[1]);
+      y = gy + 110 - 62 * t; pitch = 0.02;
+      // nghiêng cánh khi vòng: theo độ cong của đường bay
+      const ax = 2 * (fin[0] - 2 * C[0] + P0[0]), az = 2 * (fin[1] - 2 * C[1] + P0[1]), sp = Math.hypot(hx, hz) || 1;
+      roll = clamp(-((hx * az - hz * ax) / (sp * sp * sp)) * 260, -0.45, 0.45);
+    } else if (u < 0.88) { // hạ cánh: trượt xuống theo đường băng
+      const t = (u - 0.62) / 0.26, k = t * t * (3 - 2 * t);
+      x = fin[0] + (td[0] - fin[0]) * t; z = fin[1] + (td[1] - fin[1]) * t; hx = dir[0]; hz = dir[1];
+      y = gy + 48 * (1 - k); pitch = t > 0.8 ? -0.12 : -0.05;
+    } else { // chạm bánh, giảm tốc tới cuối đường băng rồi rẽ vào sân đỗ (khuất sau 1 giờ)
+      const t = Math.min(1, (u - 0.88) / 0.12), k = 1 - (1 - t) * (1 - t);
+      x = td[0] + (stop[0] - td[0]) * k; z = td[1] + (stop[1] - td[1]) * k; hx = dir[0]; hz = dir[1]; y = gy;
+      if (u > 1) { const w = W(12, RZ + 7 * Math.min(1, (u - 1) / 0.1)); x = w[0]; z = w[1]; hx = sr; hz = cr; }
+    }
+    o.position.set(x, y, z); o.rotation.set(pitch, Math.atan2(hx, hz), roll, 'YXZ');
+    return true;
+  }
+
+  _intlShip(o, e, now) {
+    const P = e.path, H = HOUR_SEC;
+    if (!this._pathLen) this._pathLen = new WeakMap();
+    let cum = this._pathLen.get(P);
+    if (!cum) { cum = [0]; for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1])); this._pathLen.set(P, cum); }
+    const L = cum[cum.length - 1];
+    let d, back = false; // d = khoảng cách từ bến
+    if (now < e.t1) { const t = (now - e.t0) / (e.t1 - e.t0); d = L * (1 - (1 - (1 - t) * (1 - t))); } // vào: giảm tốc dần khi gần bến
+    else if (now < e.t1 + DOCK_H * H) d = 0;
+    else { const t = (now - e.t1 - DOCK_H * H) / (SAIL_H * H); if (t > 1) return false; d = L * t * t; back = true; }
+    const at = (dd) => { dd = clamp(dd, 0, L); let i = 1; while (i < cum.length - 1 && cum[i] < dd) i++; const a = P[i - 1], b = P[i], f = (dd - cum[i - 1]) / (cum[i] - cum[i - 1] || 1); return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; };
+    const p = at(d), q0 = at(d - 8), q1 = at(d + 8);
+    let hx = q1[0] - q0[0], hz = q1[1] - q0[1]; // mũi hướng ra biển
+    if (!back) { hx = -hx; hz = -hz; }
+    if (Math.abs(hx) + Math.abs(hz) < 1e-3) { const r = at(10); hx = p[0] - r[0]; hz = p[1] - r[1]; }
+    o.position.set(p[0], WATER_Y + Math.sin(this.time * 1.1 + e.id) * 0.12, p[1]); o.rotation.set(0, Math.atan2(hx, hz), 0);
+    return true;
+  }
+
   /** Vật chuyển động trong công trình (xem transport3d.js): nội suy khung khoá theo thời gian. */
   _movers(dt) {
     if (!this.movers || !this.movers.length) return;
@@ -2122,6 +2198,7 @@ export class View {
     this._flames();
     this._gatePulse(dt);
     this._ships(simDt);
+    this._intl();
     this._weather(dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;

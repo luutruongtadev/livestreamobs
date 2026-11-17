@@ -8,16 +8,19 @@ import {
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions } from './people.js';
+import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
+import { intlHour, intlDay, promoCost } from './intl.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
+export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
+export { seaGates } from './ships.js';
 export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
 export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
 export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
@@ -1537,6 +1540,7 @@ export function recalc(c) {
   Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
   exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c) * kT;
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
+  exp.tourism += promoCost(c); // quảng bá du lịch quốc tế (đã tính theo ngày)
   for (const ln of c.loans) exp.loans += ln.daily;
   const jobs = jc + ji + jo, pop = ps.pop, workers = ps.workers, employed = ps.employed, unemployed = workers - employed, vacJobs = Math.max(0, jobs - employed);
   const inc = { r: 0, c: 0, i: 0, t: 0, u: 0 };
@@ -1705,7 +1709,7 @@ function hourTick(c) {
   }
   peopleHour(c);
   c.entryLinked = outsidePositions(c).length > 0;
-  const rooms = tourismHour(c, touristSpend); // du khách: tiền phòng khách sạn vào thẳng ngân sách
+  const rooms = tourismHour(c, touristSpend) + intlHour(c, { spend: touristSpend, addCitizen }); // du khách: tiền phòng, phí hạ cánh / cập cảng của khách quốc tế
   incidentsHour(c); // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
   transitHour(c);
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
@@ -1713,7 +1717,7 @@ function hourTick(c) {
   c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms };
   recalc(c);
   c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i + rooms - s.expense / 24;
-  if (h === 0) { marketDay(c); tourismDay(c); }
+  if (h === 0) { marketDay(c); tourismDay(c); intlDay(c); }
   c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   for (const ln of c.loans) ln.left -= 1 / 24;
   if (c.loans.some((ln) => ln.left <= 0)) { c.loans = c.loans.filter((ln) => ln.left > 0); c.events.push({ type: 'loanPaid' }); recalc(c); }

@@ -537,6 +537,10 @@ function showInfo(tile) {
     if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${val('spots')}`);
     if (d.radius) add('Bán kính phục vụ', `${val('radius')} ô`);
     if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
+    if ((sv.type === 'airport' || sv.type === 'port' || sv.type === 'ferry') && c.intl) {
+      const inc = c.intl.sched.filter((e) => e.uid === sv.uid && !e.landed);
+      add('Khách quốc tế đang tới', inc.length ? inc.map((e) => `${e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} (${e.tourists} khách)`).join(', ') : 'chưa có');
+    }
     if (d.beds) { const sc = c.tour.score || S.tourismScore(c); add('Phòng (cả thành phố)', `${fmt(c.tour.guests)} khách / ${fmt(sc.beds)} giường · ${c.tour.roomFee} ₫/đêm`); }
     if (d.attract) add('Sức hút du lịch', `+${d.attract}`);
     if (sv.type === 'ferry') {
@@ -701,6 +705,30 @@ function renderEcon() {
   ].map(([a, b]) => `<div class="row"><span>${a}</span><span>${b}</span></div>`).join('');
   $('roomFeeV').textContent = `${t.roomFee} ₫`;
   if (document.activeElement !== $('roomFee')) $('roomFee').value = t.roomFee;
+  // khách quốc tế
+  const it = c.intl, o = S.intlOutlook(c), il = it.last;
+  $('intlBox').innerHTML = [
+    ['Cửa ngõ quốc tế', o.airports || o.sea ? `${o.airports ? `✈️ ${o.airports} sân bay` : ''}${o.airports && o.sea ? ' · ' : ''}${o.sea ? `🚢 ${o.sea} cảng / bến ra biển` : ''}` : '<span class="neg">✖ xây ✈️ sân bay, ⚓ cảng hoặc ⛴️ bến tàu ra biển</span>'],
+    ['Chuyến mỗi ngày (ước)', `✈️ ${o.flights.toFixed(1)} · 🚢 ${o.ships.toFixed(1)}`],
+    ['Mỗi chuyến bay', `~${fmt(o.tourPer)} du khách · ${o.immigPer ? `~${fmt(o.immigPer)} người tới định cư` : 'không ai tới định cư (thành phố chưa hút dân)'}`],
+    ['Yếu tố', `sức hút ×${o.lure.toFixed(2)} · dân vui ×${o.mood.toFixed(2)} · phí ×${o.feeK.toFixed(2)}`],
+    ['Hôm qua', il ? `${il.flights} chuyến bay, ${il.ships} tàu · ${fmt(il.tourists)} khách · ${fmt(il.immig)} định cư${il.turned ? ` · <span class="neg">${fmt(il.turned)} quay về (hết nhà)</span>` : ''} · phí +${fmt(il.fees)} ₫` : '–'],
+  ].map(([a, b]) => `<div class="row"><span>${a}</span><span>${b}</span></div>`).join('');
+  const vb = $('visaBtns'), pb = $('promoBtns');
+  if (vb.dataset.v !== it.visa) {
+    vb.dataset.v = it.visa; vb.textContent = '';
+    for (const [k, v] of Object.entries(S.VISA)) { const btn = el('button', 'mini' + (k === it.visa ? ' acc' : ''), `${v.icon} ${v.name}`); btn.title = v.desc; btn.onclick = () => { it.visa = k; renderEcon(); }; vb.append(btn); }
+  }
+  $('visaV').textContent = S.VISA[it.visa].desc;
+  if (pb.dataset.v !== String(it.promo)) {
+    pb.dataset.v = String(it.promo); pb.textContent = '';
+    S.PROMO.forEach((p, k) => { const btn = el('button', 'mini' + (k === it.promo ? ' acc' : ''), p.name); btn.title = p.cost ? `${fmt(p.cost)} ₫/ngày, khách ×${p.k}` : 'Không chi'; btn.onclick = () => { it.promo = k; S.recalc(city); updateHud(true); renderEcon(); }; pb.append(btn); });
+  }
+  $('promoV').textContent = S.PROMO[it.promo].cost ? `${fmt(S.PROMO[it.promo].cost)} ₫/ngày · khách ×${S.PROMO[it.promo].k}` : 'không chi';
+  $('intlFeeV').textContent = `${it.fee} ₫`;
+  if (document.activeElement !== $('intlFee')) $('intlFee').value = it.fee;
+  const now = S.simTime(c), up = it.sched.filter((e) => !e.landed);
+  $('intlNext').innerHTML = up.length ? up.map((e) => `<div class="row"><span>${e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} từ ${e.from}</span><span>${fmt(e.tourists)} khách${e.immig ? `, ${fmt(e.immig)} định cư` : ''} · tới sau ${Math.max(1, Math.ceil((e.t1 - now) / S.HOUR_SEC))} giờ</span></div>`).join('') : '<div class="row"><span>Chưa có chuyến nào đang tới</span></div>';
   // giá thị trường
   const m = c.market;
   $('mktNews').innerHTML = m.news ? `<span>${m.news.up ? '📈' : '📉'} ${m.news.text}</span><span>ngày ${m.news.day + 1}</span>` : '<span>Chưa có biến động lớn</span>';
@@ -1135,6 +1163,7 @@ function bindUi() {
     S.enableSandbox(city); Object.assign(city.dirty, { land: true, zones: true, services: true }); autosave(); updateHud(true); refreshToolbar(); toast('🎨 Đã bật chế độ Open');
   });
   $('roomFee').addEventListener('input', (e) => { city.tour.roomFee = +e.target.value; renderEcon(); });
+  $('intlFee').addEventListener('input', (e) => { city.intl.fee = +e.target.value; renderEcon(); });
   $('oLoad').addEventListener('click', () => { $('saves').classList.add('show'); renderSlots(); });
   $('bExport').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify(S.serialize(city))], { type: 'application/json' }), a = el('a');
@@ -1195,6 +1224,7 @@ function frame(now) {
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
     else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng', leisure: 'quán ăn, chỗ vui chơi' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
     else if (ev.type === 'loanPaid') toast('Đã trả xong một khoản vay');
+    else if (ev.type === 'arrival') toast(ev.text);
     else if (ev.type === 'market') toast(`${ev.up ? '📈' : '📉'} Thị trường: ${ev.text} (xem 📊)`);
     else if (ev.type === 'accident') { if (performance.now() - (frame.accToast || 0) > 6000) { frame.accToast = performance.now(); toast(`💥 Tai nạn${ev.n > 1 ? ` liên hoàn ${ev.n} xe` : ''}${ev.fire ? ', xe bốc cháy' : ''}: công an và xe cứu hộ đang tới, đường bị chắn`); } }
     else if (ev.type === 'robbery') toast('🚨 Có vụ cướp! Xe công an gần nhất đang tới');

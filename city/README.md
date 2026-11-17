@@ -20,6 +20,16 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 5. **Giao thông**: xe tìm đường nhanh nhất theo thời gian đi, bám làn, giữ khoảng cách, đổi làn, dừng đèn đỏ. Đường quá tải thì kẹt, người đi làm muộn và kém vui. Chuyến ngắn thì đi bộ trên vỉa hè, chuyến dài đi xe máy hoặc ô tô; mọi chuyến đều hiện ra đường cho tới giới hạn 380 ô tô, 380 xe máy và 500 người đi bộ cùng lúc, vượt quá thì chỉ tính thời gian đi. Ca làm kéo dài 9 giờ tính từ lúc tới nơi, nên đường có người qua lại suốt ngày. Lớp xem *giao thông* tô đỏ đoạn đang kẹt.
 6. **Xe dịch vụ**: xe rác, xe cứu thương, xe cứu hoả, xe tang, xe công an, xe cứu hộ xuất phát từ công trình và phải chạy tới nơi; kẹt xe thì tới muộn, nhà có thể cháy rụi.
 7. **Xe buýt, tàu điện, metro**: vẽ tuyến bằng cách đặt trạm; thêm bớt xe và chỉnh giá vé ở bảng 👥. Tàu điện (1.000 dân) chạy trên ray giữa lòng đường, chở gần gấp ba xe buýt. Chưa có 🚏 bến xe thì xe buýt + tàu điện chạy chung tối đa 4 xe, mỗi bến cho thêm 12. Người dân tự chọn đi tuyến khi nhanh hơn tự lái. Ngoài cao tốc và cảng hàng còn có ga tàu hoả, sân bay (cửa ngõ xuất nhập khẩu, hút dân) và bến tàu khách. ⛴️ Bến tàu khách chở khách thật và thu vé (chỉnh giá riêng ở bảng 👥): từ 2 bến cùng một vùng nước thì tự thành tuyến tàu qua lại như xe buýt, dân tự chọn đi tàu khi nhanh hơn; chỉ một bến thì tàu tìm cửa biển (nước chảy ra mép bản đồ) để chạy ra ngoài, chở dân đi chơi xa và đưa du khách về tiêu tiền ở quán, cửa hàng. Bến nằm một mình trong hồ kín thì có tàu du ngoạn ra góc xa của hồ rồi quay về, chở dân đi ngắm cảnh và vẫn thu vé; bấm vào bến sẽ có nút ⛏️ Đào kênh ra biển: game tự tìm lối kênh ngắn nhất (qua đất đã mua, tránh đường và nhà), báo giá, rê chuột để xem tuyến, bấm là đào và tàu chuyển sang chạy ra biển; ao quá nhỏ thì không chạy tàu. Xây, dời, phá bến là tuyến tàu dựng lại ngay. Cảng hàng có tàu container ra vào; tàu ưu tiên chạy giữa dòng.
+   - **Khách quốc tế ✈️ 🚢:** lâu lâu có chuyến bay quốc tế tới sân bay, hoặc tàu du lịch nước ngoài tới cảng / bến tàu khách ra được biển, chở du khách và người nhập cư.
+     - **Máy bay:** từ ngoài bản đồ bay ngang qua thành phố (nghiêng cánh khi vòng), vào thẳng hướng đường băng, hạ độ cao, chạm bánh, giảm tốc rồi rẽ vào sân đỗ.
+     - **Tàu:** chạy từ biển vào bến, neo vài giờ rồi ra khơi.
+     - **Khi tới nơi:** du khách ở khách sạn (nếu còn phòng) và tiêu tiền ở quán, cửa hàng. Người nhập cư dọn vào nhà trống, hết nhà thì phải quay về. Thành phố thu phí hạ cánh / cập cảng mỗi khách. Có thông báo mỗi chuyến.
+     - **Tác động** (bảng 📊, mục Khách quốc tế):
+       - 🛂 Thị thực: hạn chế, bình thường hoặc mở cửa. Mở cửa thì nhiều chuyến, nhiều khách, gấp đôi người nhập cư, nhưng cần sẵn nhà và việc.
+       - 📣 Quảng bá du lịch quốc tế: 4 mức, tốn tiền mỗi ngày.
+       - 🛬 Phí hạ cánh: phí cao thì thu nhiều mỗi khách nhưng ít hãng ghé.
+     - **Yếu tố khác:** số sân bay / cảng, sức hút du lịch (điểm tham quan), dân có vui không, thành phố có đang hút dân không (nếu không thì chẳng ai tới định cư).
+     - Bảng còn cho ước tính số chuyến mỗi ngày, số liệu hôm qua và danh sách chuyến đang tới. Bấm vào sân bay / cảng để xem chuyến nào đang tới.
    - **Đồ hoạ công trình giao thông lớn** (có chuyển động):
      - ⚓ **Cảng container:** 3 cẩu giàn STS chạy trên ray, cần vươn ra biển, xe con cẩu bốc container từ tàu về xe tải; bãi container có cẩu RTG chạy qua lại, xe đầu kéo, ray tàu hàng.
      - ✈️ **Sân bay:** đường băng có vạch ngưỡng và đèn lề, đường lăn, nhà ga kính có ống lồng, đài kiểm soát, nhà chứa máy bay. Máy bay đỗ ở sân đỗ; một chiếc bay vào hạ cánh, lăn về đầu đường băng rồi cất cánh bay đi.
@@ -68,6 +78,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/intl.js` | Khách quốc tế: lịch chuyến bay / tàu nước ngoài, du khách, người nhập cư, thị thực, quảng bá, phí hạ cánh |
 | `js/transport3d.js` | Mô hình cảng container, sân bay, ga tàu hoả, tàu và ga metro; khung khoá chuyển động (máy bay, tàu, cẩu, xe tải) |
 | `js/render.js` | Cảnh three.js: địa hình, mặt nước (shader), bầu trời và ngày đêm, đường, xe, đèn, ray metro, lớp phủ |
 | `js/main.js` | Vòng lặp, chuột / bàn phím, giao diện |
