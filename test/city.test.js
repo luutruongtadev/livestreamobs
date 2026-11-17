@@ -760,3 +760,22 @@ test('tàu khách: hai bến sát nhau chung chỗ cập không làm hỏng tuy�
   const p = S.ferryPoint({ wpath: [[5, 6]], stops: [{ x: 5, z: 6 }] }, { s: 0, dir: 1 });
   assert.deepEqual(p.slice(0, 2), [5, 6]);
 });
+
+test('tàu khách: hồ kín tự tìm đường kênh ra biển, đào xong tàu chạy ra ngoài', () => {
+  const c = S.newCity(12345);
+  c.services.push({ type: 'ferry', x: 65, y: 41, dir: 0, mods: [], uid: 4242 });
+  const k = c.services.length - 1;
+  S.syncFerries(c);
+  assert.equal(c.ferryState[4242], 'cruise');
+  c.own.fill(0); // chưa mua đất: không đào được
+  assert.equal(S.planSeaCanal(c, k).ok, false);
+  c.own.fill(1); c.owned.fill(1); c.money = 1e6;
+  const p = S.planSeaCanal(c, k);
+  assert.ok(p.ok && p.cells.length > 0 && p.cost > 0, JSON.stringify(p.reason));
+  const m0 = c.money, r = S.digSeaCanal(c, k);
+  assert.ok(r.ok && r.open, 'đào xong bến thông ra biển');
+  for (const i of p.cells) assert.equal(c.water[i], 1, `ô ${i} đã thành nước`);
+  assert.ok(Math.abs(m0 - c.money - p.cost) <= p.cost * 0.05 + 20, 'giá thật sát giá báo');
+  assert.equal(c.ferryState[4242], 'sea');
+  assert.equal(S.planSeaCanal(c, k).already, true);
+});

@@ -281,3 +281,53 @@ export function ferryPoint(line, sl) {
 export function ferryDay(c) {
   for (const l of c.ferries || []) { l.ridersDay = l.riders; l.riders = 0; l.guestsDay = l.guests; l.guests = 0; l.travellersDay = l.travellers; l.travellers = 0; }
 }
+
+// ───────────────────────── tìm đường kênh ra biển ─────────────────────────
+
+/**
+ * Bến tàu nằm trong hồ kín: tìm đường kênh ngắn nhất (ít ô đất phải đào nhất) từ hồ ra vùng nước thông ra mép bản đồ.
+ * Chỉ đào qua đất đã mua, không đụng đường, nhà, công trình (cả ô xung quanh, vì đáy kênh hạ cả bốn góc ô).
+ * Trả về { cells: [ô đất cần đào theo thứ tự], already } hoặc { reason }.
+ */
+export function canalToSea(c, s) {
+  const nv = nav(c), d = dockOf(c, s, nv);
+  if (!d) return { reason: 'Bến không sát mặt nước' };
+  // vùng nước thông ra mép bản đồ (4 hướng, như cách tính vùng nước liền)
+  const sea = new Uint8Array(N * N), q = [];
+  for (let k = 0; k < N; k++) for (const [x, y] of [[k, 0], [k, N - 1], [0, k], [N - 1, k]]) { const i = idx(x, y); if (c.water[i] && !sea[i]) { sea[i] = 1; q.push(i); } }
+  while (q.length) { const i = q.pop(), x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue; const j = idx(nx, ny); if (c.water[j] && !sea[j]) { sea[j] = 1; q.push(j); } } }
+  if (sea[d.cell]) return { cells: [], already: true };
+  if (!sea.some((v) => v)) return { reason: 'Bản đồ không có biển hay sông nào chảy ra mép' };
+  const diggable = (x, y) => {
+    if (x < 1 || y < 1 || x > N - 2 || y > N - 2) return false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = idx(x + dx, y + dy); if (!c.own[j] || c.road[j] || c.occ[j] || c.level[j]) return false; }
+    return true;
+  };
+  // Dijkstra hàng đợi theo xô: đi trên nước không tốn, mỗi ô đất phải đào tốn 1
+  const cost = new Int32Array(N * N).fill(-1), prev = new Int32Array(N * N).fill(-1), done = new Uint8Array(N * N), buckets = [[d.cell]];
+  cost[d.cell] = 0;
+  let goal = -1;
+  for (let k = 0; k < buckets.length && goal < 0; k++) {
+    const b = buckets[k];
+    for (let h = 0; h < (b || []).length && goal < 0; h++) {
+      const i = b[h];
+      if (done[i] || cost[i] !== k) continue;
+      done[i] = 1;
+      if (sea[i]) { goal = i; break; }
+      const x = i % N, y = (i / N) | 0;
+      for (const [dx, dy] of D4) {
+        const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue;
+        const j = idx(nx, ny), wet = c.water[j];
+        if (!wet && !diggable(nx, ny)) continue;
+        const nc = k + (wet ? 0 : 1);
+        if (cost[j] >= 0 && cost[j] <= nc) continue;
+        cost[j] = nc; prev[j] = i;
+        (buckets[nc] || (buckets[nc] = [])).push(j);
+      }
+    }
+  }
+  if (goal < 0) return { reason: 'Không có lối đào kênh ra biển: đường, nhà hoặc đất chưa mua chắn hết lối' };
+  const cells = [];
+  for (let i = goal; i >= 0; i = prev[i]) if (!c.water[i]) cells.push(i);
+  return { cells: cells.reverse() };
+}

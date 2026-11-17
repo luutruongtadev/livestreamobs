@@ -10,13 +10,13 @@ import {
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
 import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
-import { stepFerries } from './ships.js';
+import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend } from './people.js';
-export { shipRoutes, syncFerries, ferryPoint, stepFerries } from './ships.js';
+export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
 export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
 export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
 
@@ -191,6 +191,32 @@ export function terraform(c, mode, x, y, { size = 1, target = 0, dry = false } =
   if (wet) c.terraWet = true;
   c.dirty.terrain = Math.max(c.dirty.terrain | 0, 1); c.dirty.zones = true;
   return { ok: true, cost, n: plan.length / 2, wet };
+}
+
+/** Giá đào kênh ra biển cho bến tàu thứ k: { ok, cells, cost } hoặc { ok: false, reason }. */
+export function planSeaCanal(c, k) {
+  const s = c.services[k];
+  if (!s || s.type !== 'ferry') return { ok: false, reason: 'Không phải bến tàu khách' };
+  const p = canalToSea(c, s);
+  if (p.reason) return { ok: false, reason: p.reason };
+  if (p.already) return { ok: false, reason: 'Bến đã thông ra biển', already: true };
+  const V = N + 1, verts = new Set();
+  for (const i of p.cells) { const x = i % N, y = (i / N) | 0; for (const k2 of [y * V + x, y * V + x + 1, (y + 1) * V + x, (y + 1) * V + x + 1]) verts.add(k2); }
+  let cost = 0;
+  for (const v of verts) cost += Math.max(0, c.hv[v] - CANAL_BED) * TERRA_COST;
+  return { ok: true, cells: p.cells, cost: Math.ceil(cost) };
+}
+
+/** Đào kênh nối hồ của bến tàu thứ k ra biển (theo planSeaCanal), rồi dựng lại tuyến tàu. */
+export function digSeaCanal(c, k) {
+  const p = planSeaCanal(c, k);
+  if (!p.ok) return p;
+  if (p.cost > c.money) return { ok: false, reason: 'Không đủ tiền', cost: p.cost };
+  const m0 = c.money;
+  for (const i of p.cells) terraform(c, 'canal', i % N, (i / N) | 0, { size: 1 });
+  terraformDone(c);
+  c.ferrySig = null; syncFerries(c);
+  return { ok: true, cost: m0 - c.money, cells: p.cells.length, open: c.ferryState[c.services[k].uid] === 'sea' };
 }
 
 /** Kết thúc một lượt đào đắp (nhả chuột): tính lại tài nguyên; nếu bờ nước đổi thì tính lại ô quy hoạch, mạng điện nước, ô nhiễm. */
