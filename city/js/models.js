@@ -1431,3 +1431,112 @@ export function palmGeometry() {
   for (const [x, z] of [[0.3, 0.25], [-0.25, 0.2], [0, -0.32]]) g.blob(tx + x, top - 0.6, z, 0.24, 0.26, 0.24, 0x7a8a3a, 32, 0, 0.1);
   return g.build();
 }
+
+// ───────────────────────── công trường: xe công trình, cần cẩu (đầu xe về +z) ─────────────────────────
+const CAT = 0xf2b21b, CAT_D = 0xc98d0e, STEELG = 0x4a4f55;
+function tracks(g, half, len, h = 0.85, w = 0.7) {
+  for (const x of [-half, half]) { g.box(x, 0, 0, w, h, len, 0x2a2b2e); g.box(x, h * 0.25, 0, w + 0.04, h * 0.5, len - 0.8, 0x3c3e42); }
+}
+function cab(g, x, y, z, w, h, d, col = CAT) {
+  g.box(x, y, z, w, h, d, col); g.box(x, y + h * 0.35, z, w + 0.04, h * 0.5, d - 0.3, GLASS_D); g.box(x, y + h, z, w + 0.1, 0.1, d + 0.1, col);
+}
+
+/**
+ * Xe công trình: { geometry, top?: { geometry, pos } } — top là phần quay được (thân máy xúc).
+ * kind: excavator (máy xúc), dump (xe ben), mixer (xe bồn trộn bê tông), dozer (máy ủi), tractor (máy kéo + rơ moóc),
+ * roller (xe lu), mcrane (xe cẩu bánh lốp).
+ */
+export function siteVehicle(kind) {
+  const g = new GB();
+  let top = null;
+  switch (kind) {
+    case 'excavator': {
+      tracks(g, 1.1, 4.2); g.box(0, 0.75, 0, 1.6, 0.35, 2.2, 0x2a2b2e); g.cyl(0, 1.05, 0, 0.9, 0.9, 0.2, 0x2a2b2e, 10);
+      const t = new GB();
+      t.box(0, 0, -0.4, 2.6, 1.1, 3, CAT); t.box(0, 1.1, -1.4, 2.4, 0.5, 1, CAT_D); // thân + đối trọng
+      cab(t, -0.75, 1.1, 0.5, 1, 1.5, 1.4);
+      t.box(0.25, 1.4, 0.3, 0.12, 0.6, 0.12, 0x333333); // ống xả
+      // cần (boom) chéo lên, tay (arm) gập xuống, gầu
+      const M = new THREE.Matrix4(), E = new THREE.Euler(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), O = new THREE.Vector3(1, 1, 1);
+      t.at(M.compose(V.set(0.5, 1.4, 2.1), Q.setFromEuler(E.set(-0.75, 0, 0)), O)).box(0, -0.3, 0, 0.5, 0.6, 3.6, CAT).at(null);
+      t.at(M.compose(V.set(0.5, 2.7, 4.2), Q.setFromEuler(E.set(0.9, 0, 0)), O)).box(0, -0.25, 0, 0.4, 0.5, 2.8, CAT).at(null);
+      t.box(0.5, 0.25, 5.1, 1, 0.8, 0.8, STEELG); t.box(0.5, 0.25, 5.55, 1.05, 0.1, 0.3, 0x8a8f95);
+      top = { geometry: t.build(), pos: [0, 1.25, -0.2] };
+      break;
+    }
+    case 'dump': {
+      wheels(g, 1.05, [2.4, -0.9, -2.3], 0.55, 0.45);
+      g.box(0, 0.6, 0, 1.9, 0.35, 6.4, 0x2a2b2e);
+      cab(g, 0, 0.95, 2.4, 2.2, 1.6, 1.6, 0xd2452f);
+      g.box(0, 0.95, -0.95, 2.4, 1.5, 4.3, 0xb9bec4); g.box(0, 2.45, -0.95, 2.4, 0.08, 4.3, 0x8a8f95);
+      g.blob(0, 2.3, -1.1, 1.05, 0.5, 1.8, 0x8a6a46, 7, 0, 0.3); // đất chở trên thùng
+      lights(g, 1.8, 3.21, -3.11, 1);
+      break;
+    }
+    case 'mixer': {
+      wheels(g, 1.05, [2.3, -0.9, -2.3], 0.55, 0.45);
+      g.box(0, 0.6, 0, 1.9, 0.35, 6.4, 0x2a2b2e);
+      cab(g, 0, 0.95, 2.4, 2.2, 1.6, 1.6, 0xf2f2f0);
+      const M = new THREE.Matrix4(), E = new THREE.Euler(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), O = new THREE.Vector3(1, 1, 1);
+      g.at(M.compose(V.set(0, 2.15, -1), Q.setFromEuler(E.set(Math.PI / 2 - 0.2, 0, 0)), O));
+      g.cyl(0, -2.1, 0, 0.75, 1.15, 2.2, 0xe9792b, 10); g.cyl(0, 0.1, 0, 1.15, 0.6, 1.8, 0xf2f2f0, 10); g.at(null); // bồn trộn
+      g.box(0, 2.6, -3.1, 0.5, 0.2, 0.6, STEELG);
+      break;
+    }
+    case 'dozer': {
+      tracks(g, 1.15, 3.8, 0.95);
+      g.box(0, 0.8, -0.2, 1.9, 1.2, 3.2, CAT); cab(g, 0, 2, -0.9, 1.6, 1.4, 1.5);
+      g.box(0, 0.05, 2.6, 3.4, 1.4, 0.3, CAT_D); g.box(0, 0.05, 2.75, 3.4, 0.2, 0.2, 0x8a8f95); // lưỡi ủi
+      for (const x of [-1.2, 1.2]) g.box(x, 0.5, 1.7, 0.25, 0.25, 1.6, STEELG);
+      g.box(0.5, 2, 0.9, 0.14, 0.9, 0.14, 0x333333);
+      break;
+    }
+    case 'tractor': {
+      g.box(-0.95, 0, -0.6, 0.55, 1.8, 1.8, TYRE); g.box(0.95, 0, -0.6, 0.55, 1.8, 1.8, TYRE); // bánh sau to
+      g.box(-0.8, 0, 1.6, 0.35, 1, 1, TYRE); g.box(0.8, 0, 1.6, 0.35, 1, 1, TYRE);
+      g.box(0, 0.6, 0.8, 1, 0.9, 2.6, 0x2f8a3a); g.box(0, 1.5, 1.3, 0.9, 0.12, 1.4, 0x2f8a3a); // nắp máy
+      cab(g, 0, 1.2, -0.6, 1.5, 1.7, 1.5, 0x2f8a3a); g.box(0.3, 1.5, 1.8, 0.12, 0.9, 0.12, 0x333333);
+      // rơ moóc chở vật liệu
+      g.box(0, 0.6, -2, 0.2, 0.2, 1.2, STEELG);
+      g.box(0, 0.85, -4, 2.2, 0.5, 3, 0x9a5a36); wheels(g, 1, [-4], 0.5, 0.35);
+      for (let k = 0; k < 3; k++) g.box(0, 1.35 + k * 0.32, -4, 1.9 - k * 0.3, 0.3, 2.6, k % 2 ? 0xb07a4a : 0xc4b8a0); // gạch, ván
+      break;
+    }
+    case 'roller': {
+      const M = new THREE.Matrix4(), E = new THREE.Euler(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), O = new THREE.Vector3(1, 1, 1);
+      g.at(M.compose(V.set(-1, 0.75, 1.7), Q.setFromEuler(E.set(0, 0, -Math.PI / 2)), O)).cyl(0, 0, 0, 0.75, 0.75, 2, 0x9aa0a6, 12).at(null); // trống lu
+      g.box(0, 1.3, 1.7, 2.2, 0.3, 1.8, CAT);
+      wheels(g, 0.9, [-1.3], 0.65, 0.55);
+      g.box(0, 0.7, -0.9, 1.7, 1.1, 2.4, CAT); cab(g, 0, 1.8, -0.9, 1.4, 1.4, 1.3); g.box(0, 3.2, -0.9, 1.8, 0.08, 1.8, CAT_D);
+      break;
+    }
+    case 'mcrane': {
+      wheels(g, 1.1, [2.6, 1.2, -1.2, -2.6], 0.55, 0.45);
+      g.box(0, 0.6, 0, 2.3, 0.7, 7.4, 0xe0a019); cab(g, -0.6, 1.3, 3, 1, 1.4, 1.4, 0xe0a019);
+      for (const [x, z] of [[-1.6, 2], [1.6, 2], [-1.6, -2.4], [1.6, -2.4]]) { g.box(x, 0, z, 0.5, 0.9, 0.5, 0x8a8f95); } // chân chống
+      g.box(0.4, 1.3, -1.6, 1.8, 1.1, 2.6, 0xe0a019);
+      const M = new THREE.Matrix4(), E = new THREE.Euler(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), O = new THREE.Vector3(1, 1, 1);
+      g.at(M.compose(V.set(0.4, 2.4, -2.2), Q.setFromEuler(E.set(-1.05, 0, 0)), O));
+      g.box(0, 0, 6, 0.7, 0.7, 12, 0xe0a019); g.box(0, 0, 9, 0.5, 0.5, 6, 0xc98d0e); g.at(null); // cần cẩu ống lồng
+      const tip = [0.4, 2.4 + Math.sin(1.05) * 12, -2.2 + Math.cos(1.05) * 12];
+      g.box(tip[0], 2.2, tip[2], 0.05, tip[1] - 2.2, 0.05, 0x222222); g.box(tip[0], 1.7, tip[2], 0.5, 0.5, 0.5, STEELG); // cáp + móc
+      break;
+    }
+  }
+  return { geometry: g.build(), top };
+}
+
+/** Cần cẩu tháp cao h: { mast, jib } — jib (cần ngang + đối trọng + cabin) quay quanh đỉnh tháp, gốc toạ độ ở đỉnh tháp. */
+export function towerCrane(h, reach) {
+  const m = new GB(), j = new GB(), RED = 0xd8a21c;
+  m.box(0, -0.2, 0, 3, 0.6, 3, 0x8d887e);
+  for (const [x, z] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) m.box(x, 0, z, 0.22, h, 0.22, RED);
+  for (let y = 1.5; y < h; y += 3) { m.box(0, y, -0.8, 1.8, 0.12, 0.12, RED); m.box(0, y, 0.8, 1.8, 0.12, 0.12, RED); m.box(-0.8, y + 1.5, 0, 0.12, 0.12, 1.8, RED); m.box(0.8, y + 1.5, 0, 0.12, 0.12, 1.8, RED); }
+  j.box(0, 0, 0, 2.2, 0.6, 2.2, RED); j.box(1.4, 0.2, 0.2, 1.4, 1.5, 1.6, 0xf2f2f0); j.box(1.4, 0.7, 0.2, 1.45, 0.6, 1.4, GLASS_D); // cabin
+  j.box(0, 0.6, 0, 0.5, 4, 0.5, RED); // đỉnh chóp
+  j.box(0, 0.6, reach / 2, 1.1, 0.9, reach, RED); j.box(0, 0.6, -5, 1.1, 0.7, 10, RED); // cần trước, cần sau
+  j.box(0, -0.4, -8.5, 1.8, 1.5, 2.4, 0x8d887e); // đối trọng
+  for (const z of [reach * 0.5, -5]) j.box(0, 2.5, z / 2 + (z > 0 ? 0 : 0), 0.06, 0.06, Math.abs(z) + 1, 0x444444); // dây giằng
+  const hz = reach * 0.6; j.box(0, 0.1, hz, 0.9, 0.5, 1.2, STEELG); j.box(0, -6, hz, 0.05, 6.1, 0.05, 0x222222); j.box(0, -6.6, hz, 0.6, 0.6, 0.6, 0xd8262e); // xe con, cáp, móc
+  return { mast: m.build(), jib: j.build() };
+}
