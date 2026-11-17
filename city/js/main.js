@@ -12,7 +12,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // nhóm công cụ ở thanh dưới; nhóm có `tool` thì bấm là cầm luôn
 const GROUPS = [
   { id: 'info', icon: '🖐️', label: 'Xem', tool: 'info' },
-  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:highway', 'roundabout', 'junction'] },
+  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:tunnel', 'road:highway', 'roundabout', 'junction'] },
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
   { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
@@ -462,7 +462,7 @@ function showInfo(tile) {
     const acc = c.inc.accidents.filter((a) => a.edge === edge).length;
     if (acc) add('Tai nạn trên đoạn này', `💥 ${acc} vụ, đang chờ công an / cứu hộ`);
     add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
-    if (d.elevated) add('Tầng', 'Trên cao: bắc qua đường dưới, không có nhà hai bên');
+    if (d.elevated) { const lv = S.roadLvl(edge.type); add('Tầng', lv < 0 ? 'Hầm chui: chìm dưới mặt đất, đường bên trên bắc qua' : lv > 1 ? 'Cầu tầng 2: bắc qua cả cầu tầng 1 lẫn đường dưới đất' : 'Trên cao: bắc qua đường dưới, không có nhà hai bên'); }
   } else if (c.water[i]) { title = '🌊 Mặt nước'; add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
@@ -805,6 +805,7 @@ function openSide(id) {
 function bindUi() {
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
+  $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
   $('bSave').addEventListener('click', () => openSide('saves'));
   $('bCity').addEventListener('click', () => openSide('people'));
   $('bDev').addEventListener('click', () => openSide('dev'));
@@ -838,6 +839,7 @@ function bindUi() {
 function startCity(c) {
   city = c; window.__city = c;
   view.setCity(c);
+  $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
   updateHud.key = null; renderLoans.sig = '';
   tool = 'info'; group = 'info';

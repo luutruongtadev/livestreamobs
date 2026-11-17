@@ -132,7 +132,7 @@ function go(c, id, dest, purpose) {
   const ride = planRide(c, from, dest);
   if (ride && ride.eta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
   mode.car++;
-  const kind = id % 5 < 2 ? 'car' : 'moto'; // phần đông đi xe máy
+  const kind = (c.style === 'vn' ? id % 8 === 0 : id % 5 < 2) ? 'car' : 'moto'; // phần đông đi xe máy; kiểu Việt Nam thì gần như ai cũng xe máy
   if (kind === 'car') cb.car = true; // chỉ ô tô mới phải tìm chỗ đỗ
   if (!trip(c, kind, from, dest, cb, Math.random() < c.carSample, hue)) later(c, 6, { ...cb, fail: true });
 }

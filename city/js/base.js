@@ -71,11 +71,17 @@ export const ROADS = {
   large: { name: 'Đại lộ 4 làn', icon: '🛤️', w: 20, asphalt: 15.6, cost: 11, upkeep: 0.13, speed: 1.35, lanes: 2, desc: 'Bốn làn có dải phân cách, rộng 2 ô, thông xe gấp đôi và chạy nhanh hơn' },
   oneway: { name: 'Đường một chiều', icon: '➡️', w: 10, asphalt: 6.4, cost: 4.5, upkeep: 0.05, speed: 1.15, lanes: 2, desc: 'Hai làn cùng chiều theo hướng vẽ; nâng cấp lần nữa để đảo chiều' },
   overpass: { name: 'Cầu vượt 2 làn', icon: '🌉', w: 10, asphalt: 8.4, cost: 14, upkeep: 0.14, speed: 1.15, lanes: 1, elevated: true, unlock: 400, desc: 'Đường nhỏ trên cao: bắc qua đường khác mà không cắt ngang, hai đầu dốc xuống nối vào đường có sẵn' },
+  overpass2: { name: 'Cầu vượt tầng 2', icon: '🌁', w: 10, asphalt: 8.4, cost: 22, upkeep: 0.2, speed: 1.15, lanes: 1, elevated: true, lvl: 2, unlock: 1000, desc: 'Cầu vượt tầng trên cùng: bắc qua cả cầu vượt, cao tốc tầng 1 lẫn đường dưới đất; nối vào cầu tầng 1 thì dốc từ tầng 1 lên, làm được nút giao nhiều tầng lồng nhau' },
+  tunnel: { name: 'Hầm chui 2 làn', icon: '🕳️', w: 10, asphalt: 8.4, cost: 16, upkeep: 0.16, speed: 1.15, lanes: 1, elevated: true, lvl: -1, unlock: 400, desc: 'Đường chìm dưới mặt đất có tường chắn hai bên: chui qua bên dưới đường khác mà không cắt ngang, đường bên trên thành cầu nhỏ bắc qua hầm' },
   highway: { name: 'Cao tốc 6 làn', icon: '🛣️', w: 22, asphalt: 21, cost: 26, upkeep: 0.26, speed: 1.9, lanes: 3, elevated: true, unlock: 1000, desc: 'Ba làn mỗi chiều chạy trên cao, nhanh gần gấp đôi; chỉ ra vào ở hai đầu (nút giao khác mức), không có nhà hai bên' },
 };
 /** Đoạn đường mới loại `a` gặp đường có sẵn loại `b`: chỉ tạo nút giao khi cùng tầng (cùng trên cao hoặc cùng dưới đất). */
-export const sameLevel = (a, b) => !!ROADS[a].elevated === !!ROADS[b].elevated;
+export const roadLvl = (type) => (ROADS[type].lvl ?? (ROADS[type].elevated ? 1 : 0)); // -1 hầm, 0 mặt đất, 1 cầu tầng 1, 2 cầu tầng 2
+export const sameLevel = (a, b) => roadLvl(a) === roadLvl(b);
 export const LIFT = 7; // độ cao mặt đường trên cao so với mặt đất
+export const DEPTH = 6.5; // độ sâu đáy hầm chui so với mặt đất
+/** Độ cao mặt đường của một tầng so với mặt đất. */
+export const lvlH = (l) => (l > 0 ? l * LIFT : l < 0 ? -DEPTH : 0);
 export const BRIDGE_MULT = 4.5;
 export const LINES = {
   power: { name: 'Dây điện', icon: '🗼', cost: 1.2, upkeep: 0.012, desc: 'Nối nhà máy điện ở xa vào đường hoặc vào công trình khác' },

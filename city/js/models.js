@@ -925,3 +925,84 @@ export function pylonParts(g) {
   g.box(0, -1, 0, 2.4, 1.2, 2.4, 0x9a968e);
   return g;
 }
+
+// ───────────────────────── phong cách Việt Nam ─────────────────────────
+
+const VN_WALL = [0xf3d36b, 0xf2b8a2, 0xb9e0c8, 0xa9cbe8, 0xf4ead2, 0xe9a96a, 0xd8c3e6, 0xfff2b0];
+const VN_ROOF = [0xb4453a, 0x3f6fa8, 0x9a9a9a, 0x5a8a5a];
+const VN_SIGN = [0xd8262e, 0xf2c200, 0x1f6fc8, 0x16935a, 0xe8681f];
+
+/** Cờ đỏ sao vàng nhỏ trên cột: gốc ở chân cột, lá cờ hướng theo +x. */
+export function flagParts(g, x, y, z, h = 3.2) {
+  g.cyl(x, y, z, 0.05, 0.05, h, 0xd8d4cc, 4);
+  g.box(x + 0.75, y + h - 1, z, 1.5, 1, 0.04, 0xda251d);
+  // ngôi sao 5 cánh vẽ bằng tam giác, hai mặt
+  const cx = x + 0.75, cy = y + h - 0.5, R = 0.3, r = 0.12, pts = [];
+  for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r : R; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+  for (const zz of [z + 0.025, z - 0.025]) for (let k = 0; k < 10; k++) {
+    const a = pts[k], b = pts[(k + 1) % 10];
+    g.poly([[cx, cy, zz], [a[0], a[1], zz], [b[0], b[1], zz]], [0, 0, zz > z ? 1 : -1], 0xffde00);
+  }
+  return g;
+}
+
+/**
+ * Một căn nhà ống: rộng w, sâu d, cao `floors` tầng; mặt tiền quay về +z.
+ * Ban công từng tầng có lan can và chậu cây, tầng trệt cửa cuốn hoặc cửa hàng, trên mái bồn nước inox, máy nước nóng, tum mái tôn.
+ */
+function tubeHouse(g, r, x, w, d, floors, shopSign) {
+  const wall = pick(r, VN_WALL), z0 = 4.6 - d, zf = 4.6, h = floors * FLOOR;
+  g.box(x, 0.14, z0 + d / 2, w, h, d, wall, true);
+  // tầng trệt
+  if (shopSign != null) {
+    g.box(x, 0.14, zf + 0.02, w - 0.5, 2.6, 0.08, 0x3a3f46); // khoang cửa hàng mở
+    g.box(x, 2.85, zf + 0.06, w - 0.1, 0.95, 0.18, shopSign); // biển hiệu
+    g.at(new THREE.Matrix4().makeTranslation(x, 2.7, zf + 0.6).multiply(new THREE.Matrix4().makeRotationX(0.35))).box(0, 0, 0, w - 0.2, 0.06, 1.3, pick(r, [0xd8262e, 0x1f6fc8, 0x16935a, 0xf2c200])).at(null); // mái che bạt
+  } else g.box(x, 0.14, zf + 0.03, w - 0.6, 2.5, 0.08, 0x9aa1a6); // cửa cuốn
+  // ban công các tầng trên
+  for (let f = 1; f < floors; f++) {
+    const y = 0.14 + f * FLOOR;
+    g.box(x, y - 0.1, zf + 0.55, w, 0.14, 1.1, 0xd9d4c8);
+    g.box(x, y + 0.04, zf + 1.07, w, 0.9, 0.06, 0x6e6a66); // lan can sắt
+    if (r() > 0.35) g.box(x - w * 0.3, y + 0.04, zf + 0.75, 0.45, 0.5, 0.4, 0x4f9440); // chậu cây
+    g.box(x, y + 0.2, zf + 0.04, w * 0.55, 1.9, 0.06, 0x7fa3bf); // cửa kính
+  }
+  // mái bằng, tum mái tôn, bồn nước inox, máy nước nóng năng lượng mặt trời
+  g.box(x, 0.14 + h, z0 + d / 2, w + 0.1, 0.35, d + 0.1, 0x8d887e);
+  const top = 0.49 + h;
+  g.box(x, top, z0 + d * 0.3, w * 0.7, 2.2, d * 0.35, wall);
+  g.gable(x, top + 2.2, z0 + d * 0.3, w * 0.8, 0.5, d * 0.42, pick(r, VN_ROOF), false, wall);
+  g.at(new THREE.Matrix4().makeTranslation(x + w * 0.15, top + 0.6, z0 + d * 0.72).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2))).cyl(0, -0.75, 0, 0.55, 0.55, 1.5, 0xd7dde2, 10, 0xe9eef2).at(null);
+  g.box(x + w * 0.15, top, z0 + d * 0.72, 1.3, 0.1, 0.5, 0x8a949c);
+  if (r() > 0.5) g.at(new THREE.Matrix4().makeTranslation(x - w * 0.2, top + 0.5, zf - 1.2).multiply(new THREE.Matrix4().makeRotationX(-0.55))).box(0, 0, 0, 1.4, 0.08, 1.1, 0x23365e).at(null);
+}
+
+/** Nhà theo phong cách Việt Nam cho các khu dân cư thấp / trung bình, liền kề, hỗn hợp, cửa hàng, giải trí, ký túc xá. Không hợp thì trả null. */
+export function growableVN(zone, level, variant) {
+  const vn = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop' }[zone];
+  if (!vn) return null;
+  const r = mulberry32(zone * 977 + level * 131 + variant * 17 + 3), g = new GB();
+  g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa); // sân xi măng trước nhà
+  const n = level >= 4 ? 3 : 2, w = 9.4 / n, base = (zone === 1 ? 1 : 2) + Math.min(level, 4);
+  for (let k = 0; k < n; k++) {
+    const floors = Math.max(2, base + ((r() * 3) | 0) - 1), x = -4.7 + w * (k + 0.5);
+    tubeHouse(g, r, x, w - 0.12, 7.6 + r() * 0.8, floors, vn === 'shop' || (zone === 13 && r() > 0.6) ? pick(r, VN_SIGN) : null);
+  }
+  if (variant === 0) flagParts(g, -4.4, 3.14, 4.9, 2.6); // cờ treo ở ban công tầng 2
+  if (vn === 'shop') for (let k = 0; k < 4; k++) g.box(-3.6 + k * 2.3, 0.14, 6.1 + (k % 2) * 0.5, 0.45, 0.45, 0.45, [0xd8262e, 0x1f6fc8][k % 2]); // ghế nhựa vỉa hè
+  return g.build();
+}
+
+/** Cây dừa: thân cong nhẹ, tàu lá xoè. */
+export function palmGeometry() {
+  const g = new GB();
+  for (let k = 0; k < 6; k++) g.cyl(k * 0.12, k * 1.2, 0, 0.32 - k * 0.025, 0.3 - k * 0.025, 1.25, 0x8a6a45, 6);
+  const top = 7.1;
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2;
+    g.at(new THREE.Matrix4().makeTranslation(0.7, top, 0).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeRotationX(0.55))).box(0, 0, 1.6, 0.9, 0.08, 3.2, k % 2 ? 0x4f9440 : 0x5fa848).at(null);
+  }
+  g.cyl(0.7, top - 0.4, 0, 0.45, 0.3, 0.5, 0x6b5a33, 6);
+  return g.build();
+}

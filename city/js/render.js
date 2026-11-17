@@ -3,8 +3,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated } from './sim.js';
-import { GB, growable, treeGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl } from './sim.js';
+import { GB, growable, growableVN, palmGeometry, treeGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -106,6 +106,56 @@ function pointAt(pts, cum, s) {
   return [x0 + (x1 - x0) * f, z0 + (z1 - z0) * f, (x1 - x0) / l, (z1 - z0) / l, k];
 }
 
+// biển hiệu chữ cho cửa hàng kiểu Việt Nam (từ chung chung, không phải thương hiệu)
+const SIGN_WORDS = ['PHỞ', 'CÀ PHÊ', 'TẠP HOÁ', 'BÁNH MÌ', 'SỬA XE', 'BÚN CHẢ', 'CƠM TẤM', 'ĐIỆN THOẠI'];
+const SIGN_BG = ['#d8262e', '#1f6fc8', '#f2c200', '#16935a', '#e8681f', '#d8262e', '#7a3fb0', '#1f6fc8'];
+function signAtlas() {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64 * SIGN_WORDS.length;
+  const g = cv.getContext('2d');
+  SIGN_WORDS.forEach((w, k) => {
+    g.fillStyle = SIGN_BG[k]; g.fillRect(0, k * 64, 512, 64);
+    g.fillStyle = SIGN_BG[k] === '#f2c200' ? '#b0141c' : '#fff6d0';
+    g.font = 'bold 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(w, 256, k * 64 + 34, 490);
+  });
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+const MAX_TRENCH = 160;
+/** Uniform chung cho mọi vật liệu cần khoét lỗ theo lòng hầm chui (mặt đất, mặt nước). */
+const TRENCH = { seg: { value: Array.from({ length: MAX_TRENCH }, () => new THREE.Vector4()) }, hw: { value: new Float32Array(MAX_TRENCH) }, n: { value: 0 } };
+/** Sửa shader của vật liệu để bỏ (discard) những điểm nằm trong lòng hầm chui đang mở. */
+function trenchCut(mat) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTSeg = TRENCH.seg; sh.uniforms.uTHw = TRENCH.hw; sh.uniforms.uTN = TRENCH.n;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTWorld;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvTWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vTWorld;
+uniform vec4 uTSeg[${MAX_TRENCH}];
+uniform float uTHw[${MAX_TRENCH}];
+uniform int uTN;`).replace('void main() {', `void main() {
+  for (int i = 0; i < ${MAX_TRENCH}; i++) {
+    if (i >= uTN) break;
+    vec2 a = uTSeg[i].xy, ba = uTSeg[i].zw - a, pa = vTWorld.xz - a;
+    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
+    if (length(pa - ba * h) < uTHw[i]) discard;
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'trench';
+  return mat;
+}
+
+/** Bao lồi của tập điểm [x, z] (giữ thứ tự ngược chiều kim đồng hồ). */
+function hull2(pts) {
+  if (pts.length < 4) return pts;
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+
 export class View {
   constructor(canvas) {
     this.canvas = canvas;
@@ -147,7 +197,7 @@ export class View {
   _static() {
     const s = this.scene;
     const water = this.water = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2),
-      new THREE.MeshPhongMaterial({ color: 0x2f7db5, specular: 0x9fd0ff, shininess: 90, transparent: true, opacity: 0.86 }));
+      trenchCut(new THREE.MeshPhongMaterial({ color: 0x2f7db5, specular: 0x9fd0ff, shininess: 90, transparent: true, opacity: 0.86 })));
     water.position.y = WATER_Y; water.receiveShadow = true;
     s.add(water);
 
@@ -162,7 +212,13 @@ export class View {
     this.growMeshes = {}; // tạo dần khi có toà nhà loại đó: khoá "khu-cấp-biến thể"
 
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    this.treeMeshes = [this._inst(treeGeometry(0), treeMat, 6000, true), this._inst(treeGeometry(1), treeMat, 6000, true)];
+    this.treeMeshes = [this._inst(treeGeometry(0), treeMat, 6000, true), this._inst(treeGeometry(1), treeMat, 6000, true), this._inst(palmGeometry(), treeMat, 3000, true)];
+    this.signMat = new THREE.MeshBasicMaterial({ map: signAtlas() }); this.signMeshes = [];
+    for (let k = 0; k < SIGN_WORDS.length; k++) {
+      const pg = new THREE.PlaneGeometry(1, 1), uv = pg.attributes.uv, v0 = 1 - (k + 1) / SIGN_WORDS.length, v1 = 1 - k / SIGN_WORDS.length;
+      for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
+      const mm = new THREE.InstancedMesh(pg, this.signMat, 2000); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.signMeshes.push(mm);
+    }
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
@@ -354,10 +410,29 @@ export class View {
       col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       uv[k * 2] = gx * 0.5; uv[k * 2 + 1] = gy * 0.5;
     }
+    // lượt hai theo độ cao thật của từng đỉnh: sườn dốc lộ đá, thung lũng tối hơn, sống núi sáng hơn,
+    // đồng bằng thấp xanh mướt, đáy nước sâu đậm màu dần
+    {
+      const H = (i, j) => pos[(clamp(j, 0, V - 1) * V + clamp(i, 0, V - 1)) * 3 + 1];
+      const cliff = new THREE.Color(0x7d7564), lush = new THREE.Color(0x4f9a3c), deepBed = new THREE.Color(0x2c5566), cc = new THREE.Color();
+      for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
+        const k = j * V + i, h = H(i, j), gx = i - BORDER, gy = j - BORDER;
+        const sx = (H(i + 1, j) - H(i - 1, j)) / (2 * T), sz = (H(i, j + 1) - H(i, j - 1)) / (2 * T), slope = Math.hypot(sx, sz);
+        const conc = (H(i + 1, j) + H(i - 1, j) + H(i, j + 1) + H(i, j - 1)) / 4 - h; // > 0: lòng chảo / thung lũng
+        cc.setRGB(col[k * 3], col[k * 3 + 1], col[k * 3 + 2]);
+        if (h < -0.5) cc.lerp(deepBed, clamp((-h - 0.5) / 3, 0, 0.7));
+        else if (!isWater(gx, gy) && !isWater(gx - 1, gy - 1)) {
+          if (h < 3 && slope < 0.15) cc.lerp(lush, 0.25 * (1 - h / 3));
+          cc.lerp(cliff, clamp((slope - 0.45) / 0.6, 0, 0.85)); // vách dốc lộ đá
+        }
+        const shade = clamp(1 - conc * 0.035, 0.72, 1.12); // tối ở thung lũng, sáng nhẹ ở sống núi
+        col[k * 3] = clamp(cc.r * shade, 0, 1); col[k * 3 + 1] = clamp(cc.g * shade, 0, 1); col[k * 3 + 2] = clamp(cc.b * shade, 0, 1);
+      }
+    }
     const g = this._gridGeometry(W, pos, uv);
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, map: this.noiseTex || (this.noiseTex = noiseTexture()), roughness: 1 }));
+    const mesh = new THREE.Mesh(g, trenchCut(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.noiseTex || (this.noiseTex = noiseTexture()), roughness: 1 })));
     mesh.receiveShadow = true;
     return mesh;
   }
@@ -547,7 +622,7 @@ export class View {
       const n = c.nodes.get(nid);
       let y = this.roadY(n.x, n.z);
       for (const [dx, dz] of [[9, 0], [-9, 0], [0, 9], [0, -9], [6, 6], [-6, 6], [6, -6], [-6, -6]]) y = Math.max(y, this.roadY(n.x + dx, n.z + dz));
-      if (nodeElevated(c, nid)) y += LIFT;
+      y += nodeH(c, nid); // nút trên cao / dưới hầm
       nodeY.set(nid, y);
       const arr = list.map((id) => {
         const e = c.edges.get(id), atA = e.a === nid, p = pointAt(e.pts, e.cum, atA ? Math.min(6, e.len / 2) : Math.max(e.len - 6, e.len / 2));
@@ -570,13 +645,29 @@ export class View {
     const cross = new Map(); // edgeId -> [mặt cắt đầu a, mặt cắt đầu b]
     const st = new GB(), lamps = []; // dầm, lan can, trụ, cột đèn; vị trí bóng đèn đường
     this.wprof = new Map();
+    this.trims = trim;
+    // lòng hầm chui đang mở (đáy thấp hơn mặt đất): khoét mặt đất, mặt nước để thấy đường bên dưới
+    this.trench = [];
+    for (const e of c.edges.values()) {
+      if (roadLvl(e.type) >= 0) continue;
+      const half = ROADS[e.type].w / 2 + 0.25;
+      let prev = null;
+      for (let sa = 0; sa <= e.len + 0.01; sa += 5) {
+        const s1 = Math.min(sa, e.len), deep = this.edgeLift(e, s1) < -0.3, p = pointAt(e.pts, e.cum, s1);
+        if (deep && prev) this.trench.push([prev[0], prev[1], p[0], p[1], half]);
+        prev = deep ? p : null;
+      }
+    }
+    const nT = Math.min(MAX_TRENCH, this.trench.length);
+    for (let k = 0; k < nT; k++) { const t = this.trench[k]; TRENCH.seg.value[k].set(t[0], t[1], t[2], t[3]); TRENCH.hw.value[k] = t[4]; }
+    TRENCH.n.value = nT;
     for (const e of c.edges.values()) {
       const def = ROADS[e.type], half = def.w / 2, [ra, rb] = trim.get(e.id), ps = this._ribbonPoints(e, ra, rb), tr = tris[e.type];
       const ya = nodeY.get(e.a), yb = nodeY.get(e.b), last = ps.length - 1;
       const high = !!def.elevated;
       const rows = ps.map((p, i) => {
         const rx = -p.tz, rz = p.tx;
-        const lift = high ? liftAt(c, e, p.s) : 0, wl = high ? 0 : this.waterLift(e, p.s); // cầu qua sông vồng lên khỏi mặt nước
+        const lift = high ? this.edgeLift(e, p.s) : 0, wl = high ? 0 : this.waterLift(e, p.s); // cầu qua sông vồng lên khỏi mặt nước
         let y = this._crossY(p.x, p.z, rx, rz, half) + lift + wl;
         const da = p.s - ra, db = e.len - rb - p.s; // hoà dần vào cao độ nút giao
         if (c.adj.get(e.a).length > 1 && da < 14) y = ya + (y - ya) * (da / 14);
@@ -614,7 +705,8 @@ export class View {
           inner.push([r.x + side * sg * r.rx * ah, r.z + side * sg * r.rz * ah]);
         }
       }
-      for (const [poly, col, dy] of [[outer, cW, 0], [inner, cA, 0.05]]) {
+      for (const [raw, col, dy] of [[outer, cW, 0], [inner, cA, 0.05]]) {
+        const poly = hull2(raw); // bao lồi: nhánh gần song song (dốc cầu nhập vào đường) không làm đa giác tự cắt
         let mx = 0, mz = 0;
         for (const p of poly) { mx += p[0]; mz += p[1]; }
         const ctr = jt.v(mx / poly.length, y + dy, mz / poly.length, col.r, col.g, col.b);
@@ -678,6 +770,28 @@ export class View {
       for (const [x, y, z] of lamps) lg.box(x, y, z, 0.7, 0.22, 0.45, 0xffffff);
       const m = new THREE.Mesh(lg.build(), this.lampHeadMat); m.frustumCulled = false; this.roadGroup.add(m);
     }
+  }
+
+  /** Đổi phong cách nhà cửa / phố xá: dựng lại mọi mô hình nhà, cây, đường. */
+  restyle() {
+    for (const k in this.growMeshes) { const mm = this.growMeshes[k]; this.scene.remove(mm); mm.dispose(); }
+    this.growMeshes = {};
+    Object.assign(this.city.dirty, { buildings: true, trees: true, roads: true });
+  }
+
+  /** Điểm (x, z) nằm trên lòng hầm chui đang mở không. */
+  overTrench(x, z, pad = 0) {
+    for (const t of this.trench || []) {
+      const dx = t[2] - t[0], dz = t[3] - t[1], l2 = dx * dx + dz * dz || 1, h = clamp(((x - t[0]) * dx + (z - t[1]) * dz) / l2, 0, 1);
+      if (Math.hypot(x - t[0] - dx * h, z - t[1] - dz * h) < t[4] + pad) return true;
+    }
+    return false;
+  }
+
+  /** Độ cao mặt đường trên cao / dưới hầm: dốc bắt đầu từ mép nút giao (chỗ đường bị cắt lùi), không phải từ tâm nút. */
+  edgeLift(e, s) {
+    const t = this.trims && this.trims.get(e.id);
+    return liftAt(this.city, e, s, t ? t[0] + 1.5 : 3, t ? t[1] + 1.5 : 3);
   }
 
   /**
@@ -760,9 +874,19 @@ export class View {
       fn(Math.hypot(l, dy));
       st.at(null);
     };
-    let nextPillar = 0, nextLamp = 14 + (e.id % 3) * 6, side = e.id % 2 ? 1 : -1;
+    let nextPillar = 0, nextLamp = 14 + (e.id % 3) * 6, side = e.id % 2 ? 1 : -1, prevPole = null;
+    const vnPoles = c.style === 'vn' && !ROADS[e.type].elevated;
     for (let i = 1; i < rows.length; i++) {
-      const a = rows[i - 1], b = rows[i], water = isWaterAt(c, (a.x + b.x) / 2, (a.z + b.z) / 2) || Math.max(a.wl || 0, b.wl || 0) > 0.8, high = Math.max(a.lift, b.lift) > 0.8;
+      const a = rows[i - 1], b = rows[i], mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, sunk = Math.min(a.lift, b.lift) < -0.6;
+      const water = isWaterAt(c, mx, mz) || Math.max(a.wl || 0, b.wl || 0) > 0.8 || (!sunk && Math.max(a.lift, b.lift) < 0.8 && this.overTrench(mx, mz, 1)), high = Math.max(a.lift, b.lift) > 0.8;
+      if (sunk) {
+        // hầm chui: tường chắn bê tông hai bên, cao từ đáy hầm lên quá mặt đất một chút (làm lan can), có gờ trên đỉnh
+        seg(a, b, (L) => {
+          const top = Math.max(0.6, this.roadY(mx, mz) - (a.y + b.y) / 2 + 0.9);
+          for (const sd of [-1, 1]) { st.box(sd * (half + 0.25), 0, 0, 0.5, top, L + 0.05, 0xb9b4a8); st.box(sd * (half + 0.25), top, 0, 0.75, 0.15, L + 0.05, 0x8d887e); }
+        });
+        continue;
+      }
       if (high || water) {
         seg(a, b, (L) => {
           st.box(0, -1.15, 0, half * 2 + 0.2, 1.15, L + 0.05, 0xa8a399); // dầm
@@ -778,7 +902,31 @@ export class View {
             st.at(m4.compose(v3.set(b.x, top - 0.45, b.z), q.setFromEuler(e3.set(0, Math.atan2(b.rx, b.rz), 0)), one)).box(0, 0, 0, 2.2, 0.9, half * 2 - 0.6, 0x8d887e).at(null); // xà mũ
           }
         }
-      } else if (b.s >= nextLamp && b.s < e.len - 10) {
+      } else if (vnPoles && b.s >= nextLamp && b.s < e.len - 8) {
+        // kiểu Việt Nam: cột điện bê tông một bên vỉa hè, dây điện chằng chịt nối từ cột trước sang
+        nextLamp = b.s + 26;
+        const sd = e.id % 2 ? 1 : -1, px = b.x + b.rx * sd * (half - 0.45), pz = b.z + b.rz * sd * (half - 0.45), top = b.y + 8.5;
+        st.box(px, b.y, pz, 0.38, 8.5, 0.38, 0x9a968e);
+        st.at(m4.compose(v3.set(px, top - 0.6, pz), q.setFromEuler(e3.set(0, Math.atan2(b.rx, b.rz), 0)), one)).box(0, 0, 0, 0.16, 0.16, 2.2, 0x6e6a66).at(null);
+        st.cyl(px + b.rx * sd * 0.35, top - 2.2, pz + b.rz * sd * 0.35, 0.45, 0.45, 0.9, 0x5f6a6a, 6); // bình biến áp
+        st.cyl(px, top - 3.6, pz, 0.32, 0.32, 0.5, 0x22262b, 6); // cuộn dây
+        if (prevPole) for (const [dh, off] of [[0.6, -0.8], [0.6, 0.8], [1.4, 0], [2.4, 0.3], [3.1, -0.3]]) {
+          const ax = prevPole[0] + b.rx * off, az = prevPole[2] + b.rz * off, bx = px + b.rx * off, bz = pz + b.rz * off, ay = prevPole[1] - dh, by = top - dh, l = Math.hypot(bx - ax, bz - az);
+          const mid = [(ax + bx) / 2, (ay + by) / 2 - 0.5 - l * 0.012, (az + bz) / 2]; // dây võng ở giữa
+          for (const [p0, p1] of [[[ax, ay, az], mid], [mid, [bx, by, bz]]]) {
+            const dx = p1[0] - p0[0], dy = p1[1] - p0[1], dz = p1[2] - p0[2], ll = Math.hypot(dx, dz);
+            st.at(m4.compose(v3.set((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2), q.setFromEuler(e3.set(-Math.atan2(dy, ll), Math.atan2(dx, dz), 0, 'YXZ')), one)).box(0, 0, 0, 0.07, 0.07, Math.hypot(ll, dy), 0x1c1f22).at(null);
+          }
+        }
+        prevPole = [px, top, pz];
+        // xe đẩy bán hàng có ô che ở vỉa hè bên kia, thỉnh thoảng
+        if (hash2(e.id, Math.round(b.s), 61) < 0.35) {
+          const vx = b.x - b.rx * sd * (half - 1.2), vz = b.z - b.rz * sd * (half - 1.2), um = [0xd8262e, 0x1f6fc8, 0xe8681f, 0x16935a][(hash2(e.id, Math.round(b.s), 63) * 4) | 0];
+          st.box(vx, b.y, vz, 1.4, 0.9, 0.8, 0x7a5a36); st.box(vx, b.y + 0.9, vz, 1.5, 0.08, 0.9, 0xd9d4c8);
+          st.cyl(vx + 0.5, b.y, vz, 0.05, 0.05, 2.6, 0x3a3f46, 4); st.cyl(vx + 0.5, b.y + 2.3, vz, 1.6, 0.05, 0.6, um, 8);
+          for (const ox of [-1.3, 1.6]) st.box(vx + ox, b.y, vz + 0.4, 0.4, 0.42, 0.4, [0xd8262e, 0x1f6fc8][(ox > 0) | 0]);
+        }
+      } else if (!vnPoles && b.s >= nextLamp && b.s < e.len - 10) {
         nextLamp = b.s + 30; side = -side; // đổi bên sau mỗi cột
         const px = b.x + b.rx * side * (half - 0.5), pz = b.z + b.rz * side * (half - 0.5), hx = b.x + b.rx * side * (half - 2.2), hz = b.z + b.rz * side * (half - 2.2);
         st.cyl(px, b.y, pz, 0.13, 0.1, 6.2, 0x4a5058, 5);
@@ -846,13 +994,14 @@ export class View {
   _buildings() {
     const c = this.city, counts = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
     let animating = false;
+    const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0);
     for (const k in this.growMeshes) counts[k] = 0;
     for (let i = 0; i < N * N; i++) {
       const L = c.level[i];
       if (!L) continue;
-      const key = `${c.zone[i]}${L}${c.variant[i] % 3}`;
+      const vnGeo = vn && growableVN(c.zone[i], 1, 0) ? 'v' : '', key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
       let mesh = this.growMeshes[key];
-      if (!mesh) { mesh = this.growMeshes[key] = this._inst(growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; }
+      if (!mesh) { mesh = this.growMeshes[key] = this._inst((vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; }
       if (counts[key] >= mesh.userData.cap) mesh = this._grow(this.growMeshes, key);
       const x = i % N, y = (i / N) | 0;
       // mọc lên từ từ trong ~1,2 giây
@@ -863,22 +1012,34 @@ export class View {
       p.set(cellCenter(x), c.cellH[i] + 0.02, cellCenter(y)); s.set(1, Math.max(0.02, e), 1);
       m.compose(p, q, s);
       mesh.setMatrixAt(counts[key], m);
+      if (vnGeo && t >= 1 && (c.zone[i] === 2 || c.zone[i] === 7 || c.zone[i] === 17)) { // chữ trên biển hiệu từng căn nhà ống
+        const nh = L >= 4 ? 3 : 2, w = 9.4 / nh;
+        for (let k = 0; k < nh; k++) {
+          const wd = (hash2(x * 3 + k, y, 41) * SIGN_WORDS.length) | 0;
+          if (sc[wd] >= 2000) continue;
+          sl.makeTranslation(-4.7 + w * (k + 0.5), 3.32, 4.6 + 0.16).scale(_v3.set(w - 0.7, 0.72, 1));
+          this.signMeshes[wd].setMatrixAt(sc[wd]++, sm.multiplyMatrices(m, sl));
+        }
+      }
       col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
     }
     for (const k in this.growMeshes) { const mesh = this.growMeshes[k]; mesh.count = counts[k]; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    this.signMeshes.forEach((mm, k) => { mm.count = sc[k]; mm.instanceMatrix.needsUpdate = true; });
     return animating;
   }
 
   _trees() {
     const c = this.city, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
-    const n = [0, 0];
+    const n = [0, 0, 0], vn = c.style === 'vn', cap = [6000, 6000, 3000];
+    const shore = (x, y) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const a = x + dx, b = y + dy; if (a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a]) return true; } return false; };
     for (let i = 0; i < N * N; i++) {
       if (!c.tree[i]) continue;
+      const nearW = vn && shore(i % N, (i / N) | 0);
       const x = i % N, y = (i / N) | 0, cnt = 2 + ((hash2(x, y, 5) * 3) | 0);
       for (let k = 0; k < cnt; k++) {
-        const kind = hash2(x * 7 + k, y, 9) > 0.55 ? 1 : 0;
-        if (n[kind] >= 6000) continue;
+        const kind = vn && (nearW ? hash2(x, y * 3 + k, 19) < 0.8 : hash2(x, y * 3 + k, 19) < 0.12) ? 2 : hash2(x * 7 + k, y, 9) > 0.55 ? 1 : 0; // kiểu Việt Nam: dừa ven sông biển
+        if (n[kind] >= cap[kind]) continue;
         const sc = 0.8 + hash2(x, y * 5 + k, 11) * 0.7;
         const wx = cellCenter(x) + (hash2(x + k * 13, y, 1) - 0.5) * T * 0.8, wz = cellCenter(y) + (hash2(x, y + k * 17, 2) - 0.5) * T * 0.8;
         p.set(wx, heightAt(c, wx, wz) - 0.15, wz);
@@ -1001,7 +1162,7 @@ export class View {
       mesh.setMatrixAt(n, m); mesh.setColorAt(n, color); vc[look] = n + 1;
     };
     for (const v of c.traffic.vehicles) {
-      const e = v.e, sa = v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s), pt = pointAt(e.pts, e.cum, sa), lift = ROADS[e.type].elevated ? liftAt(c, e, sa) : 0;
+      const e = v.e, sa = v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s), pt = pointAt(e.pts, e.cum, sa), lift = ROADS[e.type].elevated ? this.edgeLift(e, sa) : 0;
       const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
       const gx = pt[0] - tz * off, gz = pt[1] + tx * off;
       if (v.rx == null) { v.rx = gx; v.rz = gz; v.ryaw = Math.atan2(tx, tz); }
@@ -1150,7 +1311,7 @@ export class View {
         const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
         let tx = pts[b * 2] - pts[a * 2], tz = pts[b * 2 + 1] - pts[a * 2 + 1];
         const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-        const x = pts[k * 2], z = pts[k * 2 + 1], y = this.roadY(x, z) + 0.6 + (ROADS[e.type].elevated ? liftAt(c, e, e.cum[k]) : 0);
+        const x = pts[k * 2], z = pts[k * 2 + 1], y = this.roadY(x, z) + 0.6 + (ROADS[e.type].elevated ? this.edgeLift(e, e.cum[k]) : 0);
         const L = t.v(x + tz * half, y, z - tx * half, col.r, col.g, col.b), R = t.v(x - tz * half, y, z + tx * half, col.r, col.g, col.b);
         if (prev) { t.tri(prev[0], prev[1], L); t.tri(prev[1], R, L); }
         prev = [L, R];

@@ -3,7 +3,7 @@
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  ROADS, BRIDGE_MULT, LINES, sameLevel, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  ROADS, BRIDGE_MULT, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
@@ -108,7 +108,7 @@ export function isWaterAt(c, wx, wz) {
 
 export function newCity(seed = (Math.random() * 1e9) | 0) {
   const c = {
-    v: 4, tgen: 2, seed, name: 'Phố Mới',
+    v: 4, tgen: 2, seed, name: 'Phố Mới', style: 'vn',
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
     zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N),
     nodes: new Map(), edges: new Map(), nextId: 1, lines: [], rings: [],
@@ -395,8 +395,35 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small' }) {
   const touches = (s, e) => s.edge === e.id || s.node === e.a || s.node === e.b;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (let k = 0; k <= n; k++) { minX = Math.min(minX, pts[k * 2]); maxX = Math.max(maxX, pts[k * 2]); minZ = Math.min(minZ, pts[k * 2 + 1]); maxZ = Math.max(maxZ, pts[k * 2 + 1]); }
+  // độ cao dự kiến của đoạn mới: hai đầu ở độ cao nút sẽ thành (nút có nhánh mặt đất thì ở mặt đất), giữa ở độ cao tầng
+  const H = lvlH(roadLvl(type)), endH = (s) => {
+    const lv = [roadLvl(type)];
+    if (s.node != null) for (const id of c.adj.get(s.node) || []) lv.push(roadLvl(c.edges.get(id).type));
+    else if (s.edge != null) { const t = roadLvl(c.edges.get(s.edge).type); lv.push(t, t); } else return 0;
+    if (lv.includes(0)) return 0;
+    return lvlH(lv.reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a)));
+  };
+  const hA = endH(A), hB = endH(B), myH = (s) => {
+    if (!H) return 0;
+    const va = hA + (H - hA) * rampAt(s, H - hA), vb = hB + (H - hB) * rampAt(len - s, H - hB);
+    return Math.abs(va - H) >= Math.abs(vb - H) ? va : vb;
+  };
   for (const e of c.edges.values()) {
-    if (!sameLevel(type, e.type)) continue; // khác tầng: cầu vượt bắc qua, không tạo nút giao
+    if (!sameLevel(type, e.type)) {
+      // khác tầng thì đi qua nhau, trừ khi chỗ gặp nằm trên đoạn dốc lên / xuống (hai mặt đường còn sát nhau)
+      if (H || roadLvl(e.type)) {
+        const q = e.pts, m = q.length / 2 - 1;
+        for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
+          const r = segInt(pts[k * 2], pts[k * 2 + 1], pts[k * 2 + 2], pts[k * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
+          if (!r) continue;
+          const x = pts[k * 2] + (pts[k * 2 + 2] - pts[k * 2]) * r.t, z = pts[k * 2 + 1] + (pts[k * 2 + 3] - pts[k * 2 + 1]) * r.t;
+          if ((Math.hypot(x - A.x, z - A.z) < 9 && touches(A, e)) || (Math.hypot(x - B.x, z - B.z) < 9 && touches(B, e))) continue;
+          const h1 = myH(cum[k] + (cum[k + 1] - cum[k]) * r.t), h2 = liftAt(c, e, e.cum[j] + (e.cum[j + 1] - e.cum[j]) * r.u);
+          if (Math.abs(h1 - h2) < 4) return { ...out, reason: 'Chỗ giao nằm trên dốc lên xuống của cầu / hầm: hai mặt đường còn sát nhau, hãy cho chúng gặp nhau xa đầu dốc hơn' };
+        }
+      }
+      continue; // khác tầng: cầu bắc qua / hầm chui qua, không tạo nút giao
+    }
     const q = e.pts, m = q.length / 2 - 1, Na = c.nodes.get(e.a), Nb = c.nodes.get(e.b);
     let ex0 = Infinity, ex1 = -Infinity, ez0 = Infinity, ez1 = -Infinity;
     for (let j = 0; j <= m; j++) { ex0 = Math.min(ex0, q[j * 2]); ex1 = Math.max(ex1, q[j * 2]); ez0 = Math.min(ez0, q[j * 2 + 1]); ez1 = Math.max(ez1, q[j * 2 + 1]); }
@@ -593,17 +620,36 @@ export function nodeAt(c, x, z, r = 12) {
   return best;
 }
 
-/** Nút nằm trên cao: mọi nhánh đều là đường trên cao (nút cụt thì dốc xuống mặt đất). */
-export function nodeElevated(c, nid) {
+/**
+ * Độ cao của một nút đường so với mặt đất: có nhánh dưới đất thì nằm ở mặt đất (cầu, hầm dốc xuống / lên nối vào);
+ * mọi nhánh khác tầng mặt đất thì nằm ở tầng gần mặt đất nhất trong số đó (cầu tầng 2 nối vào cầu tầng 1 thì dốc từ tầng 1).
+ */
+export function nodeH(c, nid) {
   const l = c.adj.get(nid);
-  return !!l && l.length >= 2 && l.every((id) => ROADS[c.edges.get(id).type].elevated);
+  if (!l || l.length < 2) return 0;
+  let best = null;
+  for (const id of l) { const v = roadLvl(c.edges.get(id).type); if (v === 0) return 0; if (best == null || Math.abs(v) < Math.abs(best)) best = v; }
+  return lvlH(best);
+}
+/** Nút nằm khác tầng mặt đất (trên cao hoặc dưới hầm). */
+export const nodeElevated = (c, nid) => nodeH(c, nid) !== 0;
+
+/** Dốc êm 0 → 1 trên quãng đường d kể từ đầu dốc; dốc dài theo độ chênh cao. */
+export function rampAt(d, dh, start = 3) {
+  const t = clamp((d - start) / (34 * Math.max(1, Math.abs(dh) / LIFT)), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
-/** Độ cao mặt đường so với mặt đất tại quãng đường s trên đoạn e (đường trên cao dốc dần ở đầu nối xuống đất). */
-export function liftAt(c, e, s) {
-  if (!ROADS[e.type].elevated) return 0;
-  const ramp = (d) => { const t = clamp((d - 3) / 34, 0, 1); return t * t * (3 - 2 * t); };
-  return LIFT * Math.min(nodeElevated(c, e.a) ? 1 : ramp(s), nodeElevated(c, e.b) ? 1 : ramp(e.len - s));
+/**
+ * Độ cao mặt đường so với mặt đất tại quãng đường s trên đoạn e: đường khác tầng mặt đất dốc dần từ độ cao nút ở hai đầu
+ * lên (hoặc xuống) độ cao tầng của nó. startA / startB: chỗ bắt đầu dốc tính từ mỗi đầu (phần nút giao chiếm chỗ).
+ */
+export function liftAt(c, e, s, startA = 3, startB = 3) {
+  const H = lvlH(roadLvl(e.type));
+  if (!H) return 0;
+  const hA = nodeH(c, e.a), hB = nodeH(c, e.b);
+  const va = hA + (H - hA) * rampAt(s, H - hA, startA), vb = hB + (H - hB) * rampAt(e.len - s, H - hB, startB);
+  return Math.abs(va - H) >= Math.abs(vb - H) ? va : vb;
 }
 
 /** Tham số t (0..1) trên đường cong của đoạn e ứng với quãng đường s tính từ đầu a. */
@@ -1309,7 +1355,7 @@ const r1 = (v) => Math.round(v * 10) / 10;
 export function serialize(c) {
   const pack = (k) => b64(c[k]), pp = packPeople(c);
   return {
-    v: 4, n: N, tgen: c.tgen, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
+    v: 4, n: N, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
     tech: [...c.tech], points: c.points, owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
@@ -1331,7 +1377,7 @@ export function deserialize(o) {
   const ms = clamp(o.milestone | 0, 0, MILESTONES.length);
   const mods = (s) => (Array.isArray(s.mods) ? [...new Set(s.mods)].filter((m) => MODULES[m] && MODULES[m].for.includes(s.type)) : []);
   const c = {
-    v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2),
+    v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2), style: o.style === 'vn' ? 'vn' : 'classic', // bản lưu cũ giữ kiểu nhà cũ
     tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
     points: open ? START_POINTS + MILESTONES.slice(0, ms).reduce((n, m) => n + m.points, 0) : clamp(o.points | 0, 0, 999),
     owned: open ? new Uint8Array(LT * LT).fill(1) : unb64(o.owned, LT * LT).map((v) => (v ? 1 : 0)),
