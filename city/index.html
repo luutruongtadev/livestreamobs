@@ -80,6 +80,18 @@
   .side h4 { margin: 14px 0 6px; font-size: 11.5px; color: var(--acc); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
   .row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
   .row > span:first-child { color: var(--dim); }
+  .exg { border-radius: 8px; margin: 2px -6px; }
+  .exg > .eh { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; border-radius: 8px; text-align: left; }
+  .exg > .eh:hover { background: rgba(255,255,255,.06); }
+  .exg .nm { flex: 1; color: var(--dim); } .exg .ar { width: 10px; color: var(--dim); font-size: 10px; transition: transform .15s; }
+  .exg.open .ar { transform: rotate(90deg); }
+  .exg .bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); margin: 0 6px 3px 24px; overflow: hidden; } .exg .bar i { display: block; height: 100%; background: var(--bad); opacity: .75; }
+  .exg .its { display: none; padding: 0 6px 6px 24px; } .exg.open .its { display: block; }
+  .exi { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 6px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .exi.go { cursor: pointer; } .exi.go:hover { background: rgba(255,255,255,.07); }
+  .exi .nm { flex: 1; min-width: 0; } .exi small { display: block; color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exi .v { color: var(--bad); white-space: nowrap; }
+  .exi .pg { width: 46px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; } .exi .pg i { display: block; height: 100%; background: #f2b33d; }
   .row.total { border-top: 1px solid var(--line); margin-top: 5px; padding-top: 7px; font-weight: 700; }
   .meter { height: 8px; background: rgba(255, 255, 255, .1); border-radius: 4px; overflow: hidden; margin: 3px 0 9px; }
   .meter i { display: block; height: 100%; background: linear-gradient(90deg, #3fbf7a, var(--good)); border-radius: 4px; transition: width .4s; }
@@ -179,16 +191,12 @@
   <div class="row"><span>Tổng thu 24 giờ qua</span><span id="bInc" class="pos"></span></div>
   <div class="row"><span>Trong đó tiền vé</span><span id="bFare" class="pos"></span></div>
   <div class="row"><span>Trong đó tiền phòng khách sạn</span><span id="bRoom" class="pos"></span></div>
-  <div class="row"><span>Đường sá</span><span id="eRoad"></span></div>
-  <div class="row"><span>Điện</span><span id="ePower"></span></div>
-  <div class="row"><span>Nước và thoát nước</span><span id="eWater"></span></div>
-  <div class="row"><span>Rác</span><span id="eTrash"></span></div>
-  <div class="row"><span>Công viên</span><span id="ePark"></span></div>
-  <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
-  <div class="row"><span>Xe buýt, metro</span><span id="eTransit"></span></div>
-  <div class="row"><span>Du lịch</span><span id="eTour"></span></div>
-  <div class="row"><span>Trả nợ</span><span id="eLoan"></span></div>
+  <div class="row"><span>Tổng chi mỗi ngày</span><span id="bExp" class="neg"></span></div>
+  <div id="expList"></div>
   <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
+  <h4>Tốn nhiều nhất</h4>
+  <div id="expTop"></div>
+  <div id="buildBox"></div>
   <h4>Mức chi theo ngành</h4>
   <div id="sectors"></div>
   <h4>Du lịch</h4>

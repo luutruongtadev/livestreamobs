@@ -85,6 +85,16 @@ export const DEPTH = 6.5; // độ sâu đáy hầm chui so với mặt đất
 /** Độ cao mặt đường của một tầng so với mặt đất. */
 export const lvlH = (l) => (l > 0 ? l * LIFT : l < 0 ? -DEPTH : 0);
 export const BRIDGE_MULT = 4.5;
+// kiểu cầu qua sông: mult nhân thêm vào giá phần qua nước (giá cầu = giá đường × BRIDGE_MULT × mult), upkeep theo mét qua nước
+export const BRIDGES = {
+  auto: { full: 'Cầu tự chọn', name: 'Tự chọn', icon: '🌉', mult: 1, upkeep: 0.1, desc: 'Nhịp ngắn dùng dầm bê tông, nhịp dài từ 40 m có vòm thép' },
+  beam: { full: 'Cầu dầm bê tông', name: 'Dầm bê tông', icon: '🧱', mult: 1, upkeep: 0.1, desc: 'Rẻ nhất: dầm hộp trên hàng trụ dày đặc' },
+  arch: { full: 'Cầu vòm thép', name: 'Vòm thép', icon: '🌈', mult: 1.3, upkeep: 0.13, desc: 'Hai vòm thép đỏ ôm mặt cầu, không cần trụ giữa sông' },
+  cable: { full: 'Cầu dây văng', name: 'Dây văng', icon: '📐', mult: 1.6, upkeep: 0.16, desc: 'Tháp chữ A, dây căng xoè hình quạt xuống mặt cầu' },
+  susp: { full: 'Cầu treo', name: 'Cầu treo', icon: '🌁', mult: 2, upkeep: 0.2, desc: 'Hai tháp cao, cáp chủ võng giữa và dây treo thẳng đứng: nhịp dài, đẹp nhất' },
+};
+/** Số giờ trong game để xây xong một công trình dịch vụ: càng to càng lâu (chỉ để xem: công trình vẫn chạy ngay). */
+export const buildHours = (def) => Math.round(3 + def.size * def.size * 1.5 + Math.min(6, def.cost / 6000));
 export const LINES = {
   power: { name: 'Dây điện', icon: '🗼', cost: 1.2, upkeep: 0.012, desc: 'Nối nhà máy điện ở xa vào đường hoặc vào công trình khác' },
   pipe: { name: 'Ống nước', icon: '🚰', cost: 1, upkeep: 0.012, desc: 'Nối trạm nước, cống xả ở xa vào đường (ống ngầm chở cả nước sạch và nước thải)' },

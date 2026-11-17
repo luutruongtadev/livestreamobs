@@ -856,3 +856,42 @@ test('chế độ Open: mở khoá hết, có cả bản đồ, tiền không c�
   const d = openCity(78); assert.equal(S.isUnlocked(d, 'airport'), false);
   S.enableSandbox(d); assert.ok(S.isUnlocked(d, 'airport'));
 });
+
+test('city: kiểu cầu qua sông có giá riêng, đổi được, lưu lại; công trường dịch vụ xây dần; bảng chi liệt kê từng công trình', () => {
+  const c = openCity(12345);
+  c.money = 1e6;
+  // tìm một hàng ô cắt ngang sông hẹp: đất – nước – đất
+  let row = null;
+  for (let y = 5; y < S.N - 5 && !row; y++) {
+    for (let x = 4; x < S.N - 20 && !row; x++) {
+      if (c.water[cell(x, y)] || !c.water[cell(x + 3, y)]) continue;
+      let k = x + 3; while (k < S.N - 4 && c.water[cell(k, y)]) k++;
+      if (k - x - 3 >= 3 && k - x < 14 && !c.water[cell(k + 3, y)]) row = [x, y, k + 3];
+    }
+  }
+  assert.ok(row, 'có sông để bắc cầu');
+  const [x0, y, x1] = row, a = { x: W(x0), z: W(y) }, b = { x: W(x1), z: W(y) };
+  const beam = S.planRoad(c, { a, b, type: 'small', bridge: 'beam' }), susp = S.planRoad(c, { a, b, type: 'small', bridge: 'susp' });
+  assert.ok(beam.ok && susp.ok && susp.cost > beam.cost, 'cầu treo đắt hơn cầu dầm');
+  assert.ok(S.buildRoad(c, { a, b, type: 'small', bridge: 'cable' }).ok);
+  const e = [...c.edges.values()].find((q) => S.bridgeLen(c, q) > 0);
+  assert.equal(S.bridgeOf(e), 'cable');
+  const money = c.money, r = S.setBridge(c, e.id, 'susp');
+  assert.ok(r.ok && r.cost > 0 && c.money === money - r.cost);
+  assert.equal(S.setBridge(c, e.id, 'susp').ok, false, 'đã là kiểu này');
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(S.bridgeOf([...back.edges.values()].find((q) => S.bridgeLen(back, q) > 0)), 'susp');
+  // công trường: dịch vụ mới có số giờ xây, đếm ngược theo giờ rồi báo xây xong
+  const t = town(); t.events.length = 0; t.milestone = 4; // mở khoá trạm y tế
+  let placed = null;
+  for (let yy = 5; yy < 45 && !placed; yy++) for (let xx = 5; xx < 90 && !placed; xx++) if (S.canPlace(t, 'clinic', xx, yy).ok) { S.placeService(t, 'clinic', xx, yy); placed = t.services[t.services.length - 1]; }
+  assert.ok(placed && placed.build === S.buildHours(S.SERVICES.clinic) && placed.buildTot === placed.build);
+  const site = S.deserialize(JSON.parse(JSON.stringify(S.serialize(t)))).services.find((s) => s.type === 'clinic');
+  assert.equal(site.build, placed.build, 'công trường lưu lại được');
+  const items = S.expenseItems(t), civic = items.find((g) => g.key === 'civic');
+  assert.ok(civic.items.some((it) => it.name === S.SERVICES.clinic.name && /đang xây/.test(it.note) && it.x != null), 'bảng chi có trạm y tế đang xây, có toạ độ để bay tới');
+  assert.ok(items.find((g) => g.key === 'roads').items.length && items.every((g) => g.items.every((it, k) => !k || g.items[k - 1].cost >= it.cost)), 'xếp từ đắt tới rẻ');
+  run(t, placed.build);
+  assert.equal(placed.build, undefined);
+  assert.ok(t.events.some((ev) => ev.type === 'built'));
+});

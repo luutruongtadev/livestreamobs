@@ -3,7 +3,7 @@
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  ROADS, BRIDGE_MULT, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  ROADS, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
@@ -501,12 +501,12 @@ function cellsUnder(pts, half, fn) {
   }
 }
 
-function pathCost(c, pts, perUnit) {
+function pathCost(c, pts, perUnit, mult = 1) {
   let cost = 0;
   const n = pts.length / 2 - 1;
   for (let k = 0; k < n; k++) {
     const l = Math.hypot(pts[k * 2 + 2] - pts[k * 2], pts[k * 2 + 3] - pts[k * 2 + 1]);
-    cost += l * perUnit * (isWaterAt(c, (pts[k * 2] + pts[k * 2 + 2]) / 2, (pts[k * 2 + 1] + pts[k * 2 + 3]) / 2) ? BRIDGE_MULT : 1);
+    cost += l * perUnit * (isWaterAt(c, (pts[k * 2] + pts[k * 2 + 2]) / 2, (pts[k * 2 + 1] + pts[k * 2 + 3]) / 2) ? BRIDGE_MULT * mult : 1);
   }
   return Math.round(cost);
 }
@@ -515,8 +515,9 @@ function pathCost(c, pts, perUnit) {
  * Tính trước một đoạn đường sắp vẽ: a, b là kết quả snapPoint; ctrl = điểm điều khiển (đường cong) hoặc null.
  * Tự tìm chỗ cắt đường khác để tạo nút giao. Trả về { ok, reason, cost, pts, len, stops, ... }.
  */
-export function planRoad(c, { a, b, ctrl = null, type = 'small' }) {
+export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto' }) {
   const def = ROADS[type];
+  if (!BRIDGES[bridge] || (def && def.elevated)) bridge = 'auto';
   if (!def) return { ok: false, reason: 'Không có loại đường này' };
   if (!roadUnlocked(c, type)) return { ok: false, reason: `${def.name}: mở khi đạt ${def.unlock} dân` };
   const fix = (s) => {
@@ -527,11 +528,11 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small' }) {
   const A = fix(a), B = fix(b);
   const cx = ctrl ? ctrl.x : (A.x + B.x) / 2, cz = ctrl ? ctrl.z : (A.z + B.z) / 2;
   const pts = sampleCurve(A.x, A.z, cx, cz, B.x, B.z, 2.5), n = pts.length / 2 - 1, cum = measure(pts), len = cum[n];
-  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz };
+  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz, bridge };
   if (len < 8 || (A.node != null && A.node === B.node)) return { ...out, reason: 'Đoạn quá ngắn' };
   for (let k = 0; k <= n; k++) if (Math.abs(pts[k * 2]) > HALF - 1 || Math.abs(pts[k * 2 + 1]) > HALF - 1) return { ...out, reason: 'Ra ngoài bản đồ' };
   for (let k = 0; k <= n; k++) if (!ownedAt(c, pts[k * 2], pts[k * 2 + 1])) return { ...out, reason: LOCKED };
-  out.cost = pathCost(c, pts, def.cost);
+  out.cost = pathCost(c, pts, def.cost, BRIDGES[bridge].mult);
 
   const stops = [{ t: 0, ...A }, { t: 1, ...B }];
   const touches = (s, e) => s.edge === e.id || s.node === e.a || s.node === e.b;
@@ -627,7 +628,8 @@ function splitEdge(c, e, ts) {
     c.edges.delete(e.id);
     for (let k = 0; k + 1 < chain.length; k++) {
       const m = subCtrl(A.x, A.z, e.cx, e.cz, B.x, B.z, chain[k].t, chain[k + 1].t);
-      addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1]);
+      const part = addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1]);
+      if (e.br) part.br = e.br;
     }
   }
   return res;
@@ -636,7 +638,7 @@ function splitEdge(c, e, ts) {
 export function buildRoad(c, spec) {
   const plan = planRoad(c, spec);
   if (!plan.ok) return plan;
-  const { stops, A, B, cx, cz, type } = plan;
+  const { stops, A, B, cx, cz, type, bridge } = plan;
   const byEdge = new Map();
   for (const s of stops) if (s.node == null && s.edge != null) { if (!byEdge.has(s.edge)) byEdge.set(s.edge, []); byEdge.get(s.edge).push(s); }
   for (const [eid, list] of byEdge) {
@@ -649,7 +651,8 @@ export function buildRoad(c, spec) {
     const p = stops[k], q = stops[k + 1];
     if (p.node === q.node || edgeBetween(c, p.node, q.node)) continue;
     const m = subCtrl(A.x, A.z, cx, cz, B.x, B.z, p.t, q.t);
-    addEdge(c, p.node, q.node, type, m[0], m[1]);
+    const e = addEdge(c, p.node, q.node, type, m[0], m[1]);
+    if (bridge !== 'auto') e.br = bridge;
     made++;
   }
   if (!made) return { ...plan, ok: false, reason: 'Đã có đường ở đây' };
@@ -684,6 +687,37 @@ export function upgradeRoad(c, edgeId, type) {
   if (blocked) return { ok: false, reason: 'Vướng công trình, hãy san ủi trước' };
   e.type = type; c.money -= cost;
   roadsChanged(c);
+  return { ok: true, cost };
+}
+
+/** Chiều dài phần qua nước của một đoạn đường dưới đất (0 với đường trên cao / hầm). */
+export function bridgeLen(c, e) {
+  if (ROADS[e.type].elevated) return 0;
+  const p = e.pts;
+  let l = 0;
+  for (let k = 0; k + 3 < p.length; k += 2) if (isWaterAt(c, (p[k] + p[k + 2]) / 2, (p[k + 1] + p[k + 3]) / 2)) l += Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]);
+  return l;
+}
+
+/** Kiểu cầu đang dùng của đoạn e: 'auto' tự chọn theo nhịp. */
+export const bridgeOf = (e) => (BRIDGES[e.br] ? e.br : 'auto');
+
+/** Giá đổi kiểu cầu: trả phần chênh khi lên kiểu đắt hơn, đổi xuống kiểu rẻ hơn thì mất phí tháo dỡ nhỏ. */
+export function bridgeCost(c, e, style) {
+  const wl = bridgeLen(c, e), d = BRIDGES[style].mult - BRIDGES[bridgeOf(e)].mult;
+  return Math.round(wl * ROADS[e.type].cost * BRIDGE_MULT * (d > 0 ? d : 0.1));
+}
+
+export function setBridge(c, edgeId, style) {
+  const e = c.edges.get(edgeId);
+  if (!e || !BRIDGES[style]) return { ok: false, reason: 'Không có cầu ở đây' };
+  if (bridgeLen(c, e) < 4) return { ok: false, reason: 'Đoạn đường này không bắc qua sông' };
+  if (bridgeOf(e) === style) return { ok: false, reason: 'Cầu đã là kiểu này' };
+  const cost = bridgeCost(c, e, style);
+  if (cost > c.money) return { ok: false, reason: 'Không đủ tiền' };
+  if (style === 'auto') delete e.br; else e.br = style;
+  c.money -= cost; c.dirty.roads = true;
+  recalc(c);
   return { ok: true, cost };
 }
 
@@ -1200,7 +1234,8 @@ export function placeService(c, type, x, y) {
     c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i);
   }
   const dir = Math.max(...votes) ? votes.indexOf(Math.max(...votes)) : 1;
-  c.services.push({ type, x: fp.x, y: fp.y, dir, uid: c.nextId++ });
+  const hrs = buildHours(SERVICES[type]);
+  c.services.push({ type, x: fp.x, y: fp.y, dir, uid: c.nextId++, build: hrs, buildTot: hrs }); // build: số giờ còn lại của công trường (chỉ để xem)
   c.money -= SERVICES[type].cost;
   rebuildOcc(c);
   c.dirty.services = c.dirty.zones = c.dirty.trees = c.dirty.buildings = true;
@@ -1319,7 +1354,7 @@ export function recalc(c) {
   let pCap = 0, wCap = 0, sCap = 0, tCap = 0, civic = 0, roadLen = 0;
   const exp = { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, tourism: 0, loans: 0 };
   const kT = budgetK(c, 'transport');
-  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += e.len * ROADS[e.type].upkeep * kT; }
+  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += (e.len * ROADS[e.type].upkeep + bridgeLen(c, e) * BRIDGES[bridgeOf(e)].upkeep) * kT; }
   const lineUp = { power: 0, pipe: 0 };
   for (const ln of c.lines) lineUp[ln.kind] += Math.hypot(ln.bx - ln.ax, ln.bz - ln.az) * LINES[ln.kind].upkeep;
   const bonus = { happy: 0, pull: 0, comm: 0 };
@@ -1366,6 +1401,52 @@ export function recalc(c) {
   c.demand.o = zoneUnlocked(c, 6) ? clamp((needO - jo) / Math.max(30, needO) + tm(c.tax.c) - short, -1, 1) : 0;
   return s;
 }
+
+const BUDGET_NAME = { roads: ['🛣️', 'Đường sá, cầu'], power: ['⚡', 'Điện'], water: ['💧', 'Nước và thoát nước'], trash: ['🗑️', 'Rác'], park: ['🌳', 'Công viên'], civic: ['🏛️', 'Dịch vụ công'], transit: ['🚌', 'Xe buýt, metro'], tourism: ['🛎️', 'Du lịch'], loans: ['🏦', 'Trả nợ'] };
+
+/**
+ * Chi tiết khoản chi mỗi ngày: từng nhóm (khớp c.stats.exp) với danh sách từng công trình / tuyến / loại đường tốn tiền,
+ * xếp từ đắt tới rẻ. Mỗi mục: { icon, name, cost, note?, x?, z? } (x, z: toạ độ thế giới để camera bay tới).
+ */
+export function expenseItems(c) {
+  const groups = {};
+  for (const k in BUDGET_NAME) groups[k] = { key: k, icon: BUDGET_NAME[k][0], name: BUDGET_NAME[k][1], total: c.stats.exp?.[k] || 0, items: [] };
+  const byType = {}, kT = budgetK(c, 'transport'); // phí nhân theo mức chi từng ngành, khớp recalc
+  for (const e of c.edges.values()) {
+    const t = byType[e.type] || (byType[e.type] = { len: 0, up: 0 });
+    t.len += e.len; t.up += e.len * ROADS[e.type].upkeep * kT;
+    const wl = bridgeLen(c, e);
+    if (wl >= 4) {
+      const st = bridgeOf(e), B = BRIDGES[st], m = midOf(e);
+      groups.roads.items.push({ icon: B.icon, name: st === 'auto' ? (wl >= 46 ? BRIDGES.arch.full : BRIDGES.beam.full) : B.full, note: `${Math.round(wl)} m qua sông`, cost: wl * B.upkeep * kT * RATE, x: m[0], z: m[1] });
+    }
+  }
+  for (const t in byType) groups.roads.items.push({ icon: ROADS[t].icon, name: ROADS[t].name, note: `${(byType[t].len / 1000).toFixed(2)} km`, cost: byType[t].up * RATE });
+  for (const sv of c.services) {
+    const def = SERVICES[sv.type], g = groups[def.budget || def.group];
+    if (!g) continue;
+    const kb = budgetK(c, sectorOf(sv.type));
+    let up = def.upkeep * kb;
+    for (const m of sv.mods || []) up += moduleUpkeep(sv.type, m) * kb;
+    const notes = [];
+    if (sv.mods && sv.mods.length) notes.push(`${sv.mods.length} mô-đun`);
+    if (sv.build) notes.push(`🚧 đang xây ${Math.round((1 - sv.build / sv.buildTot) * 100)}%`);
+    g.items.push({ icon: def.icon, name: def.name, note: notes.join(' · '), cost: up * RATE, x: (sv.x + def.size / 2) * T - HALF, z: (sv.y + def.size / 2) * T - HALF });
+  }
+  const lineLen = { power: 0, pipe: 0 };
+  for (const ln of c.lines) lineLen[ln.kind] += Math.hypot(ln.bx - ln.ax, ln.bz - ln.az);
+  if (lineLen.power) groups.power.items.push({ icon: LINES.power.icon, name: LINES.power.name, note: `${(lineLen.power / 1000).toFixed(2)} km`, cost: lineLen.power * LINES.power.upkeep * RATE });
+  if (lineLen.pipe) groups.water.items.push({ icon: LINES.pipe.icon, name: LINES.pipe.name, note: `${(lineLen.pipe / 1000).toFixed(2)} km`, cost: lineLen.pipe * LINES.pipe.upkeep * RATE });
+  c.transit.lines.forEach((l, k) => {
+    const s0 = l.stops[0];
+    groups.transit.items.push({ icon: TRANSIT[l.mode].icon, name: `${TRANSIT[l.mode].name} số ${k + 1}`, note: `${l.count} xe · ${l.stops.length} trạm`, cost: (l.count * TRANSIT[l.mode].upkeep + l.stops.length * 4) * kT * RATE, ...(s0 ? { x: s0.x, z: s0.z } : {}) });
+  });
+  c.loans.forEach((ln) => groups.loans.items.push({ icon: '🏦', name: `Khoản vay ${Math.round(ln.amount).toLocaleString('vi-VN')}`, note: `còn ${Math.ceil(ln.left)} ngày`, cost: ln.daily }));
+  const out = Object.values(groups);
+  for (const g of out) { for (const it of g.items) it.cost = Math.round(it.cost); g.items.sort((a, b) => b.cost - a.cost); }
+  return out;
+}
+const midOf = (e) => { const n = e.pts.length / 2, k = n >> 1; return [e.pts[k * 2], e.pts[k * 2 + 1]]; };
 
 const LV_NEED = { 1: [38, 50, 62, 74], 4: [40, 52, 64, 76], 2: [34, 44, 54, 64], 5: [38, 48, 58, 68], 7: [38, 48, 58, 68], 6: [40, 50, 60, 70], 13: [36, 46, 56, 68], 14: [34, 44, 54, 64], 15: [40, 50, 60, 70], 16: [30, 40, 50, 60], 17: [34, 44, 54, 64], 18: [42, 52, 62, 72], 19: [50, 60, 70, 80] };
 const lvNeed = (z, L) => (LV_NEED[z] ? LV_NEED[z][L - 1] : 0); // công nghiệp và khu chuyên biệt không cần giá đất
@@ -1456,6 +1537,10 @@ function hourTick(c) {
   if (c.hour % 3 === 0) computeMaps(c);
   computeNetworks(c);
   growth(c);
+  for (const sv of c.services) if (sv.build > 0) { // công trường: mỗi giờ xây thêm một phần
+    sv.build--; c.dirty.services = true;
+    if (!sv.build) { delete sv.build; delete sv.buildTot; c.events.push({ type: 'built', name: SERVICES[sv.type].name, icon: SERVICES[sv.type].icon }); }
+  }
   peopleHour(c);
   c.entryLinked = outsidePositions(c).length > 0;
   const rooms = tourismHour(c, touristSpend); // du khách: tiền phòng khách sạn vào thẳng ngân sách
@@ -1510,10 +1595,15 @@ export function serialize(c) {
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
     tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
-    edges: [...c.edges.values()].map((e) => (e.wear > 0.05 ? [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz), Math.round(e.wear * 100) / 100] : [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)])),
+    edges: [...c.edges.values()].map((e) => {
+      const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
+      if (e.wear > 0.05 || e.br) a.push(e.wear > 0.05 ? Math.round(e.wear * 100) / 100 : 0);
+      if (e.br) a.push(e.br); // kiểu cầu
+      return a;
+    }),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
-    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}) })),
+    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}) })),
     transit: { fare: c.transit.fare, ferryFare: c.transit.ferryFare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
     tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
     ...(terra.length ? { terra } : {}), // đào đắp: [chỉ số đỉnh, độ lệch × 10, ...] chỉ gồm đỉnh đã đổi
@@ -1540,7 +1630,7 @@ export function deserialize(o) {
     debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
     nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
-    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}) })),
+    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}) })),
   };
   if (!c.owned.some((v) => v)) c.owned.fill(1);
   for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);
@@ -1562,6 +1652,7 @@ export function deserialize(o) {
     const keep = c.nextId; c.nextId = id;
     const made = addEdge(c, e[1], e[2], e[3], num(e[4], null), num(e[5], null));
     if (e[6]) made.wear = clamp(num(e[6], 0), 0, 1);
+    if (BRIDGES[e[7]] && e[7] !== 'auto') made.br = e[7];
     c.nextId = Math.max(keep, id + 1);
   }
   for (let i = 0; i < N * N; i++) if (c.level[i]) { c.age[i] = 30; c.biz.money[i] = 150; c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0; }
