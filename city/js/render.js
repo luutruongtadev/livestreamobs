@@ -26,7 +26,7 @@ const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
 const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
-const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], highway: [2.1, 5.4, 8.7] };
+const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], overpass2: [1.8], overpass3: [1.8], tunnel: [1.8], highway: [2.1, 5.4, 8.7] }; // thiếu loại nào thì xe chạy trên đó làm lỗi vòng vẽ
 
 function noiseTexture() {
   const S = 256, cv = document.createElement('canvas');
@@ -1732,7 +1732,7 @@ export class View {
     for (const v of c.traffic.vehicles) {
       v_ = v;
       const e = v.e, sa = v.fwd ? Math.min(v.s, e.len) : Math.max(0, e.len - v.s), pt = pointAt(e.pts, e.cum, sa), lift = ROADS[e.type].elevated ? this.edgeLift(e, sa) : 0;
-      const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type], off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
+      const sg = v.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, ls = LANES[e.type] || LANES.small, off = ls[Math.min(v.lane, ls.length - 1)] + (v.kind === 'moto' ? ((v.id % 5) - 2) * 0.32 : 0);
       const gx = pt[0] - tz * off, gz = pt[1] + tx * off;
       if (v.rx == null) { v.rx = gx; v.rz = gz; v.ryaw = Math.atan2(tx, tz); }
       const ox = v.rx, oz = v.rz;

@@ -923,3 +923,25 @@ test('cầu vượt giữa đại lộ qua ngã tư: hai bên vẫn có làn xe,
   assert.match(road(d, dx, 13, dx, 38, 'tunnel').reason || '', /Hầm chui/);
   assert.ok(road(d, dx - 15, 33, dx + 15, 33, 'overpass').ok, 'cầu cắt ngang đường nhỏ vẫn được');
 });
+
+test('nâng / hạ tầng: đường 2 làn thành cầu tầng 1, 2, 3 hoặc hầm; chặn khi cắt đường cùng tầng hay dốc quá sát', () => {
+  const c = openCity(12345), sx = c.start.x;
+  c.milestone = S.MILESTONES.length; c.money = 1e7;
+  assert.ok(road(c, sx, 7, sx, 55).ok && road(c, sx - 25, 30, sx + 25, 30).ok);
+  const west = [...c.edges.values()].filter((e) => Math.abs(e.pts[1] - S.cellCenter(30)) < 1).sort((a, b) => b.len - a.len)[0];
+  for (const want of ['overpass', 'overpass2', 'overpass3']) { const r = S.changeLevel(c, west.id, 1); assert.ok(r.ok, r.reason); assert.equal(west.type, want); }
+  assert.match(S.planLevel(c, west.id, 1).reason, /cao nhất/);
+  assert.ok(S.liftAt(c, west, west.len / 2) > 20, 'giữa cầu tầng 3 cao trên 20 m');
+  for (let k = 0; k < 3; k++) assert.ok(S.changeLevel(c, west.id, -1).ok);
+  assert.equal(west.type, 'small');
+  assert.ok(S.changeLevel(c, west.id, -1).ok); assert.equal(west.type, 'tunnel');
+  // cắt ngang một đường cùng tầng ở giữa: không đổi được
+  const d = openCity(12345), dx = d.start.x; d.milestone = S.MILESTONES.length; d.money = 1e7;
+  road(d, dx - 25, 30, dx + 25, 30, 'overpass');
+  road(d, dx + 5, 10, dx + 5, 50);
+  const ns = [...d.edges.values()].find((e) => e.type === 'small' && e.len > 300);
+  assert.match(S.planLevel(d, ns.id, 1).reason || '', /cùng tầng/);
+  // đại lộ: vẽ cầu mới
+  const big = openCity(5); big.money = 1e7; road(big, big.start.x, 7, big.start.x, 40, 'large');
+  assert.match(S.planLevel(big, [...big.edges.values()].find((e) => e.type === 'large').id, 1).reason, /chưa đổi tầng/);
+});

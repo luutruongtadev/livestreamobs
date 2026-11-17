@@ -717,6 +717,65 @@ export function buildRoad(c, spec) {
 }
 
 /** Giá nâng cấp / đổi loại một đoạn đường (đảo chiều đường một chiều thì miễn phí). */
+// ───────────────────────── nâng / hạ tầng một đoạn đường ─────────────────────────
+
+/** Thang tầng của đường 2 làn: hầm ← mặt đất → cầu tầng 1 → 2 → 3. */
+export const LEVEL_CHAIN = ['tunnel', 'small', 'overpass', 'overpass2', 'overpass3'];
+
+/**
+ * Xem trước nâng (dir = 1) / hạ (dir = -1) một tầng cho đoạn đường: { ok, type, cost, reason }.
+ * Đoạn mới phải không cắt ngang đường cùng tầng (sẽ thành nút giao giữa trời), chỗ bắc qua đường khác tầng phải đủ cao,
+ * không chạy dọc chồng lên đường khác (trừ cầu giữa đại lộ).
+ */
+export function planLevel(c, edgeId, dir) {
+  const e = c.edges.get(edgeId);
+  if (!e) return { ok: false, reason: 'Không có đường ở đây' };
+  const k = LEVEL_CHAIN.indexOf(e.type);
+  if (k < 0) return { ok: false, reason: `${ROADS[e.type].name} chưa đổi tầng được: chỉ đường 2 làn, cầu vượt, hầm chui (đại lộ, cao tốc thì vẽ cầu mới)` };
+  const type = LEVEL_CHAIN[k + dir];
+  if (!type) return { ok: false, reason: dir > 0 ? 'Đã ở tầng cao nhất (tầng 3, 21 m)' : 'Đã ở tầng thấp nhất (hầm chui)' };
+  if (!roadUnlocked(c, type)) return { ok: false, reason: `${ROADS[type].name}: mở khi đạt ${ROADS[type].unlock} dân` };
+  const old = e.type, cost = Math.round(e.len * Math.max(2, Math.abs(ROADS[type].cost - ROADS[old].cost)) * 1.2);
+  if (cost > c.money) return { ok: false, type, cost, reason: 'Không đủ tiền' };
+  let reason = null;
+  e.type = type;
+  try {
+    const near = (x, z, o) => [e.a, e.b].some((nid) => (nid === o.a || nid === o.b) && Math.hypot(c.nodes.get(nid).x - x, c.nodes.get(nid).z - z) < 12);
+    const p = e.pts, n = p.length / 2 - 1;
+    for (const o of c.edges.values()) {
+      if (o === e || reason) continue;
+      const q = o.pts, m = q.length / 2 - 1;
+      for (let i = 0; i < n && !reason; i++) for (let j = 0; j < m && !reason; j++) {
+        const r = segInt(p[i * 2], p[i * 2 + 1], p[i * 2 + 2], p[i * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
+        if (!r) continue;
+        const ux = p[i * 2 + 2] - p[i * 2], uz = p[i * 2 + 3] - p[i * 2 + 1], wx = q[j * 2 + 2] - q[j * 2], wz = q[j * 2 + 3] - q[j * 2 + 1];
+        if (Math.abs(ux * wz - uz * wx) < 0.42 * Math.hypot(ux, uz) * Math.hypot(wx, wz)) continue;
+        const x = p[i * 2] + ux * r.t, z = p[i * 2 + 1] + uz * r.t;
+        if (near(x, z, o)) continue; // gặp nhau ở nút chung
+        if (sameLevel(type, o.type)) { reason = `Đoạn này sẽ cắt ngang ${ROADS[o.type].name.toLowerCase()} cùng tầng giữa chừng: đổi tầng đường kia trước, hoặc vẽ lại`; break; }
+        const h1 = liftAt(c, e, e.cum[i] + (e.cum[i + 1] - e.cum[i]) * r.t), h2 = liftAt(c, o, o.cum[j] + (o.cum[j + 1] - o.cum[j]) * r.u);
+        if (Math.abs(h1 - h2) < 4) reason = `Chỗ bắc qua ${ROADS[o.type].name.toLowerCase()} nằm trên đoạn dốc, chưa đủ cao: đoạn đường quá ngắn để đổi tầng ở đây`;
+      }
+    }
+    if (!reason) {
+      const others = new Map(c.edges); others.delete(e.id);
+      const st = stackedOver({ ...c, edges: others }, type, p, e.cum);
+      if (st.len > 6 && (st.upper || roadLvl(type) < 0 || st.narrow)) reason = 'Đoạn này chạy dọc chồng lên đường khác: không đổi tầng được';
+    }
+  } finally { e.type = old; }
+  return reason ? { ok: false, type, cost, reason } : { ok: true, type, cost };
+}
+
+/** Nâng / hạ một tầng (xem planLevel). Nhà cạnh đường thành cầu / hầm mất lối vào. */
+export function changeLevel(c, edgeId, dir) {
+  const r = planLevel(c, edgeId, dir);
+  if (!r.ok) return r;
+  const e = c.edges.get(edgeId);
+  e.type = r.type; c.money -= r.cost;
+  roadsChanged(c);
+  return r;
+}
+
 export function upgradeCost(e, type) {
   return e.type === type ? 0 : Math.round(e.len * Math.max(1, ROADS[type].cost - ROADS[e.type].cost * 0.5));
 }

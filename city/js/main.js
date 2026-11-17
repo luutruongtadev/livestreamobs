@@ -12,7 +12,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // nhóm công cụ ở thanh dưới; nhóm có `tool` thì bấm là cầm luôn
 const GROUPS = [
   { id: 'info', icon: '🖐️', label: 'Xem', tool: 'info' },
-  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:tunnel', 'road:highway', 'roundabout', 'junction'] },
+  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:overpass3', 'road:tunnel', 'road:highway', 'roundabout', 'junction'] },
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:20', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:21', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
   { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
@@ -29,7 +29,7 @@ const GROUPS = [
   { id: 'land', icon: '🧭', label: 'Mua đất', tool: 'land' },
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
-const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp'], ['bridge', '🌉', 'Đổi cầu']];
+const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp'], ['raise', '⏫', 'Nâng tầng'], ['lower', '⏬', 'Hạ tầng'], ['bridge', '🌉', 'Đổi cầu']];
 const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
@@ -328,6 +328,15 @@ function updatePreview() {
       renderHint(wl < 4 ? '<b>Đoạn đường này không bắc qua sông</b>' : same ? 'Cầu đã là kiểu đang chọn' : `Đổi ${S.BRIDGES[S.bridgeOf(e)].full.toLowerCase()} (${Math.round(wl)} m qua sông) thành <b>${S.BRIDGES[bridgeStyle].full.toLowerCase()}</b> · ${money(cost)}${ok ? '' : ' · <b>không đủ tiền</b>'}`);
       return;
     }
+    if (roadMode === 'raise' || roadMode === 'lower') { // nâng / hạ một tầng: hầm ← mặt đất → cầu 1 → 2 → 3
+      const e = hover && S.edgeAt(city, hover.wx, hover.wz, 2);
+      view.setMarker(null);
+      if (!e) { view.setRibbon(null); renderHint(roadMode === 'raise' ? 'Bấm vào một đoạn đường 2 làn, cầu vượt hoặc hầm để <b>nâng lên một tầng</b> (mỗi tầng 7 m)' : 'Bấm vào một đoạn cầu vượt, đường hoặc hầm để <b>hạ xuống một tầng</b>'); return; }
+      const pl = S.planLevel(city, e.id, roadMode === 'raise' ? 1 : -1);
+      view.setRibbon(e.pts, S.ROADS[e.type].w / 2, pl.ok ? 0xffc24a : 0xff5b4a);
+      renderHint(pl.ok ? `${S.ROADS[e.type].name} → <b>${S.ROADS[pl.type].name}</b> · ${money(pl.cost)}${S.roadLvl(e.type) === 0 ? ' · nhà hai bên mất lối vào' : ''}` : `<b>${pl.reason}</b>`);
+      return;
+    }
     if (roadMode === 'upgrade') {
       const e = hover && S.edgeAt(city, hover.wx, hover.wz, 2);
       view.setMarker(null);
@@ -394,6 +403,15 @@ function drawClick(fromDrag) {
       if (!e) return;
       const r = S.setBridge(city, e.id, bridgeStyle);
       if (!r.ok) toast(r.reason); else toast(`${S.BRIDGES[bridgeStyle].icon} Đã đổi thành ${S.BRIDGES[bridgeStyle].full.toLowerCase()} · ${money(r.cost)}`);
+      updatePreview(); updateHud(true);
+      return;
+    }
+    if (roadMode === 'raise' || roadMode === 'lower') {
+      if (fromDrag) return;
+      const e = hover && S.edgeAt(city, hover.wx, hover.wz, 2);
+      if (!e) return;
+      const r = S.changeLevel(city, e.id, roadMode === 'raise' ? 1 : -1);
+      toast(r.ok ? `${roadMode === 'raise' ? '⏫ Đã nâng' : '⏬ Đã hạ'} thành ${S.ROADS[r.type].name.toLowerCase()} · ${money(r.cost)}` : r.reason);
       updatePreview(); updateHud(true);
       return;
     }
