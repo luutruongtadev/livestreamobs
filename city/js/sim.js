@@ -317,6 +317,8 @@ export function snapPoint(c, x, z, { grid = true, type = 'small' } = {}) {
   let bn = null, bd = 9;
   for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; bn = n; } }
   if (bn) return { x: bn.x, z: bn.z, node: bn.id };
+  // cổng ra ngoài thành phố ở mép bản đồ: bám vào để nối lại đường cao tốc khi đã lỡ phá
+  if (c.entry && Math.hypot(c.entry.x - x, c.entry.z - z) < 16) return { x: c.entry.x, z: c.entry.z, entry: true };
   let be = null, br = null;
   for (const e of c.edges.values()) {
     const r = nearestOnEdge(e, x, z);

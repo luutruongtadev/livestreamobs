@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions } from './sim.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -374,6 +374,7 @@ export class View {
 
   setCity(city) {
     this.city = city;
+    this._gate(city);
     for (const o of [this.terrain, this.overlay]) if (o) { this.scene.remove(o); o.geometry.dispose(); }
     this.terrain = this._terrain(city);
     this.overlay = this._overlayMesh(city);
@@ -770,6 +771,35 @@ export class View {
       for (const [x, y, z] of lamps) lg.box(x, y, z, 0.7, 0.22, 0.45, 0xffffff);
       const m = new THREE.Mesh(lg.build(), this.lampHeadMat); m.frustumCulled = false; this.roadGroup.add(m);
     }
+  }
+
+  /** Cổng ra vào thành phố ở mép bản đồ (nơi đường cao tốc từ ngoài đi vào): hai trụ, xà ngang, biển chỉ đường. */
+  _gate(c) {
+    if (this.gateGroup) { this.scene.remove(this.gateGroup); this.gateGroup.traverse((o) => o.geometry && o.geometry.dispose()); }
+    this.gateGroup = null;
+    if (!c.entry) return;
+    const g = new GB(), x = c.entry.x, z = Math.max(c.entry.z, -HALF + 2), y = Math.max(heightAt(c, x, z), 0);
+    for (const sd of [-1, 1]) { g.box(x + sd * 7.5, y, z, 1.2, 9, 1.2, 0xd8d4cc); g.box(x + sd * 7.5, y + 9, z, 1.6, 0.6, 1.6, 0x8d887e); }
+    g.box(x, y + 7.2, z, 16.2, 1.8, 0.6, 0x1f6f3f); // biển xanh như biển chỉ đường cao tốc
+    g.box(x, y + 7.45, z + 0.32, 13, 0.25, 0.02, 0xffffff); g.box(x, y + 6.85, z + 0.32, 9, 0.18, 0.02, 0xffffff);
+    const grp = new THREE.Group(), mesh = new THREE.Mesh(g.build(), this.matBuilding);
+    mesh.castShadow = true; grp.add(mesh);
+    // cột sáng nhấp nháy khi mất đường nối ra ngoài
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 60, 18, 1, true), new THREE.MeshBasicMaterial({ color: 0xffc24a, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.set(x, y + 30, z); beam.visible = false; grp.add(beam);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(9, 11, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffc24a, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+    ring.position.set(x, y + 0.6, z); ring.visible = false; grp.add(ring);
+    this.gateBeam = beam; this.gateRing = ring; this.gateGroup = grp;
+    this.scene.add(grp);
+  }
+
+  _gatePulse(dt) {
+    if (!this.gateBeam) return;
+    this._gateT = (this._gateT || 0) + dt;
+    if (this._gateT < 0.5 && this.gateBeam.visible) { const k = 0.5 + 0.5 * Math.sin(this.time * 4); this.gateBeam.material.opacity = 0.15 + 0.3 * k; this.gateRing.scale.setScalar(0.9 + 0.2 * k); return; }
+    this._gateT = 0;
+    const lost = !outsidePositions(this.city).length; // kiểm tra nửa giây một lần
+    this.gateBeam.visible = this.gateRing.visible = lost;
   }
 
   /** Đổi phong cách nhà cửa / phố xá: dựng lại mọi mô hình nhà, cây, đường. */
@@ -1422,6 +1452,7 @@ export class View {
     this._vehicles(dt);
     this._animals(simDt);
     this._flames();
+    this._gatePulse(dt);
     this._weather(dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;

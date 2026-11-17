@@ -635,6 +635,18 @@ test('city: phong cách Việt Nam mặc định cho thành phố mới, lưu l�
   assert.ok(kinds.moto > kinds.car * 3, `xe máy ${kinds.moto}, ô tô ${kinds.car}`);
 });
 
+test('city: lỡ phá đường cao tốc ở mép bản đồ thì nối lại được bằng cách bám vào cổng ra vào', () => {
+  const c = cross(), sx = c.start.x;
+  assert.equal(S.outsidePositions(c).length, 1);
+  S.bulldozeRect(c, sx, 0, sx, 2);
+  assert.equal(S.outsidePositions(c).length, 0, 'mất đường nối ra ngoài');
+  const sp = S.snapPoint(c, c.entry.x + 6, c.entry.z + 8);
+  assert.ok(sp.entry, 'con trỏ gần cổng thì bám vào cổng');
+  const r = S.buildRoad(c, { a: sp, b: S.snapPoint(c, W(sx), W(7)), type: 'small' });
+  assert.ok(r.ok, r.reason);
+  assert.equal(S.outsidePositions(c).length, 1, 'đã nối lại');
+});
+
 test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', () => {
   assert.equal(resolveStatic('/city', ROOT), path.join(ROOT, 'city', 'index.html'));
   assert.equal(resolveStatic('/city/js/sim.js', ROOT), path.join(ROOT, 'city', 'js', 'sim.js'));

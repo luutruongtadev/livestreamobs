@@ -673,7 +673,7 @@ function updateHud(force) {
   if (s.noPower + s.noWater > 0) al.push([`${s.noPower + s.noWater} nhà đang thiếu điện nước, sắp bị bỏ hoang`, 1]);
   if (c.dirtyWater) al.push(['💧 Trạm bơm đang hút nước bẩn gần cống xả: dân dễ ốm', 1]);
   if (dirty > 3) al.push([`🗑️ ${dirty} nhà ngập rác: ${s.trashCap ? 'xe rác không kịp, xây thêm bãi rác hoặc gỡ kẹt xe' : 'xây một bãi rác'}`, 1]);
-  if (!S.outsidePositions(c).length && s.companies) al.push(['🚚 Mất đường nối ra ngoài: không nhập, xuất được hàng', 1]);
+  if (!S.outsidePositions(c).length && c.edges.size) al.push(['🚚 Mất đường nối ra ngoài: không nhập, xuất được hàng. Bấm vào đây để tới cổng ra vào ở mép bắc, rồi vẽ đường từ cổng vào thành phố (hoặc xây cảng, ga tàu, sân bay)', 1, 'entry']);
   if (c.traffic.speedEma < 0.3 && c.traffic.vehicles.length > 60) al.push(['🚗 Kẹt xe nặng: mở thêm đường, nâng lên đại lộ hoặc mở tuyến xe buýt (lớp xem 🗺️ giao thông)', 1]);
   if (ps.homeless > 5) al.push([`${ps.homeless} người vô gia cư: quy hoạch thêm nhà ở`, 1]);
   if (ps.sick > Math.max(8, s.pop * 0.05)) al.push([`🏥 ${ps.sick} người đang ốm: thêm trạm y tế, giảm ô nhiễm`, 1]);
@@ -700,8 +700,21 @@ function updateHud(force) {
   if (key !== updateHud.key) {
     updateHud.key = key;
     const box = $('alerts'); box.textContent = '';
-    for (const [text, bad] of al.slice(0, 6)) box.append(el('div', `panel alert${bad ? ' bad' : ''}`, text));
+    for (const [text, bad, act] of al.slice(0, 6)) {
+      const a = el('div', `panel alert${bad ? ' bad' : ''}`, text);
+      if (act === 'entry') { a.style.pointerEvents = 'auto'; a.style.cursor = 'pointer'; a.addEventListener('click', goEntry); }
+      box.append(a);
+    }
   }
+}
+
+/** Đưa camera tới cổng ra vào ở mép bản đồ và cầm sẵn công cụ đường. */
+function goEntry() {
+  const e = city.entry;
+  if (!e) return;
+  view.cam.x = e.x; view.cam.z = e.z + 90; view.cam.dist = 220; view.cam.pitch = 0.9;
+  setTool('road:small');
+  toast('Bấm vào cổng ra vào (vòng sáng) rồi bấm một điểm trên đường của thành phố để nối lại');
 }
 
 function setSpeed(v) { speed = v; if (v) updateHud.lastSpeed = v; updateHud(true); }
