@@ -217,6 +217,18 @@ export const priceOf = (kind) => (kind === 'goods' ? PRICE.goods : PRICE.raw);
 // mua đất: ô đất phải kề phần đã có, càng có nhiều càng đắt
 export const LAND_PRICE = { base: 3000, step: 450 };
 
+// đào đắp địa hình: mỗi lần áp cọ đổi cao độ các đỉnh lưới trong vùng cọ; giá tính theo khối lượng đất (đỉnh × độ cao)
+export const WATER_LEVEL = -0.9; // cao độ mặt nước: chỗ nào đào sâu hơn mức này thì có nước
+export const TERRA = {
+  dig: { name: 'Đào đất', icon: '⛏️', desc: 'Giữ chuột để hạ thấp mặt đất; đào sâu quá mực nước thì thành ao hồ' },
+  raise: { name: 'Đắp đất', icon: '⛰️', desc: 'Giữ chuột để nâng mặt đất; đắp lên lòng sông, biển để lấn thêm đất' },
+  level: { name: 'San phẳng', icon: '📐', desc: 'Giữ chuột rồi rê: mặt đất trong vùng cọ được san về đúng cao độ của điểm bấm đầu tiên' },
+  canal: { name: 'Dẫn nước', icon: '🌊', desc: 'Kéo để đào kênh, mương: nước theo kênh vào sâu trong đất, đất trống hai bên kênh thành đất màu mỡ; trạm bơm, cống xả, bến tàu đặt được cạnh kênh' },
+};
+export const TERRA_COST = 12; // ₫ cho mỗi đơn vị cao độ của một đỉnh
+export const TERRA_STEP = 1, TERRA_LEVEL_STEP = 2.5, TERRA_MIN = -5, TERRA_MAX = 60, CANAL_BED = -2.5;
+export const BRUSHES = [1, 2, 3, 5];
+
 export function mulberry32(a) {
   return () => {
     a |= 0; a = (a + 0x6d2b79f5) | 0;

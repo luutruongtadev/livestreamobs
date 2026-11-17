@@ -24,14 +24,16 @@ const GROUPS = [
   { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
+  { id: 'terra', icon: '⛰️', label: 'Địa hình', items: ['terra:dig', 'terra:raise', 'terra:level', 'terra:canal'] },
   { id: 'land', icon: '🧭', label: 'Mua đất', tool: 'land' },
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro'], ['value', 'Lớp xem: giá trị đất (xanh = cao)'], ['air', 'Lớp xem: ô nhiễm không khí'], ['ground', 'Lớp xem: ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)'], ['service', 'Lớp xem: vùng phủ dịch vụ công'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let roadMode = 'line', gridSnap = true, moving = null, draw = null; // draw: { a, ctrl } khi đang vẽ đường / dây, { stops } khi vẽ tuyến
+let brush = 2, stroke = null; // cỡ cọ đào đắp (ô); stroke: { target, at, spent } khi đang giữ chuột đào đắp
 const keys = new Set();
 
 /** Mô tả một công cụ theo id. */
@@ -40,6 +42,7 @@ function toolInfo(id) {
   if (id === 'info') return { kind: 'info', icon: '🖐️', label: 'Xem', desc: 'Kéo để di chuyển bản đồ, bấm vào nhà hoặc ô đất để xem thông tin' };
   if (id === 'move') return { kind: 'move', icon: '✋', label: 'Di chuyển', desc: 'Bấm vào công trình hoặc nút đường (ngã ba, ngã tư, đầu đường) để nhấc lên, bấm chỗ mới để đặt · dời công trình mất 10% giá xây, dời nút đường miễn phí · chuột phải để huỷ' };
   if (id === 'bulldoze') return { kind: 'bulldoze', icon: '🚜', label: 'San ủi', desc: 'Kéo để phá đường, nhà, cây, dây điện, ống nước và công trình' };
+  if (kind === 'terra') { const d = S.TERRA[arg]; return { kind, mode: arg, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · khoảng ${fmt(S.TERRA_COST * S.TERRA_STEP * 4)} ₫ cho mỗi ô hạ / nâng một nấc · ${d.desc} · không đào đắp được dưới đường, nhà, công trình · phím <b>[</b> <b>]</b> đổi cỡ cọ` }; }
   if (id === 'land') return { kind: 'land', icon: '🧭', label: 'Mua đất', desc: `Bấm vào một ô đất ${S.LAND}×${S.LAND} kề phần đất của thành phố để mua · càng có nhiều đất, ô sau càng đắt` };
   if (kind === 'road') { const d = S.ROADS[arg], lock = !S.roadUnlocked(city, arg); return { kind, type: arg, icon: d.icon, label: d.name.replace(/ \d làn/, ''), locked: lock, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô${d.elevated ? '' : `, qua nước đắt gấp ${S.BRIDGE_MULT}`} · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
   if (id === 'roundabout') return { kind: 'node', icon: '⭕', label: 'Vòng xuyến', desc: `<b>Vòng xuyến</b> · ${money(S.roundaboutCost())} · bấm vào ngã ba, ngã tư để đổi thành vòng xuyến một chiều: không đèn, xe trong vòng được đi trước, xe vào vòng nhường` };
@@ -75,7 +78,7 @@ function loadSlot(name) {
   if (!d) return false;
   try { startCity(S.deserialize(d.city)); return true; } catch (e) { toast('Không đọc được bản lưu: ' + e.message); return false; }
 }
-function dateText(hour) { const day = Math.floor(hour / 24), w = city && S.WEATHER[city.inc.weather]; return `Ngày ${day + 1} · ${WEEK[day % 7]} · ${String(hour % 24).padStart(2, '0')}:00${w ? ` · ${w.icon} ${w.name}` : ''}`; }
+function dateText(hour) { const day = Math.floor(hour / 24), h = hour % 24, w = city && S.WEATHER[city.inc.weather]; return `${h >= 6 && h < 19 ? '☀️' : '🌙'} ${String(h).padStart(2, '0')}:00 · ${WEEK[day % 7]} · ngày ${day + 1}${w && city.inc.weather !== 'clear' ? ` · ${w.icon} ${w.name}` : ''}`; }
 
 function renderSlots() {
   const box = $('slots'); box.textContent = '';
@@ -139,6 +142,15 @@ function buildSub() {
     gb.addEventListener('click', () => { gridSnap = !gridSnap; refreshToolbar(); });
     box.append(gb);
   }
+  if (g.id === 'terra') {
+    box.append(el('div', 'sep'));
+    for (const n of S.BRUSHES) {
+      const b = el('button', 'tool mode'); b.dataset.mode = `brush:${n}`; b.append(el('span', 'brush', '⬛'), el('small', null, `Cọ ${n} ô`));
+      b.firstChild.style.fontSize = `${10 + n * 3}px`;
+      b.addEventListener('click', () => { brush = n; refreshToolbar(); });
+      box.append(b);
+    }
+  }
   refreshToolbar();
 }
 
@@ -146,11 +158,12 @@ function refreshToolbar() {
   for (const b of $('tools').children) { const g = GROUPS.find((x) => x.id === b.dataset.group); b.classList.toggle('on', !!g.tool && g.tool === tool); b.classList.toggle('open', !g.tool && g.id === group); }
   for (const b of $('sub').children) {
     if (b.dataset.tool) { b.classList.toggle('on', b.dataset.tool === tool); b.classList.toggle('locked', S.SERVICES[b.dataset.tool] ? !S.isUnlocked(city, b.dataset.tool) : !!toolInfo(b.dataset.tool).locked); }
-    if (b.dataset.mode) b.classList.toggle('on', b.dataset.mode === 'grid' ? gridSnap : b.dataset.mode === roadMode);
+    if (b.dataset.mode) b.classList.toggle('on', b.dataset.mode === 'grid' ? gridSnap : b.dataset.mode.startsWith('brush:') ? +b.dataset.mode.slice(6) === brush : b.dataset.mode === roadMode);
   }
 }
 
 function setTool(id) {
+  endStroke();
   tool = id; drag = null; draw = null; moving = null;
   const g = GROUPS.find((x) => x.tool === id || (x.items && x.items.includes(id)));
   if (g.items) g.last = id;
@@ -256,6 +269,16 @@ function updatePreview() {
       view.setRibbon(n ? new Float32Array([n.x, n.z, pt.x, pt.z]) : null, 0.5, r.ok ? 0x62d98b : 0xff5b4a);
       renderHint(r.ok ? 'Bấm để đặt nút đường ở đây · các đoạn nối vào sẽ uốn theo · chuột phải để huỷ' : `<b>${r.reason}</b>`);
     }
+    return;
+  }
+  if (t.kind === 'terra') {
+    if (!hover) { view.setPreview(null); return; }
+    const x0 = hover.x - ((brush - 1) >> 1), y0 = hover.y - ((brush - 1) >> 1);
+    const tiles = rectTiles({ x: x0, y: y0 }, { x: x0 + brush - 1, y: y0 + brush - 1 }).filter(([x, y]) => x >= 0 && y >= 0 && x < S.N && y < S.N);
+    const r = S.terraform(city, t.mode, hover.x, hover.y, { size: brush, target: stroke ? stroke.target : S.heightAt(city, hover.wx, hover.wz), dry: true });
+    view.setPreview(tiles, !r.ok ? 0xff5b4a : t.mode === 'canal' ? 0x35b6ff : t.mode === 'dig' ? 0xc98a4a : t.mode === 'raise' ? 0x9bd86a : 0xffe680);
+    if (stroke) renderHint(`${t.label}: đã chi <b>${money(stroke.spent)}</b>${t.mode === 'level' ? ` · san về cao độ ${stroke.target.toFixed(1)}` : ''} · nhả chuột để xong`);
+    else renderHint(r.ok ? `${t.label} · cọ ${brush} × ${brush} ô · <b>${money(r.cost)}</b> mỗi lần áp · cao độ ${S.heightAt(city, hover.wx, hover.wz).toFixed(1)} (mặt nước ${S.WATER_LEVEL})` : `<b>${r.reason}</b>`);
     return;
   }
   if (t.kind === 'land') {
@@ -405,6 +428,26 @@ function moveClick() {
   if (!r.ok) { toast(r.reason); return; }
   moving = null; view.setGhost(null); view.setPreview(null); view.setMarker(null); view.setRibbon(null);
   updatePreview(); updateHud(true);
+}
+
+/** Áp cọ đào đắp một lần tại ô đang trỏ (gọi lặp lại trong lúc giữ chuột). */
+function strokeStep(first) {
+  if (!stroke || !hover) return;
+  const t = toolInfo(tool), key = hover.y * S.N + hover.x;
+  if (t.mode === 'canal' && key === stroke.last) return; // kênh: mỗi ô một lần là đủ
+  stroke.last = key;
+  const r = S.terraform(city, t.mode, hover.x, hover.y, { size: brush, target: stroke.target });
+  if (r.ok) { stroke.spent += r.cost; stroke.did = true; } else if (first || r.reason === 'Không đủ tiền') { if (stroke.said !== r.reason) toast(r.reason); stroke.said = r.reason; }
+  updatePreview();
+}
+
+/** Nhả chuột: chốt lượt đào đắp, tính lại tài nguyên và bờ nước. */
+function endStroke() {
+  if (!stroke) return;
+  const did = stroke.did;
+  stroke = null;
+  if (did) { S.terraformDone(city); updateHud(true); }
+  if (view) updatePreview();
 }
 
 function commitDrag() {
@@ -738,6 +781,11 @@ function bindInput() {
       updatePreview(); updateHud(true);
       return;
     }
+    if (toolInfo(tool).kind === 'terra') {
+      stroke = { target: Math.round(S.heightAt(city, hover.wx, hover.wz) * 10) / 10, at: performance.now(), spent: 0, last: -1 };
+      strokeStep(true);
+      return;
+    }
     if (tool === 'land') {
       const r = S.buyLand(city, S.landOf(hover.x, hover.y));
       toast(r.ok ? `Đã mua ô đất · ${money(r.price)}` : r.reason);
@@ -766,12 +814,13 @@ function bindInput() {
       if (e.button === 2 && downAt && !downAt.moved) { if (moving) { cancelDraw(); renderHint(); } else if (draw && draw.stops && draw.stops.length >= 2) finishTransit(); else if (draw) { cancelDraw(); renderHint(); } else if (tool !== 'info') setTool('info'); }
     }
     if (grab) { grab = null; cv.style.cursor = 'grab'; if (downAt && !downAt.moved) { const t = view.pick(e.clientX, e.clientY); if (t) showInfo(t); } }
+    if (stroke && e.button === 0) endStroke();
     if (drag) commitDrag();
     else if (e.button === 0 && isDrawTool() && downAt && downAt.moved && downAt.started && draw) { hover = view.pick(e.clientX, e.clientY); drawClick(true); } // kéo-thả = điểm đầu + điểm cuối
     downAt = null;
   });
-  cv.addEventListener('pointercancel', () => { rot = grab = drag = null; view.setPreview(null); });
-  cv.addEventListener('pointerleave', () => { if (!drag && !draw) { hover = null; view.setPreview(null); view.setGhost(null); view.setMarker(null); } });
+  cv.addEventListener('pointercancel', () => { rot = grab = drag = null; endStroke(); view.setPreview(null); });
+  cv.addEventListener('pointerleave', () => { if (!drag && !draw && !stroke) { hover = null; view.setPreview(null); view.setGhost(null); view.setMarker(null); } });
   cv.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom(Math.exp(Math.max(-120, Math.min(120, e.deltaY)) * 0.0014)); }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
@@ -786,16 +835,84 @@ function bindInput() {
     else if (k === 'r') setTool(GROUPS[1].last || 'road:small');
     else if (k === 'b') setTool('bulldoze');
     else if (k === 'm') setTool('move');
+    else if (k === 't') setTool(GROUPS.find((g) => g.id === 'terra').last || 'terra:dig');
+    else if (k === '[' || k === ']') { const i = S.BRUSHES.indexOf(brush) + (k === ']' ? 1 : -1); brush = S.BRUSHES[Math.max(0, Math.min(S.BRUSHES.length - 1, i))]; refreshToolbar(); updatePreview(); }
+    else if (k === 'n') toggleNight();
+    else if (k === 'l') $('bLayer').click();
     else if (k === 'c' && group === 'road') { roadMode = roadMode === 'curve' ? 'line' : 'curve'; cancelDraw(); refreshToolbar(); renderHint(); }
     else if (k === 'g') { gridSnap = !gridSnap; refreshToolbar(); toast(gridSnap ? 'Bám lưới: bật' : 'Bám lưới: tắt (vẽ tự do)'); }
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-  window.addEventListener('blur', () => keys.clear());
-  window.addEventListener('resize', () => view.resize());
+  window.addEventListener('blur', () => { keys.clear(); endStroke(); });
+  window.addEventListener('resize', () => { view.resize(); layout(); });
+}
+
+/** Chừa chỗ cho thanh trên cùng (cao thấp tuỳ bề rộng cửa sổ): bảng bên và thông báo nằm ngay dưới nó. */
+function layout() { document.documentElement.style.setProperty('--topH', `${$('top').offsetHeight + 18}px`); }
+
+function toggleNight() {
+  view.dayNight = !view.dayNight;
+  $('bNight').classList.toggle('on', view.dayNight);
+  try { localStorage.setItem(KEY + 'night', view.dayNight ? '1' : '0'); } catch { /* bỏ qua */ }
+  toast(view.dayNight ? '🌙 Ngày đêm: bật — trời tối dần theo giờ, phố lên đèn' : '☀️ Ngày đêm: tắt — luôn là ban ngày');
+}
+
+/** Bảng chọn lớp xem. */
+function buildLayers() {
+  const box = $('layerList'); box.textContent = '';
+  LAYERS.forEach(([, tip, icon, name], k) => {
+    const b = el('button', 'lay'); b.title = tip.replace('Lớp xem: ', ''); b.dataset.k = k;
+    b.append(el('span', null, icon), el('small', null, name));
+    b.addEventListener('click', () => { layer = k; applyOverlay(); refreshLayers(); renderHint(k ? tip : null); });
+    box.append(b);
+  });
+  refreshLayers();
+}
+function refreshLayers() {
+  for (const b of $('layerList').children) b.classList.toggle('on', +b.dataset.k === layer);
+  $('bLayer').classList.toggle('on', layer > 0 || $('layers').classList.contains('show'));
+}
+
+// ───────────────────────── bản đồ nhỏ ─────────────────────────
+
+const mini = { img: null, cv: null, at: 0 };
+function drawMinimap(now) {
+  if (now - mini.at < 700) return;
+  mini.at = now;
+  const cv = $('minimap'), g = cv.getContext('2d'), n = S.N, c = city;
+  if (!mini.cv) { mini.cv = document.createElement('canvas'); mini.cv.width = mini.cv.height = n; mini.img = mini.cv.getContext('2d').createImageData(n, n); }
+  const d = mini.img.data;
+  for (let i = 0; i < n * n; i++) {
+    let r, gg, b;
+    if (c.water[i]) { r = 52; gg = 118; b = 172; }
+    else if (c.road[i]) { r = 226; gg = 226; b = 220; }
+    else if (c.occ[i]) { r = 236; gg = 236; b = 240; }
+    else if (c.zone[i]) { [r, gg, b] = S.ZDEF[c.zone[i]].rgb; if (!c.level[i]) { r = r * 0.55 + 40; gg = gg * 0.55 + 55; b = b * 0.55 + 35; } }
+    else { const h = Math.min(1, c.cellH[i] / 40); r = 74 + h * 90 - (c.tree[i] ? 26 : 0); gg = 128 + h * 40 - (c.tree[i] ? 22 : 0); b = 62 + h * 80 - (c.tree[i] ? 20 : 0); }
+    if (!c.own[i]) { r *= 0.5; gg *= 0.5; b *= 0.55; }
+    d[i * 4] = r; d[i * 4 + 1] = gg; d[i * 4 + 2] = b; d[i * 4 + 3] = 255;
+  }
+  mini.cv.getContext('2d').putImageData(mini.img, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(mini.cv, 0, 0, cv.width, cv.height);
+  // khung nhìn: chấm tại tâm camera + hướng nhìn
+  const k = cv.width / (S.HALF * 2), cx = (view.cam.x + S.HALF) * k, cz = (view.cam.z + S.HALF) * k, yaw = view.cam.yaw, rr = Math.max(7, Math.min(46, view.cam.dist * 0.42 * k));
+  g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.fillStyle = 'rgba(255,255,255,.16)';
+  g.beginPath(); g.moveTo(cx + Math.sin(yaw) * rr * 0.5, cz + Math.cos(yaw) * rr * 0.5);
+  g.lineTo(cx - Math.sin(yaw - 0.55) * rr, cz - Math.cos(yaw - 0.55) * rr); g.lineTo(cx - Math.sin(yaw + 0.55) * rr, cz - Math.cos(yaw + 0.55) * rr); g.closePath(); g.fill(); g.stroke();
+}
+function bindMinimap() {
+  const cv = $('minimap');
+  let down = false;
+  const go = (e) => { const r = cv.getBoundingClientRect(); view.cam.x = ((e.clientX - r.left) / r.width - 0.5) * S.HALF * 2; view.cam.z = ((e.clientY - r.top) / r.height - 0.5) * S.HALF * 2; view.panWorld(0, 0); mini.at = 0; };
+  cv.addEventListener('pointerdown', (e) => { down = true; cv.setPointerCapture(e.pointerId); go(e); });
+  cv.addEventListener('pointermove', (e) => { if (down) go(e); });
+  cv.addEventListener('pointerup', () => { down = false; });
+  cv.addEventListener('pointercancel', () => { down = false; });
 }
 
 function openSide(id) {
-  for (const p of ['budget', 'saves', 'people', 'dev']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (id === 'saves') renderSlots();
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
@@ -811,7 +928,9 @@ function bindUi() {
   $('bDev').addEventListener('click', () => openSide('dev'));
   $('fare').addEventListener('input', (e) => { city.transit.fare = +e.target.value; renderCity(true); });
   for (const b of document.querySelectorAll('[data-dis]')) b.addEventListener('click', () => { const r = S.triggerDisaster(city, b.dataset.dis); if (!r.ok) toast(r.reason); });
-  $('bLayer').addEventListener('click', () => { layer = (layer + 1) % LAYERS.length; applyOverlay(); toast(LAYERS[layer][1]); $('bLayer').classList.toggle('on', layer > 0); });
+  $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
+  $('bNight').addEventListener('click', toggleNight);
+  buildLayers(); bindMinimap();
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
   $('mStart').addEventListener('click', () => { $('modal').classList.remove('show'); try { localStorage.setItem(KEY + 'seen', '1'); } catch { /* bỏ qua */ } });
   const fresh = () => { startCity(S.newCity()); autosave(); $('over').classList.remove('show'); };
@@ -842,9 +961,10 @@ function startCity(c) {
   $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
   updateHud.key = null; renderLoans.sig = '';
-  tool = 'info'; group = 'info';
+  stroke = null; tool = 'info'; group = 'info'; mini.at = 0;
   buildToolbar(); setTool('info'); updateHud(true); renderDev();
   $('over').classList.toggle('show', !!c.over);
+  layout();
 }
 
 function frame(now) {
@@ -860,6 +980,8 @@ function frame(now) {
   if (dx || dz) view.pan(dx, dz);
   if (keys.has('q')) view.rotate(dt * 1.4, 0);
   if (keys.has('e')) view.rotate(-dt * 1.4, 0);
+
+  if (stroke && now - stroke.at > 110) { stroke.at = now; strokeStep(false); }
 
   const hourBefore = city.hour;
   S.advance(city, dt * speed);
@@ -889,12 +1011,15 @@ function frame(now) {
   if (n) renderCity(false);
   view.update(dt, dt * speed);
   updateHud(false);
+  drawMinimap(now);
   if (now - lastSave > 20000) autosave();
   requestAnimationFrame(frame);
 }
 
 view = new View($('view'));
 window.__view = view;
+try { view.dayNight = localStorage.getItem(KEY + 'night') !== '0'; } catch { /* bỏ qua */ }
+$('bNight').classList.toggle('on', view.dayNight);
 window.__newCity = (seed) => startCity(S.newCity(seed)); // tiện thử nghiệm: bản đồ theo seed cố định
 bindUi();
 if (!loadSlot('auto')) startCity(S.newCity());

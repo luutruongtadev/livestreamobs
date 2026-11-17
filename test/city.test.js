@@ -635,6 +635,54 @@ test('city: phong cách Việt Nam mặc định cho thành phố mới, lưu l�
   assert.ok(kinds.moto > kinds.car * 3, `xe máy ${kinds.moto}, ô tô ${kinds.car}`);
 });
 
+test('city: đào, đắp, san phẳng, dẫn nước — đổi địa hình và bờ nước, tốn tiền, không đụng đường; lưu lại đủ', () => {
+  const c = openCity(12345), sx = c.start.x, V = S.N + 1;
+  // tìm một ô đất khô, xa đường, cách nước ít nhất 4 ô
+  let at = null;
+  for (let y = 16; y < 60 && !at; y++) for (let x = 6; x < S.N - 6 && !at; x++) {
+    let ok = Math.abs(x - sx) > 6;
+    for (let dy = -4; dy <= 4 && ok; dy++) for (let dx = -4; dx <= 4 && ok; dx++) if (c.water[cell(x + dx, y + dy)] || c.steep[cell(x + dx, y + dy)]) ok = false;
+    if (ok) at = [x, y];
+  }
+  assert.ok(at, 'có chỗ đất khô để thử');
+  const [x, y] = at, i = cell(x, y), k = y * V + x, h0 = c.hv[k], m0 = c.money;
+  // đào: hạ 4 đỉnh của ô, tốn tiền; xem giá trước (dry) không đổi gì
+  const dry = S.terraform(c, 'dig', x, y, { dry: true });
+  assert.ok(dry.ok && dry.cost > 0 && c.hv[k] === h0 && c.money === m0);
+  assert.ok(S.terraform(c, 'dig', x, y).ok);
+  assert.ok(Math.abs(c.hv[k] - (h0 - S.TERRA_STEP)) < 0.06 && c.money === m0 - dry.cost);
+  assert.ok(Math.abs(S.heightAt(c, W(x), W(y)) - c.hv[k]) < 2, 'heightAt đọc cao độ mới');
+  // san phẳng một vùng 3 × 3 về cao độ 4
+  for (let n = 0; n < 12; n++) S.terraform(c, 'level', x + 6, y, { size: 3, target: 4 });
+  for (const [a, b] of [[x + 5, y - 1], [x + 6, y], [x + 8, y + 2]]) assert.ok(Math.abs(c.hv[b * V + a] - 4) < 0.06, 'đỉnh trong vùng cọ về đúng cao độ đích');
+  assert.equal(c.steep[cell(x + 6, y)], 0);
+  // dẫn nước: đào một đoạn kênh, ô kênh thành nước ngay, ô bên cạnh vẫn là đất
+  c.zone[cell(x, y + 5)] = 1;
+  for (let a = x - 1; a <= x + 2; a++) assert.ok(S.terraform(c, 'canal', a, y + 5).ok);
+  S.terraformDone(c);
+  assert.equal(c.water[cell(x, y + 5)], 1); assert.equal(c.zone[cell(x, y + 5)], 0);
+  assert.equal(c.water[cell(x, y + 4)], 0);
+  assert.equal(c.res[cell(x, y + 4)] > 0, true, 'đất cạnh kênh có tài nguyên (đất màu mỡ nếu trước đó trống)');
+  assert.notEqual(S.canPlace(c, 'outlet', x, y + 4).reason, 'Phải đặt sát bờ nước');
+  assert.equal(S.terraform(c, 'canal', x, y + 5).ok, false, 'đã là nước thì thôi');
+  // đắp lên kênh: thành đất trở lại
+  for (let n = 0; n < 4; n++) S.terraform(c, 'raise', x, y + 5);
+  assert.equal(c.water[cell(x, y + 5)], 0);
+  // không đào được dưới đường, không đào được đất chưa mua, hết tiền thì thôi
+  assert.equal(S.terraform(c, 'dig', sx, 4).ok, false);
+  c.own[cell(x + 12, y)] = 0;
+  assert.equal(S.terraform(c, 'dig', x + 12, y).ok, false);
+  c.own[cell(x + 12, y)] = 1; c.money = 0;
+  assert.equal(S.terraform(c, 'dig', x + 12, y).reason, 'Không đủ tiền');
+  c.money = 50000;
+  // lưu rồi nạp: địa hình và bờ nước như cũ; bản lưu chưa có đào đắp vẫn mở được
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual([...d.hv], [...c.hv]); assert.deepEqual([...d.water], [...c.water]);
+  const plain = S.serialize(openCity(777));
+  assert.equal(plain.terra, undefined);
+  assert.equal(S.deserialize(plain).water.reduce((a, b) => a + b, 0), openCity(777).water.reduce((a, b) => a + b, 0));
+});
+
 test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', () => {
   assert.equal(resolveStatic('/city', ROOT), path.join(ROOT, 'city', 'index.html'));
   assert.equal(resolveStatic('/city/js/sim.js', ROOT), path.join(ROOT, 'city', 'js', 'sim.js'));
