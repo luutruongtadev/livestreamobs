@@ -4,6 +4,7 @@
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
   ROADS, BRIDGE_MULT, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
@@ -29,7 +30,9 @@ const STEEP = 6; // ô chênh cao quá mức này giữa các đỉnh thì khôn
  */
 export function heightFn(c) {
   const seed = c.seed, f = makeField(seed), sx = c.start.x, sy = c.start.y, mountains = c.tgen >= 2;
+  const nat = c.water0 || c.water; // mặt nước tự nhiên (trước khi đào đắp): cao độ nền tính theo mặt nước này
   const isWater = (tx, ty) => (inMap(tx, ty) ? c.water[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
+  const isWater0 = (tx, ty) => (inMap(tx, ty) ? nat[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
   const mount = (gx, gy) => {
     if (!mountains) return 0;
     const far = clamp((Math.hypot(gx - sx, gy - sy) - 40) / 18, 0, 1);
@@ -38,7 +41,7 @@ export function heightFn(c) {
     return 38 * r * r * (3 - 2 * r) * far * far * (3 - 2 * far) * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
   };
   const height = (gx, gy) => {
-    const wn = isWater(gx - 1, gy - 1) + isWater(gx, gy - 1) + isWater(gx - 1, gy) + isWater(gx, gy);
+    const wn = isWater0(gx - 1, gy - 1) + isWater0(gx, gy - 1) + isWater0(gx - 1, gy) + isWater0(gx, gy);
     if (wn === 4) return -3.2;
     if (wn > 0) return 0;
     const n = vnoise(gx * 0.034, gy * 0.034, seed + 41) * 0.75 + vnoise(gx * 0.09, gy * 0.09, seed + 43) * 0.25;
@@ -47,18 +50,44 @@ export function heightFn(c) {
   return { f, isWater, mount, height };
 }
 
+/**
+ * Địa hình = cao độ tự nhiên sinh từ seed (c.hv0) + phần người chơi đào đắp (c.terra, mỗi đỉnh lưới một số, đơn vị 0,1).
+ * Mặt nước tự nhiên giữ ở c.water0; c.water là mặt nước hiện tại sau khi đào kênh, ao hoặc lấn đất.
+ */
 function makeTerrain(c) {
-  const hf = heightFn(c), V = N + 1;
-  c.hv = new Float32Array(V * V);
-  for (let gy = 0; gy <= N; gy++) for (let gx = 0; gx <= N; gx++) c.hv[gy * V + gx] = hf.height(gx, gy);
+  const V = N + 1;
+  if (!c.terra) c.terra = new Int16Array(V * V);
+  c.water0 = c.water.slice();
+  const hf = heightFn(c);
+  c.hv0 = new Float32Array(V * V); c.hv = new Float32Array(V * V);
+  for (let gy = 0; gy <= N; gy++) for (let gx = 0; gx <= N; gx++) { const k = gy * V + gx; c.hv0[k] = hf.height(gx, gy); c.hv[k] = vertexH(c, k); }
   c.cellH = new Float32Array(N * N); // cao độ nền nhà của ô = đỉnh cao nhất
   c.steep = new Uint8Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const a = c.hv[y * V + x], b = c.hv[y * V + x + 1], d = c.hv[(y + 1) * V + x], e = c.hv[(y + 1) * V + x + 1], i = idx(x, y);
-    c.cellH[i] = Math.max(a, b, d, e);
-    if (c.tgen >= 2 && c.cellH[i] - Math.min(a, b, d, e) > STEEP) c.steep[i] = 1;
+    cellTerrain(c, x, y);
+    const i = idx(x, y);
+    if (c.water[i]) { c.tree[i] = 0; c.zone[i] = 0; c.level[i] = 0; }
   }
   makeResources(c, hf);
+}
+
+const vertexH = (c, k) => clamp(c.hv0[k] + c.terra[k] * 0.1, TERRA_MIN, Math.max(TERRA_MAX, c.hv0[k]));
+
+/** Tính lại nền, độ dốc và đất / nước của một ô theo 4 đỉnh của nó. Trả về true nếu ô vừa đổi giữa đất và nước. */
+function cellTerrain(c, x, y) {
+  const V = N + 1, k = y * V + x, i = idx(x, y);
+  const a = c.hv[k], b = c.hv[k + 1], d = c.hv[k + V], e = c.hv[k + V + 1], hi = Math.max(a, b, d, e);
+  const touched = c.terra[k] || c.terra[k + 1] || c.terra[k + V] || c.terra[k + V + 1];
+  c.cellH[i] = hi;
+  c.steep[i] = (c.tgen >= 2 || touched) && hi - Math.min(a, b, d, e) > STEEP ? 1 : 0;
+  let w = c.water0[i];
+  if (touched) { // ô đã đào đắp: ngập từ 3 đỉnh trở lên là nước; ngập đúng 2 đỉnh thì giữ như tự nhiên (mép bờ)
+    const below = (a < WATER_LEVEL) + (b < WATER_LEVEL) + (d < WATER_LEVEL) + (e < WATER_LEVEL);
+    w = below >= 3 ? 1 : below === 2 ? c.water0[i] : 0;
+  }
+  const was = c.water[i];
+  c.water[i] = w;
+  return was !== w;
 }
 
 /**
@@ -77,6 +106,15 @@ function makeResources(c, hf) {
     else if (h < 9 && vnoise(x * 0.06, y * 0.06, seed + 61) > 0.76) c.res[i] = 4;
     else if (fv < 12 && h < 5 && vnoise(x * 0.07, y * 0.07, seed + 65) > 0.38) c.res[i] = 1;
     else if (vnoise(x * 0.09, y * 0.09, seed + 11) > 0.55) c.res[i] = 2;
+  }
+  // dẫn nước tưới: đất trống trong 2 ô quanh kênh, ao do người chơi đào thành đất màu mỡ
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = idx(x, y);
+    if (!c.water[i] || c.water0[i]) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const j = idx(x + dx, y + dy);
+      if (inMap(x + dx, y + dy) && !c.water[j] && !c.res[j] && c.cellH[j] < 9) c.res[j] = 1;
+    }
   }
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     if (c.res[idx(x, y)] !== 5) continue;
@@ -104,6 +142,62 @@ export function isWaterAt(c, wx, wz) {
   return inMap(x, y) && c.water[idx(x, y)] === 1;
 }
 
+// ───────────────────────── đào đắp địa hình ─────────────────────────
+
+/**
+ * Áp cọ đào đắp một lần tại ô (x, y). mode: 'dig' | 'raise' | 'level' | 'canal'; size: cạnh cọ (ô);
+ * target: cao độ đích của san phẳng; dry: chỉ tính giá, không làm.
+ * Đỉnh chạm ô có đường, nhà, công trình hoặc đất chưa mua thì giữ nguyên. Trả về { ok, cost, n, wet, reason }.
+ * Gọi terraformDone() khi nhả chuột để tính lại tài nguyên, ô quy hoạch và mạng lưới.
+ */
+export function terraform(c, mode, x, y, { size = 1, target = 0, dry = false } = {}) {
+  if (!TERRA[mode] || !inMap(x, y)) return { ok: false, cost: 0, reason: 'Ngoài bản đồ' };
+  const V = N + 1, s = clamp(size | 0, 1, 6), x0 = x - ((s - 1) >> 1), y0 = y - ((s - 1) >> 1), cx = x0 + s / 2, cy = y0 + s / 2, R = s / 2 + 0.5;
+  const plan = [];
+  let cost = 0, blocked = 0, locked = 0;
+  for (let gy = y0; gy <= y0 + s; gy++) for (let gx = x0; gx <= x0 + s; gx++) {
+    if (gx < 1 || gy < 1 || gx > N - 1 || gy > N - 1) continue; // mép bản đồ giữ nguyên cho khớp địa hình bên ngoài
+    let free = true, mine = true;
+    for (let dy = -1; dy <= 0; dy++) for (let dx = -1; dx <= 0; dx++) {
+      const i = idx(gx + dx, gy + dy);
+      if (!c.own[i]) mine = false;
+      if (c.road[i] || c.occ[i] || c.level[i]) free = false;
+    }
+    if (!mine) { locked++; continue; }
+    if (!free) { blocked++; continue; }
+    const k = gy * V + gx, h = c.hv[k], w = s >= 3 ? clamp(1.25 - Math.hypot(gx - cx, gy - cy) / R, 0.3, 1) : 1;
+    let nh = mode === 'dig' ? h - TERRA_STEP * w : mode === 'raise' ? h + TERRA_STEP * w : mode === 'level' ? h + clamp(target - h, -TERRA_LEVEL_STEP, TERRA_LEVEL_STEP) : Math.min(h, CANAL_BED);
+    nh = clamp(nh, TERRA_MIN, Math.max(TERRA_MAX, h));
+    const tv = Math.round((nh - c.hv0[k]) * 10);
+    if (tv === c.terra[k]) continue;
+    cost += Math.abs(c.hv0[k] + tv * 0.1 - h) * TERRA_COST;
+    plan.push(k, tv);
+  }
+  cost = Math.ceil(cost);
+  if (!plan.length) return { ok: false, cost: 0, reason: locked && !blocked ? LOCKED : blocked ? 'Không đào đắp được dưới đường, nhà và công trình' : mode === 'level' ? 'Chỗ này đã bằng cao độ cần san' : mode === 'canal' ? 'Chỗ này đã là nước' : 'Đã chạm giới hạn độ sâu / độ cao' };
+  if (cost > c.money) return { ok: false, cost, reason: 'Không đủ tiền' };
+  if (dry) return { ok: true, cost, n: plan.length / 2 };
+  for (let p = 0; p < plan.length; p += 2) { c.terra[plan[p]] = plan[p + 1]; c.hv[plan[p]] = vertexH(c, plan[p]); }
+  let wet = false;
+  for (let b = y0 - 1; b <= y0 + s; b++) for (let a = x0 - 1; a <= x0 + s; a++) {
+    if (!inMap(a, b) || !cellTerrain(c, a, b)) continue;
+    wet = true;
+    const i = idx(a, b);
+    if (c.water[i]) { c.zone[i] = 0; c.tree[i] = 0; c.acc[i] = 0; }
+  }
+  c.money -= cost;
+  if (wet) c.terraWet = true;
+  c.dirty.terrain = Math.max(c.dirty.terrain | 0, 1); c.dirty.zones = true;
+  return { ok: true, cost, n: plan.length / 2, wet };
+}
+
+/** Kết thúc một lượt đào đắp (nhả chuột): tính lại tài nguyên; nếu bờ nước đổi thì tính lại ô quy hoạch, mạng điện nước, ô nhiễm. */
+export function terraformDone(c) {
+  makeResources(c, heightFn(c));
+  if (c.terraWet) { c.terraWet = false; roadsChanged(c); computeMaps(c); }
+  Object.assign(c.dirty, { terrain: 2, trees: true, roads: true, lines: true, transit: true, zones: true, land: true, services: true });
+}
+
 // ───────────────────────── tạo thành phố ─────────────────────────
 
 export function newCity(seed = (Math.random() * 1e9) | 0) {
@@ -112,8 +206,8 @@ export function newCity(seed = (Math.random() * 1e9) | 0) {
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
     zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N),
     nodes: new Map(), edges: new Map(), nextId: 1, lines: [], rings: [],
-    services: [], money: 70000, hour: 0, day: 0, tax: { r: 9, c: 9, i: 9 }, milestone: 0, loans: [], debtHours: 0, over: false,
-    tech: new Set(), points: START_POINTS, owned: new Uint8Array(LT * LT),
+    services: [], money: 70000, hour: 6, day: 0, tax: { r: 9, c: 9, i: 9 }, milestone: 0, loans: [], debtHours: 0, over: false,
+    tech: new Set(), points: START_POINTS, owned: new Uint8Array(LT * LT), terra: new Int16Array((N + 1) * (N + 1)),
   };
   genLand(c);
   // đường cao tốc dẫn vào thành phố từ mép bắc (cũng là cửa ngõ xuất nhập khẩu), chọn cột toàn đất liền
@@ -218,7 +312,7 @@ function attach(c) {
   c.pollution = fl(); c.air = fl(); c.ground = fl(); c.noise = fl(); c.waterPol = fl();
   c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl(), care: fl(), death: fl(), sci: fl(), watch: fl(), shelter: fl() };
   c.crime = fl(); c.gloom = fl();
-  c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true };
+  c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, terrain: 0 };
   syncLand(c);
   c.events = [];
   c.research = c.research || 0; c.prisoners = c.prisoners || 0;
@@ -1355,7 +1449,8 @@ const unb64 = (str, n) => { const s = atob(str || ''), u = new Uint8Array(n ?? s
 const r1 = (v) => Math.round(v * 10) / 10;
 
 export function serialize(c) {
-  const pack = (k) => b64(c[k]), pp = packPeople(c);
+  const pack = (k) => b64(c[k]), pp = packPeople(c), terra = [];
+  for (let k = 0; k < c.terra.length; k++) if (c.terra[k]) terra.push(k, c.terra[k]);
   return {
     v: 4, n: N, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
@@ -1367,6 +1462,7 @@ export function serialize(c) {
     services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}) })),
     transit: { fare: c.transit.fare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
     tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
+    ...(terra.length ? { terra } : {}), // đào đắp: [chỉ số đỉnh, độ lệch × 10, ...] chỉ gồm đỉnh đã đổi
     people: { n: c.pp.count, age: b64(pp.age), edu: b64(pp.edu), home: b64(pp.home), work: b64(pp.work), money: b64(pp.money) },
   };
 }
@@ -1396,8 +1492,9 @@ export function deserialize(o) {
   for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);
   for (let i = 0; i < N * N; i++) { if (c.zone[i] >= ZDEF.length) c.zone[i] = 0; if (c.level[i] > MAX_LEVEL || !c.zone[i]) c.level[i] = 0; }
   const keepTree = c.tree;
-  c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước sinh lại từ seed
-  for (let i = 0; i < N * N; i++) if (c.water[i]) { c.tree[i] = 0; c.zone[i] = 0; c.level[i] = 0; }
+  c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước tự nhiên sinh lại từ seed; phần đào đắp nạp từ bản lưu (makeTerrain dọn nhà, cây trên ô nước)
+  c.terra = new Int16Array((N + 1) * (N + 1));
+  if (Array.isArray(o.terra)) for (let p = 0; p + 1 < o.terra.length; p += 2) { const k = o.terra[p] | 0; if (k >= 0 && k < c.terra.length) c.terra[k] = clamp(o.terra[p + 1] | 0, -800, 800); }
   attach(c);
   for (const n of o.nodes || []) {
     const id = n[0] | 0, node = { id, x: num(n[1], 0), z: num(n[2], 0) };

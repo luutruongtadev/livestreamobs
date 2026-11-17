@@ -30,6 +30,8 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 18. **Y tế, tang lễ**: trạm y tế, bệnh viện (người ốm trong vùng ít tử vong, người già sống lâu hơn). Từ 400 dân, người mất phải được xe tang đưa về nghĩa trang (đầy thì thôi nhận) hoặc đài hoá thân (30 người / ngày); chờ lâu thì cả nhà buồn.
 19. **Tội phạm, nghiên cứu**: từ 400 dân, mỗi ô có mức tội phạm theo thất nghiệp và giá đất; công an giảm, mạnh gấp đôi khi trại giam còn chỗ. Lớp xem *tội phạm* chỉ ra chỗ nóng. Viện nghiên cứu (2.500 dân) dùng người học đại học làm ra điểm phát triển đều đặn.
 20. **Sự cố, thiên tai** (nhóm 🚨 Khẩn cấp): thời tiết đổi mỗi ngày (quang, mưa, khô hạn, bão đá). Xe có thể gặp tai nạn, nhiều hơn khi trời mưa, ban đêm, mặt đường mòn; tai nạn có thể liên hoàn hoặc bốc cháy, chắn làn tới khi xe công an và xe cứu hộ (hoặc cứu hoả nếu cháy) tới dọn. 🚧 Trạm bảo trì sửa dần mặt đường trong bán kính. Cháy nhà do chập điện (nhà thiếu điện dễ cháy hơn) lan sang nhà sát vách. Cướp giật ở nơi tội phạm cao: công an tới trong 3 giờ thì bắt được. Khô hạn dễ cháy rừng, lửa lan qua cây vào nhà; 🗼 tháp canh lửa kìm lại. Bão đá làm nhà tụt cấp. Lốc xoáy (ngẫu nhiên từ 1.000 dân) càn qua phá nhà; 🛖 hầm trú ẩn và 📡 trạm cảnh báo sớm (báo trước 1 giờ) giảm thương vong. Bảng 👥 có nút thử từng loại thiên tai.
+21. **Địa hình** (nhóm ⛰️, phím `T`): giữ chuột để ⛏️ đào, ⛰️ đắp, 📐 san phẳng (về cao độ của điểm bấm đầu tiên) hoặc 🌊 dẫn nước (đào kênh tới dưới mực nước). Cọ 1, 2, 3 hoặc 5 ô (phím `[` `]`); giá theo khối đất đào đắp. Đào sâu quá mực nước thì thành ao hồ, đắp lên lòng sông thì có thêm đất. Đất trống cạnh kênh, ao tự đào thành đất màu mỡ; trạm bơm, cống xả, bến tàu đặt được cạnh kênh. Không đào đắp được dưới đường, nhà, công trình và trên đất chưa mua.
+22. **Đồ hoạ**: mặt nước có sóng, phản chiếu trời, ánh nắng và bọt viền bờ, nước nông trong hơn nước sâu; trời có mây trôi, mặt trời, mặt trăng, sao; 🌙 chu kỳ ngày đêm theo giờ trong game (phím `N` bật / tắt): phố lên đèn, cửa sổ sáng ngẫu nhiên, đèn đường và đèn pha xe rọi xuống mặt đường. Cây theo vùng (tán tròn, tán xoè, phượng đỏ, thông trên cao, dừa ven nước, bụi cây) đung đưa theo gió, đá rải trên sườn dốc. Nhà, cao ốc, cửa hàng, nhà máy có thêm chi tiết (bậc thềm, cửa chớp, ban công, dàn lạnh, tủ kính, mái bạt, hàng rào, ống khói sọc, xe đỗ). Bảng 🗺️ lớp xem dạng lưới, bản đồ nhỏ ở góc phải dưới (bấm để tới nơi).
 
 ## Phong cách Việt Nam
 
@@ -40,13 +42,13 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | File | Việc |
 | --- | --- |
 | `js/base.js` | Hằng số, bảng định nghĩa (khu, tài nguyên, đường, công trình, module, cây công nghệ, giá hàng), hàm thuần dùng chung |
-| `js/sim.js` | Lõi: heightmap và núi, bản đồ tài nguyên, đất đã mua, graph đường (nút + đoạn Bezier bậc 2), ô quy hoạch, mạng điện nước, ô nhiễm, giá đất, xây / lên cấp, module, cây công nghệ, thu chi, lưu nạp |
+| `js/sim.js` | Lõi: heightmap và núi, đào đắp địa hình, bản đồ tài nguyên, đất đã mua, graph đường (nút + đoạn Bezier bậc 2), ô quy hoạch, mạng điện nước, ô nhiễm, giá đất, xây / lên cấp, module, cây công nghệ, thu chi, lưu nạp |
 | `js/people.js` | Từng người dân (vòng đời, việc làm, lịch đi lại, sức khoẻ) và từng doanh nghiệp (kho, lương, lãi lỗ, giao hàng), xe dịch vụ, cháy |
 | `js/traffic.js` | Tìm đường Dijkstra theo thời gian, xe bám làn, đèn tín hiệu, kẹt xe |
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
-| `js/render.js` | Cảnh three.js: địa hình, đường, xe, đèn, ray metro, lớp phủ |
+| `js/render.js` | Cảnh three.js: địa hình, mặt nước (shader), bầu trời và ngày đêm, đường, xe, đèn, ray metro, lớp phủ |
 | `js/main.js` | Vòng lặp, chuột / bàn phím, giao diện |
 | `vendor/` | three.js r160 (giấy phép MIT) |
 
