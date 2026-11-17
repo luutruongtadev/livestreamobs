@@ -163,6 +163,7 @@ export function syncFerries(c) {
     const wcum = [0]; for (let k = 1; k < wpath.length; k++) wcum.push(wcum[k - 1] + Math.hypot(wpath[k][0] - wpath[k - 1][0], wpath[k][1] - wpath[k - 1][1]));
     for (const leg of legs) pos.push(pos[pos.length - 1] + polyLen(leg));
     const len = wcum[wcum.length - 1];
+    if (wpath.length < 2 || len < 30 || pos.some((p, k) => k && p - pos[k - 1] < 5)) { for (const t of chain) state[t.s.uid] = 'close'; continue; } // các bến sát nhau, chung chỗ cập: không thành tuyến
     if (out) pos[1] = len; // điểm "cửa biển" là cuối đường (đã ra khỏi bản đồ)
     const stops = chain.map((t) => ({ x: t.p[0], z: t.p[1], uid: t.s.uid, waiting: [] }));
     if (out) stops.push({ x: wpath[wpath.length - 1][0], z: wpath[wpath.length - 1][1], sea: true, waiting: [] });
@@ -241,6 +242,7 @@ export function stepFerries(c, dt) {
 
 /** Vị trí + hướng của một tàu: [x, z, hướng x, hướng z]. */
 export function ferryPoint(line, sl) {
+  if (!line.wpath || line.wpath.length < 2) { const p = (line.wpath && line.wpath[0]) || [line.stops[0].x, line.stops[0].z]; return [p[0], p[1], 0, 1]; }
   const at = (d) => {
     d = clamp(d, 0, line.len);
     let i = 1; while (i < line.wcum.length - 1 && line.wcum[i] < d) i++;

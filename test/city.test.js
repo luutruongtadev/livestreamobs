@@ -740,3 +740,16 @@ test('tàu khách: hai bến cùng sông thành tuyến chở khách thu vé; m�
   c.water.fill(0); for (let y = 12; y < 20; y++) for (let x = 40; x < 48; x++) c.water[y * S.N + x] = 1;
   assert.equal(S.syncFerries(c).length, 0); assert.equal(c.ferryState[901], 'pond');
 });
+
+test('tàu khách: hai bến sát nhau chung chỗ cập không làm hỏng tuyến', () => {
+  const c = S.newCity(7);
+  c.water.fill(0);
+  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1;
+  c.services = [{ type: 'ferry', x: 37, y: 20, dir: 0, uid: 1 }, { type: 'ferry', x: 37, y: 22, dir: 0, uid: 2 }];
+  const lines = S.syncFerries(c);
+  assert.equal(lines.length, 0); assert.equal(c.ferryState[1], 'close');
+  for (const l of lines) for (const sl of l.veh) S.ferryPoint(l, sl);
+  // tuyến chỉ một điểm (dữ liệu cũ) vẫn vẽ được
+  const p = S.ferryPoint({ wpath: [[5, 6]], stops: [{ x: 5, z: 6 }] }, { s: 0, dir: 1 });
+  assert.deepEqual(p.slice(0, 2), [5, 6]);
+});
