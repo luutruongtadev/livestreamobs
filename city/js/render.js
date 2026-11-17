@@ -569,20 +569,21 @@ export class View {
     // 2) dải mặt đường
     const cross = new Map(); // edgeId -> [mặt cắt đầu a, mặt cắt đầu b]
     const st = new GB(), lamps = []; // dầm, lan can, trụ, cột đèn; vị trí bóng đèn đường
+    this.wprof = new Map();
     for (const e of c.edges.values()) {
       const def = ROADS[e.type], half = def.w / 2, [ra, rb] = trim.get(e.id), ps = this._ribbonPoints(e, ra, rb), tr = tris[e.type];
       const ya = nodeY.get(e.a), yb = nodeY.get(e.b), last = ps.length - 1;
       const high = !!def.elevated;
       const rows = ps.map((p, i) => {
         const rx = -p.tz, rz = p.tx;
-        const lift = high ? liftAt(c, e, p.s) : 0;
-        let y = this._crossY(p.x, p.z, rx, rz, half) + lift;
+        const lift = high ? liftAt(c, e, p.s) : 0, wl = high ? 0 : this.waterLift(e, p.s); // cầu qua sông vồng lên khỏi mặt nước
+        let y = this._crossY(p.x, p.z, rx, rz, half) + lift + wl;
         const da = p.s - ra, db = e.len - rb - p.s; // hoà dần vào cao độ nút giao
         if (c.adj.get(e.a).length > 1 && da < 14) y = ya + (y - ya) * (da / 14);
         if (c.adj.get(e.b).length > 1 && db < 14) y = yb + (y - yb) * Math.max(0, db / 14);
         if (i === 0 && c.adj.get(e.a).length > 1) y = ya;
         if (i === last && c.adj.get(e.b).length > 1) y = yb;
-        return { ...p, rx, rz, y, lift };
+        return { ...p, rx, rz, y, lift, wl };
       });
       let prev = null;
       for (const r of rows) {
@@ -600,6 +601,7 @@ export class View {
       }
       cross.set(e.id, [rows[0], rows[last]]);
       this._structure(st, e, rows, half, lamps);
+      if (!high) this._arches(st, e, rows, half);
     }
     // 3) nút giao: đa giác vỉa hè + đa giác mặt nhựa
     for (const [nid, arr] of ends) {
@@ -679,6 +681,73 @@ export class View {
   }
 
   /**
+   * Các nhịp qua nước của đoạn e (đường dưới đất): [{ s0, s1, h }] theo quãng đường từ đầu a.
+   * h là độ vồng của mặt cầu so với mặt đường thường: nhịp càng dài càng cao để thuyền qua được.
+   */
+  waterRuns(e) {
+    if (!this.wprof) this.wprof = new Map();
+    let runs = this.wprof.get(e.id);
+    if (runs && runs.len === e.len) return runs;
+    runs = []; runs.len = e.len;
+    const c = this.city, step = 2;
+    let s0 = -1, gap = 0;
+    for (let s = 0; s <= e.len + 0.01; s += step) {
+      const p = pointAt(e.pts, e.cum, Math.min(s, e.len)), wet = isWaterAt(c, p[0], p[1]);
+      if (wet) { if (s0 < 0) s0 = s; gap = 0; } else if (s0 >= 0 && (gap += step) > 4) { runs.push({ s0, s1: s - gap }); s0 = -1; gap = 0; }
+    }
+    if (s0 >= 0) runs.push({ s0, s1: e.len });
+    for (const r of runs) r.h = clamp(3 + (r.s1 - r.s0) * 0.05, 3.5, 7);
+    this.wprof.set(e.id, runs);
+    return runs;
+  }
+
+  /** Độ vồng của mặt cầu qua sông tại quãng đường s trên đoạn e (0 ngoài cầu và với đường trên cao). */
+  waterLift(e, s) {
+    if (ROADS[e.type].elevated) return 0;
+    let v = 0;
+    for (const r of this.waterRuns(e)) {
+      const R = 28, d = s < r.s0 ? r.s0 - s : s > r.s1 ? s - r.s1 : 0; // dốc dẫn lên cầu
+      if (d >= R) continue;
+      const t = 1 - d / R;
+      v = Math.max(v, r.h * t * t * (3 - 2 * t));
+    }
+    return v;
+  }
+
+  /** Nhịp cầu dài qua sông: hai vòm thép hai bên, giằng ngang trên đỉnh, dây treo xuống mặt cầu. */
+  _arches(st, e, rows, half) {
+    const runs = this.waterRuns(e).filter((r) => r.s1 - r.s0 >= 40);
+    if (!runs.length) return;
+    const yAt = (s) => {
+      let k = 1;
+      while (k < rows.length - 1 && rows[k].s < s) k++;
+      const a = rows[k - 1], b = rows[k], f = clamp((s - a.s) / (b.s - a.s || 1), 0, 1);
+      return a.y + (b.y - a.y) * f;
+    };
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+    const beam = (a, b, w, h, col) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l = Math.hypot(dx, dz);
+      st.at(m4.compose(v3.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2), q.setFromEuler(e3.set(-Math.atan2(dy, l), Math.atan2(dx, dz), 0, 'YXZ')), one));
+      st.box(0, -h / 2, 0, w, h, Math.hypot(l, dy) + 0.1, col);
+      st.at(null);
+    };
+    const STEEL = 0xc0503a, HANG = 0xe4e0d8;
+    for (const r of runs) {
+      const s0 = Math.max(0, r.s0 - 3), s1 = Math.min(e.len, r.s1 + 3), span = s1 - s0, A = clamp(5 + span * 0.06, 6, 14), n = Math.max(8, Math.round(span / 5));
+      const side = [[], []];
+      for (let k = 0; k <= n; k++) {
+        const s = s0 + (span * k) / n, p = pointAt(e.pts, e.cum, s), rx = -p[3], rz = p[2], y = yAt(s) + 0.9, top = y + A * Math.sin((Math.PI * k) / n);
+        [-1, 1].forEach((sd, j) => side[j].push([p[0] + rx * sd * (half - 0.25), top, p[1] + rz * sd * (half - 0.25), y]));
+      }
+      for (let k = 1; k <= n; k++) for (const arr of side) beam(arr[k - 1], arr[k], 0.55, 0.75, STEEL);
+      for (let k = 1; k < n; k++) {
+        for (const arr of side) { const a = arr[k]; if (a[1] - a[3] > 1) beam([a[0], a[1], a[2]], [a[0], a[3], a[2]], 0.12, 0.12, HANG); } // dây treo
+        if (k % 3 === 0 && side[0][k][1] - side[0][k][3] > 4.5) beam([side[0][k][0], side[0][k][1], side[0][k][2]], [side[1][k][0], side[1][k][1], side[1][k][2]], 0.35, 0.45, STEEL); // giằng ngang
+      }
+    }
+  }
+
+  /**
    * Kết cấu của một đoạn đường: dầm, lan can, trụ và xà mũ cho đoạn trên cao hoặc qua nước;
    * cột đèn đường dọc vỉa hè cho đoạn dưới đất. lamps nhận vị trí bóng đèn.
    */
@@ -693,7 +762,7 @@ export class View {
     };
     let nextPillar = 0, nextLamp = 14 + (e.id % 3) * 6, side = e.id % 2 ? 1 : -1;
     for (let i = 1; i < rows.length; i++) {
-      const a = rows[i - 1], b = rows[i], water = isWaterAt(c, (a.x + b.x) / 2, (a.z + b.z) / 2), high = Math.max(a.lift, b.lift) > 0.8;
+      const a = rows[i - 1], b = rows[i], water = isWaterAt(c, (a.x + b.x) / 2, (a.z + b.z) / 2) || Math.max(a.wl || 0, b.wl || 0) > 0.8, high = Math.max(a.lift, b.lift) > 0.8;
       if (high || water) {
         seg(a, b, (L) => {
           st.box(0, -1.15, 0, half * 2 + 0.2, 1.15, L + 0.05, 0xa8a399); // dầm
@@ -941,7 +1010,7 @@ export class View {
       const mx = v.rx - ox, mz = v.rz - oz;
       if (mx * mx + mz * mz > 1e-5) v.ryaw = Math.atan2(mx, mz);
       if (v.wreck && !v.crashed) { v.crashed = true; v.ryaw += v.crashYaw || 0.6; } // xe tai nạn nằm chéo đường
-      p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
+      p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz) + this.waterLift(e, sa)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
       const look = v.look || v.kind;
       if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : col.setHSL(v.color, 0.6, 0.5));
       else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
@@ -971,7 +1040,7 @@ export class View {
       if (w.rx == null) { w.rx = gx; w.rz = gz; }
       w.rx += (gx - w.rx) * ease; w.rz += (gz - w.rz) * ease;
       const bob = 1 + Math.sin(this.time * 14 + w.hue * 40) * 0.05;
-      p.set(w.rx, this.roadY(w.rx, w.rz) + 0.1, w.rz); q.setFromAxisAngle(up, Math.atan2(tx, tz)); m.compose(p, q, s.set(1.25, 1.25 * bob, 1.25));
+      p.set(w.rx, this.roadY(w.rx, w.rz) + this.waterLift(e, st.fwd ? Math.min(w.s, e.len) : Math.max(0, e.len - w.s)) + 0.1, w.rz); q.setFromAxisAngle(up, Math.atan2(tx, tz)); m.compose(p, q, s.set(1.25, 1.25 * bob, 1.25));
       if (nv) {
         const vi = ((w.cb.id * 2654435761) >>> 0) % nv, ni = nvC[vi]++;
         if (ni < MAX_PEDS) pv[vi].setMatrixAt(ni, m);
