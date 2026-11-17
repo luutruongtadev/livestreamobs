@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR } from './sim.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -145,8 +145,10 @@ uniform vec4 uTBox;`).replace('void main() {', `void main() {
   for (int i = 0; i < ${MAX_TRENCH}; i++) {
     if (i >= uTN) break;
     vec2 a = uTSeg[i].xy, ba = uTSeg[i].zw - a, pa = vTWorld.xz - a;
-    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
-    if (length(pa - ba * h) < uTHw[i]) discard;
+    float hv = uTHw[i], f = floor(hv / 100.0), h = dot(pa, ba) / max(dot(ba, ba), 1e-4);
+    if ((h < 0.0 && mod(f, 2.0) > 0.5) || (h > 1.0 && f > 1.5)) continue; // đầu cắt phẳng: cửa hầm, phía sau là hầm kín
+    h = clamp(h, 0.0, 1.0);
+    if (length(pa - ba * h) < hv - f * 100.0) discard;
   }`);
   };
   mat.customProgramCacheKey = () => 'trench';
@@ -216,8 +218,10 @@ void main() {
   for (int i = 0; i < ${MAX_TRENCH}; i++) {
     if (i >= uTN) break;
     vec2 a = uTSeg[i].xy, ba = uTSeg[i].zw - a, pa = vW.xz - a;
-    float hh = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
-    if (length(pa - ba * hh) < uTHw[i]) discard;
+    float hv = uTHw[i], f = floor(hv / 100.0), hh = dot(pa, ba) / max(dot(ba, ba), 1e-4);
+    if ((hh < 0.0 && mod(f, 2.0) > 0.5) || (hh > 1.0 && f > 1.5)) continue;
+    hh = clamp(hh, 0.0, 1.0);
+    if (length(pa - ba * hh) < hv - f * 100.0) discard;
   }
   vec2 p = vW.xz;
   vec3 toCam = cameraPosition - vW;
@@ -889,29 +893,62 @@ export class View {
     const st = new GB(), lamps = []; // dầm, lan can, trụ, cột đèn; vị trí bóng đèn đường
     this.wprof = new Map();
     this.trims = trim;
-    // lòng hầm chui đang mở (đáy thấp hơn mặt đất): khoét mặt đất, mặt nước để thấy đường bên dưới
+    // lòng hầm chui đang mở (đáy thấp hơn mặt đất): khoét mặt đất để thấy đường bên dưới.
+    // Gần sông, hồ thì hầm kín (đi ngầm dưới đáy): không khoét, mặt nước giữ nguyên; chỗ chuyển từ hở sang kín có cửa hầm.
+    // Mỗi đoạn khoét: [x0, z0, x1, z1, nửa bề rộng, đầu 0 cắt phẳng, đầu 1 cắt phẳng]
     this.trench = [];
+    const m4p = new THREE.Matrix4(), qp = new THREE.Quaternion(), vp = new THREE.Vector3(), upP = new THREE.Vector3(0, 1, 0), oneP = new THREE.Vector3(1, 1, 1);
     for (const e of c.edges.values()) {
       if (roadLvl(e.type) >= 0) continue;
-      const half = ROADS[e.type].w / 2 + 0.25;
+      const half = ROADS[e.type].w / 2 + 0.25, wr = tunnelWetR(e.type);
+      const state = (s) => { const p = pointAt(e.pts, e.cum, s); return this.edgeLift(e, s) >= -0.3 ? 0 : wetNear(c, p[0], p[1], wr) ? 2 : 1; }; // 0 nông, 1 hở, 2 kín
       // lấy mẫu mỗi 5 m rồi gộp các đoạn gần thẳng hàng: hầm thẳng dài chỉ tốn vài đoạn (uniform có hạn, shader duyệt từng đoạn)
-      let run = null;
-      const flush = () => { if (run && run.length > 1) for (let k = 1; k < run.length; k++) this.trench.push([run[k - 1][0], run[k - 1][1], run[k][0], run[k][1], half]); run = null; };
+      let run = null, flatA = false, prevS = 0, prevSt = 0;
+      const flush = (flatB) => { if (run && run.length > 1) for (let k = 1; k < run.length; k++) this.trench.push([run[k - 1][0], run[k - 1][1], run[k][0], run[k][1], half, k === 1 && flatA, k === run.length - 1 && flatB]); run = null; };
+      const portal = (s, into) => { // cửa hầm tại quãng đường s, into = hướng vào phần kín (1: chiều a→b)
+        const p = pointAt(e.pts, e.cum, s), dx = p[2] * into, dz = p[3] * into, yR = this.roadY(p[0], p[1]) + this.edgeLift(e, s), Ht = this.roadY(p[0], p[1]) - yR;
+        const mouth = clamp(Ht - 1.2, 3.2, 5), w = half * 2;
+        st.at(m4p.compose(vp.set(p[0], yR, p[1]), qp.setFromAxisAngle(upP, Math.atan2(dx, dz)), oneP));
+        st.box(0, -0.3, 1.6, w + 0.4, mouth + 0.3, 3.2, 0x0b0d10); // lòng hầm tối phía trong
+        st.box(0, mouth, 0.35, w + 1.6, Math.max(0.5, Ht + 0.9 - mouth), 0.7, 0xc2bdb1); // tường đầu hầm phía trên miệng
+        for (const sd of [-1, 1]) st.box(sd * (half + 0.55), -0.3, 0.35, 1.1, Ht + 1.2, 0.7, 0xb3aea2);
+        st.box(0, Ht + 0.9, 0.3, w + 2.6, 0.22, 1, 0x8d887e); // gờ đỉnh
+        st.box(0, mouth - 0.05, -0.04, w, 0.4, 0.1, 0xe2b12e); // vạch vàng báo chiều cao
+        st.at(null);
+      };
       for (let sa = 0; sa <= e.len + 0.01; sa += 5) {
-        const s1 = Math.min(sa, e.len), deep = this.edgeLift(e, s1) < -0.3, p = pointAt(e.pts, e.cum, s1);
-        if (!deep) { flush(); continue; }
-        if (!run) { run = [[p[0], p[1]]]; continue; }
+        const s1 = Math.min(sa, e.len), stt = state(s1);
+        let cut = s1;
+        if (prevSt && stt && prevSt !== stt) { // chỗ chuyển hở ↔ kín: tìm chính xác tới ~0,3 m
+          let lo = prevS, hi = s1;
+          for (let k = 0; k < 5; k++) { const mid = (lo + hi) / 2; if (state(mid) === prevSt) lo = mid; else hi = mid; }
+          cut = prevSt === 1 ? lo : hi;
+          if (prevSt === 1) {
+            const p = pointAt(e.pts, e.cum, cut);
+            if (run) { // đầu tròn của đoạn kề trước không được lấn qua cửa hầm: bỏ điểm quá gần
+              while (run.length > 1 && Math.hypot(run[run.length - 1][0] - p[0], run[run.length - 1][1] - p[1]) < half + 1) run.pop();
+              run.push([p[0], p[1]]);
+            }
+            flush(true); portal(cut, 1);
+          }
+          else { portal(cut, -1); const p = pointAt(e.pts, e.cum, cut); run = [[p[0], p[1]]]; flatA = true; }
+        }
+        prevS = s1; prevSt = stt;
+        if (stt !== 1) { if (run) flush(false); continue; }
+        const p = pointAt(e.pts, e.cum, s1);
+        if (!run) { run = [[p[0], p[1]]]; flatA = false; continue; }
         const n = run.length;
+        if (n === 2 && flatA && Math.hypot(run[1][0] - run[0][0], run[1][1] - run[0][1]) < half + 1) { run[1] = [p[0], p[1]]; continue; } // như trên, ở đầu ra khỏi hầm kín
         if (n >= 2) { // bỏ điểm giữa nếu ba điểm gần thẳng hàng (lệch dưới 0,6 m)
           const a = run[n - 2], b = run[n - 1], dx = p[0] - a[0], dz = p[1] - a[1], l = Math.hypot(dx, dz) || 1;
           if (Math.abs((b[0] - a[0]) * dz - (b[1] - a[1]) * dx) / l < 0.6) { run[n - 1] = [p[0], p[1]]; continue; }
         }
         run.push([p[0], p[1]]);
       }
-      flush();
+      flush(false);
     }
     const nT = Math.min(MAX_TRENCH, this.trench.length);
-    for (let k = 0; k < nT; k++) { const t = this.trench[k]; TRENCH.seg.value[k].set(t[0], t[1], t[2], t[3]); TRENCH.hw.value[k] = t[4]; }
+    for (let k = 0; k < nT; k++) { const t = this.trench[k]; TRENCH.seg.value[k].set(t[0], t[1], t[2], t[3]); TRENCH.hw.value[k] = t[4] + (t[5] ? 100 : 0) + (t[6] ? 200 : 0); }
     TRENCH.n.value = nT;
     const bx = TRENCH.box.value.set(1e9, 1e9, -1e9, -1e9);
     for (let k = 0; k < nT; k++) { const t = this.trench[k]; bx.set(Math.min(bx.x, t[0], t[2]) - t[4], Math.min(bx.y, t[1], t[3]) - t[4], Math.max(bx.z, t[0], t[2]) + t[4], Math.max(bx.w, t[1], t[3]) + t[4]); }
@@ -1175,7 +1212,9 @@ export class View {
   /** Điểm (x, z) nằm trên lòng hầm chui đang mở không. */
   overTrench(x, z, pad = 0) {
     for (const t of this.trench || []) {
-      const dx = t[2] - t[0], dz = t[3] - t[1], l2 = dx * dx + dz * dz || 1, h = clamp(((x - t[0]) * dx + (z - t[1]) * dz) / l2, 0, 1);
+      const dx = t[2] - t[0], dz = t[3] - t[1], l2 = dx * dx + dz * dz || 1, h0 = ((x - t[0]) * dx + (z - t[1]) * dz) / l2;
+      if ((h0 < 0 && t[5]) || (h0 > 1 && t[6])) continue; // đầu cắt phẳng ở cửa hầm
+      const h = clamp(h0, 0, 1);
       if (Math.hypot(x - t[0] - dx * h, z - t[1] - dz * h) < t[4] + pad) return true;
     }
     return false;
@@ -1350,6 +1389,7 @@ export class View {
     for (let i = 1; i < rows.length; i++) {
       const a = rows[i - 1], b = rows[i], mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2, sunk = Math.min(a.lift, b.lift) < -0.6;
       const water = isWaterAt(c, mx, mz) || Math.max(a.wl || 0, b.wl || 0) > 0.8 || (!sunk && Math.max(a.lift, b.lift) < 0.8 && this.overTrench(mx, mz, 1)), high = Math.max(a.lift, b.lift) > 0.8;
+      if (sunk && !this.overTrench(mx, mz, 0)) continue; // đoạn hầm kín dưới đáy sông: không tường chắn, không gì lộ ra
       if (sunk) {
         // hầm chui: tường chắn bê tông hai bên, cao từ đáy hầm lên quá mặt đất một chút (làm lan can), có gờ trên đỉnh
         seg(a, b, (L) => {

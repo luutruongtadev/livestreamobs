@@ -146,6 +146,36 @@ export function isWaterAt(c, wx, wz) {
   return inMap(x, y) && c.water[idx(x, y)] === 1;
 }
 
+/** Có ô nước nào cách điểm (wx, wz) dưới r mét không. */
+export function wetNear(c, wx, wz, r) {
+  const x0 = cellOf(wx - r), x1 = cellOf(wx + r), y0 = cellOf(wz - r), y1 = cellOf(wz + r);
+  for (let y = Math.max(0, y0); y <= Math.min(N - 1, y1); y++) for (let x = Math.max(0, x0); x <= Math.min(N - 1, x1); x++) {
+    if (c.water[idx(x, y)] !== 1) continue;
+    const cx = cellCenter(x), cz = cellCenter(y), dx = Math.max(0, Math.abs(wx - cx) - T / 2), dz = Math.max(0, Math.abs(wz - cz) - T / 2);
+    if (dx * dx + dz * dz < r * r) return true;
+  }
+  return false;
+}
+
+/** Khoảng cách tối thiểu từ mép hầm chui tới mặt nước để lòng hầm còn hở được; gần hơn thì hầm phải kín (đi ngầm dưới đáy sông). */
+export const TUNNEL_WET = 4;
+/** Bán kính xét nước quanh tim hầm loại type. */
+export const tunnelWetR = (type) => ROADS[type].w / 2 + TUNNEL_WET;
+
+/**
+ * Hầm chui qua sông, hồ: chỗ gần nước, mặt đường phải đã xuống hết độ sâu (đoạn kín đi dưới đáy sông);
+ * còn trên đoạn dốc thì lòng hầm hở, nước tràn vào. hAt(s) = độ cao mặt đường tại quãng đường s. Trả về lý do không được, hoặc null.
+ */
+function tunnelWetCheck(c, type, pts, cum, hAt) {
+  if (roadLvl(type) >= 0) return null;
+  const n = pts.length / 2 - 1, r = tunnelWetR(type), H = lvlH(roadLvl(type));
+  for (let k = 0; k <= n; k++) {
+    if (!wetNear(c, pts[k * 2], pts[k * 2 + 1], r)) continue;
+    if (hAt(cum[k]) > H + 0.5) return 'Hầm qua sông phải xuống hết độ sâu trước khi tới bờ (dốc hầm dài khoảng 40 m): bắt đầu hầm xa bờ hơn';
+  }
+  return null;
+}
+
 // ───────────────────────── đào đắp địa hình ─────────────────────────
 
 /**
@@ -613,6 +643,8 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     if (stack.upper) return { ...out, reason: 'Hai cầu khác tầng không chạy chồng dọc lên nhau được: cho chúng cắt chéo nhau' };
     if (stack.narrow) return { ...out, reason: `Cầu vượt chạy dọc phía trên đường chỉ làm được trên ${ROADS.large.name.toLowerCase()} (trụ cầu ở dải phân cách, hai bên vẫn có làn xe): hãy nâng cấp đường bên dưới trước` };
   }
+  const wet = tunnelWetCheck(c, type, pts, cum, myH);
+  if (wet) return { ...out, reason: wet };
   let blocked = false;
   cellsUnder(pts, def.w / 2, (i) => { if (c.occ[i]) blocked = true; });
   if (blocked) return { ...out, reason: 'Vướng công trình, hãy san ủi trước' };
@@ -762,6 +794,7 @@ export function planLevel(c, edgeId, dir) {
       const st = stackedOver({ ...c, edges: others }, type, p, e.cum);
       if (st.len > 6 && (st.upper || roadLvl(type) < 0 || st.narrow)) reason = 'Đoạn này chạy dọc chồng lên đường khác: không đổi tầng được';
     }
+    if (!reason) reason = tunnelWetCheck(c, type, p, e.cum, (s) => liftAt(c, e, s));
   } finally { e.type = old; }
   return reason ? { ok: false, type, cost, reason } : { ok: true, type, cost };
 }

@@ -945,3 +945,22 @@ test('nâng / hạ tầng: đường 2 làn thành cầu tầng 1, 2, 3 hoặc h
   const big = openCity(5); big.money = 1e7; road(big, big.start.x, 7, big.start.x, 40, 'large');
   assert.match(S.planLevel(big, [...big.edges.values()].find((e) => e.type === 'large').id, 1).reason, /chưa đổi tầng/);
 });
+
+test('hầm chui qua sông: được khi hầm xuống hết độ sâu trước bờ, chặn khi dốc hầm còn chạm nước; hạ cầu qua sông thành hầm cũng vậy', () => {
+  const c = openCity(12345); c.milestone = S.MILESTONES.length; c.money = 1e7;
+  c.water.fill(0);
+  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[cell(x, y)] = 1; // sông 60 m chạy dọc bản đồ
+  const ok = road(c, 30, 30, 56, 30, 'tunnel');
+  assert.ok(ok.ok, ok.reason);
+  const t = [...c.edges.values()].find((e) => e.type === 'tunnel');
+  for (let s = 0; s <= t.len; s += 5) {
+    const p = S.pointAt(t.pts, t.cum, s);
+    if (S.wetNear(c, p[0], p[1], S.tunnelWetR('tunnel'))) assert.ok(S.liftAt(c, t, s) < -6, 'dưới sông là đoạn hầm sâu');
+  }
+  assert.match(S.planRoad(c, { a: S.snapPoint(c, W(38), W(60), { type: 'tunnel' }), b: S.snapPoint(c, W(48), W(60), { type: 'tunnel' }), type: 'tunnel' }).reason || '', /qua sông/);
+  // cầu 2 làn qua sông: dài thì hạ thành hầm được, ngắn thì không
+  assert.ok(road(c, 30, 75, 56, 75).ok && road(c, 37, 88, 49, 88).ok);
+  const at = (y) => [...c.edges.values()].find((e) => e.type === 'small' && Math.abs(e.pts[1] - W(y)) < 1);
+  const lo = S.changeLevel(c, at(75).id, -1); assert.ok(lo.ok, lo.reason);
+  assert.match(S.planLevel(c, at(88).id, -1).reason || '', /qua sông/);
+});
