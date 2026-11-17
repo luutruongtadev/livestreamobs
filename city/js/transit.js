@@ -1,6 +1,6 @@
 // Phố Mới — giao thông công cộng: tuyến xe buýt (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
-import { TRANSIT, MILESTONES, HALF, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
+import { TRANSIT, MILESTONES, HALF, N, cellOf, nearestOnEdge, cellX, cellZ, clamp, hasTech } from './base.js';
 import { spawnVehicle, reroute, findPath } from './traffic.js';
 
 const WALK_SPEED = 7; // đơn vị / giây mô phỏng
@@ -27,6 +27,7 @@ export function planLine(c, mode, pts) {
   const out = { ok: false, cost, len };
   if (mode === 'metro' && !metroUnlocked(c)) return { ...out, reason: `Metro mở khoá khi đạt ${def.unlock} dân` };
   if (pts.some((p) => Math.abs(p.x) > HALF || Math.abs(p.z) > HALF)) return { ...out, reason: 'Ra ngoài bản đồ' };
+  if (pts.some((p) => !c.fn.ownedAt(c, p.x, p.z))) return { ...out, reason: 'Ngoài phần đất của thành phố, hãy mua thêm đất' };
   if (mode === 'bus' && pts.some((p) => !nearestEdge(c, p.x, p.z))) return { ...out, reason: 'Trạm xe buýt phải nằm trên đường' };
   for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - pts[k - 1].x, pts[k].z - pts[k - 1].z) < 25) return { ...out, reason: 'Hai trạm quá gần nhau' };
   if (pts.length < 2) return { ...out, reason: 'Cần ít nhất 2 trạm' };
@@ -112,13 +113,15 @@ export function maintainTransit(c) {
 }
 
 function exchange(c, line, slot, at) {
-  const def = TRANSIT[line.mode], stop = line.stops[at];
+  const def = TRANSIT[line.mode], stop = line.stops[at], cap = def.cap * (hasTech(c, 'ebus') ? 1.5 : 1);
+  const sx = cellOf(stop.x), sz = cellOf(stop.z), free = sx >= 0 && sz >= 0 && sx < N && sz < N && c.fn.hasPolicy(c, sz * N + sx, 'freeBus');
   const stay = [];
   for (const r of slot.riders) { if (r.to === at) c.onArrive(c, r.cb, null); else stay.push(r); }
   slot.riders = stay;
-  while (stop.waiting.length && slot.riders.length < def.cap) {
+  while (stop.waiting.length && slot.riders.length < cap) {
     slot.riders.push(stop.waiting.shift());
-    c.money += c.transit.fare; c.transit.income += c.transit.fare; c.transit.riders++; line.riders++;
+    if (!free) { c.money += c.transit.fare; c.transit.income += c.transit.fare; }
+    c.transit.riders++; line.riders++;
   }
 }
 
@@ -187,7 +190,8 @@ export function planRide(c, fromCell, toCell) {
     if (line.mode === 'bus') { ride = 0; for (let k = i; k !== j; k = (k + 1) % line.stops.length) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);
     const stops = line.mode === 'bus' ? (j - i + line.stops.length) % line.stops.length : Math.abs(j - i);
     const eta = (di + dj) / WALK_SPEED + line.headway / 2 + ride / def.speed + stops * 1.6;
-    if (!best || eta < best.eta) best = { line, from: i, to: j, eta };
+    const st = line.stops[i], bx = cellOf(st.x), bz = cellOf(st.z), free = bx >= 0 && bz >= 0 && bx < N && bz < N && c.fn.hasPolicy(c, bz * N + bx, 'freeBus');
+    if (!best || eta < best.eta) best = { line, from: i, to: j, eta, free };
   }
   return best;
 }
@@ -211,5 +215,5 @@ export function transitHour(c) {
 export function transitUpkeep(c) {
   let u = 0;
   for (const l of c.transit.lines) u += l.count * TRANSIT[l.mode].upkeep + l.stops.length * 4;
-  return u;
+  return u * (hasTech(c, 'ebus') ? 0.7 : 1);
 }

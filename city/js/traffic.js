@@ -1,6 +1,6 @@
 // Phố Mới — giao thông thật trên graph đường: tìm đường theo thời gian đi (có tính xe đang đông),
 // xe bám làn, giữ khoảng cách, đổi làn, dừng đèn đỏ / nhường ở ngã ba, kẹt xe tự nhiên khi đường đầy.
-import { ROADS, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
+import { ROADS, nearestOnEdge, cellX, cellZ, clamp, hasTech } from './base.js';
 
 export const VKIND = {
   car: { len: 3.4, speed: 24 },
@@ -67,9 +67,10 @@ export function rebuildTraffic(c) {
 export function signalState(c, nid, edgeId) {
   const sg = c.traffic.signals.get(nid);
   if (!sg) return null;
-  const t = (c.traffic.time + sg.offset) % (CYCLE * sg.groups.length), ph = Math.floor(t / CYCLE);
+  const cyc = hasTech(c, 'smartSignal') ? CYCLE * 0.65 : CYCLE; // đèn thông minh: đổi pha nhanh hơn
+  const t = (c.traffic.time + sg.offset) % (cyc * sg.groups.length), ph = Math.floor(t / cyc);
   if (!sg.groups[ph].includes(edgeId)) return 'r';
-  return CYCLE - (t % CYCLE) < YELLOW ? 'y' : 'g';
+  return cyc - (t % cyc) < YELLOW ? 'y' : 'g';
 }
 
 /** Vị trí trên đường ứng với một ô đất: { edge, along } hoặc null nếu ô không cạnh đường. */
@@ -96,7 +97,8 @@ class Heap {
 export function findPath(c, from, to, kind = 'car') {
   const emergency = !!VKIND[kind].emergency;
   const ped = kind === 'ped';
-  const tcost = (e, fwd, dist) => (ped ? dist / VKIND.ped.speed : (dist / baseSpeed(e, kind)) * (1 + (emergency ? 0.5 : 3) * loadOf(c, e, fwd)));
+  const truck = kind === 'truck';
+  const tcost = (e, fwd, dist) => (truck && e.noTruck && e !== to.edge && e !== from.edge ? 12 : 1) * (ped ? dist / VKIND.ped.speed : (dist / baseSpeed(e, kind)) * (1 + (emergency ? 0.5 : 3) * loadOf(c, e, fwd)));
   const fe = from.edge, te = to.edge;
   let best = null;
   // cùng một đoạn đường và đi thẳng tới được
@@ -262,8 +264,8 @@ export function stepTraffic(c, dt) {
         oarr.push(v);
       }
     }
-    const target = Math.min(vmax, Math.max(0, v.kind === 'moto' ? (gap - 0.5) * 4.5 : (gap - 1.2) * 2.4));
-    v.v = Math.max(0, v.v + clamp(target - v.v, -45 * dt, 14 * dt));
+    const target = Math.min(vmax, Math.max(0, v.kind === 'moto' ? (gap - 0.5) * 5 : (gap - 1.2) * 3.2));
+    v.v = Math.max(0, v.v + clamp(target - v.v, -60 * dt, 22 * dt));
     let ds = v.v * dt;
     if (ds > gap - 0.3) ds = Math.max(0, gap - 0.3);
     v.s += ds;

@@ -1,7 +1,7 @@
 // Phố Mới — dựng cảnh three.js: địa hình có độ cao, nước, đường theo graph (thẳng / cong, nút giao),
 // nhà, cây, xe chạy theo làn, dây điện / ống nước, lớp phủ quy hoạch.
 import * as THREE from '../vendor/three.module.min.js';
-import { N, T, HALF, SERVICES, ROADS, ZDEF, garbageLimit, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
+import { N, T, HALF, TILE, TILES, SERVICES, ROADS, ZDEF, DISTRICTS, garbageLimit, ownedCell, makeField, vnoise, hash2, mulberry32, heightAt, vertexHeight, cellCenter, isWaterAt, signalState, edgeLoad, metroPoint } from './sim.js';
 import { GB, growable, treeGeometry, carGeometry, motoGeometry, pedGeometry, truckGeometry, busGeometry, stopGeometry, serviceModel, windowTexture, pylonParts } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -145,7 +145,7 @@ export class View {
     this.growMeshes = {}; // tạo dần khi có toà nhà loại đó: khoá "khu-cấp-biến thể"
 
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    this.treeMeshes = [this._inst(treeGeometry(0), treeMat, 6000, true), this._inst(treeGeometry(1), treeMat, 6000, true)];
+    this.treeMeshes = [this._inst(treeGeometry(0), treeMat, 16000, true), this._inst(treeGeometry(1), treeMat, 16000, true)];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.carMesh = this._inst(carGeometry(), vehMat, MAX_CARS, true);
     this.bigMesh = this._inst(truckGeometry(), vehMat, MAX_BIG, true);
@@ -176,6 +176,16 @@ export class View {
           gl_FragColor = vec4(col, a); }`,
     });
 
+    // lớp phủ làm tối phần đất chưa mua
+    this.landData = new Uint8Array(N * N * 4);
+    this.landTex = new THREE.DataTexture(this.landData, N, N, THREE.RGBAFormat);
+    this.landTex.magFilter = this.landTex.minFilter = THREE.NearestFilter;
+    this.landMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      uniforms: { tData: { value: this.landTex } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform sampler2D tData; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tData, vUv); }',
+    });
     // ô xem trước khi kéo chuột
     this.preview = new THREE.InstancedMesh(new THREE.PlaneGeometry(T * 0.96, T * 0.96).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.5, depthWrite: false, depthTest: false }), N * N);
@@ -211,11 +221,13 @@ export class View {
 
   setCity(city) {
     this.city = city;
-    for (const o of [this.terrain, this.overlay]) if (o) { this.scene.remove(o); o.geometry.dispose(); }
+    for (const o of [this.terrain, this.overlay, this.landMesh]) if (o) { this.scene.remove(o); if (o !== this.landMesh) o.geometry.dispose(); }
     this.terrain = this._terrain(city);
     this.overlay = this._overlayMesh(city);
-    this.scene.add(this.terrain, this.overlay);
-    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true };
+    this.landMesh = new THREE.Mesh(this.overlay.geometry, this.landMat);
+    this.landMesh.renderOrder = 1; this.landMesh.frustumCulled = false;
+    this.scene.add(this.terrain, this.landMesh, this.overlay);
+    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true };
     this.puffs.length = 0; this.fireCells = [];
     this.cam.x = cellCenter(city.start.x); this.cam.z = cellCenter(city.start.y + 6);
     this.cam.y = heightAt(city, this.cam.x, this.cam.z);
@@ -226,6 +238,7 @@ export class View {
     const W = N + 2 * BORDER, V = W + 1;
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
     const isWater = (tx, ty) => (tx >= 0 && ty >= 0 && tx < N && ty < N ? city.water[ty * N + tx] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
+    const snow = new THREE.Color(0xf2f5f7), cliff = new THREE.Color(0x8d8674);
     const grass = new THREE.Color(0x5e9c43), grass2 = new THREE.Color(0x74ad4c), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), c = new THREE.Color();
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const gx = i - BORDER, gy = j - BORDER, k = j * V + i;
@@ -234,7 +247,7 @@ export class View {
       let h = inside ? city.hv[gy * (N + 1) + gx] : vertexHeight(seed, f, isWater, gx, gy);
       if (wn === 4) c.copy(bed); else if (wn > 0) c.copy(sand); else {
         const out = Math.max(0, -gx, gx - N, -gy, gy - N);
-        c.copy(grass).lerp(grass2, vnoise(gx * 0.11, gy * 0.11, seed + 21)).lerp(dry, Math.min(0.6, h / 22));
+        c.copy(grass).lerp(grass2, vnoise(gx * 0.11, gy * 0.11, seed + 21)).lerp(dry, Math.min(0.6, h / 22)).lerp(cliff, Math.min(1, Math.max(0, (h - 24) / 22))).lerp(snow, Math.min(1, Math.max(0, (h - 60) / 14)));
         if (out > 0) {
           const s = Math.min(1, out / BORDER), e = s * s * (3 - 2 * s), land = Math.min(1, Math.max(0, f(gx, gy) / 9));
           const m = e * land * (vnoise(gx * 0.05, gy * 0.05, seed + 31) * 85 + vnoise(gx * 0.17, gy * 0.17, seed + 33) * 16);
@@ -316,7 +329,7 @@ export class View {
   pan(dx, dz) { const c = this.cam, cs = Math.cos(c.yaw), sn = Math.sin(c.yaw); this.panWorld(dx * cs + dz * sn, -dx * sn + dz * cs); }
   panWorld(dx, dz) { const c = this.cam; c.x = Math.max(-HALF, Math.min(HALF, c.x + dx)); c.z = Math.max(-HALF, Math.min(HALF, c.z + dz)); }
   rotate(dyaw, dpitch) { const c = this.cam; c.yaw += dyaw; c.pitch = Math.max(0.3, Math.min(1.45, c.pitch + dpitch)); }
-  zoom(f) { const c = this.cam; c.dist = Math.max(45, Math.min(1100, c.dist * f)); }
+  zoom(f) { const c = this.cam; c.dist = Math.max(45, Math.min(1900, c.dist * f)); }
 
   _camera(dt = 0) {
     const c = this.cam, cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
@@ -324,6 +337,7 @@ export class View {
     c.y += (ty - c.y) * (dt ? Math.min(1, dt * 6) : 1);
     this.camera.position.set(c.x + Math.sin(c.yaw) * cp * c.dist, c.y + sp * c.dist, c.z + Math.cos(c.yaw) * cp * c.dist);
     this.camera.lookAt(c.x, c.y, c.z);
+    this.scene.fog.near = 500 + c.dist * 1.1; this.scene.fog.far = 2400 + c.dist * 2.2; // nhìn xa thì sương lùi ra để thấy cả bản đồ
     const size = Math.max(140, Math.min(520, c.dist * 0.95)), sc = this.sun.shadow.camera;
     this.sun.target.position.set(c.x, c.y, c.z);
     this.sun.position.copy(this.sun.target.position).addScaledVector(this.sunDir, 700);
@@ -339,6 +353,16 @@ export class View {
     if (pipes !== this.showPipes) { this.showPipes = pipes; if (this.pipeMesh) this.pipeMesh.visible = pipes; }
   }
 
+  /** Phần đất chưa thuộc thành phố bị phủ tối, có viền sáng ở ranh lô. */
+  _land() {
+    const c = this.city, d = this.landData;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x, own = c.owned[((y / TILE) | 0) * TILES + ((x / TILE) | 0)], edge = x % TILE === 0 || y % TILE === 0 || x % TILE === TILE - 1 || y % TILE === TILE - 1;
+      d[i * 4] = edge ? 235 : 12; d[i * 4 + 1] = edge ? 235 : 18; d[i * 4 + 2] = edge ? 240 : 28; d[i * 4 + 3] = own ? 0 : edge ? 120 : 95;
+    }
+    this.landTex.needsUpdate = true;
+  }
+
   _zones() {
     const c = this.city, d = this.ovData, mode = this.overlayMode, st = [[230, 60, 50], [60, 200, 110], [240, 160, 40]];
     for (let i = 0; i < N * N; i++) {
@@ -349,6 +373,13 @@ export class View {
           [r, g, b] = ZCOL[z]; a = c.level[i] ? (this.ovStrong ? 70 : 0) : this.ovStrong ? 150 : 95;
           if (c.level[i] && (c.pOk[i] !== 1 || c.wOk[i] !== 1 || c.sOk[i] !== 1)) { r = 235; g = 50; b = 40; a = 130; } // nhà đang thiếu điện nước
         } else if (this.ovStrong && c.acc[i] && !c.occ[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
+      } else if (mode === 'district') {
+        const dd = c.district[i]; if (dd) { const col = this._dcol || (this._dcol = DISTRICTS.map((x) => (x ? new THREE.Color(x[1]) : null))); r = col[dd].r * 255; g = col[dd].g * 255; b = col[dd].b * 255; a = 140; }
+      } else if (mode === 'resource') {
+        if (c.water[i]) a = 0;
+        else if (c.res[i] === 1) { r = 150; g = 215; b = 60; a = 150; } else if (c.res[i] === 2) { r = 190; g = 120; b = 60; a = 170; } else if (c.res[i] === 3) { r = 60; g = 40; b = 90; a = 180; }
+        else if (c.tree[i]) { r = 30; g = 110; b = 50; a = 120; }
+        if (!c.water[i] && !c.res[i] && !c.tree[i] && c.zone[i]) { [r, g, b] = ZCOL[c.zone[i]]; a = 90; }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
       } else if (!c.water[i]) {
@@ -580,7 +611,7 @@ export class View {
       const x = i % N, y = (i / N) | 0, cnt = 2 + ((hash2(x, y, 5) * 3) | 0);
       for (let k = 0; k < cnt; k++) {
         const kind = hash2(x * 7 + k, y, 9) > 0.55 ? 1 : 0;
-        if (n[kind] >= 6000) continue;
+        if (n[kind] >= 16000) continue;
         const sc = 0.8 + hash2(x, y * 5 + k, 11) * 0.7;
         const wx = cellCenter(x) + (hash2(x + k * 13, y, 1) - 0.5) * T * 0.8, wz = cellCenter(y) + (hash2(x, y + k * 17, 2) - 0.5) * T * 0.8;
         p.set(wx, heightAt(c, wx, wz) - 0.15, wz);
@@ -627,6 +658,13 @@ export class View {
       grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3];
       grp.updateMatrixWorld(true);
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
+      let nm = 0;
+      for (const k in s.mods || {}) nm += s.mods[k];
+      if (nm) { // mỗi phần mở rộng là một khối nhà phụ dọc mép sau khu đất
+        if (!this.modGeo) { const mg = new GB(); mg.box(0, 0.14, 0, 3, 3.2, 3, 0xd9d4c8, true); mg.box(0, 3.34, 0, 3.2, 0.3, 3.2, 0x5b6670); this.modGeo = mg.build(); }
+        for (let k = 0; k < nm; k++) { const mm = new THREE.Mesh(this.modGeo, this.matBuilding); mm.position.set(-(def.size * T) / 2 + 2 + (k % 5) * 3.5, 0, -(def.size * T) / 2 + 2 + ((k / 5) | 0) * 3.5); mm.castShadow = true; grp.add(mm); }
+        grp.updateMatrixWorld(true);
+      }
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
       this.serviceGroup.add(grp);
     }
@@ -870,6 +908,7 @@ export class View {
     if (d.services) { this._services(); d.services = false; }
     if (d.transit) { this._transit(); d.transit = false; }
     if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i]) this.fireCells.push(i); d.fx = false; }
+    if (d.land) { this._land(); d.land = false; }
     if (d.zones) { this._zones(); d.zones = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
     this._vehicles(dt);

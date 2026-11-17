@@ -2,12 +2,12 @@
 // Người: tuổi, học vấn, nhà, chỗ làm, tiền, hạnh phúc, sức khoẻ; vòng đời sinh → học → làm → nghỉ hưu → mất;
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
-import { N, ZDEF, SERVICES, PRICE, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
+import { N, ZDEF, SERVICES, PRICE, RAW, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, svcVal, hasTech } from './base.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
-const DEMAND_PER_HEAD = 0.025; // hàng hoá mỗi người mua mỗi giờ
+const DEMAND_PER_HEAD = 0.03; // hàng hoá mỗi người mua mỗi giờ
 const MAX_TRUCKS = 70;
 
 export function initPeople(c) {
@@ -20,7 +20,7 @@ export function initPeople(c) {
   };
   const U16 = () => new Uint16Array(N * N), F32 = () => new Float32Array(N * N);
   c.resCount = U16(); c.staff = U16(); c.present = U16(); c.parked = U16(); c.garbage = F32(); c.fire = new Uint8Array(N * N); c.fireTruck = new Uint8Array(N * N);
-  c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N) };
+  c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N), boost: new Uint8Array(N * N) };
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
   c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, metro: 0, walk: 0 }, housing: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
   c.carSample = 1; c.gbusy = new Set();
@@ -83,13 +83,13 @@ export function onBuildingCleared(c, i) {
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
 export const wageAt = (c, i) => (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1));
 export const rentAt = (c, i) => 1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6;
-const spots = (c, i) => (c.occ[i] ? SERVICES[c.services[c.occ[i] - 1].type].spots || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
+const spots = (c, i) => (c.occ[i] ? svcVal(c, c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
 const isShop = (c, i) => c.level[i] > 0 && ZDEF[c.zone[i]].biz === 'shop';
 /** Loại doanh nghiệp ở ô i: 'raw' khai thác nguyên liệu, 'factory', 'shop', 'office' hoặc null. */
 export function bizKind(c, i) {
   if (!c.level[i]) return null;
   const b = ZDEF[c.zone[i]].biz;
-  return b === 'ind' ? (c.variant[i] % 3 === 0 ? 'raw' : 'factory') : b || null;
+  return b === 'ind' ? 'factory' : b || null;
 }
 const dist = (a, b) => Math.hypot(cellX(a) - cellX(b), cellZ(a) - cellZ(b));
 const svcByUid = (c, uid) => c.services.find((s) => s.uid === uid);
@@ -123,7 +123,7 @@ function go(c, id, dest, purpose) {
   if (d < 115) { mode.walk++; if (!walk(c, from, dest, cb, hue)) later(c, d / 9 + 1, cb); return; }
   const carEta = (d * 1.35) / 22 / Math.max(0.35, c.traffic.speedEma) + (purpose !== 'home' && c.parked[dest] >= spots(c, dest) ? 8 : 0);
   const ride = planRide(c, from, dest);
-  if (ride && ride.eta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
+  if (ride && ride.eta * (1 + (ride.free ? 0 : c.transit.fare * 0.05)) < carEta * (ride.free ? 1.6 : 1.3) + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
   mode.car++;
   const kind = id % 5 < 2 ? 'car' : 'moto'; // phần đông đi xe máy
   if (kind === 'car') cb.car = true; // chỉ ô tô mới phải tìm chỗ đỗ
@@ -163,7 +163,7 @@ export function onArrive(c, cb, v) {
           // hết chỗ: tìm bãi đỗ xe gần đó, không có thì chạy vòng rồi đỗ lề đường
           c.econ.parkSearch++; c.econ.day.parkSearch++;
           let lot = null;
-          for (const s of c.services) { const d = SERVICES[s.type]; if (d.spots && s.cell >= 0 && c.parked[s.cell] < d.spots && dist(s.cell, cb.dest) < d.radius * 10) { lot = s; break; } }
+          for (const s of c.services) { const d = SERVICES[s.type]; if (d.spots && s.cell >= 0 && c.parked[s.cell] < svcVal(c, s, 'spots') && dist(s.cell, cb.dest) < d.radius * 10) { lot = s; break; } }
           if (lot) { c.parked[lot.cell]++; pp.car[id] = lot.cell; }
           if (v) {
             let far = lot ? lot.cell : -1;
@@ -181,13 +181,13 @@ export function onArrive(c, cb, v) {
       const b = c.biz, to = cb.to;
       b.incoming[to] = 0;
       if (!c.level[to]) return undefined;
-      const price = PRICE[cb.kind], cost = cb.qty * price * (cb.imp ? PRICE.importMult : 1);
+      const price = cb.price || PRICE[cb.kind], cost = cb.qty * price * (cb.imp ? PRICE.importMult : 1);
       b.sin[to] += cb.qty; b.money[to] -= cost;
       if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * price, 'i');
       return undefined;
     }
     case 'export': {
-      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * PRICE[cb.kind] * PRICE.exportMult, 'i');
+      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * (cb.price || PRICE[cb.kind]) * PRICE.exportMult * (hasTech(c, 'trade') ? 1.15 : 1), 'i');
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;
     }
@@ -231,9 +231,9 @@ export function onArrive(c, cb, v) {
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
 function saleIncome(c, i, amount, cat) {
-  const rate = c.tax[cat] / 100;
+  const tax = Math.max(1, c.tax[cat] + c.fn.taxAdj(c, i)), rate = tax / 100;
   c.biz.money[i] += amount * (1 - rate);
-  c.hourInc[cat] += amount * (c.tax[cat] / 9) * (cat === 'c' ? 1.2 : 1.35);
+  c.hourInc[cat] += amount * (tax / 9) * (cat === 'c' ? 1.2 : 1.35);
 }
 
 // ───────────────────────── mỗi giờ ─────────────────────────
@@ -243,15 +243,16 @@ export function peopleHour(c) {
   // 1) quét toà nhà: nhà còn chỗ, việc còn trống, danh sách cửa hàng
   const vacHomes = [], vacJobs = [], shops = [], companies = [];
   let housing = 0, jobs = 0, jc = 0, ji = 0, jo = 0;
+  const trashMul = hasTech(c, 'recycle') ? 0.7 : 1;
   for (let i = 0; i < N * N; i++) {
     const L = c.level[i];
     if (!L) continue;
     const z = c.zone[i], rc = resCap(z, L), jb = jobCap(z, L);
-    if (pp.count >= 120) c.garbage[i] += (rc + jb) / 55; // trước mốc mở khoá bãi rác thì chưa tính rác
+    if (pp.count >= 120) c.garbage[i] += ((rc + jb) / 55) * trashMul * (c.fn.hasPolicy(c, i, 'sort') ? 0.7 : 1); // trước mốc mở khoá bãi rác thì chưa tính rác
     if (rc) { housing += rc; if (c.resCount[i] < rc && c.pOk[i] === 1 && c.wOk[i] === 1 && !c.fire[i]) vacHomes.push(i); }
     if (jb) {
       jobs += jb; companies.push(i);
-      const cat = ZDEF[z].biz === 'ind' ? 'i' : ZDEF[z].biz === 'office' ? 'o' : 'c';
+      const cat = ZDEF[z].biz === 'ind' || ZDEF[z].biz === 'raw' ? 'i' : ZDEF[z].biz === 'office' ? 'o' : 'c';
       if (cat === 'i') ji += jb; else if (cat === 'o') jo += jb; else jc += jb;
       if (c.staff[i] < jb) vacJobs.push(i);
       if (ZDEF[z].biz === 'shop') shops.push(i);
@@ -265,7 +266,7 @@ export function peopleHour(c) {
     let arrive = Math.min(40, Math.ceil(c.pull * (1.5 + (housing - pp.count) * 0.035)));
     while (arrive-- > 0 && vacHomes.length) {
       const k = (rng() * vacHomes.length) | 0, hcell = vacHomes[k];
-      const r = rng(), edu = r < 0.05 + (hasU ? 0.12 : 0) ? 3 : r < 0.22 + (hasHS ? 0.2 : 0) ? 2 : r < 0.6 ? 1 : 0;
+      const sch = hasTech(c, 'scholar') ? 0.12 : 0, r = rng(), edu = r < 0.05 + (hasU ? 0.12 : 0) + sch ? 3 : r < 0.22 + (hasHS ? 0.2 : 0) + sch * 2 ? 2 : r < 0.6 + sch ? 1 : 0;
       addCitizen(c, 20 + rng() * 25, edu, hcell, 30 + rng() * 60);
       if (rng() < 0.3 && c.resCount[hcell] < resCap(c.zone[hcell], c.level[hcell])) addCitizen(c, rng() * 16, 0, hcell, 0);
       if (c.resCount[hcell] >= resCap(c.zone[hcell], c.level[hcell])) vacHomes.splice(k, 1);
@@ -305,7 +306,8 @@ export function peopleHour(c) {
       const w = pp.work[id];
       if (w < 0 || !c.level[w]) { pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; } else {
         const wg = wageAt(c, w);
-        pp.money[id] += wg * (1 - c.tax.r / 100); wages += wg; c.biz.money[w] -= wg;
+        const home = pp.home[id], tr = Math.max(1, c.tax.r + (home >= 0 ? c.fn.taxAdj(c, home) : 0));
+        pp.money[id] += wg * (1 - tr / 100); wages += wg * (tr / c.tax.r); c.biz.money[w] -= wg;
         if (c.hour >= pp.until[id]) { if (c.present[w] > 0) c.present[w]--; go(c, id, pp.home[id], 'home'); }
       }
     } else if (st === ST.OUT) {
@@ -317,7 +319,7 @@ export function peopleHour(c) {
       if (pp.sick[id] < 250) pp.sick[id]++;
       if (!pp.amb[id] && sickDispatch < 4 && pp.home[id] >= 0 && clinics.length) {
         let best = null, bd = Infinity;
-        for (const s of clinics) { if ((s.out || 0) >= SERVICES[s.type].ambulances) continue; const d = dist(s.cell, pp.home[id]); if (d < bd) { bd = d; best = s; } }
+        for (const s of clinics) { if ((s.out || 0) >= svcVal(c, s, 'ambulances')) continue; const d = dist(s.cell, pp.home[id]); if (d < bd) { bd = d; best = s; } }
         const from = best && svcPos(c, best);
         if (from && trip(c, 'ambulance', from, pp.home[id], { t: 'amb', id, gen: pp.gen[id], svc: best.uid }, true)) { best.out = (best.out || 0) + 1; pp.amb[id] = 1; sickDispatch++; }
       }
@@ -338,7 +340,9 @@ function bizHour(c, companies, shops, h) {
   let shopStaff = 0;
   for (const i of shops) shopStaff += c.present[i];
   const demand = c.pp.count * DEMAND_PER_HEAD * (open ? 1.5 : 0.2);
-  const needRaw = [], needGoods = [], supRaw = [], supGoods = [], broke = [];
+  const needRaw = [], needGoods = [], supRaw = [], supGoods = [], broke = [], boosts = {};
+  for (const s of c.services) { const d = SERVICES[s.type]; if (d.boost && s.cell >= 0) (boosts[d.boost] || (boosts[d.boost] = [])).push(s); }
+  const priceOf = (i, kind) => (kind === 'raw' ? RAW[ZDEF[c.zone[i]].raw || 'mix'].price * (b.boost[i] ? 1.15 : 1) : PRICE.goods);
   let effSum = 0;
   for (const i of companies) {
     const kind = bizKind(c, i), pres = c.present[i], cap = jobCap(c.zone[i], c.level[i]);
@@ -346,10 +350,13 @@ function bizHour(c, companies, shops, h) {
     const prod = 1 + 0.12 * (c.level[i] - 1);
     let active = pres > 0;
     if (kind === 'raw') {
-      b.sout[i] = Math.min(48, b.sout[i] + pres * 0.6 * prod);
+      const boost = boosts[ZDEF[c.zone[i]].raw] && boosts[ZDEF[c.zone[i]].raw].some((s) => dist(s.cell, i) < SERVICES[s.type].radius * 10) ? 1.4 : 1;
+      const dirty = c.zone[i] === 12 ? 1 - Math.min(0.7, c.waterPol[i]) : 1; // nước bẩn thì ít cá
+      b.sout[i] = Math.min(64, b.sout[i] + pres * 0.42 * prod * boost * dirty);
+      b.boost[i] = boost > 1 ? 1 : 0;
       if (b.sout[i] >= PRICE.load) supRaw.push(i);
     } else if (kind === 'factory') {
-      const use = Math.min(b.sin[i], pres * 0.4 * prod, 48 - b.sout[i]);
+      const use = Math.min(b.sin[i], pres * 0.4 * prod, 64 - b.sout[i]);
       b.sin[i] -= use; b.sout[i] += use;
       if (pres && use < pres * 0.2) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needRaw.push(i);
@@ -375,7 +382,7 @@ function bizHour(c, companies, shops, h) {
       let best = -1, bd = Infinity;
       for (const s of sups) { if (b.sout[s] < PRICE.load) continue; const d = dist(s, to); if (d < bd) { bd = d; best = s; } }
       if (best >= 0) {
-        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind, qty: PRICE.load }, trucks < MAX_TRUCKS)) { b.sout[best] -= PRICE.load; b.incoming[to] = 1; trucks++; continue; }
+        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind, qty: PRICE.load, price: priceOf(best, kind) }, trucks < MAX_TRUCKS)) { b.sout[best] -= PRICE.load; b.incoming[to] = 1; trucks++; continue; }
       }
       const out = nearestOutside(c, to);
       if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind, qty: PRICE.load, imp: true }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
@@ -385,9 +392,9 @@ function bizHour(c, companies, shops, h) {
   deliver(needGoods, supGoods, 'goods');
   // kho đầy mà trong thành phố không ai mua: xuất ra ngoài
   for (const [sups, kind] of [[supRaw, 'raw'], [supGoods, 'goods']]) for (const s of sups) {
-    if (b.sout[s] < 30) continue;
+    if (b.sout[s] < 44) continue;
     const out = nearestOutside(c, s);
-    if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: 16 }, trucks < MAX_TRUCKS)) { b.sout[s] -= 16; trucks++; }
+    if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: 36, price: priceOf(s, kind) }, trucks < MAX_TRUCKS)) { b.sout[s] -= 36; trucks++; }
   }
   for (const i of broke) {
     c.econ.bankrupt++; c.econ.day.bankrupt++;
@@ -403,9 +410,9 @@ function servicesHour(c, h) {
   // xe rác: tới con đường bẩn nhất trong bán kính
   for (const s of c.services) {
     const d = SERVICES[s.type];
-    if (!d.trash || !d.trucks || s.cell < 0 || h < 5 || h > 20 || (s.out || 0) >= d.trucks || (s.processed || 0) >= d.trash) continue;
+    if (!d.trash || !d.trucks || s.cell < 0 || h < 5 || h > 20 || (s.out || 0) >= svcVal(c, s, 'trucks') || (s.processed || 0) >= svcVal(c, s, 'trash')) continue;
     let best = -1, bg = 4;
-    for (let i = 0; i < N * N; i++) if (c.garbage[i] > bg && c.level[i] && !c.gbusy.has(c.cedge[i]) && dist(i, s.cell) < d.radius * 10) { bg = c.garbage[i]; best = i; }
+    for (let i = 0; i < N * N; i++) if (c.garbage[i] > bg && c.level[i] && !c.gbusy.has(c.cedge[i]) && dist(i, s.cell) < svcVal(c, s, 'radius') * 10) { bg = c.garbage[i]; best = i; }
     const from = best >= 0 && svcPos(c, s);
     if (from && trip(c, 'garbage', from, best, { t: 'garbage', svc: s.uid, cell: best, edge: c.cedge[best] }, true)) { s.out = (s.out || 0) + 1; c.gbusy.add(c.cedge[best]); }
   }
@@ -417,11 +424,11 @@ function servicesHour(c, h) {
     if (--c.fire[i] === 0) { c.events.push({ type: 'fire', x: i % N, y: (i / N) | 0, zone: c.zone[i] }); c.fn.clearBuilding(c, i); c.dirty.fx = true; continue; }
     if (c.fireTruck[i]) continue;
     let best = null, bd = Infinity;
-    for (const s of c.services) { const d = SERVICES[s.type]; if (s.type !== 'fire' || s.cell < 0 || (s.out || 0) >= d.trucks) continue; const dd = dist(s.cell, i); if (dd < bd) { bd = dd; best = s; } }
+    for (const s of c.services) { const d = SERVICES[s.type]; if (s.type !== 'fire' || s.cell < 0 || (s.out || 0) >= svcVal(c, s, 'trucks')) continue; const dd = dist(s.cell, i); if (dd < bd) { bd = dd; best = s; } }
     const from = best && svcPos(c, best);
     if (from && trip(c, 'fire', from, i, { t: 'fire', svc: best.uid, cell: i }, true)) { best.out = (best.out || 0) + 1; c.fireTruck[i] = 1; }
   }
-  if (c.pp.count >= 400 && pick >= 0 && !c.fire[pick] && rng() < built * 0.00006) { c.fire[pick] = 7; c.events.push({ type: 'fireStart', x: pick % N, y: (pick / N) | 0 }); c.dirty.fx = true; }
+  if (c.pp.count >= 400 && pick >= 0 && !c.fire[pick] && rng() < built * 0.00006 * (hasTech(c, 'fireSafe') ? 0.5 : 1)) { c.fire[pick] = 7; c.events.push({ type: 'fireStart', x: pick % N, y: (pick / N) | 0 }); c.dirty.fx = true; }
 }
 
 // ───────────────────────── mỗi ngày ─────────────────────────
@@ -429,9 +436,9 @@ function servicesHour(c, h) {
 function seatAt(c, level, home) {
   for (const s of c.services) {
     const d = SERVICES[s.type];
-    if (d.eduLevel !== level || (s.used || 0) >= d.students) continue;
+    if (d.eduLevel !== level || (s.used || 0) >= svcVal(c, s, 'students')) continue;
     const cx = s.x + d.size / 2, cy = s.y + d.size / 2;
-    if (Math.hypot((home % N) + 0.5 - cx, ((home / N) | 0) + 0.5 - cy) <= d.radius) { s.used = (s.used || 0) + 1; return true; }
+    if (Math.hypot((home % N) + 0.5 - cx, ((home / N) | 0) + 0.5 - cy) <= svcVal(c, s, 'radius')) { s.used = (s.used || 0) + 1; return true; }
   }
   return false;
 }
@@ -479,7 +486,7 @@ function peopleDay(c) {
     if (pp.work[id] >= 0 && pp.commute[id]) { cs += pp.commute[id]; cn++; }
   }
   Object.assign(ps, count, { pop: pp.count, edu, unemployed: count.workers - count.employed, happy: pp.count ? hs / pp.count : 55, commute: cn ? cs / cn : 0 });
-  c.carSample = Math.min(1, 520 / Math.max(1, count.employed)); // thành phố lớn: chỉ vẽ một phần chuyến đi, phần còn lại tính thời gian
+  c.carSample = Math.min(1, 260 / Math.max(1, count.employed)); // thành phố lớn: chỉ vẽ một phần chuyến đi, phần còn lại tính thời gian
   // sổ sách theo ngày
   c.econ.last = { ...day, riders: c.transit.riders, mode: { ...ps.mode } };
   for (const k of Object.keys(day)) day[k] = 0;

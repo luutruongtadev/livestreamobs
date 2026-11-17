@@ -180,7 +180,7 @@ function shop(g, r, level, variant) {
 
 function industry(g, r, level, variant) {
   g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x9c9a92);
-  if (variant === 0) { // khai thác nguyên liệu: kho + si-lô + đống hàng
+  if (variant === 0 && level <= 2) { // xưởng nhỏ: kho + si-lô + đống hàng
     const metal = pick(r, [0xa9b3b8, 0xb9a98c, 0x97a9b5]);
     g.box(-1.4, 0.14, -1.6, 6, 3.2 + level * 0.3, 5.4, metal);
     g.gable(-1.4, 3.34 + level * 0.3, -1.6, 6.2, 1, 5.6, pick(r, [0x6c7a86, 0x8a5a44, 0x5f7f6a]), true, metal);
@@ -207,13 +207,51 @@ function industry(g, r, level, variant) {
   if (level >= 4) g.box(3.9, 0.14, -3.6, 1.2, 4 + h, 1.2, 0x8a949c);
 }
 
-/** Nhà tự mọc theo khu (1..7), cấp 1..5, biến thể 0..2. */
+/** Khu khai thác: nông trại, lâm trường, mỏ quặng, giếng dầu, bến cá. */
+function extraction(g, r, zone, level, variant) {
+  if (zone === 8) {
+    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x9a7b4f);
+    const crop = pick(r, [0x8fbf3f, 0xd9c24a, 0x6fae4a]);
+    for (let k = 0; k < 7; k++) g.box(-1.6, 0.14, -4.2 + k * 1.4, 6.2, 0.35 + (k % 2) * 0.1, 0.8, crop);
+    g.box(3.4, 0.14, 2.6, 2.4, 2.2 + level * 0.25, 3, 0xb5553c); g.gable(3.4, 2.34 + level * 0.25, 2.6, 2.6, 1, 3.2, 0x7a4a36, false, 0xb5553c);
+    if (level >= 3) { g.cyl(3.5, 0.14, -2.6, 0.8, 0.8, 3.4 + level * 0.4, 0xc8ccd0, 9); g.cyl(3.5, 3.54 + level * 0.4, -2.6, 0.8, 0.1, 0.7, 0xa8adb2, 9); }
+  } else if (zone === 9) {
+    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6f8a4a);
+    g.box(-2.4, 0.14, -2.4, 4.2, 2.6, 3.6, 0x8a623c); g.gable(-2.4, 2.74, -2.4, 4.6, 1.4, 4, 0x4f6a3a, true, 0x8a623c);
+    for (let k = 0; k < 4 + level; k++) g.at(new THREE.Matrix4().makeTranslation(2.6, 0.5 + ((k / 3) | 0) * 0.75, -1 + (k % 3) * 0.8).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2))).cyl(0, -2, 0, 0.36, 0.36, 4, 0xa9793f, 7, 0xd9b77a).at(null);
+    for (const [x, z] of [[-3.6, 3.2], [-1.2, 3.8], [3.4, 3.4]]) g.cyl(x, 0.14, z, 0.4, 0.36, 0.5, 0x7a5a36, 7, 0xd9b77a);
+    g.tree(-3.8, 0.14, -4.2, 0.9); if (variant) g.tree(3.8, 0.14, -4, 1, 0x3c7a38);
+  } else if (zone === 10) {
+    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x8a8478);
+    g.cyl(-1.6, 0.14, 1.4, 3.2, 1.4, 0.1, 0x5b564e, 10, 0x3a372f); // miệng mỏ
+    g.box(2.8, 0.14, -2.6, 3.2, 3 + level * 0.4, 3.4, 0x8b8f93); g.box(2.8, 3.14 + level * 0.4, -2.6, 3.4, 0.3, 3.6, 0x5f5b57);
+    g.at(new THREE.Matrix4().makeTranslation(0.4, 1.6, -0.4).multiply(new THREE.Matrix4().makeRotationZ(0.5))).box(0, 0, 0, 5.4, 0.3, 0.9, 0x6f7a82).at(null); // băng tải
+    for (let k = 0; k < 2 + (level >> 1); k++) g.cyl(-3.4 + k * 1.6, 0.14, -3.6, 0.9, 0.2, 1.1 + k * 0.2, 0x6b655a, 7);
+    g.box(-1.6, 0.14, 1.4, 0.3, 4.4, 0.3, 0x9a968e); g.box(-1.6, 4.3, 1.4, 2.2, 0.3, 0.3, 0x9a968e);
+  } else if (zone === 11) {
+    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x857f72);
+    g.box(-1, 0.14, 0, 0.5, 3.4, 0.5, 0x3a3f46); g.box(-1.6, 0.14, 0.9, 0.3, 2.8, 0.3, 0x3a3f46); g.box(-1.6, 0.14, -0.9, 0.3, 2.8, 0.3, 0x3a3f46);
+    g.at(new THREE.Matrix4().makeTranslation(-0.4, 3.5, 0).multiply(new THREE.Matrix4().makeRotationZ(-0.25))).box(0, 0, 0, 6, 0.4, 0.5, 0xd0342c).at(null); // cần bơm
+    g.box(2.4, 2, 0, 0.9, 1.6, 0.7, 0x3a3f46); g.box(-3.2, 1, 0, 1.4, 1.6, 1.2, 0x2b2b2b);
+    for (let k = 0; k < 1 + (level >> 1); k++) g.cyl(3, 0.14, -3.2 + k * 3.2, 1.3, 1.3, 2.4, 0xb9bfc4, 12, 0x8a949c);
+    g.box(-3.4, 0.14, 3.4, 2.2, 2, 2.2, 0xd8d4cc, false, 0x77726c);
+  } else {
+    g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xcabf9a);
+    g.box(-2.4, 0.14, -2.6, 4, 2.6, 3.4, pick(r, [0x4fa3c8, 0xe9e4da, 0xd9a24a])); g.gable(-2.4, 2.74, -2.6, 4.4, 1.2, 3.8, 0x7a4a36, true, 0xe9e4da);
+    g.box(1.2, 0.14, 3.2, 6.6, 0.3, 1.4, 0x8a623c); // cầu tàu
+    for (let k = 0; k < 1 + (level >> 1); k++) { g.box(3.2, 0.3, -2.8 + k * 2.2, 3, 0.7, 1.2, pick(r, [0xc0392b, 0x2f6fb0, 0xf2f2f2])); g.box(3.6, 1, -2.8 + k * 2.2, 1, 0.8, 0.9, 0xf2f2f2); }
+    for (let k = 0; k < 3; k++) g.box(-0.4 + k * 1.2, 0.14, 0.8, 0.9, 0.7, 0.9, 0x6fa8c8);
+  }
+}
+
+/** Nhà tự mọc theo khu (1..12), cấp 1..5, biến thể 0..2. */
 export function growable(zone, level, variant) {
   const r = mulberry32(zone * 1000 + level * 100 + variant * 7 + 5);
   const g = new GB();
   g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
   const v = variant + ((r() * 2) | 0);
-  if (zone === 1) house(g, r, level, variant);
+  if (zone >= 8) extraction(g, r, zone, level, variant);
+  else if (zone === 1) house(g, r, level, variant);
   else if (zone === 4) tower(g, r, [4, 7, 11, 16, 24][level - 1] + v, pick(r, APT), { podium: level >= 3 ? 4 : 0 });
   else if (zone === 2) shop(g, r, level, variant);
   else if (zone === 5) tower(g, r, [2, 4, 7, 11, 17][level - 1] + v, pick(r, [0xdcd3c4, 0xc8d2d8, 0xe2c9a8, 0x9fb6c8]), { podium: 4.4, shop: true, sign: pick(r, SIGNS), w: 7.6, d: 7 });
@@ -401,6 +439,68 @@ export function serviceModel(type, size) {
       g.box(-2, 0.14, 5, 6, 4, 3, 0x8a949c);
       g.cyl(7, 0.14, 6.5, 1.3, 0.9, 22, 0xd9dde0, 12, 0x2b2b2b); g.cyl(7, 19, 6.5, 1.05, 1, 1.4, 0xd0342c, 12);
       out.smoke = [[7, 22.5, 6.5]];
+      break;
+    }
+    case 'nuclear': {
+      pave(0x9c9a92);
+      for (const x of [-9, 6]) { g.cyl(x, 0.14, -8, 6.4, 4, 20, 0xd9d6ce, 18, 0x3a3a3a); }
+      g.cyl(-4, 0.14, 9, 5, 5, 9, 0xe6e9ec, 16); g.cyl(-4, 9.14, 9, 5, 0.6, 4, 0xcfd6db, 16);
+      g.box(9, 0.14, 8, 14, 8, 12, 0xbfc8cf, true); g.box(9, 8.14, 8, 14.4, 0.5, 12.4, 0x5b6670);
+      g.box(9, 3, 14.1, 6, 2, 0.2, 0xf2c200);
+      out.smoke = [[-9, 20.5, -8], [6, 20.5, -8]];
+      break;
+    }
+    case 'silo': case 'sawmill': case 'fishmarket': {
+      pave(0xa69f8c);
+      const wall = type === 'silo' ? 0xb5553c : type === 'sawmill' ? 0x8a623c : 0x4fa3c8;
+      g.box(-3, 0.14, -2, 9, 5, 10, wall); g.gable(-3, 5.14, -2, 9.4, 2.2, 10.4, 0x6c7a86, false, wall);
+      g.box(-3, 0.14, 3.03, 3.4, 3.4, 0.1, 0x4f5a62);
+      if (type === 'silo') for (const z of [-5, 0, 5]) { g.cyl(6, 0.14, z, 2, 2, 8, 0xc8ccd0, 12); g.cyl(6, 8.14, z, 2, 0.2, 1.4, 0xa8adb2, 12); }
+      else if (type === 'sawmill') for (let k = 0; k < 9; k++) g.at(new THREE.Matrix4().makeTranslation(6, 0.6 + ((k / 3) | 0) * 0.9, -5 + (k % 3) * 1).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))).cyl(0, -3, 0, 0.45, 0.45, 6, 0xa9793f, 7, 0xd9b77a).at(null);
+      else for (let k = 0; k < 6; k++) g.box(5 + (k % 2) * 2.4, 0.14, -6 + ((k / 2) | 0) * 4, 2, 0.1, 3, [0xd0342c, 0x2f7fd0, 0xe6a01e][k % 3], false) && g.box(5 + (k % 2) * 2.4, 2.4, -6 + ((k / 2) | 0) * 4, 2.2, 0.15, 3.2, [0xd0342c, 0x2f7fd0, 0xe6a01e][k % 3]);
+      break;
+    }
+    case 'smelter': case 'refinery': {
+      pave(0x8f8d86);
+      const k = S / 20;
+      g.box(-4 * k, 0.14, -3 * k, 10 * k, 7, 10 * k, 0x8b8f93, true); g.box(-4 * k, 7.14, -3 * k, 10.3 * k, 0.4, 10.3 * k, 0x5f5b57);
+      g.cyl(6 * k, 0.14, 5 * k, 1, 0.7, 18, 0x9b6a55, 10, 0x222222); g.cyl(6 * k, 14, 5 * k, 0.9, 0.85, 1.4, 0xeeeeee, 10);
+      if (type === 'refinery') { for (const [x, z] of [[8, -8], [8, -1], [1, 10]]) g.cyl(x, 0.14, z, 3, 3, 5, 0xd9dde0, 14, 0xb9bfc4); g.cyl(-10, 0.14, 9, 1.2, 1.2, 14, 0xb9bfc4, 10); g.box(-3, 5, 9, 14, 0.5, 0.5, 0x6f7a82); }
+      else g.cyl(5, 0.14, -6, 2.6, 0.3, 2.4, 0x5b564e, 9);
+      out.smoke = [[6 * k, 18.5, 5 * k]];
+      break;
+    }
+    case 'tvtower': {
+      pave(0xc9c2ae);
+      g.box(0, 0.14, 0, 9, 4, 9, 0xdfe4e6, true);
+      g.cyl(0, 4.14, 0, 2.2, 1.1, 46, 0xe9ecee, 12);
+      g.cyl(0, 44, 0, 4.4, 3.2, 3.2, 0x7fa8cc, 14, 0xdfe4e6); g.cyl(0, 47.2, 0, 3.2, 1.4, 2, 0xdfe4e6, 14);
+      g.cyl(0, 49.2, 0, 0.5, 0.1, 22, 0xd0342c, 6);
+      for (const [x, z] of [[-7.6, -7.6], [7.6, -7.6], [-7.6, 7.6], [7.6, 7.6]]) g.tree(x, 0.14, z, 1.1, 0x4f9440);
+      break;
+    }
+    case 'museum': {
+      pave(0xd3c9b4);
+      g.box(0, 0.14, -3, 22, 2, 16, 0xd6ccb6); g.box(0, 2.14, -3, 20, 8, 14, 0xefe9da);
+      for (let k = 0; k < 8; k++) g.cyl(-8.4 + k * 2.4, 2.14, 4.6, 0.5, 0.45, 8, 0xf4efe4, 8);
+      g.gable(0, 10.14, 4, 20.6, 3, 3, 0xcfc6b0, true, 0xefe9da); g.box(0, 10.14, -4, 20.4, 0.6, 12.4, 0xb9b09a);
+      g.cyl(0, 10.74, -4, 4.4, 0.4, 4.4, 0x4f8f86, 16);
+      g.box(0, 0.14, 9.5, 8, 0.6, 5, 0xd6ccb6);
+      for (const x of [-11, 11]) g.tree(x, 0.14, 11, 1.2, 0x4f9440);
+      break;
+    }
+    case 'nightmarket': {
+      pave(0x6b655a);
+      const cols = [0xd0342c, 0xe6a01e, 0x2f7fd0, 0x2aa37a, 0xc94f9b];
+      for (let k = 0; k < 12; k++) { const x = -6.6 + (k % 4) * 4.4, z = -6.4 + ((k / 4) | 0) * 6.2; g.box(x, 0.14, z, 3, 1, 2, 0x8a623c); g.gable(x, 2.2, z, 3.6, 1, 2.8, cols[k % 5], true); for (const dx of [-1.4, 1.4]) g.box(x + dx, 0.14, z, 0.12, 2.1, 0.12, 0x3a3f46); }
+      for (const z of [-3.3, 2.9]) for (let k = 0; k < 7; k++) g.box(-7.5 + k * 2.5, 3.4, z, 0.4, 0.5, 0.4, k % 2 ? 0xffd23f : 0xff5b4a);
+      break;
+    }
+    case 'monument': {
+      pave(0xd3c9b4);
+      g.box(0, 0.14, 0, 12, 0.6, 12, 0xc2b59a); g.box(0, 0.74, 0, 7, 1.6, 7, 0xb9b3a8); g.box(0, 2.34, 0, 3.4, 5, 3.4, 0xd8d4cc);
+      g.cyl(0, 7.34, 0, 0.9, 0.6, 5.5, 0xb08d57, 8); g.cyl(0, 12.84, 0, 0.8, 0.7, 1.2, 0xb08d57, 8); g.box(1.2, 10.6, 0, 3, 0.5, 0.5, 0xb08d57);
+      for (const [x, z] of [[-7.6, -7.6], [7.6, -7.6], [-7.6, 7.6], [7.6, 7.6]]) g.tree(x, 0.14, z, 1, 0x4f9440);
       break;
     }
     case 'highschool': {

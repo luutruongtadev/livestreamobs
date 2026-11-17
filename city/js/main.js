@@ -14,16 +14,18 @@ const GROUPS = [
   { id: 'info', icon: '🖐️', label: 'Xem', tool: 'info' },
   { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway'] },
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:4', 'zone:7', 'zone:2', 'zone:5', 'zone:6', 'zone:3', 'zone:0'] },
-  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'line:power'] },
+  { id: 'extract', icon: '⛏️', label: 'Khai thác', items: ['zone:8', 'zone:9', 'zone:12', 'zone:10', 'zone:11', 'silo', 'sawmill', 'fishmarket', 'smelter', 'refinery'] },
+  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
   { id: 'water', icon: '💧', label: 'Nước', items: ['tower', 'pump', 'outlet', 'treat', 'line:pipe'] },
   { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'incinerator'] },
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['clinic', 'school', 'highschool', 'university', 'police', 'fire'] },
   { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:metro', 'parking', 'port'] },
-  { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium'] },
+  { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium', 'nightmarket', 'monument', 'museum', 'tvtower'] },
+  { id: 'land', icon: '🧭', label: 'Đất, quận', items: ['buy', 'district:1', 'district:2', 'district:3', 'district:4', 'district:5', 'district:6', 'district:0'] },
   { id: 'bulldoze', icon: '🚜', label: 'San ủi', tool: 'bulldoze' },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro'], ['value', 'Lớp xem: giá trị đất (xanh = cao)'], ['air', 'Lớp xem: ô nhiễm không khí'], ['ground', 'Lớp xem: ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)'], ['service', 'Lớp xem: vùng phủ dịch vụ công'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch'], ['resource', 'Lớp xem: tài nguyên (xanh nhạt = đất màu mỡ, nâu = quặng, tím = dầu, xanh đậm = rừng)'], ['district', 'Lớp xem: các quận'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro'], ['value', 'Lớp xem: giá trị đất (xanh = cao)'], ['air', 'Lớp xem: ô nhiễm không khí'], ['ground', 'Lớp xem: ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)'], ['service', 'Lớp xem: vùng phủ dịch vụ công'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let roadMode = 'line', gridSnap = true, draw = null; // draw: { a, ctrl } khi đang vẽ đường / dây, { stops } khi vẽ tuyến
@@ -34,6 +36,11 @@ function toolInfo(id) {
   const [kind, arg] = id.split(':');
   if (id === 'info') return { kind: 'info', icon: '🖐️', label: 'Xem', desc: 'Kéo để di chuyển bản đồ, bấm vào nhà hoặc ô đất để xem thông tin' };
   if (id === 'bulldoze') return { kind: 'bulldoze', icon: '🚜', label: 'San ủi', desc: 'Kéo để phá đường, nhà, cây, dây điện, ống nước và công trình' };
+  if (id === 'buy') return { kind: 'buy', icon: '🏞️', label: 'Mua đất', desc: `Bấm vào một lô đất tối màu liền kề để mua · lô kế tiếp giá <b>${money(S.tileCost(city))}</b> · đang có ${[...city.owned].reduce((a, b) => a + b, 0)} / ${S.maxTiles(city)} lô được phép` };
+  if (kind === 'district') {
+    const d = +arg;
+    return d ? { kind, district: d, icon: '🗂️', label: city.distName[d], dot: S.DISTRICTS[d][1], desc: `Kéo để gán ô đất vào <b>${city.distName[d]}</b> · đặt chính sách cho quận ở bảng 🗂️` } : { kind, district: 0, icon: '🧽', label: 'Bỏ quận', desc: 'Kéo để đưa ô đất ra khỏi quận' };
+  }
   if (kind === 'road') { const d = S.ROADS[arg]; return { kind, type: arg, icon: d.icon, label: d.name.replace(/ \d làn/, ''), desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô, qua nước đắt gấp ${S.BRIDGE_MULT} · ${d.desc}` }; }
   if (kind === 'zone') {
     const z = S.ZDEF[+arg];
@@ -45,7 +52,7 @@ function toolInfo(id) {
   if (kind === 'line') { const d = S.LINES[arg]; return { kind, line: arg, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô · bấm điểm đầu rồi điểm cuối · ${d.desc}` }; }
   const d = S.SERVICES[id];
   const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
-  const lock = S.isUnlocked(city, id) ? '' : ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân`;
+  const lock = S.isUnlocked(city, id) ? '' : d.tech ? ` · 🔒 cần công nghệ "${S.TECH[d.tech].name}" (bảng 🔬)` : d.landmark ? ` · 🔒 ${d.landmark}` : ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân`;
   return { kind: 'svc', svc: id, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> (${d.size}×${d.size}) · ${money(d.cost)} · phí ${fmt(d.upkeep * S.RATE)} ₫/ngày${extra ? ' · ' + extra : ''} · ${d.desc}${lock}` };
 }
 
@@ -153,8 +160,8 @@ function setTool(id) {
 }
 
 function applyOverlay() {
-  const t = toolInfo(tool), zoning = t.kind === 'zone';
-  const mode = zoning ? 'zones' : t.line === 'pipe' || group === 'water' ? 'water' : t.line === 'power' || group === 'power' ? 'power' : LAYERS[layer][0];
+  const t = toolInfo(tool), zoning = t.kind === 'zone' && !(t.zone && S.ZDEF[t.zone].need);
+  const mode = t.kind === 'zone' && !zoning ? 'resource' : t.kind === 'district' ? 'district' : zoning ? 'zones' : t.line === 'pipe' || group === 'water' ? 'water' : t.line === 'power' || group === 'power' ? 'power' : LAYERS[layer][0];
   view.setOverlay(mode, zoning, tool !== 'info' && t.kind !== 'road' && t.kind !== 'line' && t.kind !== 'transit');
   view.setRoutesVisible(t.kind === 'transit' || group === 'transit' || mode === 'traffic');
 }
@@ -274,8 +281,16 @@ function updatePreview() {
   const a = drag ? drag.from : hover, b = hover || drag.to || a;
   if (drag) drag.to = b;
   const tiles = rectTiles(a, b);
+  if (t.kind === 'buy') {
+    if (!hover) { view.setPreview(null); return; }
+    const tx = (hover.x / S.TILE) | 0, ty = (hover.y / S.TILE) | 0, r = S.canBuyTile(city, ty * S.TILES + tx);
+    view.setPreview(rectTiles({ x: tx * S.TILE, y: ty * S.TILE }, { x: tx * S.TILE + S.TILE - 1, y: ty * S.TILE + S.TILE - 1 }), r.ok ? 0x62d98b : 0xff5b4a);
+    renderHint(r.ok ? `Mua lô đất này: <b>${money(r.cost)}</b>` : `<b>${r.reason}</b>`);
+    return;
+  }
+  if (t.kind === 'district') { view.setPreview(tiles, t.district ? S.DISTRICTS[t.district][1] : '#cfd6dc'); if (drag) renderHint(`${t.label}: <b>${Math.abs(a.x - b.x) + 1} × ${Math.abs(a.y - b.y) + 1} ô</b>`); return; }
   if (t.kind === 'bulldoze') view.setPreview(tiles, 0xff5b4a);
-  else view.setPreview(t.zone ? tiles.filter(([x, y]) => city.acc[y * S.N + x]) : tiles, S.ZDEF[t.zone].color);
+  else view.setPreview(t.zone ? tiles.filter(([x, y]) => city.acc[y * S.N + x] && S.zoneFits(city, t.zone, y * S.N + x)) : tiles, S.ZDEF[t.zone].color);
   if (drag) renderHint(`${t.label}: <b>${Math.abs(a.x - b.x) + 1} × ${Math.abs(a.y - b.y) + 1} ô</b>`);
 }
 
@@ -330,7 +345,7 @@ function commitDrag() {
   if (!drag) return;
   const a = drag.from, b = drag.to || a, t = toolInfo(tool);
   drag = null;
-  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'district' ? S.districtRect(city, a.x, a.y, b.x, b.y, t.district) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
   if (r && !r.ok && r.reason) toast(r.reason);
   renderHint(); updatePreview(); updateHud(true);
 }
@@ -341,7 +356,7 @@ const face = (h) => (h >= 65 ? '😊' : h >= 45 ? '😐' : '😟');
 
 function showInfo(tile) {
   const i = tile.y * S.N + tile.x, c = city, rows = [];
-  let title = 'Ô đất', needs = null;
+  let title = 'Ô đất', needs = null, mods = null;
   const add = (k, v) => rows.push(`<div class="row"><span>${k}</span><span>${v}</span></div>`);
   const state = (v) => ['✖ không có', '✔ đủ', '⚠ thiếu'][v];
   const edge = S.edgeAt(c, tile.wx, tile.wz, 0);
@@ -349,14 +364,17 @@ function showInfo(tile) {
     const sv = c.services[c.occ[i] - 1], d = S.SERVICES[sv.type];
     title = `${d.icon} ${d.name}`;
     add('Phí duy trì', `${fmt(d.upkeep * S.RATE)} ₫/ngày`);
-    if (d.power) add('Công suất điện', d.power);
-    if (d.water) add('Công suất nước', d.water);
-    if (d.sewage) add('Nhận nước thải', d.sewage);
-    if (d.trash) add('Rác xử lý hôm nay', `${fmt(sv.processed || 0)} / ${d.trash}`);
-    if (d.students) add('Học sinh', `${sv.used || 0} / ${d.students}`);
-    if (d.trucks || d.ambulances) add('Xe đang đi làm nhiệm vụ', `${sv.out || 0} / ${d.trucks || d.ambulances}`);
-    if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${d.spots}`);
-    if (d.radius) add('Bán kính phục vụ', `${d.radius} ô`);
+    const val = (k) => S.svcVal(c, sv, k);
+    if (d.power) add('Công suất điện', val('power'));
+    if (d.water) add('Công suất nước', val('water'));
+    if (d.sewage) add('Nhận nước thải', val('sewage'));
+    if (d.trash) add('Rác xử lý hôm nay', `${fmt(sv.processed || 0)} / ${val('trash')}`);
+    if (d.students) add('Học sinh', `${sv.used || 0} / ${val('students')}`);
+    if (d.trucks || d.ambulances) add('Xe đang đi làm nhiệm vụ', `${sv.out || 0} / ${val('trucks') || val('ambulances')}`);
+    if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${val('spots')}`);
+    if (d.radius) add('Bán kính phục vụ', `${val('radius')} ô`);
+    if (d.boost) add('Tăng sản lượng cho', S.RAW[d.boost].name.toLowerCase());
+    mods = { k: c.occ[i] - 1, sv };
     if (d.power || d.water || d.sewage) add('Nối mạng', sv.linked ? '✔ đã nối' : '✖ chưa, kéo dây / ống tới đường');
   } else if (edge) {
     const d = S.ROADS[edge.type], load = S.edgeLoad(c, edge);
@@ -397,6 +415,10 @@ function showInfo(tile) {
     } else if (z) add('Tình trạng', !c.acc[i] ? 'Không còn cạnh đường' : c.pOk[i] !== 1 ? 'Chờ có điện' : c.wOk[i] !== 1 ? 'Chờ có nước' : c.sOk[i] !== 1 ? 'Chờ có chỗ xả nước thải' : 'Chờ có nhu cầu');
     else if (!c.acc[i]) add('Quy hoạch', 'Phải nằm trong 2 ô cạnh đường');
     if (c.tree[i]) add('Cây xanh', 'Có');
+    if (c.res[i]) add('Tài nguyên', S.RES_NAME[c.res[i]]);
+    if (c.steep[i]) add('Địa hình', 'Quá dốc, không xây được');
+    if (c.district[i]) add('Quận', c.distName[c.district[i]]);
+    if (!S.ownedCell(c, i)) add('Đất', 'Chưa thuộc thành phố');
   }
   if (!c.water[i] && !edge) {
     if (c.acc[i]) { add('Điện · nước · thoát nước', [c.pOk[i], c.wOk[i], c.sOk[i]].map((v) => state(v).slice(0, 1)).join(' · ')); }
@@ -414,7 +436,54 @@ function showInfo(tile) {
     for (const n of needs) ul.append(el('li', null, `✖ ${n}`));
     $('iBody').append(ul);
   }
+  if (mods) for (const m of S.MODS[mods.sv.type] || []) {
+    const have = (mods.sv.mods && mods.sv.mods[m.id]) || 0, r = el('div', 'slot'), info = el('div'), b = el('button', 'mini acc', 'Xây');
+    info.append(el('b', null, `${m.name} (${have}/${m.max})`), el('small', null, `${money(m.cost)} · phí ${fmt(m.upkeep * S.RATE)} ₫/ngày · ${Object.entries(m.add).map(([k, v]) => `+${v} ${{ students: 'chỗ học', trucks: 'xe', ambulances: 'xe cứu thương', radius: 'ô bán kính', power: 'điện', water: 'nước', sewage: 'nước thải', spots: 'chỗ đỗ', trash: 'rác' }[k] || k}`).join(', ')}`));
+    b.disabled = have >= m.max;
+    b.addEventListener('click', () => { const res = S.addModule(city, mods.k, m.id); if (!res.ok) toast(res.reason); else toast(`Đã xây ${m.name.toLowerCase()}`); showInfo(tile); updateHud(true); });
+    r.append(info, b); $('iBody').append(r);
+  }
   $('info').classList.add('show');
+}
+
+/** Bảng 🔬 cây công nghệ. */
+function renderTech() {
+  if (!$('tech').classList.contains('show')) return;
+  const box = $('tBody'); box.textContent = '';
+  $('tPoints').textContent = `${city.points} điểm phát triển`;
+  let branch = '';
+  for (const [id, t] of Object.entries(S.TECH)) {
+    if (t.branch !== branch) { branch = t.branch; box.append(el('h4', null, branch)); }
+    const have = !!city.tech[id], can = S.canResearch(city, id), r = el('div', 'slot'), info = el('div'), b = el('button', `mini${can.ok ? ' acc' : ''}`, have ? '✔' : `${t.cost} đ`);
+    info.append(el('b', null, t.name), el('small', null, `${t.desc}${t.req && !city.tech[t.req] ? ` · cần "${S.TECH[t.req].name}"` : ''}`));
+    info.querySelector('small').style.whiteSpace = 'normal';
+    b.disabled = !can.ok;
+    b.addEventListener('click', () => { const res = S.research(city, id); if (!res.ok) toast(res.reason); else toast(`Đã có công nghệ: ${t.name}`); renderTech(); refreshToolbar(); updateHud(true); });
+    r.append(info, b); box.append(r);
+  }
+}
+
+/** Bảng 🗂️ quận và chính sách. */
+function renderGov() {
+  if (!$('gov').classList.contains('show')) return;
+  const box = $('gBody'); box.textContent = '';
+  const count = new Array(S.DISTRICTS.length).fill(0);
+  for (let i = 0; i < S.N * S.N; i++) if (city.district[i] && city.level[i]) count[city.district[i]]++;
+  for (let d = 1; d < S.DISTRICTS.length; d++) {
+    const head = el('h4'), name = el('input'), dot = el('i', 'dot');
+    dot.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:${S.DISTRICTS[d][1]}`;
+    name.value = city.distName[d]; name.maxLength = 20; name.style.cssText = 'background:none;border:0;color:inherit;font:inherit;width:120px;outline:none;user-select:text;-webkit-user-select:text';
+    name.addEventListener('change', () => { city.distName[d] = name.value.trim() || S.DISTRICTS[d][0]; buildSub(); });
+    head.append(dot, name, el('span', null, ` · ${count[d]} toà nhà`)); box.append(head);
+    for (const [k, pl] of Object.entries(S.POLICIES)) {
+      const row = el('label', 'row'), cb = el('input');
+      cb.type = 'checkbox'; cb.checked = !!city.policy[d][k];
+      cb.addEventListener('change', () => { S.setPolicy(city, d, k, cb.checked); renderGov(); updateHud(true); });
+      const txt = el('span', null, `${pl.name}${pl.cost ? ` · ${fmt(pl.cost * S.RATE)} ₫/nhà/ngày` : pl.flat ? ` · ${fmt(pl.flat * S.RATE)} ₫/ngày` : ''}`);
+      txt.title = pl.desc; row.title = pl.desc;
+      row.append(txt, cb); box.append(row);
+    }
+  }
 }
 
 // ───────────────────────── HUD ─────────────────────────
@@ -493,12 +562,13 @@ function updateHud(force) {
   $('happy').textContent = s.pop ? `${face(s.happy)} ${Math.round(s.happy)}%` : '–';
   $('date').textContent = dateText(c.hour);
   $('rank').textContent = c.milestone ? S.MILESTONES[c.milestone - 1].name : 'Vùng đất mới';
+  $('bTech').textContent = c.points ? `🔬 ${c.points}` : '🔬';
   for (const [id, v] of [['dr', c.demand.r], ['dc', c.demand.c], ['di', c.demand.i], ['do', c.demand.o]]) $(id).style.height = `${Math.max(3, Math.max(0, v) * 100)}%`;
   for (const b of $('speed').children) b.classList.toggle('on', +b.dataset.s === speed);
   // ngân sách
   $('taxRv').textContent = `${c.tax.r}% · +${fmt(s.inc.r)}`; $('taxCv').textContent = `${c.tax.c}% · +${fmt(s.inc.c)}`; $('taxIv').textContent = `${c.tax.i}% · +${fmt(s.inc.i)}`;
   $('bInc').textContent = `+${fmt(s.income)}`; $('bFare').textContent = `+${fmt(s.inc.t)}`;
-  for (const [id, k] of [['eRoad', 'roads'], ['ePower', 'power'], ['eWater', 'water'], ['eTrash', 'trash'], ['ePark', 'park'], ['eCivic', 'civic'], ['eTransit', 'transit'], ['eLoan', 'loans']]) $(id).textContent = `−${fmt(s.exp[k])}`;
+  for (const [id, k] of [['eRoad', 'roads'], ['ePower', 'power'], ['eWater', 'water'], ['eTrash', 'trash'], ['ePark', 'park'], ['eCivic', 'civic'], ['eTransit', 'transit'], ['eExtract', 'extract'], ['ePolicy', 'policy'], ['eLoan', 'loans']]) $(id).textContent = `−${fmt(s.exp[k])}`;
   $('bNet').textContent = `${net >= 0 ? '+' : ''}${fmt(net)} ₫`; $('bNet').className = net >= 0 ? 'pos' : 'neg';
   const meter = (bar, txt, use, cap) => { $(txt).textContent = `${fmt(use)} / ${fmt(cap)}`; $(bar).style.width = `${cap ? Math.min(100, (use / cap) * 100) : use ? 100 : 0}%`; $(bar).classList.toggle('over', use >= cap && use > 0); };
   meter('pBar', 'pTxt', s.powerUse, s.powerCap); meter('wBar', 'wTxt', s.waterUse, s.waterCap); meter('sBar', 'sTxt', s.waterUse, s.sewCap); meter('tBar', 'tTxt', s.trashUse, s.trashCap);
@@ -558,6 +628,12 @@ function bindInput() {
     hover = view.pick(e.clientX, e.clientY);
     if (tool === 'info') { grab = view.groundPoint(e.clientX, e.clientY); cv.style.cursor = 'grabbing'; return; }
     if (!hover) return;
+    if (tool === 'buy') {
+      const r = S.buyTile(city, ((hover.y / S.TILE) | 0) * S.TILES + ((hover.x / S.TILE) | 0));
+      if (r.ok) toast(`Đã mua thêm một lô đất · ${money(r.cost)}`); else toast(r.reason);
+      hintOverride = null; updatePreview(); updateHud(true);
+      return;
+    }
     if (isDrawTool()) { downAt.started = !draw; drawClick(false); return; }
     if (S.SERVICES[tool]) {
       const r = S.placeService(city, tool, hover.x, hover.y);
@@ -616,7 +692,9 @@ function bindInput() {
 }
 
 function openSide(id) {
-  for (const p of ['budget', 'saves', 'people']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'tech', 'gov']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  if (id === 'tech') renderTech();
+  if (id === 'gov') renderGov();
   if (id === 'saves') renderSlots();
   if (id === 'people') renderCity(true);
   if (id === 'budget') { renderLoans.sig = ''; updateHud(true); }
@@ -627,6 +705,8 @@ function bindUi() {
   $('bBudget').addEventListener('click', () => openSide('budget'));
   $('bSave').addEventListener('click', () => openSide('saves'));
   $('bCity').addEventListener('click', () => openSide('people'));
+  $('bTech').addEventListener('click', () => openSide('tech'));
+  $('bGov').addEventListener('click', () => openSide('gov'));
   $('fare').addEventListener('input', (e) => { city.transit.fare = +e.target.value; renderCity(true); });
   $('bLayer').addEventListener('click', () => { layer = (layer + 1) % LAYERS.length; applyOverlay(); toast(LAYERS[layer][1]); $('bLayer').classList.toggle('on', layer > 0); });
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
@@ -682,13 +762,15 @@ function frame(now) {
   const n = city.hour - hourBefore;
   for (const ev of city.events.splice(0)) {
     if (ev.type === 'milestone') {
-      toast(`Thưởng ${money(ev.reward)}${ev.unlocked.length ? ` · mở khoá: ${ev.unlocked.join(', ')}` : ''}`, `🎉 ${city.name} trở thành ${ev.name}!`);
+      renderTech();
+      toast(`Thưởng ${money(ev.reward)} và ${ev.points} điểm phát triển${ev.unlocked.length ? ` · mở khoá: ${ev.unlocked.join(', ')}` : ''}`, `🎉 ${city.name} trở thành ${ev.name}!`);
       refreshToolbar();
     } else if (ev.type === 'fireStart') toast('🔥 Có đám cháy! Xe cứu hoả gần nhất đang chạy tới');
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
     else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
     else if (ev.type === 'loanPaid') toast('Đã trả xong một khoản vay');
+    else if (ev.type === 'point') { toast('Thành phố sống tốt: +1 điểm phát triển (bảng 🔬)'); renderTech(); }
     else if (ev.type === 'bankrupt') { $('over').classList.add('show'); setSpeed(0); }
   }
   if (n && city.hour % 3 === 0) city.dirty.zones = true;
