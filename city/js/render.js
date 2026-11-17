@@ -3,8 +3,8 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions } from './sim.js';
-import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts } from './models.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes } from './sim.js';
+import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -401,6 +401,8 @@ export class View {
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
     this.tramMesh = this._inst(tramGeometry(), vehMat, MAX_BUS, true);
+    this.shipMeshes = [this._inst(shipGeometry(0), vehMat, 40, true), this._inst(shipGeometry(1), vehMat, 40, true)]; // tàu khách, tàu hàng
+    this.shipT = 0;
     this.pedVariants = []; // người dựng từ mô hình Meshy, nạp xong thì thế dần người hộp
     this.animalMesh = null; // chó thả rông, nạp xong mới có
     this.animals = [];
@@ -1015,6 +1017,48 @@ export class View {
     this._gateT = 0;
     const lost = !outsidePositions(this.city).length; // kiểm tra nửa giây một lần
     this.gateBeam.visible = this.gateRing.visible = lost;
+  }
+
+  /** Tàu khách / tàu hàng chạy theo tuyến shipRoutes: cập bến, chạy, cập bến bên kia (hoặc ra ngoài bản đồ) rồi quay về. */
+  _ships(simDt) {
+    const c = this.city;
+    if (!this.ships) {
+      this.ships = shipRoutes(c).map((r, k) => {
+        const cum = [0];
+        for (let i = 1; i < r.path.length; i++) cum.push(cum[i - 1] + Math.hypot(r.path[i][0] - r.path[i - 1][0], r.path[i][1] - r.path[i - 1][1]));
+        return { ...r, cum, len: cum[cum.length - 1], speed: r.type === 'port' ? 6 : 10, dwell: r.type === 'port' ? 14 : 8, off: hash2(r.from.x, r.from.y, k) * 60 };
+      });
+    }
+    this.shipT += simDt;
+    for (const mesh of this.shipMeshes) mesh.count = 0;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), n = [0, 0];
+    const at = (sh, d, out) => { // điểm trên tuyến cách bến d đơn vị
+      d = clamp(d, 0, sh.len);
+      let i = 1; while (i < sh.cum.length - 1 && sh.cum[i] < d) i++;
+      const a = sh.path[i - 1], b = sh.path[i], f = (d - sh.cum[i - 1]) / (sh.cum[i] - sh.cum[i - 1] || 1);
+      out[0] = a[0] + (b[0] - a[0]) * f; out[1] = a[1] + (b[1] - a[1]) * f;
+    };
+    const a = [0, 0], b = [0, 0];
+    for (const sh of this.ships) {
+      const run = sh.len / sh.speed, cyc = 2 * (run + sh.dwell);
+      let t = (this.shipT + sh.off) % cyc, d = 0, dir = 1; // đón khách -> chạy đi -> cập bến bên kia -> chạy về
+      if (t >= sh.dwell) {
+        t -= sh.dwell;
+        if (t < run) d = sh.len * (0.5 - 0.5 * Math.cos((Math.PI * t) / run)); // tăng tốc rời bến, giảm tốc cập bến
+        else if ((t -= run) < sh.dwell) { d = sh.len; dir = -1; }
+        else { t -= sh.dwell; d = sh.len * (0.5 + 0.5 * Math.cos((Math.PI * t) / run)); dir = -1; }
+      }
+      if (sh.out && d > sh.len - 30) continue; // đã ra ngoài bản đồ
+      at(sh, d, n); at(sh, d - 6 * dir, a); at(sh, d + 6 * dir, b);
+      let hx = b[0] - a[0], hz = b[1] - a[1];
+      if (Math.abs(hx) + Math.abs(hz) < 1e-3) { at(sh, 0, a); at(sh, 8, b); hx = b[0] - a[0]; hz = b[1] - a[1]; }
+      const yaw = Math.atan2(hx, hz), bob = Math.sin(this.time * 1.3 + sh.off) * 0.12;
+      q.setFromAxisAngle(up, yaw); p.set(n[0], WATER_Y + bob, n[1]);
+      const mesh = this.shipMeshes[sh.type === 'port' ? 1 : 0], cnt = mesh.count;
+      if (cnt >= mesh.userData.cap) continue;
+      mesh.setMatrixAt(cnt, m.compose(p, q, sc)); mesh.count = cnt + 1;
+    }
+    for (const mesh of this.shipMeshes) { mesh.instanceMatrix.needsUpdate = true; }
   }
 
   /** Đổi phong cách nhà cửa / phố xá: dựng lại mọi mô hình nhà, cây, đường. */
@@ -1717,6 +1761,7 @@ export class View {
   update(dt, simDt) {
     const c = this.city, d = c.dirty;
     this.time += dt; this.uTime.value = this.time;
+    if (d.terrain || d.services) this.ships = null; // mặt nước hoặc bến đổi: tìm lại tuyến tàu
     if (d.terrain) { if (d.terrain === 2) this._rebuildTerrain(); else this._terrainSync(); d.terrain = 0; }
     if (d.buildings) d.trees = true; // đá, bụi cây nhường chỗ cho nhà mới mọc
     if (d.buildings) {
@@ -1738,6 +1783,7 @@ export class View {
     this._animals(simDt);
     this._flames();
     this._gatePulse(dt);
+    this._ships(simDt);
     this._weather(dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;

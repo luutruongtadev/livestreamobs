@@ -1011,7 +1011,7 @@ export function serviceModel(type, size) {
       pave(0xc9c2ae);
       g.box(-3, 0.14, -3, 11, 5, 8, 0xf0e6d2, true); g.gable(-3, 5.14, -3, 11.6, 2.2, 8.6, 0x2f6fb0, true, 0xf0e6d2);
       g.box(4, 0.14, 4, 8, 0.6, 9, 0x9c7a52); for (let k = 0; k < 4; k++) g.box(0.6 + k * 2.4, 0.74, 8.4, 0.3, 1, 0.3, 0x6a4a30); // cầu tàu
-      g.box(5, 0.5, 2, 3.6, 1.6, 7.4, 0xffffff); g.box(5, 2.1, 2.2, 2.8, 1.4, 4.6, 0x2f6fb0); g.box(5, 3.5, 2.6, 2, 0.8, 2.4, 0xffffff); // tàu khách
+      for (let k = 0; k < 3; k++) g.box(1 + k * 3, 0.74, 8.6, 0.5, 0.9, 0.5, 0x2f3b45); // cọc buộc tàu (tàu khách chạy riêng, xem shipGeometry)
       break;
     }
     case 'train': {
@@ -1209,6 +1209,25 @@ export function growableVN(zone, level, variant) {
 }
 
 /** Cây dừa: thân cong nhẹ có đốt, tàu lá dài rủ xuống đầu ngọn, buồng dừa. */
+/** Tàu thuỷ, mũi hướng +z, đáy ở mặt nước (y = 0). kind 0 = tàu khách hai tầng, 1 = tàu hàng chở container. */
+export function shipGeometry(kind) {
+  const g = new GB();
+  if (kind === 1) {
+    g.box(0, -0.8, 0, 5.4, 2.6, 24, 0x2b4a6e); g.box(0, -0.8, 12.6, 3.6, 2.6, 2, 0x2b4a6e); g.box(0, -0.85, 0, 5.5, 0.5, 26, 0xa8382e); // thân, mũi, vạch nước
+    const cols = [0xd9483b, 0x2f7fd0, 0x2aa37a, 0xe0a030, 0x8a5fb0];
+    for (let k = 0; k < 6; k++) for (let j = 0; j < 2; j++) g.box(-1.3 + j * 2.6, 1.8, 6.5 - k * 2.7, 2.4, 1.2 + ((k + j) % 3 ? 1.1 : 0), 2.5, cols[(k * 2 + j * 3) % 5]);
+    g.box(0, 1.8, -9.5, 4.8, 3.6, 3.4, 0xf2f2f2); g.box(0, 5.4, -9.5, 5.2, 0.3, 3.8, 0xdedede); g.box(0, 4, -7.8, 4.6, 0.7, 0.05, 0x2f3b45);
+    g.cyl(0, 5.7, -10.5, 0.55, 0.55, 2.2, 0xd9483b, 8);
+    return g.build();
+  }
+  g.box(0, -0.6, 0, 4.2, 1.5, 13, 0xffffff); g.box(0, -0.6, 6.9, 2.6, 1.5, 1.4, 0xffffff); g.box(0, -0.62, 0, 4.3, 0.35, 14, 0x2f6fb0); // thân, mũi, vạch xanh
+  g.box(0, 0.9, -0.6, 3.6, 1.6, 9, 0xf4f4f4); g.box(0, 1.55, -0.6, 3.66, 0.7, 8.6, 0x2f3b45); // tầng dưới, dãy cửa sổ
+  g.box(0, 2.5, -1.4, 3.2, 1.3, 5.6, 0xf4f4f4); g.box(0, 2.95, -1.4, 3.26, 0.55, 5.2, 0x2f3b45); g.box(0, 2.95, 1.31, 2.6, 0.55, 0.05, 0x6fa8ff); // tầng trên, buồng lái
+  g.box(0, 3.8, -1.4, 3.6, 0.18, 6.2, 0x2f6fb0); g.cyl(0, 3.98, -3.2, 0.4, 0.5, 1.4, 0xd9483b, 8); // mái, ống khói
+  for (const x of [-1.9, 1.9]) g.box(x, 0.9, 4.6, 0.08, 0.6, 2.8, 0xdedede); // lan can mũi
+  return g.build();
+}
+
 export function palmGeometry() {
   const g = new GB();
   g.cyl(0, 0, 0, 0.42, 0.34, 0.45, 0x7a5d3c, 7);

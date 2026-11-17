@@ -142,6 +142,97 @@ export function isWaterAt(c, wx, wz) {
   return inMap(x, y) && c.water[idx(x, y)] === 1;
 }
 
+/**
+ * Tuyến tàu thuỷ cho bến tàu khách (ferry) và cảng hàng (port): [{ type, from, path: [[x, z], ...], out }].
+ * Tàu khách chạy qua lại giữa các bến cùng một vùng nước; không có bến bạn thì chạy ra mép bản đồ
+ * (out = true: tàu "ra ngoài" rồi quay về) hoặc tới góc xa nhất của hồ. Tàu hàng luôn chạy ra ngoài nếu được.
+ * Thuần dữ liệu, chỉ dùng để vẽ.
+ */
+export function shipRoutes(c) {
+  // ưu tiên nước sâu (ô nước có 8 ô quanh cũng là nước): tàu không sát bờ; sông hẹp quá thì chạy cả nước nông
+  const deep = new Uint8Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (!c.water[idx(x, y)]) continue;
+    let ok = 1; for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && !c.water[idx(x + dx, y + dy)]) { ok = 0; break; }
+    deep[idx(x, y)] = ok;
+  }
+  const best = new Map();
+  for (const r of [...shipRoutesOn(c, deep, 6), ...shipRoutesOn(c, c.water, 3)]) if (!best.has(r.from)) best.set(r.from, r);
+  return c.services.filter((s) => best.has(s)).map((s) => best.get(s));
+}
+
+function shipRoutesOn(c, W, reach) {
+  const docks = [];
+  for (const s of c.services) {
+    if (s.type !== 'ferry' && s.type !== 'port') continue;
+    const sz = SERVICES[s.type].size, cx = s.x + sz / 2, cy = s.y + sz / 2;
+    let best = -1, bd = 1e9;
+    for (let y = s.y - reach; y < s.y + sz + reach; y++) for (let x = s.x - reach; x < s.x + sz + reach; x++) {
+      if (!inMap(x, y) || !W[idx(x, y)]) continue;
+      const d = (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2;
+      if (d < bd) { bd = d; best = idx(x, y); }
+    }
+    if (best >= 0) docks.push({ s, cell: best });
+  }
+  const comp = new Int32Array(N * N).fill(-1), compSize = [];
+  const flood = (start, id) => { // vùng nước liền (4 hướng)
+    const q = [start]; comp[start] = id; let n = 0;
+    while (q.length) { const i = q.pop(); n++; const x = i % N, y = (i / N) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue; const j = idx(nx, ny); if (W[j] && comp[j] < 0) { comp[j] = id; q.push(j); } } }
+    return n;
+  };
+  for (const d of docks) if (comp[d.cell] < 0) compSize.push(flood(d.cell, compSize.length));
+  const bfs = (start) => { // đường ngắn nhất trên mặt nước (8 hướng, không cắt góc bờ)
+    const dist = new Int32Array(N * N).fill(-1), prev = new Int32Array(N * N).fill(-1), q = [start]; dist[start] = 0;
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % N, y = (i / N) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue;
+        const j = idx(nx, ny); if (!W[j] || dist[j] >= 0) continue;
+        if (dx && dy && (!W[idx(x + dx, y)] || !W[idx(x, y + dy)])) continue;
+        dist[j] = dist[i] + 1; prev[j] = i; q.push(j);
+      }
+    }
+    return { dist, prev, order: q };
+  };
+  const clear = (a, b) => { // đoạn thẳng a-b nằm trọn trên mặt nước, cách bờ một chút
+    const ax = a % N + 0.5, ay = ((a / N) | 0) + 0.5, bx = b % N + 0.5, by = ((b / N) | 0) + 0.5, n = Math.ceil(Math.hypot(bx - ax, by - ay) * 3) + 1;
+    for (let k = 0; k <= n; k++) {
+      const x = ax + ((bx - ax) * k) / n, y = ay + ((by - ay) * k) / n;
+      for (const [ox, oy] of [[0, 0], [0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3]]) { const tx = Math.floor(x + ox), ty = Math.floor(y + oy); if (!inMap(tx, ty) || !W[idx(tx, ty)]) return false; }
+    }
+    return true;
+  };
+  const routes = [];
+  for (let k = 0; k < docks.length; k++) {
+    const d = docks[k], id = comp[d.cell];
+    if (compSize[id] < 12) continue; // ao nhỏ quá, không chạy tàu
+    const { dist, prev, order } = bfs(d.cell);
+    let goal = -1, out = false;
+    if (d.s.type === 'ferry') { // bến bạn kế tiếp trong cùng vùng nước
+      const mates = docks.filter((o) => o.s.type === 'ferry' && o !== d && comp[o.cell] === id && dist[o.cell] > 3);
+      if (mates.length) goal = (mates.find((o) => docks.indexOf(o) > k) || mates[0]).cell;
+    }
+    if (goal < 0) { // ra mép bản đồ gần nhất
+      let bd = 1e9;
+      for (const i of order) { const x = i % N, y = (i / N) | 0; if ((x === 0 || y === 0 || x === N - 1 || y === N - 1) && dist[i] < bd && dist[i] > 4) { bd = dist[i]; goal = i; } }
+      out = goal >= 0;
+    }
+    if (goal < 0) { const far = order[order.length - 1]; if (dist[far] > 6) goal = far; }
+    if (goal < 0) continue;
+    const cells = []; for (let i = goal; i >= 0; i = prev[i]) cells.push(i); cells.reverse();
+    const pts = [cells[0]]; // kéo dây: bỏ các điểm giữa khi nhìn thẳng thấy nhau
+    for (let a = 0; a < cells.length - 1;) { let b = cells.length - 1; while (b > a + 1 && !clear(cells[a], cells[b])) b--; pts.push(cells[b]); a = b; }
+    const path = pts.map((i) => [cellCenter(i % N), cellCenter((i / N) | 0)]);
+    if (out) { // kéo dài ra khỏi mép để tàu khuất hẳn
+      const [lx, lz] = path[path.length - 1], gx = goal % N, gy = (goal / N) | 0;
+      path.push([lx + (gx === 0 ? -40 : gx === N - 1 ? 40 : 0), lz + (gy === 0 ? -40 : gy === N - 1 ? 40 : 0)]);
+    }
+    routes.push({ type: d.s.type, from: d.s, path, out });
+  }
+  return routes;
+}
+
 // ───────────────────────── đào đắp địa hình ─────────────────────────
 
 /**

@@ -701,3 +701,23 @@ test('city: gateway phục vụ /city và không cho thoát khỏi thư mục', 
   assert.equal(resolveStatic('/city/../.env', ROOT), null);
   assert.equal(resolveStatic('/city/%2e%2e/config.json', ROOT), null);
 });
+
+test('tàu thuỷ: bến tàu khách nối nhau qua sông, cảng hàng chạy ra mép bản đồ', () => {
+  const c = S.newCity(7);
+  c.water.fill(0);
+  for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1; // sông chạy dọc bản đồ
+  for (let x = 46; x < 70; x++) for (let y = 30; y < 34; y++) c.water[y * S.N + x] = 1; // nhánh rẽ ngang
+  c.services = [{ type: 'ferry', x: 37, y: 10, dir: 0 }, { type: 'ferry', x: 66, y: 34, dir: 0 }, { type: 'port', x: 46, y: 70, dir: 0 }];
+  const r = S.shipRoutes(c);
+  assert.equal(r.length, 3);
+  const f = r[0], end = f.path[f.path.length - 1];
+  assert.equal(f.out, false);
+  assert.ok(Math.hypot(end[0] - S.cellCenter(67), end[1] - S.cellCenter(33)) < 25, 'tàu khách cập bến bên kia');
+  for (const q of r.slice(0, 2)) for (let i = 1; i < q.path.length; i++) for (let k = 0; k <= 10; k++) { // cả tuyến nằm trên mặt nước
+    const x = q.path[i - 1][0] + ((q.path[i][0] - q.path[i - 1][0]) * k) / 10, z = q.path[i - 1][1] + ((q.path[i][1] - q.path[i - 1][1]) * k) / 10;
+    assert.ok(S.isWaterAt(c, x, z), `điểm (${x}, ${z}) trên bờ`);
+  }
+  assert.equal(r[2].type, 'port'); assert.equal(r[2].out, true);
+  c.water.fill(0); // hết nước: không còn tàu
+  assert.equal(S.shipRoutes(c).length, 0);
+});
