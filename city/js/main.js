@@ -493,7 +493,7 @@ function showInfo(tile) {
     if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
     if (sv.type === 'ferry') {
       const st = (c.ferryState || {})[sv.uid], fl = (c.ferries || []).find((l) => l.stops.some((s) => s.uid === sv.uid));
-      add('Tuyến tàu', st === 'line' ? `✔ nối ${fl ? fl.stops.length - 1 : '?'} bến khác · ${fmt(fl ? fl.ridersDay : 0)} khách hôm qua` : st === 'sea' ? `✔ chạy ra cửa biển · ${fmt(fl ? fl.guestsDay : 0)} du khách tới hôm qua` : st === 'pond' ? '⚠ hồ kín: xây thêm một bến cùng vùng nước, hoặc đào kênh ra mép bản đồ' : st === 'close' ? '⚠ quá sát bến khác (chung chỗ cập tàu): dời bến ra xa hơn' : st === 'dry' ? '✖ không sát mặt nước' : 'đang dựng tuyến…');
+      add('Tuyến tàu', st === 'line' ? `✔ nối ${fl ? fl.stops.length - 1 : '?'} bến khác · ${fmt(fl ? fl.ridersDay : 0)} khách hôm qua` : st === 'sea' ? `✔ chạy ra cửa biển · ${fmt(fl ? fl.guestsDay : 0)} du khách tới hôm qua` : st === 'cruise' ? `✔ du ngoạn quanh hồ · ${fmt(fl ? fl.ridersDay : 0)} vé hôm qua (thêm bến cùng hồ để thành tuyến, đào kênh ra mép bản đồ để đón du khách)` : st === 'pond' ? '⚠ mặt nước quá nhỏ cho tàu chạy' : st === 'close' ? '⚠ quá sát bến khác (chung chỗ cập tàu): dời bến ra xa hơn' : st === 'dry' ? '✖ không sát mặt nước' : 'đang dựng tuyến…');
       add('Giá vé', `${c.transit.ferryFare ?? 4} ₫ (chỉnh ở bảng 👥)`);
     }
     if (d.outside) add('Cửa ngõ xuất nhập khẩu', sv.cell >= 0 ? '✔ xe tải ra vào được' : '✖ chưa sát đường');
@@ -677,8 +677,8 @@ function renderCity(force) {
   }
   for (const l of c.ferries || []) { // tuyến tàu khách tự mở theo các bến, không thêm bớt tay
     const r = el('div', 'slot'), info = el('div');
-    info.append(el('b', null, l.out ? '⛴️ Tàu ra cửa biển' : `⛴️ Tuyến tàu ${l.stops.length} bến`),
-      el('small', null, l.out ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua · ${fmt(l.guestsDay || 0)} du khách tới, ${fmt(l.travellersDay || 0)} dân đi chơi xa` : `${l.count} tàu · ${fmt(l.ridersDay || 0)} khách hôm qua`));
+    info.append(el('b', null, l.out ? '⛴️ Tàu ra cửa biển' : l.cruise ? '⛴️ Tàu du ngoạn hồ' : `⛴️ Tuyến tàu ${l.stops.length} bến`),
+      el('small', null, l.cruise ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua (dân đi ngắm cảnh)` : l.out ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua · ${fmt(l.guestsDay || 0)} du khách tới, ${fmt(l.travellersDay || 0)} dân đi chơi xa` : `${l.count} tàu · ${fmt(l.ridersDay || 0)} khách hôm qua`));
     r.append(info); lb.append(r);
   }
   $('fareV').textContent = `${tr.fare} ₫ · ${fmt(tr.ridersDay || 0)} khách hôm qua`;

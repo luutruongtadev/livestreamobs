@@ -193,7 +193,7 @@ export function metroPoint(line, slot) {
 export function planRide(c, fromCell, toCell) {
   const fx = cellX(fromCell), fz = cellZ(fromCell), tx = cellX(toCell), tz = cellZ(toCell);
   let best = null;
-  for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.out))) {
+  for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.out && !l.cruise))) {
     if (line.broken || !line.count) continue;
     const def = TRANSIT[line.mode];
     let i = -1, j = -1, di = def.walk, dj = def.walk;

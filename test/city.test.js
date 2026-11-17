@@ -736,8 +736,15 @@ test('tàu khách: hai bến cùng sông thành tuyến chở khách thu vé; m�
   const m1 = c.money;
   for (let k = 0; k < 2000 && !spent; k++) S.stepFerries(c, 0.5);
   assert.ok(spent > 0, 'du khách tới thành phố'); assert.ok(c.money > m1, 'thu vé tàu');
-  // hồ kín một bến: không có tuyến
-  c.water.fill(0); for (let y = 12; y < 20; y++) for (let x = 40; x < 48; x++) c.water[y * S.N + x] = 1;
+  // hồ kín một bến: tàu du ngoạn ra góc xa của hồ rồi về, vẫn thu vé
+  c.water.fill(0); for (let y = 12; y < 26; y++) for (let x = 40; x < 56; x++) c.water[y * S.N + x] = 1;
+  const [tour] = S.syncFerries(c);
+  assert.equal(c.ferryState[901], 'cruise'); assert.equal(tour.cruise, true); assert.equal(tour.out, false);
+  assert.equal(S.planRide(c, cell(36, 11), cell(50, 20)), null, 'du ngoạn không phải tuyến đi lại');
+  const m2 = c.money; for (let k = 0; k < 400; k++) S.stepFerries(c, 0.5);
+  assert.ok(c.money > m2, 'thu vé du ngoạn');
+  // ao bé tí: không có tàu
+  c.water.fill(0); for (let y = 12; y < 15; y++) for (let x = 40; x < 43; x++) c.water[y * S.N + x] = 1;
   assert.equal(S.syncFerries(c).length, 0); assert.equal(c.ferryState[901], 'pond');
 });
 

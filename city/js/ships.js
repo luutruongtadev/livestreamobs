@@ -94,6 +94,15 @@ function routeBetween(c, nv, A, B) {
   return null;
 }
 
+/** Hồ kín: đường du ngoạn tới chỗ xa bến nhất trong hồ (đi rồi quay về). null nếu hồ quá nhỏ. */
+function routeCruise(c, nv, A) {
+  for (const W of masks(c, nv, A)) {
+    const { dist, prev, order } = bfs(W, A.cell), far = order[order.length - 1];
+    if (dist[far] >= 6) return pull(W, backtrack(prev, far));
+  }
+  return null;
+}
+
 /** Đường từ bến ra cửa biển gần nhất (ô nước ở mép bản đồ), kéo dài ra ngoài mép. null nếu là hồ kín. */
 function routeToSea(c, nv, A) {
   for (const W of masks(c, nv, A)) {
@@ -143,7 +152,7 @@ export function syncFerries(c) {
     groups.get(id).push({ s, d, p: svcCenter(s) });
   }
   for (const g of groups.values()) {
-    let chain, legs = [], out = false;
+    let chain, legs = [], out = false, cruise = false;
     if (g.length >= 2) {
       // xếp bến thành chuỗi: bắt đầu từ bến xa nhất, mỗi bước tới bến gần nhất chưa ghé
       const far = (p, list) => list.reduce((b, t) => (Math.hypot(t.p[0] - p[0], t.p[1] - p[1]) > Math.hypot(b.p[0] - p[0], b.p[1] - p[1]) ? t : b));
@@ -153,24 +162,24 @@ export function syncFerries(c) {
       if (legs.some((l) => !l)) { for (const t of g) state[t.s.uid] = 'pond'; continue; }
       for (const t of g) state[t.s.uid] = 'line';
     } else {
-      const sea = routeToSea(c, nv, g[0].d);
-      if (!sea) { state[g[0].s.uid] = 'pond'; continue; }
-      chain = g; legs = [sea]; out = true; state[g[0].s.uid] = 'sea';
+      const sea = routeToSea(c, nv, g[0].d), tour = sea ? null : routeCruise(c, nv, g[0].d);
+      if (!sea && !tour) { state[g[0].s.uid] = 'pond'; continue; }
+      chain = g; legs = [sea || tour]; out = !!sea; cruise = !sea; state[g[0].s.uid] = sea ? 'sea' : 'cruise';
     }
-    const key = (out ? 'sea:' : 'f:') + chain.map((t) => t.s.uid).join('-');
+    const key = (out ? 'sea:' : cruise ? 'tour:' : 'f:') + chain.map((t) => t.s.uid).join('-');
     const wpath = [legs[0][0]], pos = [0];
     for (const leg of legs) { for (let k = 1; k < leg.length; k++) wpath.push(leg[k]); }
     const wcum = [0]; for (let k = 1; k < wpath.length; k++) wcum.push(wcum[k - 1] + Math.hypot(wpath[k][0] - wpath[k - 1][0], wpath[k][1] - wpath[k - 1][1]));
     for (const leg of legs) pos.push(pos[pos.length - 1] + polyLen(leg));
     const len = wcum[wcum.length - 1];
     if (wpath.length < 2 || len < 30 || pos.some((p, k) => k && p - pos[k - 1] < 5)) { for (const t of chain) state[t.s.uid] = 'close'; continue; } // các bến sát nhau, chung chỗ cập: không thành tuyến
-    if (out) pos[1] = len; // điểm "cửa biển" là cuối đường (đã ra khỏi bản đồ)
+    if (out || cruise) pos[1] = len; // điểm "cửa biển" / chỗ quay đầu là cuối đường
     const stops = chain.map((t) => ({ x: t.p[0], z: t.p[1], uid: t.s.uid, waiting: [] }));
-    if (out) stops.push({ x: wpath[wpath.length - 1][0], z: wpath[wpath.length - 1][1], sea: true, waiting: [] });
-    const prev = old.get(key), count = out ? 1 : chain.length;
+    if (out || cruise) stops.push({ x: wpath[wpath.length - 1][0], z: wpath[wpath.length - 1][1], sea: out, turn: cruise, waiting: [] });
+    const prev = old.get(key), count = out || cruise ? 1 : chain.length;
     const line = prev || { key, id: key, mode: 'ferry', hue: 0.55, riders: 0, ridersDay: 0, guests: 0, travellers: 0, guestsDay: 0, travellersDay: 0, veh: [] };
     if (prev) { old.delete(key); stops.forEach((s, k) => { s.waiting = prev.stops[k] ? prev.stops[k].waiting : []; }); }
-    Object.assign(line, { out, stops, wpath, wcum, pos, len, count, broken: false });
+    Object.assign(line, { out, cruise, stops, wpath, wcum, pos, len, count, broken: false });
     while (line.veh.length > count) dropSlot(c, line.veh.pop());
     while (line.veh.length < count) line.veh.push({ s: (len * line.veh.length) / count, dir: 1, dwell: 0, at: -1, riders: [], load: 0 });
     for (const sl of line.veh) sl.s = clamp(sl.s, 0, len);
@@ -193,6 +202,14 @@ function pay(c, line, n) {
 /** Tàu cập bến k: trả khách xuống, đón khách lên (thu vé lúc lên tàu). */
 function exchange(c, line, sl, k) {
   const cap = TRANSIT.ferry.cap, stop = line.stops[k];
+  if (line.cruise) { // du ngoạn hồ: dân lên tàu ngắm cảnh ở bến, về bến thì xuống
+    if (stop.turn) return;
+    const rng = c.rng || Math.random, pop = c.pstats ? c.pstats.pop : 0;
+    line.travellers += sl.load;
+    const n = Math.min(TRANSIT.ferry.cap, Math.round((6 + pop * 0.005) * (0.6 + rng() * 0.8)));
+    sl.load = n; pay(c, line, n);
+    return;
+  }
   if (line.out) { // tuyến ra biển: khách là dân đi chơi xa và du khách, tính theo số đông
     const rng = c.rng || Math.random, pop = c.pstats ? c.pstats.pop : 0, happy = c.pstats ? c.pstats.happy : 55;
     if (stop.sea) {
@@ -217,6 +234,10 @@ function exchange(c, line, sl, k) {
 /** Tàu chạy qua lại trên đường thuỷ, dừng ở từng bến. */
 export function stepFerries(c, dt) {
   const def = TRANSIT.ferry;
+  // bến tàu vừa xây, dời hoặc phá: dựng lại tuyến ngay, không đợi tới giờ sau
+  let sig = '';
+  for (const s of c.services) if (s.type === 'ferry') sig += s.uid + ':' + s.x + ',' + s.y + ';';
+  if (sig !== c.ferrySig) { c.ferrySig = sig; syncFerries(c); }
   for (const line of c.ferries || []) {
     const total = line.len, last = line.pos.length - 1;
     for (const sl of line.veh) {
