@@ -266,12 +266,12 @@ export function incidentsHour(c) {
   // mặt đường mòn theo lượng xe, trạm bảo trì sửa dần trong bán kính
   for (const e of c.edges.values()) {
     const load = (c.traffic.load.get(e.id * 2 + 1) || 0) + (c.traffic.load.get(e.id * 2) || 0);
-    e.wear = Math.min(1, (e.wear || 0) + 0.003 * (0.4 + Math.min(3, load) * 0.4) * (inc.weather === 'hail' ? 3 : 1));
+    e.wear = Math.min(1, (e.wear || 0) + 0.003 * (0.4 + Math.min(3, load) * 0.4) * (inc.weather === 'hail' ? 3 : 1) * (2 - (c.budget ? c.budget.transport / 100 : 1))); // ngân sách giao thông thấp: đường xuống cấp nhanh
   }
   for (const s of c.services) {
     if (!SERVICES[s.type].tows || s.cell < 0) continue;
     const r = svcVal(s, 'radius') * T, sx = cellX(s.cell), sz = cellZ(s.cell);
-    for (const e of c.edges.values()) if (e.wear && Math.hypot(e.pts[(e.pts.length >> 2) * 2] - sx, e.pts[(e.pts.length >> 2) * 2 + 1] - sz) < r) e.wear = Math.max(0, e.wear - 0.03);
+    for (const e of c.edges.values()) if (e.wear && Math.hypot(e.pts[(e.pts.length >> 2) * 2] - sx, e.pts[(e.pts.length >> 2) * 2 + 1] - sz) < r) e.wear = Math.max(0, e.wear - 0.03 * (c.budget ? c.budget.transport / 100 : 1));
   }
   for (const acc of inc.accidents) dispatchAccident(c, acc);
   // hail: đá rơi làm hỏng nhà (tụt cấp)

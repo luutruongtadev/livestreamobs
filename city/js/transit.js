@@ -19,7 +19,7 @@ function nearestEdge(c, x, z, max = 12) {
   return best;
 }
 
-export function modeUnlocked(c, mode) { const u = TRANSIT[mode].unlock; return !u || MILESTONES.some((m, k) => k < c.milestone && m.pop >= u); }
+export function modeUnlocked(c, mode) { const u = TRANSIT[mode].unlock; return c.sandbox || !u || MILESTONES.some((m, k) => k < c.milestone && m.pop >= u); }
 export function metroUnlocked(c) { return modeUnlocked(c, 'metro'); }
 
 /** Xe buýt + tàu điện đang chạy và sức chứa của các bến xe. */

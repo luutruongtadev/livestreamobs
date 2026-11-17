@@ -178,6 +178,7 @@
   <div class="row"><span>🏭 Thuế công nghiệp</span><b id="taxIv"></b></div><input type="range" id="taxI" min="1" max="20" step="1" aria-label="Thuế công nghiệp">
   <div class="row"><span>Tổng thu 24 giờ qua</span><span id="bInc" class="pos"></span></div>
   <div class="row"><span>Trong đó tiền vé</span><span id="bFare" class="pos"></span></div>
+  <div class="row"><span>Trong đó tiền phòng khách sạn</span><span id="bRoom" class="pos"></span></div>
   <div class="row"><span>Đường sá</span><span id="eRoad"></span></div>
   <div class="row"><span>Điện</span><span id="ePower"></span></div>
   <div class="row"><span>Nước và thoát nước</span><span id="eWater"></span></div>
@@ -185,9 +186,20 @@
   <div class="row"><span>Công viên</span><span id="ePark"></span></div>
   <div class="row"><span>Dịch vụ công</span><span id="eCivic"></span></div>
   <div class="row"><span>Xe buýt, metro</span><span id="eTransit"></span></div>
+  <div class="row"><span>Du lịch</span><span id="eTour"></span></div>
   <div class="row"><span>Trả nợ</span><span id="eLoan"></span></div>
   <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
-  <h4>Vay nợ</h4>
+  <h4>Mức chi theo ngành</h4>
+  <div id="sectors"></div>
+  <h4>Du lịch</h4>
+  <div id="tourBox"></div>
+  <div class="row"><span>🛎️ Giá phòng mỗi đêm</span><b id="roomFeeV"></b></div>
+  <input type="range" id="roomFee" min="0" max="40" step="1" aria-label="Giá phòng khách sạn">
+  <h4>Giá thị trường bên ngoài (nhập, xuất khẩu)</h4>
+  <div id="mktNews" class="row"></div>
+  <canvas id="mktChart" width="300" height="160" style="width:100%;height:auto"></canvas>
+  <div id="mktLegend"></div>
+  <h4 id="loanH">Vay nợ</h4>
   <div id="loans"></div>
   <h4>Hạ tầng (đã nối mạng)</h4>
   <div class="row"><span>⚡ Điện</span><span id="pTxt"></span></div><div class="meter"><i id="pBar"></i></div>
@@ -223,6 +235,8 @@
   <input type="file" id="fImport" accept="application/json,.json" hidden>
   <h4>Khác</h4>
   <button class="mini" id="bNew">🆕 Thành phố mới</button>
+  <button class="mini" id="bNewOpen">🎨 Thành phố mới (chế độ Open)</button>
+  <button class="mini" id="bOpen">🎨 Bật chế độ Open cho thành phố này</button>
 </div>
 
 <div class="panel side" id="info">
@@ -251,6 +265,7 @@
       <li>Về sau: bãi rác, y tế, cứu hoả (xe phải chạy tới nơi), trường học để có lao động trình độ, xe buýt / metro khi kẹt xe. Xem 👥 để biết thành phố đang thiếu gì.</li>
       <li><b>🧭 Mua đất</b>: lúc đầu chỉ có một góc bản đồ (phần sáng). Mua thêm ô đất kề bên để vươn tới rừng, núi, mỏ dầu, vùng nước có cá.</li>
       <li><b>⛰️ Địa hình</b>: giữ chuột để <b>đào</b>, <b>đắp</b>, <b>san phẳng</b>; <b>🌊 dẫn nước</b> đào kênh đưa nước vào sâu trong đất (đất hai bên kênh thành đất màu mỡ, đặt được trạm bơm, cống xả). Đào sâu quá mực nước thì thành ao hồ, đắp lên lòng sông thì có thêm đất.</li>
+      <li><b>📊 Kinh tế</b>: chỉnh mức chi từng ngành (giáo dục, y tế, an ninh, giao thông), xem giá thị trường xuất nhập khẩu lên xuống theo ngày; xây 🧳 chùa, bảo tàng, khách sạn để đón du khách; quy hoạch 🧺 chợ truyền thống, 🏚️ xưởng chế biến kiểu Việt Nam.</li>
       <li><b>🔬 Phát triển</b>: mỗi mốc dân số thưởng điểm; tiêu điểm để mở <b>⛏️ khu tài nguyên</b> (nông sản, gỗ, khoáng sản, dầu, cá nuôi nhà máy và xuất khẩu), module nâng cấp công trình (bấm vào công trình để gắn) và <b>🗽 công trình biểu tượng</b>.</li>
     </ol>
     <div class="keys">
@@ -259,6 +274,7 @@
       Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
+    <button class="cta ghost" id="mOpen" title="Mở khoá mọi công trình, có cả bản đồ, tiền không giới hạn, không bao giờ phá sản">🎨 Chế độ Open: sáng tạo tự do</button>
   </div>
 </div>
 

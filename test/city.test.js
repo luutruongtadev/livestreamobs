@@ -779,3 +779,80 @@ test('tàu khách: hồ kín tự tìm đường kênh ra biển, đào xong tà
   assert.equal(c.ferryState[4242], 'sea');
   assert.equal(S.planSeaCanal(c, k).already, true);
 });
+
+test('kinh tế: chợ truyền thống bán nông sản, cá; xưởng chế biến nhận nguyên liệu nhỏ; chợ rẻ hơn cửa hàng', () => {
+  const c = town(), sx = c.start.x;
+  c.milestone = S.MILESTONES.length; c.money = 5e6;
+  assert.ok(S.zoneRect(c, sx - 13, 25, sx - 1, 26, 20).ok, 'quy hoạch chợ');
+  assert.ok(S.zoneRect(c, sx - 13, 32, sx - 1, 33, 21).ok, 'quy hoạch xưởng');
+  run(c, 24 * 6);
+  let markets = 0, stocked = 0, shops = 0, works = 0;
+  for (let i = 0; i < S.N * S.N; i++) {
+    if (!c.level[i]) continue;
+    if (c.zone[i] === 20) { markets++; assert.ok(['agri', 'fish'].includes(S.needOf(c, i))); if (c.biz.sin[i] > 0 || c.biz.incoming[i]) stocked++; }
+    if (c.zone[i] === 21) { works++; assert.ok(['agri', 'fish', 'wood'].includes(S.needOf(c, i))); }
+    if (c.zone[i] === 2) shops++;
+  }
+  assert.ok(markets > 0 && works > 0, `chợ ${markets}, xưởng ${works} đã mọc`);
+  assert.ok(stocked > 0, 'chợ có hàng (nhập về khi chưa có nông trại)');
+  assert.ok(S.PRICE.market < S.PRICE.retail);
+});
+
+test('kinh tế: giá thị trường trôi theo ngày, có lịch sử, áp vào giá nhập khẩu', () => {
+  const c = openCity(9);
+  for (let d = 0; d < 40; d++) S.marketDay(c);
+  assert.equal(c.market.hist.length, 41);
+  for (const k of S.MKT_KINDS) { assert.ok(c.market.p[k] >= 0.45 && c.market.p[k] <= 1.9); }
+  assert.ok(S.MKT_KINDS.some((k) => Math.abs(c.market.p[k] - 1) > 0.02), 'giá có đổi');
+  // nhập khẩu tốn tiền theo giá thị trường
+  c.market.p.goods = 1.5; const i = 500; c.level[i] = 1; c.zone[i] = 2; c.biz.money[i] = 0;
+  c.onArrive(c, { t: 'cargo', to: i, kind: 'goods', qty: 8, imp: true });
+  assert.ok(Math.abs(c.biz.money[i] + 8 * S.PRICE.goods * S.PRICE.importMult * 1.5) < 0.01);
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(back.market.hist.length, 41); assert.equal(back.market.p.goods, 1.5);
+});
+
+test('kinh tế: du lịch cần điểm tham quan và cửa ngõ; khách sạn cho khách ở lại, thu tiền phòng', () => {
+  const c = town(); c.milestone = S.MILESTONES.length; c.money = 5e6;
+  run(c, 24);
+  assert.equal(c.tour.score.perDay, 0, 'chưa có gì để xem');
+  assert.ok(put(c, 'pagoda') && put(c, 'museum'), 'xây chùa, bảo tàng');
+  run(c, 24);
+  assert.ok(c.tour.last.visitors > 0, 'có khách tới');
+  assert.equal(c.tour.guests, 0, 'chưa có khách sạn thì không ai ở lại');
+  assert.ok(put(c, 'hotel'));
+  run(c, 48);
+  assert.ok(c.tour.last.stayed > 0 && c.tour.last.rooms > 0, 'khách ở lại, thu tiền phòng');
+  assert.ok(c.stats.inc.u > 0, 'tiền phòng vào ngân sách');
+  assert.ok(c.stats.exp.tourism > 0, 'phí duy trì du lịch');
+});
+
+test('kinh tế: ngân sách theo ngành đổi phí duy trì và sức phục vụ', () => {
+  const c = town(); c.milestone = S.MILESTONES.length; c.money = 5e6;
+  assert.ok(put(c, 'school') && put(c, 'clinic'));
+  S.recalc(c);
+  const school = c.services.find((s) => s.type === 'school'), clinic = c.services.find((s) => s.type === 'clinic');
+  const civic0 = c.stats.exp.civic, r0 = S.svcVal(school, 'radius'), st0 = S.svcVal(school, 'students'), amb0 = S.svcVal(clinic, 'ambulances');
+  c.budget.edu = 150; c.budget.health = 50; S.recalc(c);
+  assert.ok(S.svcVal(school, 'radius') > r0 && S.svcVal(school, 'students') > st0, 'chi nhiều cho giáo dục: trường rộng hơn');
+  assert.ok(S.svcVal(clinic, 'ambulances') < amb0, 'cắt y tế: ít xe cứu thương');
+  assert.notEqual(c.stats.exp.civic, civic0);
+  c.budget.transport = 50; S.recalc(c); const roads50 = c.stats.exp.roads;
+  c.budget.transport = 150; S.recalc(c); assert.ok(c.stats.exp.roads > roads50 * 2.5);
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(back.budget.transport, 150);
+});
+
+test('chế độ Open: mở khoá hết, có cả bản đồ, tiền không cạn, không phá sản, lưu lại được', () => {
+  const c = S.newSandbox(77);
+  assert.ok(c.sandbox && c.own.every((v) => v === 1));
+  assert.ok(Object.keys(S.SERVICES).every((t) => S.isUnlocked(c, t)));
+  assert.ok(S.ZDEF.every((z, k) => S.zoneUnlocked(c, k)));
+  c.money = -1e7; run(c, 2);
+  assert.equal(c.over, false); assert.equal(c.money, S.OPEN_MONEY);
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(back.sandbox && S.isUnlocked(back, 'skytower'));
+  // bật cho thành phố đang chơi
+  const d = openCity(78); assert.equal(S.isUnlocked(d, 'airport'), false);
+  S.enableSandbox(d); assert.ok(S.isUnlocked(d, 'airport'));
+});

@@ -2,10 +2,11 @@
 // Người: tuổi, học vấn, nhà, chỗ làm, tiền, hạnh phúc, sức khoẻ; vòng đời sinh → học → làm → nghỉ hưu → mất;
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
-import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge } from './base.js';
+import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 import { ferryDay } from './ships.js';
+import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
@@ -87,7 +88,9 @@ export function onBuildingCleared(c, i) {
 export const wageAt = (c, i) => (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1));
 export const rentAt = (c, i) => 1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6;
 const spots = (c, i) => (c.occ[i] ? svcVal(c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
-const isShop = (c, i) => c.level[i] > 0 && ZDEF[c.zone[i]].biz === 'shop';
+const isShop = (c, i) => c.level[i] > 0 && (ZDEF[c.zone[i]].biz === 'shop' || ZDEF[c.zone[i]].biz === 'market');
+/** Nguyên liệu một nhà máy / xưởng / chợ cần: xưởng và chợ chỉ nhận vài loại, nhà máy lớn nhận loại gán theo vị trí. */
+export function needOf(c, i) { const nd = ZDEF[c.zone[i]].needs; return nd ? nd[(hash2(i % N, (i / N) | 0, 91) * nd.length) | 0] : factoryNeed(i); }
 const isLeisure = (c, i) => c.level[i] > 0 && ZDEF[c.zone[i]].biz === 'leisure';
 /** Nhà ở ô i dành cho ai: 'senior' (dưỡng lão), 'student' (ký túc xá) hoặc undefined (mọi người). */
 const whoOf = (c, i) => ZDEF[c.zone[i]].who;
@@ -97,7 +100,7 @@ const fits = (pp, id, who) => (who === 'senior' ? pp.age[id] >= 65 : who === 'st
 export function bizKind(c, i) {
   if (!c.level[i]) return null;
   const b = ZDEF[c.zone[i]].biz;
-  return b === 'ind' ? 'factory' : b === 'res' ? 'raw' : b || null;
+  return b === 'ind' ? 'factory' : b === 'res' ? 'raw' : b || null; // 'market' = chợ truyền thống
 }
 const dist = (a, b) => Math.hypot(cellX(a) - cellX(b), cellZ(a) - cellZ(b));
 const svcByUid = (c, uid) => c.services.find((s) => s.uid === uid);
@@ -151,8 +154,9 @@ function settle(c, id, cb) {
   } else {
     pp.state[id] = ST.OUT; pp.until[id] = c.hour + 2;
     if (isShop(c, dest)) { // mua sắm trực tiếp
-      const spend = Math.min(Math.max(0, pp.money[id]), 9), units = Math.min(c.biz.sin[dest], spend / PRICE.retail);
-      pp.money[id] -= units * PRICE.retail; c.biz.sin[dest] -= units; saleIncome(c, dest, units * PRICE.retail, 'c');
+      const price = ZDEF[c.zone[dest]].biz === 'market' ? PRICE.market : PRICE.retail; // đi chợ rẻ hơn
+      const spend = Math.min(Math.max(0, pp.money[id]), 9), units = Math.min(c.biz.sin[dest], spend / price);
+      pp.money[id] -= units * price; c.biz.sin[dest] -= units; saleIncome(c, dest, units * price, 'c');
     } else if (isLeisure(c, dest)) { // ăn uống, xem phim: trả tiền dịch vụ, không cần hàng
       const spend = Math.min(Math.max(0, pp.money[id]), 7);
       pp.money[id] -= spend; saleIncome(c, dest, spend, 'c');
@@ -193,13 +197,14 @@ export function onArrive(c, cb, v) {
       const b = c.biz, to = cb.to;
       b.incoming[to] = 0;
       if (!c.level[to]) return undefined;
-      const price = priceOf(cb.kind), cost = cb.qty * price * (cb.imp ? (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) : 1);
+      const price = priceOf(cb.kind), cost = cb.qty * price * (cb.imp ? (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, cb.kind) : 1); // nhập khẩu theo giá thị trường
       b.sin[to] += cb.qty; b.money[to] -= cost;
       if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * price, 'i');
       return undefined;
     }
     case 'export': {
-      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0)), 'i');
+      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0)) * mkt(c, cb.kind), 'i');
+      c.econ.day.exportValue = (c.econ.day.exportValue || 0) + cb.qty * priceOf(cb.kind) * mkt(c, cb.kind);
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;
     }
@@ -267,13 +272,14 @@ export function die(c, id) {
 }
 
 /** Du khách tới bằng tàu: mỗi người tiêu ít tiền ở quán ăn, chỗ vui chơi, cửa hàng ngẫu nhiên trong thành phố. */
-export function touristSpend(c, n) {
+export function touristSpend(c, n, per = 8) {
   if (!n) return;
+  if (c.tour && per === 8) c.tour.day.ferry += n; // du khách tới bằng tàu
   const spots = [];
   for (let i = 0; i < N * N; i++) if (isLeisure(c, i) || isShop(c, i)) spots.push(i);
   if (!spots.length) return;
   const rng = c.rng || Math.random;
-  for (let k = 0; k < n; k++) saleIncome(c, spots[Math.floor(rng() * spots.length)], 8, 'c');
+  for (let k = 0; k < Math.min(n, 400); k++) saleIncome(c, spots[Math.floor(rng() * spots.length)], per * Math.max(1, n / 400), 'c');
 }
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
@@ -301,7 +307,7 @@ export function peopleHour(c) {
       const cat = ZDEF[z].biz === 'ind' || ZDEF[z].biz === 'res' ? 'i' : ZDEF[z].biz === 'office' ? 'o' : 'c';
       if (cat === 'i') ji += jb; else if (cat === 'o') jo += jb; else jc += jb;
       if (c.staff[i] < jb) vacJobs.push(i);
-      if (ZDEF[z].biz === 'shop') shops.push(i);
+      if (ZDEF[z].biz === 'shop' || ZDEF[z].biz === 'market') shops.push(i);
       else if (ZDEF[z].biz === 'leisure') leisure.push(i);
     }
   }
@@ -418,7 +424,7 @@ function bizHour(c, companies, shops, h) {
       const use = Math.min(b.sin[i], pres * 0.4 * prod, 48 - b.sout[i]);
       b.sin[i] -= use; b.sout[i] += use;
       if (pres && use < pres * 0.2) active = false;
-      if (b.sin[i] < 6 && !b.incoming[i]) needRaw[factoryNeed(i)].push(i);
+      if (b.sin[i] < 6 && !b.incoming[i]) needRaw[needOf(c, i)].push(i);
       if (b.sout[i] >= PRICE.load) supGoods.push(i);
     } else if (kind === 'shop') {
       const sold = Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.3 * prod);
@@ -426,6 +432,12 @@ function bizHour(c, companies, shops, h) {
       if (sold > 0) saleIncome(c, i, sold * PRICE.retail, 'c');
       if (pres && b.sin[i] <= 0.01) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needGoods.push(i);
+    } else if (kind === 'market') { // chợ: bán thẳng nông sản, cá; sạp nhỏ nên bán chậm hơn cửa hàng một chút
+      const sold = Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.26 * prod);
+      b.sin[i] -= sold;
+      if (sold > 0) saleIncome(c, i, sold * PRICE.market, 'c');
+      if (pres && b.sin[i] <= 0.01) active = false;
+      if (b.sin[i] < 6 && !b.incoming[i]) needRaw[needOf(c, i)].push(i);
     } else if (kind === 'leisure') {
       if (pres && open) saleIncome(c, i, pres * 0.35, 'c'); // khách vãng lai ngoài số dân tự đi chơi
     } else if (kind === 'office' && pres) saleIncome(c, i, pres * (1.75 + 0.2 * c.level[i]) * (ZDEF[c.zone[i]].inc || 1) * (c.zone[i] === 18 && c.cover.sci[i] > 0.05 ? 1.3 : 1), 'c');
@@ -614,7 +626,7 @@ function researchDay(c) {
   if (!labs) return;
   let rate = 0;
   for (let k = 0; k < labs; k++) rate += Math.pow(0.7, k);
-  c.research += rate * clamp(c.pstats.edu[3] / 80, 0.15, 1.2) * 22;
+  c.research += rate * clamp(c.pstats.edu[3] / 80, 0.15, 1.2) * 22 * (c.budget ? c.budget.edu / 100 : 1);
   while (c.research >= 100) { c.research -= 100; c.points++; c.events.push({ type: 'research' }); }
 }
 

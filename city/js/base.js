@@ -40,6 +40,8 @@ export const ZDEF = [
   { id: 17, name: 'Ăn uống, giải trí', short: 'Giải trí', icon: '🍜', color: '#ef6f9a', rgb: [239, 111, 154], cat: 'c', jobs: [4, 7, 10, 14, 20], biz: 'leisure', unlock: 400, desc: 'Quán ăn, cà phê, rạp phim: không cần hàng hoá, sống nhờ khách tới chơi, ồn về đêm' },
   { id: 18, name: 'Văn phòng công nghệ', short: 'Công nghệ', icon: '💻', color: '#6b7fe8', rgb: [107, 127, 232], cat: 'o', jobs: [12, 24, 40, 60, 90], biz: 'office', inc: 1.4, unlock: 2500, desc: 'Công ty phần mềm, dịch vụ số: cần lao động trung học trở lên, làm ăn tốt hơn nữa khi gần viện nghiên cứu' },
   { id: 19, name: 'Văn phòng tài chính', short: 'Tài chính', icon: '🏦', color: '#5a4fb8', rgb: [90, 79, 184], cat: 'o', jobs: [10, 20, 34, 52, 80], biz: 'office', inc: 1.7, unlock: 2500, desc: 'Ngân hàng, bảo hiểm: doanh thu cao nhất, cần người học đại học và giá đất cao mới lên cấp' },
+  { id: 20, name: 'Chợ truyền thống', short: 'Chợ', icon: '🧺', color: '#e8894a', rgb: [232, 137, 74], cat: 'c', jobs: [6, 10, 14, 19, 26], biz: 'market', needs: ['agri', 'fish'], unlock: 120, desc: 'Sạp hàng bán thẳng nông sản, cá từ nông trại, bến cá (không qua nhà máy), rẻ hơn cửa hàng nên dân thích đi chợ' },
+  { id: 21, name: 'Xưởng chế biến', short: 'Xưởng', icon: '🏚️', color: '#d9a441', rgb: [217, 164, 65], cat: 'i', jobs: [4, 7, 10, 13, 17], biz: 'ind', needs: ['agri', 'fish', 'wood'], unlock: 120, desc: 'Xưởng nhỏ chế biến nông sản, cá, gỗ thành hàng hoá ngay cạnh nơi khai thác: ít ô nhiễm, đặt gần nhà được' },
 ];
 // nguyên liệu thô: id trùng mã tài nguyên trên bản đồ (c.res), rate = sản lượng mỗi người mỗi giờ
 export const RAW = {
@@ -100,8 +102,8 @@ export const SERVICES = {
   landfill: { name: 'Bãi rác', icon: '🗑️', group: 'trash', cost: 6000, upkeep: 130, size: 3, trash: 800, trucks: 3, cover: 'trash', radius: 26, ground: 7, air: 3, road: true, unlock: 120, desc: 'Xe rác chạy tới từng con đường trong bán kính để thu gom; bãi làm bẩn đất quanh nó' },
   incinerator: { name: 'Lò đốt rác', icon: '🔥', group: 'trash', cost: 24000, upkeep: 420, size: 2, trash: 1800, trucks: 4, power: 60, cover: 'trash', radius: 38, air: 5, road: true, unlock: 1000, desc: 'Nhiều xe rác hơn, vùng thu gom rộng, phát thêm chút điện' },
   park: { name: 'Công viên nhỏ', icon: '🌳', group: 'park', cost: 800, upkeep: 12, size: 1, cover: 'park', radius: 5, green: 1, unlock: 0, desc: 'Tăng giá trị đất, lọc bớt bụi và tiếng ồn quanh nó' },
-  plaza: { name: 'Quảng trường', icon: '⛲', group: 'park', cost: 3500, upkeep: 45, size: 2, cover: 'park', radius: 9, green: 1, unlock: 400, desc: 'Tăng giá trị đất trên vùng rộng' },
-  stadium: { name: 'Sân vận động', icon: '🏟️', group: 'park', cost: 45000, upkeep: 700, size: 4, cover: 'park', radius: 18, road: true, unlock: 2500, desc: 'Niềm tự hào của thành phố' },
+  plaza: { name: 'Quảng trường', icon: '⛲', group: 'park', attract: 0.5, cost: 3500, upkeep: 45, size: 2, cover: 'park', radius: 9, green: 1, unlock: 400, desc: 'Tăng giá trị đất trên vùng rộng' },
+  stadium: { name: 'Sân vận động', icon: '🏟️', group: 'park', attract: 3, cost: 45000, upkeep: 700, size: 4, cover: 'park', radius: 18, road: true, unlock: 2500, desc: 'Niềm tự hào của thành phố' },
   clinic: { name: 'Trạm y tế', icon: '🏥', group: 'civic', cost: 9000, upkeep: 190, size: 2, cover: 'health', radius: 14, ambulances: 2, road: true, unlock: 120, desc: 'Xe cứu thương chạy tới nhà người bệnh; kẹt xe thì tới muộn' },
   school: { name: 'Trường tiểu học', icon: '🏫', group: 'civic', cost: 9500, upkeep: 200, size: 2, cover: 'edu', radius: 14, eduLevel: 1, students: 200, road: true, unlock: 120, desc: 'Trẻ 6–11 tuổi trong bán kính được đi học' },
   highschool: { name: 'Trường trung học', icon: '📚', group: 'civic', cost: 14000, upkeep: 260, size: 2, cover: 'edu', radius: 22, eduLevel: 2, students: 260, road: true, unlock: 400, desc: 'Học sinh 12–17 tuổi; cần cho việc làm ở cửa hàng lớn và văn phòng' },
@@ -111,7 +113,7 @@ export const SERVICES = {
   parking: { name: 'Bãi đỗ xe', icon: '🅿️', group: 'transit', cost: 2500, upkeep: 30, size: 2, spots: 60, radius: 7, road: true, unlock: 120, desc: 'Chỗ đỗ cho xe tới các toà nhà trong bán kính, đỡ cảnh chạy vòng tìm chỗ' },
   port: { name: 'Cảng hàng hoá', icon: '⚓', group: 'transit', cost: 35000, upkeep: 500, size: 3, needWater: true, road: true, outside: true, ground: 2, unlock: 1000, desc: 'Cửa ngõ xuất nhập khẩu thứ hai: xe tải khỏi phải chạy ra tận đường cao tốc' },
   depot: { name: 'Bến xe, xưởng bảo dưỡng', icon: '🚏', group: 'transit', cost: 9000, upkeep: 110, size: 2, depot: 12, road: true, unlock: 120, desc: 'Chỗ xe buýt, tàu điện nghỉ đêm và bảo dưỡng: chưa có bến thì mọi tuyến chạy chung tối đa 4 xe, mỗi bến cho thêm 12 xe' },
-  ferry: { name: 'Bến tàu khách', icon: '⛴️', group: 'transit', cost: 15000, upkeep: 180, size: 2, needWater: true, road: true, unlock: 400, bonus: { pull: 0.03, happy: 1 }, desc: 'Tàu khách chở dân, thu vé như xe buýt: từ 2 bến cùng một vùng nước là thành tuyến; chỉ một bến thì tàu chạy ra cửa biển, đưa du khách tới tiêu tiền và chở dân đi chơi xa' },
+  ferry: { name: 'Bến tàu khách', icon: '⛴️', group: 'transit', attract: 1, cost: 15000, upkeep: 180, size: 2, needWater: true, road: true, unlock: 400, bonus: { pull: 0.03, happy: 1 }, desc: 'Tàu khách chở dân, thu vé như xe buýt: từ 2 bến cùng một vùng nước là thành tuyến; chỉ một bến thì tàu chạy ra cửa biển, đưa du khách tới tiêu tiền và chở dân đi chơi xa' },
   train: { name: 'Ga tàu hoả', icon: '🚆', group: 'transit', cost: 40000, upkeep: 420, size: 3, road: true, outside: true, noise: 6, unlock: 1000, bonus: { pull: 0.06 }, desc: 'Tàu khách và tàu hàng liên tỉnh: thêm một cửa ngõ xuất nhập khẩu, người nơi khác tới ở dễ hơn' },
   airport: { name: 'Sân bay', icon: '✈️', group: 'transit', cost: 180000, upkeep: 1400, size: 5, road: true, outside: true, noise: 16, unlock: 6000, bonus: { pull: 0.1, comm: 0.06 }, desc: 'Khách du lịch và hàng không: hút dân, thuế thương mại +6%; máy bay cất cánh ồn trên vùng rất rộng' },
   nuclear: { name: 'Nhà máy điện hạt nhân', icon: '☢️', group: 'power', cost: 150000, upkeep: 1500, size: 4, power: 1800, needWater: true, noise: 4, unlock: 6000, desc: 'Điện rất nhiều mà không có khói; phải đặt sát bờ nước để làm mát, giá xây và phí vận hành cao' },
@@ -125,12 +127,17 @@ export const SERVICES = {
   shelter: { name: 'Hầm trú ẩn khẩn cấp', icon: '🛖', group: 'civic', cost: 12000, upkeep: 120, size: 2, cover: 'shelter', radius: 18, road: true, unlock: 1000, desc: 'Lốc xoáy tới thì dân trong vùng xuống hầm: thương vong giảm mạnh, nhất là khi có cảnh báo sớm' },
   ews: { name: 'Trạm cảnh báo thiên tai sớm', icon: '📡', group: 'civic', cost: 25000, upkeep: 300, size: 1, ews: true, unique: true, unlock: 2500, desc: 'Báo trước lốc xoáy một giờ để dân kịp trú ẩn; báo bão đá để xe chạy chậm lại và đồ đạc được che chắn' },
   prison: { name: 'Trại giam', icon: '⛓️', group: 'civic', cost: 30000, upkeep: 520, size: 3, cells: 150, gloom: 6, road: true, unlock: 1000, desc: 'Giam người phạm tội bị bắt: còn chỗ giam thì công an trấn áp tội phạm mạnh gấp đôi; giá đất quanh trại giảm' },
+  // du lịch: chỗ ngủ cho du khách (beds) và điểm tham quan (attract)
+  hotel: { name: 'Khách sạn', icon: '🛎️', group: 'tourism', cost: 12000, upkeep: 110, size: 2, beds: 60, road: true, unlock: 400, desc: 'Du khách ở lại qua đêm: trả tiền phòng cho thành phố và tiêu tiền ở quán xá nhiều hơn khách đi trong ngày' },
+  resort: { name: 'Khu nghỉ dưỡng', icon: '🏖️', group: 'tourism', cost: 65000, upkeep: 480, size: 3, beds: 240, attract: 3, road: true, unlock: 2500, desc: 'Nhiều phòng, hút khách; đẹp nhất khi đặt cạnh sông hồ' },
+  museum: { name: 'Bảo tàng', icon: '🏺', group: 'tourism', cost: 28000, upkeep: 240, size: 2, attract: 5, cover: 'park', radius: 8, road: true, unlock: 1000, bonus: { happy: 1 }, desc: 'Điểm tham quan lớn: du khách tới đông hơn, dân quanh đó vui hơn' },
+  pagoda: { name: 'Chùa cổ', icon: '🛕', group: 'tourism', cost: 18000, upkeep: 80, size: 2, attract: 4, cover: 'park', radius: 6, unlock: 400, bonus: { happy: 1 }, desc: 'Điểm tham quan, tăng giá đất quanh chùa' },
   // công trình biểu tượng: mỗi thành phố một cái, mở trong cây công nghệ; bonus cộng cho cả thành phố
-  monument: { name: 'Tượng đài trung tâm', icon: '🗿', group: 'landmark', budget: 'park', cost: 30000, upkeep: 120, size: 2, cover: 'park', radius: 14, unique: true, tech: 'lm1', bonus: { happy: 2 }, desc: 'Dân cả thành phố hài lòng hơn 2 điểm' },
-  market: { name: 'Chợ trung tâm', icon: '🏮', group: 'landmark', budget: 'park', cost: 55000, upkeep: 260, size: 3, cover: 'park', radius: 12, road: true, unique: true, tech: 'lm2', bonus: { comm: 0.1 }, desc: 'Thuế thương mại cả thành phố +10%' },
-  theater: { name: 'Nhà hát lớn', icon: '🎭', group: 'landmark', budget: 'park', cost: 90000, upkeep: 420, size: 3, cover: 'park', radius: 22, road: true, unique: true, tech: 'lm3', bonus: { happy: 3 }, desc: 'Hài lòng +3 điểm, giá đất tăng trên vùng rộng' },
-  tvtower: { name: 'Tháp truyền hình', icon: '📡', group: 'landmark', budget: 'park', cost: 140000, upkeep: 520, size: 2, cover: 'park', radius: 30, unique: true, tech: 'lm4', bonus: { pull: 0.12 }, desc: 'Thành phố nổi tiếng: người tới ở đông hơn' },
-  skytower: { name: 'Tháp Phố Mới', icon: '🌆', group: 'landmark', budget: 'park', cost: 320000, upkeep: 900, size: 4, cover: 'park', radius: 26, road: true, unique: true, tech: 'lm5', bonus: { happy: 3, comm: 0.1, pull: 0.1 }, desc: 'Biểu tượng của cả vùng: hài lòng, thương mại và sức hút đều tăng' },
+  monument: { name: 'Tượng đài trung tâm', icon: '🗿', group: 'landmark', attract: 3, budget: 'park', cost: 30000, upkeep: 120, size: 2, cover: 'park', radius: 14, unique: true, tech: 'lm1', bonus: { happy: 2 }, desc: 'Dân cả thành phố hài lòng hơn 2 điểm' },
+  market: { name: 'Chợ trung tâm', icon: '🏮', group: 'landmark', attract: 4, budget: 'park', cost: 55000, upkeep: 260, size: 3, cover: 'park', radius: 12, road: true, unique: true, tech: 'lm2', bonus: { comm: 0.1 }, desc: 'Thuế thương mại cả thành phố +10%' },
+  theater: { name: 'Nhà hát lớn', icon: '🎭', group: 'landmark', attract: 5, budget: 'park', cost: 90000, upkeep: 420, size: 3, cover: 'park', radius: 22, road: true, unique: true, tech: 'lm3', bonus: { happy: 3 }, desc: 'Hài lòng +3 điểm, giá đất tăng trên vùng rộng' },
+  tvtower: { name: 'Tháp truyền hình', icon: '📡', group: 'landmark', attract: 4, budget: 'park', cost: 140000, upkeep: 520, size: 2, cover: 'park', radius: 30, unique: true, tech: 'lm4', bonus: { pull: 0.12 }, desc: 'Thành phố nổi tiếng: người tới ở đông hơn' },
+  skytower: { name: 'Tháp Phố Mới', icon: '🌆', group: 'landmark', attract: 8, budget: 'park', cost: 320000, upkeep: 900, size: 4, cover: 'park', radius: 26, road: true, unique: true, tech: 'lm5', bonus: { happy: 3, comm: 0.1, pull: 0.1 }, desc: 'Biểu tượng của cả vùng: hài lòng, thương mại và sức hút đều tăng' },
 };
 
 // module gắn thêm vào công trình có sẵn (mỗi công trình một cái mỗi loại). Giá và phí = costK × của công trình gốc.
@@ -149,10 +156,15 @@ export const MODULES = {
 export const moduleCost = (type, m) => Math.round((SERVICES[type].cost * MODULES[m].costK) / 100) * 100;
 export const moduleUpkeep = (type, m) => Math.round(SERVICES[type].upkeep * MODULES[m].costK);
 /** Chỉ số k của một công trình sau khi tính module. */
+const BUDGET_KEYS = { students: 1, ambulances: 1, cars: 1, trucks: 1, cells: 1 };
 export function svcVal(s, k) {
   let v = SERVICES[s.type][k];
   if (v == null) return 0;
   if (s.mods) for (const m of s.mods) { const md = MODULES[m]; if (md.mul && md.mul[k]) v *= md.mul[k]; if (md.add && md.add[k]) v += md.add[k]; }
+  if (s.bud && s.bud !== 1) { // ngân sách ngành (gắn ở recalc): chi nhiều thì phục vụ rộng hơn, nhiều xe, nhiều chỗ học hơn
+    if (k === 'radius') v *= 0.6 + 0.4 * s.bud;
+    else if (BUDGET_KEYS[k]) v = Math.max(1, Math.round(v * s.bud));
+  }
   return Math.round(v * 10) / 10;
 }
 
@@ -212,7 +224,7 @@ export const TRANSIT = {
 export const DEPOT_FREE = 4; // chưa có bến xe thì các tuyến xe buýt + tàu điện chạy chung tối đa chừng này xe
 
 // giá hàng trong chuỗi cung ứng (mỗi đơn vị)
-export const PRICE = { raw: 3, goods: 8, retail: 15, importMult: 1.4, rawImportMult: 1.2, exportMult: 0.85, load: 8 };
+export const PRICE = { raw: 3, goods: 8, retail: 15, market: 10, importMult: 1.4, rawImportMult: 1.2, exportMult: 0.85, load: 8 };
 export const priceOf = (kind) => (kind === 'goods' ? PRICE.goods : PRICE.raw);
 
 // mua đất: ô đất phải kề phần đã có, càng có nhiều càng đắt

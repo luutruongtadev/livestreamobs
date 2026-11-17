@@ -8,15 +8,17 @@ import {
   mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend } from './people.js';
+import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
+import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook } from './traffic.js';
-export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend } from './people.js';
+export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
+export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
 export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
 export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
 
@@ -253,9 +255,25 @@ export function newCity(seed = (Math.random() * 1e9) | 0) {
   const a = addNode(c, cellCenter(sx), -HALF + 1), b = addNode(c, cellCenter(sx), cellCenter(7));
   addEdge(c, a, b, 'small');
   roadsChanged(c);
+  initEcon(c);
   computeMaps(c);
   return c;
 }
+
+// ───────────────────────── chế độ Open (sáng tạo tự do) ─────────────────────────
+
+export const OPEN_MONEY = 999999999;
+/** Bật chế độ Open: mở khoá mọi thứ, có cả bản đồ, tiền không giới hạn, không bao giờ phá sản. Không tắt lại được. */
+export function enableSandbox(c) {
+  c.sandbox = true;
+  c.owned.fill(1); syncLand(c);
+  for (const t in TECH) c.tech.add(t);
+  c.money = OPEN_MONEY; c.debtHours = 0; c.loans = []; c.over = false;
+  Object.assign(c.dirty || (c.dirty = {}), { land: true, zones: true });
+  recalc(c);
+  return c;
+}
+export const newSandbox = (seed) => enableSandbox(newCity(seed));
 
 function genLand(c) {
   const f = makeField(c.seed), seed = c.seed;
@@ -1039,7 +1057,7 @@ function clearBuilding(c, i) {
   onBuildingCleared(c, i);
 }
 
-const unlockedAt = (c, d) => (!d.unlock || MILESTONES.some((m, k) => k < c.milestone && m.pop >= d.unlock)) && (!d.tech || c.tech.has(d.tech));
+const unlockedAt = (c, d) => c.sandbox || (!d.unlock || MILESTONES.some((m, k) => k < c.milestone && m.pop >= d.unlock)) && (!d.tech || c.tech.has(d.tech));
 export const zoneUnlocked = (c, z) => unlockedAt(c, ZDEF[z]);
 export const isUnlocked = (c, type) => unlockedAt(c, SERVICES[type]);
 /** Câu giải thích vì sao một khu / công trình còn khoá. */
@@ -1203,7 +1221,7 @@ function stamp(map, cx, cy, radius, strength, add) {
 }
 
 const AIR = [0.3, 0.38, 0.45, 0.32, 0.2]; // khói công nghiệp theo cấp (cấp cao sạch dần)
-const RES_POL = { 8: [0, 0.04, 0], 9: [0, 0, 0.15], 10: [0.16, 0.35, 0.35], 11: [0.4, 0.42, 0.2] }; // khu chuyên biệt: [khí, đất, ồn]
+const RES_POL = { 8: [0, 0.04, 0], 9: [0, 0, 0.15], 10: [0.16, 0.35, 0.35], 11: [0.4, 0.42, 0.2], 21: [0.06, 0.08, 0.14] }; // khu chuyên biệt, xưởng chế biến: [khí, đất, ồn] // khu chuyên biệt: [khí, đất, ồn]
 
 /**
  * Vùng phủ dịch vụ, bốn loại ô nhiễm (không khí, đất, nước, tiếng ồn) và giá trị đất.
@@ -1236,7 +1254,7 @@ export function computeMaps(c) {
       if (a) stamp(c.air, x, y, 5, a, true);
       if (g) stamp(c.ground, x, y, 3, g, true);
       if (n) stamp(c.noise, x, y, 3, n, true);
-    } else if (ZDEF[z].biz === 'shop') stamp(c.noise, x, y, 2, 0.1 + 0.03 * L, true);
+    } else if (ZDEF[z].biz === 'shop' || ZDEF[z].biz === 'market') stamp(c.noise, x, y, 2, 0.1 + 0.03 * L, true);
     else if (ZDEF[z].biz === 'leisure') stamp(c.noise, x, y, 2.5, 0.16 + 0.03 * L, true);
   }
   // tiếng ồn giao thông: đường càng đông càng ồn
@@ -1299,34 +1317,38 @@ export function recalc(c) {
     if (jb) { companies++; if (ZDEF[z].biz === 'ind' || ZDEF[z].biz === 'res') ji += jb; else if (ZDEF[z].biz === 'office') jo += jb; else jc += jb; }
   }
   let pCap = 0, wCap = 0, sCap = 0, tCap = 0, civic = 0, roadLen = 0;
-  const exp = { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, loans: 0 };
-  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += e.len * ROADS[e.type].upkeep; }
+  const exp = { roads: 0, power: 0, water: 0, trash: 0, park: 0, civic: 0, transit: 0, tourism: 0, loans: 0 };
+  const kT = budgetK(c, 'transport');
+  for (const e of c.edges.values()) { roadLen += e.len; exp.roads += e.len * ROADS[e.type].upkeep * kT; }
   const lineUp = { power: 0, pipe: 0 };
   for (const ln of c.lines) lineUp[ln.kind] += Math.hypot(ln.bx - ln.ax, ln.bz - ln.az) * LINES[ln.kind].upkeep;
   const bonus = { happy: 0, pull: 0, comm: 0 };
   for (const sv of c.services) {
     const def = SERVICES[sv.type];
     if (sv.linked) { pCap += svcVal(sv, 'power'); wCap += svcVal(sv, 'water'); sCap += svcVal(sv, 'sewage'); } // chưa nối mạng thì chưa tính
-    tCap += svcVal(sv, 'trash'); exp[def.budget || def.group] += def.upkeep;
-    for (const m of sv.mods || []) exp[def.budget || def.group] += moduleUpkeep(sv.type, m);
+    const sec = sectorOf(sv.type), kb = budgetK(c, sec);
+    if (sec) sv.bud = kb; else delete sv.bud; // ngân sách ngành: công trình mạnh / yếu theo mức chi (svcVal)
+    tCap += svcVal(sv, 'trash'); exp[def.budget || def.group] += def.upkeep * kb;
+    for (const m of sv.mods || []) exp[def.budget || def.group] += moduleUpkeep(sv.type, m) * kb;
     for (const k in def.bonus || {}) bonus[k] += def.bonus[k];
     if (def.group === 'civic') civic++;
   }
+  for (const k in c.budget || {}) if (c.services.some((sv) => sectorOf(sv.type) === k)) bonus.happy += (c.budget[k] - 100) / 50; // dân thấy dịch vụ tốt lên / tệ đi
   c.bonus = bonus;
   let depots = 0, graves = 0, used = 0, cremate = 0, cells = 0;
   for (const sv of c.services) { const d = SERVICES[sv.type]; depots += d.depot || 0; if (d.graves) { graves += d.graves; used += sv.fill || 0; } cremate += d.cremate || 0; cells += d.cells || 0; }
   Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
-  exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c);
+  exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c) * kT;
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
   for (const ln of c.loans) exp.loans += ln.daily;
   const jobs = jc + ji + jo, pop = ps.pop, workers = ps.workers, employed = ps.employed, unemployed = workers - employed, vacJobs = Math.max(0, jobs - employed);
-  const inc = { r: 0, c: 0, i: 0, t: 0 };
-  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; }
+  const inc = { r: 0, c: 0, i: 0, t: 0, u: 0 };
+  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; inc.u += slot.u || 0; }
   for (const k in inc) inc[k] = Math.round(inc[k]);
   Object.assign(s, {
     pop, jobs, jobsBy: { c: jc, i: ji, o: jo }, housing, workers, employed, unemployed, vacJobs, companies, happy: ps.happy,
     powerCap: pCap, powerUse: use, waterCap: wCap, waterUse: use, sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
-    inc, income: inc.r + inc.c + inc.i + inc.t, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
+    inc, income: inc.r + inc.c + inc.i + inc.t + inc.u, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
   });
   // nhu cầu: dân tới khi có việc và nhà trống ít; việc làm mở thêm khi có người làm và người mua
   const tm = (t) => (9 - t) * 0.05;
@@ -1435,18 +1457,22 @@ function hourTick(c) {
   computeNetworks(c);
   growth(c);
   peopleHour(c);
+  c.entryLinked = outsidePositions(c).length > 0;
+  const rooms = tourismHour(c, touristSpend); // du khách: tiền phòng khách sạn vào thẳng ngân sách
   incidentsHour(c); // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
   transitHour(c);
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
   const fares = c.transit.income - c.fareSeen; c.fareSeen = c.transit.income;
-  c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares };
+  c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms };
   recalc(c);
-  c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i - s.expense / 24;
+  c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i + rooms - s.expense / 24;
+  if (h === 0) { marketDay(c); tourismDay(c); }
   c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   for (const ln of c.loans) ln.left -= 1 / 24;
   if (c.loans.some((ln) => ln.left <= 0)) { c.loans = c.loans.filter((ln) => ln.left > 0); c.events.push({ type: 'loanPaid' }); recalc(c); }
+  if (c.sandbox) { c.money = OPEN_MONEY; c.debtHours = 0; } // chế độ Open: tiêu thoải mái, không phá sản
   c.debtHours = c.money < 0 ? c.debtHours + 1 : 0;
-  if (c.money < BANKRUPT_AT || c.debtHours > BANKRUPT_DAYS * 24) { c.over = true; c.events.push({ type: 'bankrupt' }); }
+  if (!c.sandbox && c.money < BANKRUPT_AT || c.debtHours > BANKRUPT_DAYS * 24) { c.over = true; c.events.push({ type: 'bankrupt' }); }
   while (c.milestone < MILESTONES.length && s.pop >= MILESTONES[c.milestone].pop) {
     const m = MILESTONES[c.milestone++];
     c.money += m.reward; c.points += m.points;
@@ -1482,7 +1508,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    tech: [...c.tech], points: c.points, owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => (e.wear > 0.05 ? [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz), Math.round(e.wear * 100) / 100] : [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)])),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
@@ -1555,6 +1581,8 @@ export function deserialize(o) {
     maintainTransit(c);
   }
   if (Array.isArray(o.weather) && WEATHER_KINDS.includes(o.weather[0])) { c.inc.weather = o.weather[0]; c.inc.wUntil = num(o.weather[1], 0); }
+  initEcon(c, o.econ || {});
+  if (o.sandbox) enableSandbox(c);
   computeMaps(c); recalc(c);
   return c;
 }
