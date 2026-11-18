@@ -396,8 +396,8 @@ export function airportIntl(g, e) {
   for (const z of [TZ0 - 0.05, TZ1 + 0.05]) { g.box(TX, 0.6, z, TL - 0.8, 3.2, 0.1, GLASS_L); g.box(TX, 4.8, z + (z < 10 ? 0.5 : -0.5), TL - 0.8, 3.6, 0.1, GLASS_L); }
   for (let k = 0; k <= 15; k++) for (const z of [TZ0 - 0.1, TZ1 + 0.1]) g.box(TX - TL / 2 + k * (TL / 15), 0.14, z, 0.22, 8.6, 0.16, 0xb5bcc2);
   for (let k = 0; k < 8; k++) { // mái sóng: các tấm cong lên xuống theo trục z
-    const z = TZ0 - 2.2 + k * 2.3, y = 9.2 + Math.sin((k / 7) * Math.PI) * 1.8, a = Math.cos((k / 7) * Math.PI) * 0.35;
-    g.at(new THREE.Matrix4().makeTranslation(TX, y, z).multiply(new THREE.Matrix4().makeRotationX(a))).box(0, 0, 0, TL + 4, 0.35, 2.5, 0xc4ccd3).at(null);
+    const z = TZ0 - 2.2 + k * 2.3, y = 9.2 + Math.sin((k / 7) * Math.PI) * 1.8, a = -Math.atan(((1.8 * Math.PI) / (7 * 2.3)) * Math.cos((k / 7) * Math.PI)); // độ nghiêng theo đạo hàm: các tấm nối liền thành mái cong
+    g.at(new THREE.Matrix4().makeTranslation(TX, y, z).multiply(new THREE.Matrix4().makeRotationX(a))).box(0, 0, 0, TL + 4, 0.35, 2.55, 0xc4ccd3).at(null);
   }
   g.box(TX, 7.6, TZ1 + 0.2, 16, 1.4, 0.12, 0x2c5aa0); g.box(TX, 7.6, TZ0 - 0.6, 12, 1.2, 0.12, 0x2c5aa0); // biển tên
   // ống lồng tới cửa máy bay
