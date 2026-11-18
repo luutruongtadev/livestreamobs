@@ -102,7 +102,7 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - Không xây nhà, công trình trên bãi; làm đường qua thì bỏ phần bãi dưới đường. 🧽 *Xoá bãi* để bỏ ô bãi (địa hình giữ nguyên).
    - Bãi biển kiểu cũ (khối 3 × 3) trong bản lưu cũ vẫn giữ nguyên.
 13f. **🏙️ Quận và chủ tịch quận** (nút 🏙️ góc trái dưới, trên 🎎; mở từ 400 dân, chế độ Open thì mở ngay). Code: `js/districts.js`.
-   - **Chia quận:** chọn số quận (2 tới 8, nhiều hơn khi đông dân) rồi bấm *Chia quận*. Game tự chia theo nơi dân ở và việc làm; Quận 1 ở trung tâm. Mỗi ô thuộc quận có trụ sở gần nhất. *📍 Dời trụ sở* rồi bấm lên bản đồ để chỉnh ranh giới. Lớp xem 🏙️ *Quận* tô màu từng quận, ô trắng là trụ sở. Bấm vào nhà để xem nó thuộc quận nào.
+   - **Chia quận:** chọn số quận (2 tới 8, nhiều hơn khi đông dân) rồi bấm *Chia quận*. Game tự chia theo nơi dân ở và việc làm; Quận 1 ở trung tâm. Mỗi ô thuộc quận có trụ sở gần nhất. Trụ sở là toà 🏛️ UBND quận (nhà vàng, sảnh cột, cột cờ) tự xây trên đất trống gần trung tâm quận, không phá nhà dân. *📍 Dời trụ sở* rồi bấm lên bản đồ (hoặc ✋ Di chuyển toà UBND) để chỉnh ranh giới; phá toà UBND thì quận xây lại, giải thể quận thì dỡ hết. Lớp xem 🏙️ *Quận* tô màu từng quận, viền đậm là ranh giới. Bấm vào nhà để xem nó thuộc quận nào.
    - **Chủ tịch quận:** mỗi quận một người, có tên, năng lực (hiệu quả 75–120%) và tính cách: gần dân, mát tay kinh tế, kỷ cương, xanh – sạch, tiết kiệm (chỉ tiêu khoảng 60% ngân sách), chạy thành tích. *🔄 Thay chủ tịch* được 5 ngày một lần.
    - **Chương trình quận** (mức 0–3, tốn tiền mỗi ngày theo cỡ quận, cộng vào mục chi 🏙️ *Chương trình các quận*). Tác dụng chỉ trong quận:
      - 👮 Dân phòng, an ninh trật tự: tội phạm giảm.

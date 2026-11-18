@@ -1197,6 +1197,9 @@ test('quận: chia quận, chương trình có tác dụng và tốn tiền, t�
   const D = c.dist, built = []; for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) built.push(i);
   assert.equal(D.list.length, 3); assert.deepEqual(D.list.map((q) => q.name), ['Quận 1', 'Quận 2', 'Quận 3']);
   assert.ok(built.every((i) => S.districtOf(c, i) >= 0) && D.list.every((q) => q.stat && q.stat.built > 0), 'mọi nhà thuộc một quận, quận nào cũng có nhà');
+  const halls = () => c.services.filter((s) => s.type === 'dhall');
+  assert.equal(halls().length, 3, 'mỗi quận một toà UBND');
+  assert.ok(D.list.every((q) => { const h = halls().find((s) => s.uid === q.hall); return h && h.x === q.x && h.y === q.y; }), 'trụ sở quận là toà UBND');
   // tự làm: chương trình cây xanh làm tăng giá đất trong quận, có tính vào chi phí
   const i0 = built.find((i) => S.districtOf(c, i) === 0);
   S.computeMaps(c); const v0 = c.landValue[i0];
@@ -1230,6 +1233,10 @@ test('quận: chia quận, chương trình có tác dụng và tốn tiền, t�
   assert.deepEqual(d2.dist.list.map((q) => [q.chair, q.mode, q.prog.green]), D.list.map((q) => [q.chair, q.mode, q.prog.green]));
   assert.equal(S.districtOf(d2, i0), 0); assert.equal(S.distFx(d2, i0, 'green'), 3);
   assert.ok(S.moveSeat(c, 0, D.list[2].x, D.list[2].y).ok === false, 'không trùng trụ sở');
+  // phá toà UBND thì quận xây lại; giải thể thì dỡ hết
+  c.services = c.services.filter((s) => s.uid !== D.list[1].hall); run(c, 1);
+  assert.equal(halls().length, 3); assert.ok(halls().some((s) => s.uid === D.list[1].hall));
+  S.dissolve(c); assert.equal(halls().length, 0);
 });
 
 test('tàu ra đảo: bến trên đảo thành tuyến du khách ra đảo, đảo cộng sức hút; tuyến nhiều bến bật được chuyến ra biển, lưu lại', () => {

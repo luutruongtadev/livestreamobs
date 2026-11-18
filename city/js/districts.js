@@ -108,6 +108,8 @@ export function splitDistricts(c, k) {
     return { ...q, name: `Quận ${j + 1}`, x: Math.round(s[0]), y: Math.round(s[1]) };
   });
   D.on = true;
+  for (const q of D.list) q.hall = null; // xây trụ sở mới ở trung tâm từng quận
+  if (c.fn && c.fn.syncHalls) c.fn.syncHalls(c);
   rebuildDmap(c); districtStats(c); for (const q of D.list) if (!q.lastStat) q.lastStat = { ...q.stat };
   refreshDistricts(c);
   c.events.push({ type: 'council', text: `🏙️ Thành phố chia thành ${k} quận, mỗi quận có chủ tịch riêng (bảng 🏙️ Quận)` });
@@ -121,13 +123,13 @@ export function moveSeat(c, d, x, y) {
   if (x < 0 || y < 0 || x >= N || y >= N) return { ok: false, reason: 'Ngoài bản đồ' };
   if (c.water[y * N + x]) return { ok: false, reason: 'Trụ sở không đặt dưới nước được' };
   if (c.dist.list.some((o, k) => k !== d && o.x === x && o.y === y)) return { ok: false, reason: 'Trùng trụ sở quận khác' };
-  q.x = x; q.y = y;
+  if (c.fn && c.fn.moveHall) { const r = c.fn.moveHall(c, d, x, y); if (!r.ok) return r; } else { q.x = x; q.y = y; }
   rebuildDmap(c); districtStats(c); refreshDistricts(c);
   return { ok: true };
 }
 
 /** Giải thể các quận: mọi chương trình dừng. */
-export function dissolve(c) { c.dist.on = false; c.dist.list = []; rebuildDmap(c); c.dfx = null; }
+export function dissolve(c) { c.dist.on = false; c.dist.list = []; if (c.fn && c.fn.syncHalls) c.fn.syncHalls(c); rebuildDmap(c); c.dfx = null; }
 
 // ───────────────────────── chương trình, chi phí, hiệu ứng ─────────────────────────
 
@@ -373,6 +375,7 @@ export function districtHour(c) {
   const D = c.dist, jobs = [];
   if (!D || !D.on) return jobs;
   const h = c.hour % 24, rng = rngOf(c);
+  if (c.fn && c.fn.syncHalls && c.fn.syncHalls(c)) districtStats(c); // trụ sở bị phá thì xây lại, bị dời thì ranh giới theo
   // tình huống mới: gán cho một quận (theo dân); quận tự chủ thì chủ tịch quyết sau 4 giờ nếu thị trưởng chưa quyết
   for (const it of c.council.inbox) {
     if (it.kind !== 'dilemma' || it.status !== 'pending') continue;
@@ -425,7 +428,7 @@ export function initDistricts(c, o = {}) {
   const list = Array.isArray(o.list) ? o.list.filter((q) => q && PERSONAS[q.persona]).slice(0, 8).map((q, j) => ({
     name: `Quận ${j + 1}`, chair: String(q.chair || 'Chủ tịch'), persona: q.persona, skill: clamp(+q.skill || 0.5, 0.2, 1), since: q.since | 0, done: q.done | 0, failed: q.failed | 0,
     x: clamp(q.x | 0, 0, N - 1), y: clamp(q.y | 0, 0, N - 1), mode: MODES[q.mode] ? q.mode : 'auto', cap: clamp(+q.cap || 0, 0, 50000), prog: q.prog || {},
-    order: q.order || null, reports: Array.isArray(q.reports) ? q.reports.slice(-8) : [], nextPlan: q.nextPlan | 0, nextReport: q.nextReport | 0, note: q.note || '', lastStat: q.lastStat || null, stat: q.stat || null,
+    order: q.order || null, reports: Array.isArray(q.reports) ? q.reports.slice(-8) : [], nextPlan: q.nextPlan | 0, nextReport: q.nextReport | 0, note: q.note || '', lastStat: q.lastStat || null, stat: q.stat || null, hall: Number.isFinite(+q.hall) && q.hall !== null ? +q.hall : null,
   })) : [];
   c.dist = { on: !!o.on && list.length >= 2, list, nextId: Math.max(1, o.nextId | 0) };
   for (const q of list) q.prog = clampPlan(q, q.prog);

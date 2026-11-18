@@ -824,11 +824,10 @@ export class View {
         // quận: mỗi quận một màu, viền đậm ở ranh giới, ô trụ sở trắng
         const q = c.dmap ? c.dmap[i] : 255;
         if (q !== 255 && c.dist && c.dist.on) {
-          const s = c.dist.list[q], x = i % N, y = (i / N) | 0;
+          const x = i % N, y = (i / N) | 0;
           [r, g, b] = DCOL[q % DCOL.length];
           const edge = (x + 1 < N && c.dmap[i + 1] !== q) || (y + 1 < N && c.dmap[i + N] !== q) || (x > 0 && c.dmap[i - 1] !== q) || (y > 0 && c.dmap[i - N] !== q);
-          a = c.water[i] ? 25 : edge ? 210 : 70;
-          if (s && Math.abs(s.x - x) <= 1 && Math.abs(s.y - y) <= 1) { r = g = b = 255; a = 230; }
+          a = c.water[i] ? 25 : edge ? 210 : 70; // trụ sở là toà nhà UBND quận thật, không tô riêng
         }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }

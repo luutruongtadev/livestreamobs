@@ -1007,6 +1007,20 @@ export function serviceModel(type, size) {
       g.cyl(6.5, 0.14, 3, 0.3, 0.25, 4, 0x7a5d3c, 6); g.blob(6.5, 5, 3, 2.2, 1.6, 2.2, 0x3f8a3a, 43, 0); // cây đa
       break;
     }
+    case 'dhall': { // trụ sở UBND quận: nhà vàng ba tầng, sảnh cột trắng, trán tường, mái ngói, cột cờ đỏ sao vàng trước sân
+      pave(0xd8d0bf);
+      g.box(0, 0.14, -3, 15, 8.4, 7.6, 0xf0cf6a, true); g.box(0, 8.54, -3, 15.4, 0.4, 8, 0xece4cf); // khối chính, gờ mái
+      g.gable(0, 8.94, -3, 15.6, 2.4, 8.2, 0xa8453a, true, 0xf0cf6a);
+      g.box(0, 0.14, 1.9, 6.2, 7.4, 2.6, 0xf6e6b0); // sảnh nhô
+      for (let k = 0; k < 4; k++) g.cyl(-2.25 + k * 1.5, 0.14, 3.6, 0.32, 0.3, 6.6, 0xfaf7ee, 8); // hàng cột
+      g.box(0, 6.74, 3.6, 6.8, 0.8, 1, 0xf6e6b0); g.gable(0, 7.54, 2.2, 6.9, 1.6, 3.4, 0xa8453a, true, 0xf6e6b0); // trán tường
+      g.box(0, 5.5, 3.25, 4, 0.75, 0.06, 0xd0342c); g.box(0, 5.5, 3.29, 3.4, 0.25, 0.02, 0xffde00); // biển tên đỏ chữ vàng
+      g.box(0, 0.14, 5.4, 7, 0.4, 1.6, 0xd6cfbe); g.box(0, 0.14, 6.4, 7.6, 0.2, 0.8, 0xccc4b2); // bậc thềm
+      g.cyl(0, 0.14, 8, 1.1, 1.2, 0.5, 0xbdb5a3, 10); flagParts(g, 0, 0.64, 8, 11, 2.2); // bục và cột cờ
+      for (const [x, z] of [[-7.6, 7.6], [7.6, 7.6]]) g.tree(x, 0.14, z, 1.1, 0x4f9440);
+      for (const x of [-5.5, 5.5]) g.box(x, 0.14, 7.2, 3.6, 0.5, 2.4, 0x69ad4a); // bồn hoa
+      break;
+    }
     case 'monument': {
       pave(0xd3c9b4);
       for (let k = 0; k < 3; k++) g.box(0, 0.14 + k * 0.5, 0, 12 - k * 2.6, 0.5, 12 - k * 2.6, 0xc2b59a);
@@ -1246,11 +1260,11 @@ const VN_ROOF = [0xb4453a, 0x3f6fa8, 0x9a9a9a, 0x5a8a5a];
 const VN_SIGN = [0xd8262e, 0xf2c200, 0x1f6fc8, 0x16935a, 0xe8681f];
 
 /** Cờ đỏ sao vàng nhỏ trên cột: gốc ở chân cột, lá cờ hướng theo +x. */
-export function flagParts(g, x, y, z, h = 3.2) {
-  g.cyl(x, y, z, 0.05, 0.05, h, 0xd8d4cc, 4);
-  g.box(x + 0.75, y + h - 1, z, 1.5, 1, 0.04, 0xda251d);
+export function flagParts(g, x, y, z, h = 3.2, s = 1) {
+  g.cyl(x, y, z, 0.05 * s, 0.05 * s, h, 0xd8d4cc, 4);
+  g.box(x + 0.75 * s, y + h - s, z, 1.5 * s, s, 0.04 * s, 0xda251d);
   // ngôi sao 5 cánh vẽ bằng tam giác, hai mặt
-  const cx = x + 0.75, cy = y + h - 0.5, R = 0.3, r = 0.12, pts = [];
+  const cx = x + 0.75 * s, cy = y + h - 0.5 * s, R = 0.3 * s, r = 0.12 * s, pts = [];
   for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r : R; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
   for (const zz of [z + 0.025, z - 0.025]) for (let k = 0; k < 10; k++) {
     const a = pts[k], b = pts[(k + 1) % 10];

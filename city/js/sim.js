@@ -18,7 +18,7 @@ import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil }
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
-import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost } from './districts.js';
+import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
 const planCostQ = (q) => planCost(q, q.prog);
 
 export * from './base.js';
@@ -490,7 +490,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { clearBuilding, cellHappy, die };
+  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
@@ -1501,6 +1501,59 @@ export function placeService(c, type, x, y) {
   return { ok: true, cost: SERVICES[type].cost, linked: c.services[c.services.length - 1].linked };
 }
 
+// ───────────────────────── trụ sở UBND quận ─────────────────────────
+
+/** Chỗ trống gần (x, y) để xây trụ sở quận: không phá nhà, ưu tiên sát đường. */
+function hallSpot(c, x, y) {
+  let best = null, bs = Infinity;
+  for (let r = 0; r <= 14 && (!best || r * r < bs); r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const px = x + dx, py = y + dy, ck = canPlace(c, 'dhall', px, py, { move: true });
+    if (!ck.ok) continue;
+    let built = false, road = false;
+    for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { const i = idx(ck.fp.x + a, ck.fp.y + b); if (c.level[i]) built = true; if (c.acc[i] === 1) road = true; }
+    if (built) continue;
+    const score = dx * dx + dy * dy - (road ? 30 : 0);
+    if (score < bs) { bs = score; best = ck.fp; }
+  }
+  return best;
+}
+
+/**
+ * Giữ mỗi quận đúng một toà trụ sở: xây khi thiếu (mới chia quận, bị phá), bỏ toà thừa (giải thể, chia lại ít quận hơn),
+ * trụ sở bị dời bằng ✋ thì quận dời theo. Trả về true nếu ranh giới quận phải vẽ lại.
+ */
+export function syncHalls(c) {
+  const D = c.dist, keep = new Set();
+  let occ = false, moved = false;
+  if (D && D.on) for (const q of D.list) {
+    let s = q.hall != null ? c.services.find((v) => v.uid === q.hall && v.type === 'dhall') : null;
+    if (!s) {
+      const fp = hallSpot(c, q.x, q.y);
+      if (!fp) continue;
+      for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { const i = idx(fp.x + a, fp.y + b); c.zone[i] = 0; c.tree[i] = 0; }
+      s = { type: 'dhall', x: fp.x, y: fp.y, dir: c.acc[idx(fp.x, fp.y)] === 1 ? c.rdir[idx(fp.x, fp.y)] : 1, uid: c.nextId++ };
+      c.services.push(s); q.hall = s.uid; occ = true;
+    }
+    keep.add(s.uid);
+    if (q.x !== s.x || q.y !== s.y) { q.x = s.x; q.y = s.y; moved = true; }
+  }
+  const n = c.services.length;
+  c.services = c.services.filter((s) => s.type !== 'dhall' || keep.has(s.uid));
+  if (occ || c.services.length !== n) { rebuildOcc(c); c.dirty.services = c.dirty.zones = c.dirty.trees = true; }
+  if (moved) { rebuildDmap(c); c.dirty.zones = true; }
+  return moved;
+}
+
+/** Dời trụ sở quận d tới ô (x, y): dời luôn toà nhà. */
+export function moveHall(c, d, x, y) {
+  const q = c.dist.list[d], k = q ? c.services.findIndex((v) => v.uid === q.hall) : -1;
+  if (k < 0) return { ok: false, reason: 'Quận chưa có trụ sở' };
+  const r = moveService(c, k, x, y);
+  if (r.ok) syncHalls(c);
+  return r;
+}
+
 // ───────────────────────── bản đồ phủ, ô nhiễm, giá đất ─────────────────────────
 
 function stamp(map, cx, cy, radius, strength, add) {
@@ -1694,7 +1747,7 @@ export function expenseItems(c) {
   for (const t in byType) groups.roads.items.push({ icon: ROADS[t].icon, name: ROADS[t].name, note: `${(byType[t].len / 1000).toFixed(2)} km`, cost: byType[t].up * RATE });
   for (const sv of c.services) {
     const def = SERVICES[sv.type], g = groups[def.budget || def.group];
-    if (!g) continue;
+    if (!g || def.district) continue; // trụ sở quận không tốn phí riêng
     const kb = budgetK(c, sectorOf(sv.type));
     let up = def.upkeep * kb;
     for (const m of sv.mods || []) up += moduleUpkeep(sv.type, m) * kb;
