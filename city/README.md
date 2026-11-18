@@ -74,6 +74,7 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
      - **Hãng bay (cần sân bay):** thành phố trợ giá mỗi ngày, đổi lại thêm chuyến bay quốc tế.
      - Bảng đàm phán có ước tính lời / lỗ cho thành phố.
    - **⭐ Đánh giá du khách:** mỗi tối vài du khách viết đánh giá. Số sao do game chấm từ trải nghiệm thật: điểm tham quan, bãi biển, lễ hội, kẹt xe, ngập, bão, móc túi, ô nhiễm, hết phòng, dân thân thiện. Điểm trung bình 30 bài gần nhất nhân lượng du khách và khách quốc tế từ ×0,7 (1 sao) tới ×1,3 (5 sao).
+   - **Bật / tắt AI:** ô ✍️ ở đầu hộp thư (nhớ trong trình duyệt, mặc định bật). Tắt thì dùng lời soạn sẵn, không gọi server, không tốn lượt.
    - **Máy chủ:** `POST /api/city/ai` (`gateway/city-ai.js`): model `claude-haiku-5-5` (đổi bằng `CITY_AI_MODEL`, ví dụ `claude-opus-5-5`), mỗi máy tối đa 12 lượt / phút, cả server `CITY_AI_DAILY` lượt / ngày.
 13d. **🛵 Đường phố và xe cộ** (bảng 👥, mục cuối). Các chính sách đều có đánh đổi:
    - **Vỉa hè:**

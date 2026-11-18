@@ -1,7 +1,7 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
 import { View } from './render.js';
-import { aiCall, aiOnline, citySummary } from './ai.js';
+import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
 const WEEK = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
@@ -1258,7 +1258,13 @@ function renderInbox(force) {
   const c = city, K = c.council, key = `${c.day}|${c.hour}|${K.nextId}|${K.inbox.map((i) => i.status + (i.chat ? i.chat.length : '') + (i.ai ? 1 : 0) + (i.wait ? 1 : 0)).join('')}|${K.reviews.length}`;
   if (!force && renderInbox.key === key) return;
   renderInbox.key = key;
-  $('inboxAi').textContent = aiOnline() ? '✍️ Lời văn do AI (Claude) viết từ số liệu thật của thành phố; mọi con số và hậu quả do game tính.' : '✍️ AI chưa sẵn sàng (server chưa có khoá API hoặc mất mạng): dùng lời soạn sẵn.';
+  { // bật / tắt AI
+    const box = $('inboxAi'), lab = el('label', 'row'), cb = el('input'), on = aiEnabled();
+    cb.type = 'checkbox'; cb.checked = on;
+    cb.onchange = () => { setAiEnabled(cb.checked); toast(cb.checked ? '✍️ Đã bật AI viết lời cho hộp thư' : '✍️ Đã tắt AI: dùng lời soạn sẵn, không gọi server'); renderInbox(true); };
+    const t = el('span'); t.innerHTML = `<b>✍️ AI viết lời (Claude)</b><br><small>${!on ? 'Đang tắt: dùng lời soạn sẵn, không gọi server, không tốn lượt.' : aiOnline() ? 'Lời văn do AI viết từ số liệu thật; mọi con số và hậu quả do game tính.' : 'AI chưa sẵn sàng (server chưa có khoá API hoặc mất mạng): tạm dùng lời soạn sẵn.'}</small>`;
+    lab.style.alignItems = 'flex-start'; lab.append(t, cb); box.textContent = ''; box.append(lab);
+  }
   // tình huống
   const box = $('inboxDecide'); box.textContent = '';
   const pend = K.inbox.filter((i) => i.kind === 'dilemma' && i.status === 'pending');

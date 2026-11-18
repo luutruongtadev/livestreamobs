@@ -1,9 +1,13 @@
 // Phố Mới — gọi /api/city/ai (Claude viết lời cho hộp thư thị trưởng). Lỗi, hết lượt, server chưa có API key:
 // trả null để game dùng mẫu câu soạn sẵn; tạm nghỉ gọi một lúc rồi thử lại.
 let offlineUntil = 0;
+const KEY = 'phomoi.ai';
+/** Người chơi bật / tắt AI (lưu trong trình duyệt; mặc định bật). Tắt thì game dùng lời soạn sẵn, không gọi server. */
+export function aiEnabled() { try { return localStorage.getItem(KEY) !== '0'; } catch { return true; } }
+export function setAiEnabled(on) { try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* bỏ qua */ } if (on) offlineUntil = 0; }
 
 export async function aiCall(kind, payload) {
-  if (Date.now() < offlineUntil) return null;
+  if (!aiEnabled() || Date.now() < offlineUntil) return null;
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 50_000);
   try {
     const r = await fetch('/api/city/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, ...payload }), signal: ctl.signal });
@@ -14,7 +18,7 @@ export async function aiCall(kind, payload) {
   } catch { offlineUntil = Date.now() + 60_000; return null; } finally { clearTimeout(timer); }
 }
 /** AI đang dùng được (chưa bị tạm nghỉ vì lỗi / không có key). */
-export const aiOnline = () => Date.now() >= offlineUntil;
+export const aiOnline = () => aiEnabled() && Date.now() >= offlineUntil;
 
 /** Tóm tắt thành phố gửi kèm mỗi lần gọi (số liệu thật, ngắn). */
 export function citySummary(c, S) {
