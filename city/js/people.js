@@ -23,6 +23,7 @@ export function initPeople(c) {
     alive: new Uint8Array(cap), gen: new Uint16Array(cap), age: new Float32Array(cap), edu: new Uint8Array(cap), study: new Uint8Array(cap), enrolled: new Uint8Array(cap),
     home: I(-1), work: I(-1), loc: I(-1), car: I(-1), until: I(0), money: new Float32Array(cap), happy: new Uint8Array(cap).fill(55),
     state: new Uint8Array(cap), sick: new Uint8Array(cap), amb: new Uint8Array(cap), commute: new Float32Array(cap), t0: new Float32Array(cap), idle: new Uint8Array(cap),
+    trip: new Uint16Array(cap), // số thứ tự chuyến đi: xe tới muộn của chuyến đã huỷ thì bỏ qua
   };
   const U16 = () => new Uint16Array(N * N), F32 = () => new Float32Array(N * N);
   c.resCount = U16(); c.staff = U16(); c.present = U16(); c.parked = U16(); c.garbage = F32(); c.fire = new Uint8Array(N * N); c.fireTruck = new Uint8Array(N * N);
@@ -89,7 +90,10 @@ export function onBuildingCleared(c, i) {
 
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
 export const wageAt = (c, i) => (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1));
-export const rentAt = (c, i) => 1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6;
+/** Nguyên liệu một nhà máy đủ người dùng hết mỗi giờ. */
+const FACT_RATE = 0.5; // nguyên liệu một công nhân chế biến mỗi giờ (nhập nguyên liệu, xuất hàng vẫn còn lãi)
+const factoryUse = (c, i) => jobCap(c.zone[i], c.level[i]) * FACT_RATE * (1 + 0.12 * (c.level[i] - 1));
+export const rentAt =(c, i) => 1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6;
 const spots = (c, i) => (c.occ[i] ? svcVal(c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
 const isShop = (c, i) => c.level[i] > 0 && (ZDEF[c.zone[i]].biz === 'shop' || ZDEF[c.zone[i]].biz === 'market');
 /** Nguyên liệu một nhà máy / xưởng / chợ cần: xưởng và chợ chỉ nhận vài loại, nhà máy lớn nhận loại gán theo vị trí. */
@@ -130,12 +134,13 @@ function go(c, id, dest, purpose) {
   pp.state[id] = purpose === 'work' ? ST.TO_WORK : purpose === 'home' ? ST.TO_HOME : ST.TO_OUT;
   pp.t0[id] = c.traffic.time;
   freeParking(c, id);
-  const cb = { t: 'cit', id, gen: pp.gen[id], dest, purpose };
+  const cb = { t: 'cit', id, gen: pp.gen[id], trip: ++pp.trip[id], dest, purpose };
   if (from < 0 || dest < 0 || from === dest) { later(c, 1, cb); return; }
   const d = dist(from, dest), mode = c.pstats.mode;
   const hue = (id * 0.6180339) % 1;
   if (d < 115) { mode.walk++; if (!walk(c, from, dest, cb, hue)) later(c, d / 9 + 1, cb); return; }
-  const carEta = (d * 1.35) / 22 / Math.max(0.35, c.traffic.speedEma) + (purpose !== 'home' && c.parked[dest] >= spots(c, dest) ? 8 : 0);
+  // ước tính đi xe riêng sát thực tế: đường vòng + đèn đỏ (đo được ≈ 1.55 × đường chim bay / 22), cộng lấy xe, gửi xe, đi bộ từ chỗ đỗ
+  const carEta = (d * 1.55) / 22 / Math.max(0.35, c.traffic.speedEma) + 8 + (purpose !== 'home' && c.parked[dest] >= spots(c, dest) ? 8 : 0);
   const ride = planRide(c, from, dest), rideEta = ride ? ride.eta * (c.street && c.street.busLane && ride.line.mode === 'bus' ? 0.8 : 1) : 0; // làn riêng: buýt nhanh hơn
   if (ride && rideEta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
   // xe riêng: ô tô hay xe máy (theo thu nhập, học vấn), chính sách cấm xe máy nội đô, phí ô tô vào trung tâm
@@ -180,7 +185,7 @@ export function onArrive(c, cb, v) {
   switch (cb.t) {
     case 'cit': {
       const id = cb.id;
-      if (!pp.alive[id] || pp.gen[id] !== cb.gen) return undefined;
+      if (!pp.alive[id] || pp.gen[id] !== cb.gen || (cb.trip !== undefined && (cb.trip & 0xffff) !== pp.trip[id])) return undefined; // chuyến cũ đã bị huỷ (đi quá lâu)
       if (cb.fail && cb.purpose === 'work') { leaveJob(c, id); pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; return undefined; } // không có đường tới chỗ làm
       if (cb.car && !cb.parked && cb.purpose !== 'home' && cb.dest >= 0) {
         if (c.parked[cb.dest] < spots(c, cb.dest)) { c.parked[cb.dest]++; pp.car[id] = cb.dest; } else {
@@ -388,7 +393,7 @@ export function peopleHour(c) {
     } else if (st === ST.OUT) {
       if (c.hour >= pp.until[id]) go(c, id, pp.home[id], 'home');
     } else if (c.traffic.time - pp.t0[id] > 14 * c.hourSec) { // đi quá 14 giờ chưa tới: coi như về nhà
-      pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; freeParking(c, id);
+      pp.state[id] = ST.HOME; pp.loc[id] = pp.home[id]; freeParking(c, id); pp.trip[id]++; // xe của chuyến này tới muộn cũng không tính
     }
     if (pp.sick[id]) {
       if (pp.sick[id] < 250) pp.sick[id]++;
@@ -400,7 +405,7 @@ export function peopleHour(c) {
       }
     }
   }
-  c.hourInc.r += wages * (c.tax.r / 9) * 2.7;
+  c.hourInc.r += wages * (c.tax.r / 9) * 2.7; // thu đều cả tuần ở smoothWeek (sim.js)
 
   bizHour(c, companies, shops, h);
   servicesHour(c, h);
@@ -429,10 +434,10 @@ function bizHour(c, companies, shops, h) {
       b.sout[i] = Math.min(48, b.sout[i] + pres * RAW[rk].rate * prod * boost);
       if (b.sout[i] >= PRICE.load) supRaw[rk].push(i);
     } else if (kind === 'factory') {
-      const use = Math.min(b.sin[i], pres * 0.4 * prod, 48 - b.sout[i]);
+      const use = Math.min(b.sin[i], pres * FACT_RATE * prod, 48 - b.sout[i]);
       b.sin[i] -= use; b.sout[i] += use;
       if (pres && use < pres * 0.2) active = false;
-      if (b.sin[i] < 6 && !b.incoming[i]) needRaw[needOf(c, i)].push(i);
+      if (b.sin[i] < Math.max(6, factoryUse(c, i) * 6) && !b.incoming[i]) needRaw[needOf(c, i)].push(i); // đặt hàng khi kho còn khoảng 6 giờ chạy máy
       if (b.sout[i] >= PRICE.load) supGoods.push(i);
     } else if (kind === 'shop') {
       const sold = Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.3 * prod);
@@ -448,7 +453,7 @@ function bizHour(c, companies, shops, h) {
       if (b.sin[i] < 6 && !b.incoming[i]) needRaw[needOf(c, i)].push(i);
     } else if (kind === 'leisure') {
       if (pres && open) saleIncome(c, i, pres * 0.35, 'c'); // khách vãng lai ngoài số dân tự đi chơi
-    } else if (kind === 'office' && pres) saleIncome(c, i, pres * (1.75 + 0.2 * c.level[i]) * (ZDEF[c.zone[i]].inc || 1) * (c.zone[i] === 18 && c.cover.sci[i] > 0.05 ? 1.3 : 1), 'c');
+    } else if (kind === 'office' && pres) saleIncome(c, i, pres * (0.5 + wageAt(c, i)) * (ZDEF[c.zone[i]].inc || 1) * (c.zone[i] === 18 && c.cover.sci[i] > 0.05 ? 1.3 : 1), 'c');
     if (h >= 9 && h <= 17 && c.day % 7 < 5) b.eff[i] += ((active ? Math.min(1, pres / Math.max(1, cap * 0.5)) : 0) - b.eff[i]) * 0.06; // ca làm lệch giờ nhau nên có mặt một nửa đã là đủ người
     effSum += b.eff[i];
     if (b.incoming[i] && ++b.incoming[i] > 20) b.incoming[i] = 0; // xe hàng thất lạc
@@ -460,13 +465,14 @@ function bizHour(c, companies, shops, h) {
   for (const v of c.traffic.vehicles) if (v.kind === 'truck') trucks++;
   const deliver = (needs, sups, kind) => {
     for (const to of needs.slice(0, 24)) {
+      const qty = bizKind(c, to) === 'factory' ? clamp(Math.round(factoryUse(c, to) * 8), PRICE.load, PRICE.loadF) : PRICE.load; // nhà máy: xe to, đủ chạy chừng 8 giờ
       let best = -1, bd = Infinity;
-      for (const s of sups) { if (b.sout[s] < PRICE.load) continue; const d = dist(s, to); if (d < bd) { bd = d; best = s; } }
+      for (const s of sups) { if (b.sout[s] < qty) continue; const d = dist(s, to); if (d < bd) { bd = d; best = s; } }
       if (best >= 0) {
-        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind, qty: PRICE.load }, trucks < MAX_TRUCKS)) { b.sout[best] -= PRICE.load; b.incoming[to] = 1; trucks++; continue; }
+        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind, qty }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; continue; }
       }
       const out = nearestOutside(c, to);
-      if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind, qty: PRICE.load, imp: true }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
+      if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind, qty, imp: true }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
     }
   };
   for (const k of RAW_KINDS) deliver(needRaw[k], supRaw[k], k);
@@ -550,11 +556,11 @@ function peopleDay(c) {
   const pumpDirty = c.dirtyWater ? 0.03 : 0;
   for (let id = 0; id < pp.n; id++) {
     if (!pp.alive[id]) continue;
-    const age = ++pp.age[id], home = pp.home[id];
+    const age = ++pp.age[id], home = pp.home[id], ya = Math.floor(age); // tuổi lẻ (dân nhập cư, sinh viên): xét theo năm tròn vừa qua
     // học hành
-    if (age === 12) { if (pp.study[id] >= 4) pp.edu[id] = 1; pp.study[id] = 0; }
-    if (age === 18) { if (pp.edu[id] === 1 && pp.study[id] >= 4) pp.edu[id] = 2; pp.study[id] = 0; }
-    if (age === 22 && pp.enrolled[id]) { if (pp.study[id] >= 3) pp.edu[id] = 3; pp.study[id] = 0; }
+    if (ya === 12) { if (pp.study[id] >= 4) pp.edu[id] = 1; pp.study[id] = 0; }
+    if (ya === 18) { if (pp.edu[id] === 1 && pp.study[id] >= 4) pp.edu[id] = 2; pp.study[id] = 0; }
+    if (ya === 22 && pp.enrolled[id]) { if (pp.study[id] >= 3) pp.edu[id] = 3; pp.study[id] = 0; }
     const stage = age >= 6 && age < 12 ? 1 : age >= 12 && age < 18 && pp.edu[id] >= 1 ? 2 : age >= 18 && age < 22 && pp.edu[id] === 2 && pp.work[id] < 0 ? 3 : 0;
     pp.enrolled[id] = stage && home >= 0 && seatAt(c, stage, home) ? 1 : 0;
     if (pp.enrolled[id]) { if (pp.study[id] < 200) pp.study[id]++; count.students++; }
@@ -657,25 +663,31 @@ export function quickStats(c) {
 // ───────────────────────── lưu / nạp ─────────────────────────
 
 export function packPeople(c) {
-  const pp = c.pp, n = pp.count, age = new Uint8Array(n), edu = new Uint8Array(n), home = new Uint16Array(n), work = new Uint16Array(n), money = new Int16Array(n);
+  const pp = c.pp, n = pp.count, age = new Uint8Array(n), edu = new Uint8Array(n), home = new Uint16Array(n), work = new Uint16Array(n), money = new Int16Array(n), happy = new Uint8Array(n);
   let k = 0;
   for (let id = 0; id < pp.n; id++) {
     if (!pp.alive[id]) continue;
-    age[k] = clamp(pp.age[id], 0, 255); edu[k] = pp.edu[id] | (pp.study[id] << 2); home[k] = pp.home[id] < 0 ? 0xffff : pp.home[id]; work[k] = pp.work[id] < 0 ? 0xffff : pp.work[id]; money[k] = clamp(pp.money[id], -3000, 3000);
+    age[k] = clamp(pp.age[id], 0, 255); edu[k] = pp.edu[id] | (pp.study[id] << 2); home[k] = pp.home[id] < 0 ? 0xffff : pp.home[id]; work[k] = pp.work[id] < 0 ? 0xffff : pp.work[id]; money[k] = clamp(pp.money[id], -3000, 3000); happy[k] = pp.happy[id];
     k++;
   }
-  return { age, edu, home: new Uint8Array(home.buffer), work: new Uint8Array(work.buffer), money: new Uint8Array(money.buffer) };
+  return { age, edu, home: new Uint8Array(home.buffer), work: new Uint8Array(work.buffer), money: new Uint8Array(money.buffer), happy };
 }
 
 export function unpackPeople(c, o) {
   const n = o.age.length, home = new Uint16Array(o.home.buffer.slice(0, n * 2)), work = new Uint16Array(o.work.buffer.slice(0, n * 2)), money = new Int16Array(o.money.buffer.slice(0, n * 2));
+  const h24 = c.hour % 24, wd = c.day % 7 < 5;
   for (let k = 0; k < n; k++) {
     let h = home[k] === 0xffff ? -1 : home[k];
     if (h >= 0 && (!c.level[h] || c.resCount[h] >= resCap(c.zone[h], c.level[h]) + 2)) h = -1; // +2: trẻ sinh ra ở nhà đã kín chỗ
-    const id = addCitizen(c, o.age[k], o.edu[k] & 3, h, money[k]);
-    c.pp.study[id] = o.edu[k] >> 2;
+    const id = addCitizen(c, o.age[k], o.edu[k] & 3, h, money[k]), pp = c.pp;
+    pp.study[id] = o.edu[k] >> 2;
+    if (o.happy && o.happy.length === n) pp.happy[id] = o.happy[k]; // bản lưu cũ không có: 55
     const w = work[k] === 0xffff ? -1 : work[k];
-    if (w >= 0 && c.level[w] && c.staff[w] < jobCap(c.zone[w], c.level[w])) { c.pp.work[id] = w; c.staff[w]++; }
+    if (w >= 0 && c.level[w] && c.staff[w] < jobCap(c.zone[w], c.level[w])) {
+      pp.work[id] = w; c.staff[w]++;
+      const s = 4 + (id % 7); // nạp giữa ca làm: người đang trong ca thì ở chỗ làm luôn, khỏi mất một ngày lương, thuế
+      if (wd && h >= 0 && h24 > s && h24 < s + 9) { pp.state[id] = ST.WORK; pp.loc[id] = w; c.present[w]++; pp.until[id] = c.hour + s + 9 - h24; }
+    }
   }
   quickStats(c);
 }

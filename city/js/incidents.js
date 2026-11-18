@@ -107,9 +107,9 @@ function dispatchAccident(c, acc) {
 }
 
 function clearAccident(c, acc) {
-  const tr = c.traffic, gone = new Set(acc.vehs);
+  const tr = c.traffic, gone = new Set(acc.vehs.filter((v) => tr.vehicles.includes(v))); // xe đã bị bỏ ở chỗ khác thì đã báo tới nơi rồi
   tr.vehicles = tr.vehicles.filter((v) => !gone.has(v));
-  for (const v of acc.vehs) c.onArrive(c, v.cb, null); // người trên xe coi như tới nơi rất muộn
+  for (const v of gone) c.onArrive(c, v.cb, null); // người trên xe coi như tới nơi rất muộn
   c.inc.accidents = c.inc.accidents.filter((a) => a !== acc);
   c.events.push({ type: 'accidentCleared' });
   c.dirty.fx = true;
@@ -117,8 +117,10 @@ function clearAccident(c, acc) {
 
 function maybeClear(c, acc) {
   const anyPolice = c.services.some((s) => policeCars(s));
-  if ((acc.cops || !anyPolice) && acc.clean) clearAccident(c, acc);
+  if ((acc.cops || !anyPolice) && (acc.clean || (!canClean(c, acc) && c.traffic.time - acc.t0 > 15))) clearAccident(c, acc); // không có trạm dọn được: công an tự đẩy xe vào lề, chậm hơn xe cứu hộ
 }
+/** Thành phố có trạm nào dọn được vụ này không (đang cháy thì chỉ cứu hoả). */
+const canClean = (c, acc) => c.services.some((s) => (SERVICES[s.type].tows && !acc.fire) || s.type === 'fire');
 
 // ───────────────────────── cướp giật ─────────────────────────
 
@@ -152,11 +154,13 @@ function robberies(c) {
 /** Xe công an, xe cứu hộ tới hiện trường (v = null nếu chuyến không vẽ ra). Trả về 'keep' nếu xe còn chạy về trạm. */
 export function incidentArrive(c, cb, v) {
   const inc = c.inc, s = c.services.find((o) => o.uid === cb.svc);
+  // v = null: xe kẹt cứng / mất đường giữa chừng, chưa tới nơi → bỏ cờ đã gửi để lần sau gửi xe khác
   if (cb.t === 'police') {
-    if (cb.acc) { const acc = inc.accidents.find((a) => a.id === cb.acc); if (acc) { acc.cops = true; maybeClear(c, acc); } }
+    if (cb.acc) { const acc = inc.accidents.find((a) => a.id === cb.acc); if (acc && !v) acc.sentCops = false; else if (acc) { acc.cops = true; maybeClear(c, acc); } }
     if (cb.rob) {
       const r = inc.robberies.find((o) => o.id === cb.rob);
-      if (r) {
+      if (r && !v) r.sent = false;
+      else if (r) {
         inc.robberies = inc.robberies.filter((o) => o !== r);
         let cells = 0; for (const o of c.services) cells += SERVICES[o.type].cells || 0;
         if (c.prisoners + 1 <= cells) c.prisoners++;
@@ -166,10 +170,11 @@ export function incidentArrive(c, cb, v) {
     }
   } else if (cb.t === 'clean') {
     const acc = inc.accidents.find((a) => a.id === cb.acc);
-    if (acc) { acc.clean = true; acc.fire = false; maybeClear(c, acc); }
+    if (acc && !v) acc.sentClean = false;
+    else if (acc) { acc.clean = true; acc.fire = false; maybeClear(c, acc); }
   } else if (cb.t === 'wild') {
     const cx = cb.cell % N, cy = (cb.cell / N) | 0;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (inMap(cx + dx, cy + dy)) inc.wild[idx(cx + dx, cy + dy)] = 0;
+    if (v) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (inMap(cx + dx, cy + dy)) inc.wild[idx(cx + dx, cy + dy)] = 0;
     c.dirty.fx = true;
   } else return undefined;
   if (!s) return undefined;
@@ -241,14 +246,14 @@ export function incidentsStep(c, dt) {
   if (inc.tornado) tornadoStep(c, dt);
   // tai nạn: mỗi xe đang chạy nhanh có một xác suất nhỏ, nhân theo thời tiết, đêm tối, mặt đường xấu
   const tr = c.traffic, rng = c.rng;
-  let moving = 0;
-  for (const v of tr.vehicles) if (v.v > 8 && CRASH_KINDS.has(v.kind)) moving++;
-  if (moving && inc.accidents.length < 6 && rng() < CRASH_RATE * moving * crashFactor(c) * dt * 2) {
-    const v = tr.vehicles[(rng() * tr.vehicles.length) | 0];
-    if (v && v.v > 8 && CRASH_KINDS.has(v.kind) && !v.wreck && rng() < 0.5 + (v.e.wear || 0)) crash(c, v);
+  const fast = tr.vehicles.filter((v) => v.v > 8 && CRASH_KINDS.has(v.kind) && !v.wreck);
+  if (fast.length && inc.accidents.length < 6 && rng() < CRASH_RATE * fast.length * crashFactor(c) * dt * 2) {
+    const v = fast[(rng() * fast.length) | 0]; // chọn trong số xe đang chạy nhanh
+    if (rng() < 0.5 + (v.e.wear || 0)) crash(c, v);
   }
   for (const acc of [...inc.accidents]) {
     if (!c.edges.has(acc.edge.id) || tr.time - acc.t0 > 90) clearAccident(c, acc); // đường bị phá, hoặc tự giải toả sau rất lâu
+    else if (acc.cops && !acc.clean) maybeClear(c, acc); // công an đã tới mà không có xe dọn
     else if (!acc.sentCops || !acc.sentClean) {
       if (!c.services.some((s) => policeCars(s)) && !c.services.some((s) => SERVICES[s.type].tows || s.type === 'fire') && tr.time - acc.t0 > 30) clearAccident(c, acc); // không có ai dọn: kẹt rất lâu rồi tự giải toả
     }

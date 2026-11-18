@@ -274,10 +274,10 @@ export const DEALS = {
     who: ['Bộ Xây dựng', 'Bộ Tài nguyên và Môi trường', 'Quỹ phòng chống thiên tai trung ương'],
     persona: 'Cán bộ cấp bộ, nói chuyện kiểu công văn, nhấn mạnh trách nhiệm và tiến độ, không thích bị mặc cả nhưng chịu nhượng bộ nếu thành phố đưa ra lý do chính đáng (dân số, thiên tai, ngân sách eo hẹp)',
     when: (c) => c.pp.count >= 150,
-    params: { grant: [15000, 120000, '₫ hỗ trợ', 'us'], target: [1, 6, 'công trình chống ngập (trạm bơm, kè) phải xây thêm', 'them'], days: [15, 60, 'ngày thời hạn', 'us'] },
+    params: { grant: [15000, 120000, '₫ hỗ trợ', 'us'], target: [1, 6, 'trạm bơm chống ngập phải xây thêm (4 kè tính bằng 1 trạm)', 'them'], days: [15, 60, 'ngày thời hạn', 'us'] },
     start: (c, P) => ({ grant: Math.round(P.grant[0] + (P.grant[1] - P.grant[0]) * 0.3), target: 4, days: 20 }),
-    summary: (o) => `Nhận ${o.grant.toLocaleString('vi-VN')} ₫ ngay, phải xây thêm ${o.target} trạm bơm hoặc kè trong ${o.days} ngày; không đạt thì hoàn trả gấp 1,5 lần`,
-    worth: (o) => o.grant - o.target * 9000,
+    summary: (o) => `Nhận ${o.grant.toLocaleString('vi-VN')} ₫ ngay, phải xây thêm ${o.target} trạm bơm chống ngập (hoặc mỗi 4 kè tính 1 trạm) trong ${o.days} ngày; không đạt thì hoàn trả gấp 1,5 lần`,
+    worth: (o) => o.grant - o.target * SERVICES.floodpump.cost,
   },
   airline: {
     who: ['Hãng bay Sky Lotus', 'Hãng bay Pacific Wings', 'Hãng bay Dragon Air'],
@@ -366,14 +366,14 @@ export function councilHour(c) {
   // hết hạn
   for (const it of k.inbox) {
     if (it.status !== 'pending' || c.day < it.expires) continue;
-    if (it.kind === 'dilemma') { decide(c, it.id, it.options[it.options.length - 1].id, true); }
+    if (it.kind === 'dilemma') { decide(c, it.id, defaultOption(it.type).id, true); }
     else { it.status = 'expired'; c.events.push({ type: 'council', text: `📨 Hết hạn đàm phán với ${it.who}: họ chuyển sang tỉnh khác` }); }
   }
   // cam kết của hợp đồng hỗ trợ: tới hạn mà chưa đủ công trình thì hoàn trả gấp 1,5
   for (const d of k.deals) {
     if (d.type !== 'grant' || d.checked || c.day < d.until) continue;
     d.checked = true;
-    const built = c.services.filter((s) => (s.type === 'floodpump' || s.type === 'levee') && !(s.build > 0)).length - d.base;
+    const built = Math.floor(floodWorks(c) - d.base);
     if (built >= d.target) c.events.push({ type: 'council', text: `✅ Đã hoàn thành cam kết với ${d.who}: xây ${built} công trình chống ngập` });
     else { const back = Math.round(d.grant * 1.5); c.money -= back; c.events.push({ type: 'council', text: `⚠️ Không đạt cam kết với ${d.who} (mới xây ${Math.max(0, built)}/${d.target}): hoàn trả ${back.toLocaleString('vi-VN')} ₫` }); }
   }
@@ -414,7 +414,7 @@ function newDeal(c, rng) {
   if (!can.length) return null;
   const type = can[(rng() * can.length) | 0], D = DEALS[type], who = D.who[(rng() * D.who.length) | 0];
   const offer = clampOffer(type, D.start(c, D.params));
-  const it = { id: c.council.nextId++, kind: 'deal', type, who, day: c.day, expires: c.day + 5, status: 'pending', offer, chat: [{ from: 'them', text: `Kính gửi thị trưởng, ${who} xin đề xuất: ${D.summary(offer)}. Mong được hợp tác.` }] };
+  const it = { id: c.council.nextId++, kind: 'deal', type, who, day: c.day, expires: c.day + 5, status: 'pending', offer, offer0: { ...offer }, chat: [{ from: 'them', text: `Kính gửi thị trưởng, ${who} xin đề xuất: ${D.summary(offer)}. Mong được hợp tác.` }] };
   c.council.inbox.push(it);
   c.events.push({ type: 'council', text: `📨 ${who} gửi đề nghị hợp tác (vào 📨 Hộp thư để đàm phán)` });
   return it;
@@ -426,7 +426,11 @@ export function decide(c, id, optId, auto = false, by = null) {
   if (!it || it.status !== 'pending') return { ok: false, reason: 'Việc này đã xử lý' };
   const o = DILEMMAS[it.type].options.find((x) => x.id === optId);
   if (!o) return { ok: false, reason: 'Không có phương án này' };
-  c.money += o.money;
+  if (o.money < 0 && c.money + o.money < 0 && !auto) {
+    if (!by) return { ok: false, reason: 'Không đủ tiền cho phương án này' };
+    return decide(c, id, defaultOption(it.type).id, true); // chủ tịch quận không chi quá quỹ: quyết theo mặc định
+  }
+  c.money += auto && o.money > 0 ? Math.round(o.money / 2) : o.money; // quá hạn mới xử lý: khoản thu chỉ còn một nửa
   for (const [key, v, days] of o.mods) c.council.mods.push({ key, v, until: c.day + days, from: it.type });
   if (o.rating) c.council.ratingBias += o.rating;
   if (o.fire) { // làm ngơ chuyện phòng cháy: vài căn nhà ở bốc cháy thật
@@ -436,8 +440,20 @@ export function decide(c, id, optId, auto = false, by = null) {
     c.dirty.fx = true;
   }
   it.status = 'done'; it.chose = optId; it.auto = auto; if (by) it.by = by;
-  c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : by ? `🏙️ ${by} quyết` : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${o.money ? ` (${o.money > 0 ? '+' : ''}${o.money.toLocaleString('vi-VN')} ₫)` : ''}` });
+  const got = auto && o.money > 0 ? Math.round(o.money / 2) : o.money;
+  c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : by ? `🏙️ ${by} quyết` : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${got ? ` (${got > 0 ? '+' : ''}${got.toLocaleString('vi-VN')} ₫)` : ''}` });
   return { ok: true, option: o };
+}
+
+/** Số công trình chống ngập đã xong tính cho hợp đồng hỗ trợ: trạm bơm = 1, kè (rẻ hơn nhiều) = 1/4. */
+const floodWorks = (c) => c.services.reduce((n, s) => n + (s.build > 0 ? 0 : s.type === 'floodpump' ? 1 : s.type === 'levee' ? 0.25 : 0), 0);
+
+/** Phương án mặc định khi quá hạn hoặc không đủ tiền: phương án ít tiền nhất (gần 0 nhất), bằng nhau thì cái sau (chần chừ). */
+export function defaultOption(type) {
+  const opts = DILEMMAS[type].options;
+  let best = opts[opts.length - 1];
+  for (const o of opts) if (Math.abs(o.money) < Math.abs(best.money)) best = o;
+  return best;
 }
 
 /** Ký hợp đồng theo đề nghị hiện tại. */
@@ -446,7 +462,7 @@ export function signDeal(c, id) {
   if (!it || it.status !== 'pending') return { ok: false, reason: 'Đàm phán đã kết thúc' };
   const o = clampOffer(it.type, it.offer), d = { type: it.type, who: it.who, from: c.day, until: c.day + o.days, ...o };
   if (it.type === 'investor') c.money += o.invest;
-  if (it.type === 'grant') { c.money += o.grant; d.base = c.services.filter((s) => (s.type === 'floodpump' || s.type === 'levee') && !(s.build > 0)).length; }
+  if (it.type === 'grant') { c.money += o.grant; d.base = floodWorks(c); }
   c.council.deals.push(d);
   it.status = 'signed';
   c.events.push({ type: 'council', text: `🤝 Đã ký với ${it.who}: ${DEALS[it.type].summary(o)}` });
@@ -458,11 +474,26 @@ export function rejectDeal(c, id) {
   it.status = 'rejected';
   return { ok: true };
 }
-/** Cập nhật đề nghị mới của đối tác (từ LLM hoặc mẫu dự phòng): ép vào khung, ghi vào lịch sử trò chuyện. */
+export const MAX_TURNS = 6; // số lượt mặc cả tối đa
+const STEP = 0.1; // mỗi lượt đối tác nhượng tối đa 10% khung về phía thành phố
+
+/**
+ * Cập nhật đề nghị mới của đối tác (từ LLM hoặc mẫu dự phòng): ép vào khung, mỗi lượt chỉ nhượng tối đa STEP khung
+ * so với đề nghị trước (lời lẽ thế nào cũng không moi được hơn), quá MAX_TURNS lượt thì là mức cuối; ghi lịch sử trò chuyện.
+ */
 export function applyCounter(c, id, reply, offer, status) {
   const it = c.council.inbox.find((i) => i.id === id && i.kind === 'deal');
   if (!it || it.status !== 'pending') return null;
-  if (offer) it.offer = clampOffer(it.type, offer);
+  if (offer) {
+    const P = DEALS[it.type].params, prev = it.offer, o = clampOffer(it.type, offer);
+    for (const k in P) {
+      const [lo, hi, , want] = P[k], lim = Math.max(1, (hi - lo) * STEP);
+      o[k] = want === 'us' ? Math.min(o[k], prev[k] + lim) : Math.max(o[k], prev[k] - lim);
+    }
+    it.offer = clampOffer(it.type, o);
+  }
+  if (it.chat.filter((m) => m.from === 'us').length >= MAX_TURNS && status === 'negotiating') status = 'final';
+  if (status === 'final') it.final = true;
   it.chat.push({ from: 'them', text: String(reply || '').slice(0, 800) });
   if (status === 'walkaway') { it.status = 'rejected'; it.walked = true; }
   return it;
@@ -471,13 +502,18 @@ export function applyCounter(c, id, reply, offer, status) {
 export function counterFallback(it) {
   const P = DEALS[it.type].params, o = { ...it.offer }, turns = it.chat.filter((m) => m.from === 'us').length;
   if (turns > 3) return { reply: 'Đây là mức cuối cùng của chúng tôi. Mong thị trưởng cân nhắc.', offer: o, status: 'final' };
-  for (const k in P) { const [lo, hi, , want] = P[k], step = (hi - lo) * 0.08; o[k] = want === 'us' ? o[k] + step : o[k] - step; }
+  const o0 = it.offer0 || it.offer; // nhượng cộng dồn từ đề nghị đầu (tham số nguyên không bị làm tròn ngược)
+  for (const k in P) { const [lo, hi, , want] = P[k], step = Math.max(1, (hi - lo) * 0.08) * turns; o[k] = want === 'us' ? o0[k] + step : o0[k] - step; }
   return { reply: 'Chúng tôi đã cân nhắc ý kiến của thị trưởng và xin điều chỉnh đề nghị như sau.', offer: clampOffer(it.type, o), status: 'negotiating' };
 }
 
+/** Bỏ < > khỏi mọi chuỗi trong dữ liệu nạp từ file lưu (file lưu chia sẻ không chèn được mã vào trang). */
+export const cleanText = (v) => (typeof v === 'string' ? v.replace(/[<>]/g, '') : Array.isArray(v) ? v.map(cleanText) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, cleanText(x)])) : v);
+
 export function initCouncil(c, o = {}) {
+  o = cleanText(o);
   c.council = {
-    inbox: Array.isArray(o.inbox) ? o.inbox.slice(-40) : [], deals: Array.isArray(o.deals) ? o.deals.filter((d) => DEALS[d.type]) : [],
+    inbox: Array.isArray(o.inbox) ? o.inbox.slice(-40).filter((i) => i && (i.kind !== 'dilemma' || DILEMMAS[i.type]) && (i.kind !== 'deal' || DEALS[i.type])) : [], deals: Array.isArray(o.deals) ? o.deals.filter((d) => DEALS[d.type]) : [],
     mods: Array.isArray(o.mods) ? o.mods : [], reviews: Array.isArray(o.reviews) ? o.reviews.slice(-120) : [],
     ratingBias: Number.isFinite(+o.ratingBias) ? +o.ratingBias : 0, nextId: Math.max(1, o.nextId | 0),
   };

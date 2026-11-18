@@ -1309,8 +1309,11 @@ function tubeHouse(g, r, x, w, d, floors, shopSign) {
 }
 
 /** Nhà theo phong cách Việt Nam cho các khu dân cư thấp / trung bình, liền kề, hỗn hợp, cửa hàng, giải trí, ký túc xá. Không hợp thì trả null. */
+const VN_KIND = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop' };
+/** Khu này có nhà kiểu Việt Nam không (tra bảng, không dựng hình). */
+export const hasVN = (zone) => !!VN_KIND[zone];
 export function growableVN(zone, level, variant) {
-  const vn = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop' }[zone];
+  const vn = VN_KIND[zone];
   if (!vn) return null;
   const r = mulberry32(zone * 977 + level * 131 + variant * 17 + 3), g = new GB();
   g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);

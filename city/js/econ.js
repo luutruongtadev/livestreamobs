@@ -88,6 +88,9 @@ export function tourismScore(c) {
   return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour') * (c.street ? streetBonus(c).tour : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
 }
 
+/** Hệ số khách chịu ở lại theo giá phòng: giá 12 ₫ như cũ (×1), rẻ thì đông hơn, đắt thì vắng; tiền phòng lãi nhất quanh 26 ₫. */
+export const feeStay = (fee) => clamp(1.3 - fee / 40, 0.3, 1.2);
+
 /**
  * Mỗi giờ: du khách tới (ban ngày), khách lưu trú ở khách sạn trả tiền phòng, ai cũng tiêu tiền ở quán xá, cửa hàng.
  * spend(c, n, perHead): rải tiền tiêu vào doanh nghiệp (people.js). Trả về tiền phòng thành phố thu trong giờ.
@@ -102,7 +105,7 @@ export function tourismHour(c, spend) {
   // lưu trú: khách ở lại 1–3 đêm nếu còn phòng; mỗi giờ một phần khách trả phòng
   const leave = Math.ceil(t.guests / 36);
   t.guests = Math.max(0, t.guests - leave);
-  const stay = Math.min(Math.round(arrive * 0.55), Math.max(0, sc.beds - t.guests));
+  const stay = Math.min(Math.round(arrive * 0.55 * feeStay(t.roomFee)), Math.max(0, sc.beds - t.guests)); // phòng đắt thì ít khách ở lại
   t.guests += stay;
   const dayTrip = arrive - stay;
   const rooms = h === 20 ? t.guests * t.roomFee : 0; // tính tiền phòng mỗi đêm lúc 20 giờ
@@ -131,9 +134,11 @@ export function initEcon(c, o = {}) {
   if (!c.market.hist.length) c.market.hist.push(MKT_KINDS.map((k) => c.market.p[k]));
   const t = o.tour || {};
   initIntl(c, o.intl || {});
+  const rp = Array.isArray(o.rp) ? o.rp : [];
+  if (c.econ) c.econ.pool = { r: Math.max(0, +rp[0] || 0), c: Math.max(0, +rp[1] || 0), i: Math.max(0, +rp[2] || 0) }; // thuế ngày thường giữ lại chia cho cuối tuần (smoothWeek)
   c.tour = { guests: Math.max(0, t.guests | 0), roomFee: clamp(Number.isFinite(+t.roomFee) ? +t.roomFee : 12, 0, 40), day: { visitors: 0, stayed: 0, rooms: 0, ferry: 0, isle: 0 }, last: null, score: null };
 }
 
 export function packEcon(c) {
-  return { budget: c.budget, market: { p: c.market.p, hist: c.market.hist }, tour: { guests: c.tour.guests, roomFee: c.tour.roomFee }, intl: packIntl(c) };
+  return { budget: c.budget, market: { p: c.market.p, hist: c.market.hist }, tour: { guests: c.tour.guests, roomFee: c.tour.roomFee }, intl: packIntl(c), rp: c.econ && c.econ.pool ? ['r', 'c', 'i'].map((k) => Math.round(c.econ.pool[k])) : [] };
 }

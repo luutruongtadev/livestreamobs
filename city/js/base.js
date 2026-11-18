@@ -119,16 +119,16 @@ export const SERVICES = {
   pump: { name: 'Trạm bơm nước', icon: '💧', group: 'water', cost: 7000, upkeep: 140, size: 2, water: 1000, needWater: true, unlock: 0, desc: 'Cấp nhiều nước, phải đặt sát bờ; đừng đặt gần cống xả kẻo dân uống nước bẩn' },
   outlet: { name: 'Cống xả thải', icon: '🕳️', group: 'water', cost: 2500, upkeep: 60, size: 1, sewage: 400, needWater: true, waterPol: 9, unlock: 0, desc: 'Xả nước thải ra sông / biển, làm bẩn vùng nước quanh cống' },
   treat: { name: 'Nhà máy xử lý nước thải', icon: '♻️', group: 'water', cost: 16000, upkeep: 320, size: 2, sewage: 1800, needWater: true, waterPol: 2.5, unlock: 1000, desc: 'Xử lý nhiều nước thải, gần như không ô nhiễm' },
-  landfill: { name: 'Bãi rác', icon: '🗑️', group: 'trash', cost: 6000, upkeep: 130, size: 3, trash: 800, trucks: 3, cover: 'trash', radius: 26, ground: 7, air: 3, road: true, unlock: 120, desc: 'Xe rác chạy tới từng con đường trong bán kính để thu gom; bãi làm bẩn đất quanh nó' },
+  landfill: { name: 'Bãi rác', icon: '🗑️', group: 'trash', cost: 6000, upkeep: 90, size: 3, trash: 800, trucks: 3, cover: 'trash', radius: 26, ground: 7, air: 3, road: true, unlock: 120, desc: 'Xe rác chạy tới từng con đường trong bán kính để thu gom; bãi làm bẩn đất quanh nó' },
   incinerator: { name: 'Lò đốt rác', icon: '🔥', group: 'trash', cost: 24000, upkeep: 420, size: 2, trash: 1800, trucks: 4, power: 60, cover: 'trash', radius: 38, air: 5, road: true, unlock: 1000, desc: 'Nhiều xe rác hơn, vùng thu gom rộng, phát thêm chút điện' },
   park: { name: 'Công viên nhỏ', icon: '🌳', group: 'park', cost: 800, upkeep: 12, size: 1, cover: 'park', radius: 5, green: 1, unlock: 0, desc: 'Tăng giá trị đất, lọc bớt bụi và tiếng ồn quanh nó' },
   plaza: { name: 'Quảng trường', icon: '⛲', group: 'park', attract: 0.5, cost: 3500, upkeep: 45, size: 2, cover: 'park', radius: 9, green: 1, unlock: 400, desc: 'Tăng giá trị đất trên vùng rộng' },
   stadium: { name: 'Sân vận động', icon: '🏟️', group: 'park', attract: 3, cost: 45000, upkeep: 700, size: 4, cover: 'park', radius: 18, road: true, unlock: 2500, desc: 'Niềm tự hào của thành phố' },
-  clinic: { name: 'Trạm y tế', icon: '🏥', group: 'civic', cost: 9000, upkeep: 190, size: 2, cover: 'health', radius: 14, ambulances: 2, road: true, unlock: 120, desc: 'Xe cứu thương chạy tới nhà người bệnh; kẹt xe thì tới muộn' },
-  school: { name: 'Trường tiểu học', icon: '🏫', group: 'civic', cost: 9500, upkeep: 200, size: 2, cover: 'edu', radius: 14, eduLevel: 1, students: 200, road: true, unlock: 120, desc: 'Trẻ 6–11 tuổi trong bán kính được đi học' },
-  highschool: { name: 'Trường trung học', icon: '📚', group: 'civic', cost: 14000, upkeep: 260, size: 2, cover: 'edu', radius: 22, eduLevel: 2, students: 260, road: true, unlock: 400, desc: 'Học sinh 12–17 tuổi; cần cho việc làm ở cửa hàng lớn và văn phòng' },
-  police: { name: 'Đồn công an', icon: '🚓', group: 'civic', cost: 8000, upkeep: 160, size: 2, cover: 'police', radius: 16, cars: 2, road: true, unlock: 400, desc: 'An ninh, tăng giá trị đất; xe công an tới hiện trường tai nạn và vụ cướp' },
-  fire: { name: 'Trạm cứu hoả', icon: '🚒', group: 'civic', cost: 7500, upkeep: 150, size: 2, cover: 'fire', radius: 16, trucks: 2, road: true, unlock: 400, desc: 'Xe cứu hoả phải chạy tới kịp trước khi nhà cháy rụi' },
+  clinic: { name: 'Trạm y tế', icon: '🏥', group: 'civic', cost: 9000, upkeep: 135, size: 2, cover: 'health', radius: 14, ambulances: 2, road: true, unlock: 120, desc: 'Xe cứu thương chạy tới nhà người bệnh; kẹt xe thì tới muộn' },
+  school: { name: 'Trường tiểu học', icon: '🏫', group: 'civic', cost: 9500, upkeep: 140, size: 2, cover: 'edu', radius: 14, eduLevel: 1, students: 200, road: true, unlock: 120, desc: 'Trẻ 6–11 tuổi trong bán kính được đi học' },
+  highschool: { name: 'Trường trung học', icon: '📚', group: 'civic', cost: 14000, upkeep: 180, size: 2, cover: 'edu', radius: 22, eduLevel: 2, students: 260, road: true, unlock: 400, desc: 'Học sinh 12–17 tuổi; cần cho việc làm ở cửa hàng lớn và văn phòng' },
+  police: { name: 'Đồn công an', icon: '🚓', group: 'civic', cost: 8000, upkeep: 110, size: 2, cover: 'police', radius: 16, cars: 2, road: true, unlock: 400, desc: 'An ninh, tăng giá trị đất; xe công an tới hiện trường tai nạn và vụ cướp' },
+  fire: { name: 'Trạm cứu hoả', icon: '🚒', group: 'civic', cost: 7500, upkeep: 105, size: 2, cover: 'fire', radius: 16, trucks: 2, road: true, unlock: 400, desc: 'Xe cứu hoả phải chạy tới kịp trước khi nhà cháy rụi' },
   university: { name: 'Trường đại học', icon: '🎓', group: 'civic', cost: 30000, upkeep: 600, size: 3, cover: 'edu', radius: 40, eduLevel: 3, students: 300, road: true, unlock: 1000, desc: 'Đào tạo lao động trình độ cao cho văn phòng' },
   parking: { name: 'Bãi đỗ xe', icon: '🅿️', group: 'transit', cost: 2500, upkeep: 30, size: 2, spots: 60, radius: 7, road: true, unlock: 120, desc: 'Chỗ đỗ cho xe tới các toà nhà trong bán kính, đỡ cảnh chạy vòng tìm chỗ' },
   port: { name: 'Cảng hàng hoá', icon: '⚓', group: 'transit', faceWater: true, cost: 35000, upkeep: 500, size: 3, needWater: true, road: true, outside: true, ground: 2, unlock: 1000, desc: 'Cửa ngõ xuất nhập khẩu thứ hai: xe tải khỏi phải chạy ra tận đường cao tốc' },
@@ -250,7 +250,8 @@ export const TRANSIT = {
 export const DEPOT_FREE = 4; // chưa có bến xe thì các tuyến xe buýt + tàu điện chạy chung tối đa chừng này xe
 
 // giá hàng trong chuỗi cung ứng (mỗi đơn vị)
-export const PRICE = { raw: 3, goods: 8, retail: 15, market: 10, importMult: 1.4, rawImportMult: 1.2, exportMult: 0.85, load: 8 };
+// load: một xe hàng cho cửa hàng, chợ; loadF: xe nguyên liệu lớn nhất cho nhà máy, xưởng (chở đủ khoảng 8 giờ chạy máy)
+export const PRICE = { raw: 3, goods: 8, retail: 15, market: 10, importMult: 1.4, rawImportMult: 1.1, exportMult: 0.85, load: 8, loadF: 32 };
 export const priceOf = (kind) => (kind === 'goods' ? PRICE.goods : PRICE.raw);
 
 // mua đất: ô đất phải kề phần đã có, càng có nhiều càng đắt

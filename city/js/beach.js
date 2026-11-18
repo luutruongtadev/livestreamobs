@@ -118,14 +118,17 @@ export function smoothBeach(c) {
     target[gy * V + gx] = t; top = Math.max(top, t);
   }
   // vành sau bãi: dốc thoải lên đất liền (tối đa 5 ô), chỉ hạ chứ không đắp
-  for (let ring = 1; ring <= 5; ring++) for (let gy = 1; gy < N; gy++) for (let gx = 1; gx < N; gx++) {
-    const k = gy * V + gx;
-    if (!Number.isNaN(target[k])) continue;
-    let nb = -1;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const t = target[(gy + dy) * V + gx + dx]; if (!Number.isNaN(t) && (ring === 1 ? true : t > -50)) nb = Math.max(nb, t); }
-    if (nb < 0) continue;
-    if (cellsOf(gx, gy).some((i) => c.water[i])) continue;
-    target[k] = nb + 0.8; // mỗi vòng cao thêm một chút
+  for (let ring = 1; ring <= 5; ring++) {
+    const prev = target.slice(); // đọc bản chụp vòng trước: mỗi vòng chỉ lan thêm đúng 1 ô
+    for (let gy = 1; gy < N; gy++) for (let gx = 1; gx < N; gx++) {
+      const k = gy * V + gx;
+      if (!Number.isNaN(target[k])) continue;
+      let nb = -1;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const t = prev[(gy + dy) * V + gx + dx]; if (!Number.isNaN(t) && (ring === 1 ? true : t > -50)) nb = Math.max(nb, t); }
+      if (nb < 0) continue;
+      if (cellsOf(gx, gy).some((i) => c.water[i])) continue;
+      target[k] = nb + 0.8; // mỗi vòng cao thêm một chút
+    }
   }
   // nước nông sát bãi
   for (let gy = 1; gy < N; gy++) for (let gx = 1; gx < N; gx++) {

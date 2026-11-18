@@ -5,8 +5,8 @@
 // công cộng nhỏ bằng quỹ xây dựng (chủ tịch chọn loại, game chọn chỗ phủ nhiều dân thiếu nhất, không phá nhà). LLM (qua /api/city/ai, kind 'district')
 // chỉ chọn mức chương trình, viết lời nhận lệnh, báo cáo và chọn phương án; game ép mọi thứ vào khung và tự tính hậu quả.
 // Không có LLM thì dùng kế hoạch, báo cáo, lựa chọn dự phòng bên dưới.
-import { N, clamp, jobCap, SERVICES } from './base.js';
-import { DILEMMAS, decide } from './council.js';
+import { N, clamp, jobCap, SERVICES, RATE } from './base.js';
+import { DILEMMAS, decide, cleanText } from './council.js';
 import { stormSeason } from './seasons.js';
 
 export const DIST_UNLOCK = 400; // số dân để lập quận
@@ -119,7 +119,11 @@ export function splitDistricts(c, k) {
   D.on = true;
   for (const q of D.list) q.hall = null; // xây trụ sở mới ở trung tâm từng quận
   if (c.fn && c.fn.syncHalls) c.fn.syncHalls(c);
-  rebuildDmap(c); districtStats(c); for (const q of D.list) if (!q.lastStat) q.lastStat = { ...q.stat };
+  rebuildDmap(c); districtStats(c);
+  for (const q of D.list) { // ranh giới đổi: số liệu kỳ trước và mốc của việc đang giao không còn so được
+    q.lastStat = { ...q.stat };
+    if (q.order && q.order.status === 'active') { q.order.status = 'cancelled'; q.mode = 'auto'; q.nextPlan = c.day; }
+  }
   refreshDistricts(c);
   c.events.push({ type: 'council', text: `🏙️ Thành phố chia thành ${k} quận, mỗi quận có chủ tịch riêng (bảng 🏙️ Quận)` });
   return { ok: true, k };
@@ -133,7 +137,9 @@ export function moveSeat(c, d, x, y) {
   if (c.water[y * N + x]) return { ok: false, reason: 'Trụ sở không đặt dưới nước được' };
   if (c.dist.list.some((o, k) => k !== d && o.x === x && o.y === y)) return { ok: false, reason: 'Trùng trụ sở quận khác' };
   if (c.fn && c.fn.moveHall) { const r = c.fn.moveHall(c, d, x, y); if (!r.ok) return r; } else { q.x = x; q.y = y; }
-  rebuildDmap(c); districtStats(c); refreshDistricts(c);
+  rebuildDmap(c); districtStats(c);
+  for (const o of c.dist.list) { o.lastStat = { ...o.stat }; if (o.order && o.order.status === 'active') o.order.start = o.stat[o.order.goal]; }
+  refreshDistricts(c);
   return { ok: true };
 }
 
@@ -142,8 +148,8 @@ export function dissolve(c) { c.dist.on = false; c.dist.list = []; if (c.fn && c
 
 // ───────────────────────── chương trình, chi phí, hiệu ứng ─────────────────────────
 
-/** Cỡ quận (nhân chi phí): theo số dân + việc làm, 0,6..4. */
-const sizeK = (q) => clamp(((q.stat ? q.stat.pop + q.stat.jobs * 0.5 : 0) || 300) / 500, 0.6, 4);
+/** Cỡ quận (nhân chi phí): theo số dân + việc làm, từ 0,6 (quận lớn trả theo số dân, không có trần thấp). */
+const sizeK = (q) => clamp(((q.stat ? q.stat.pop + q.stat.jobs * 0.5 : 0) || 300) / 500, 0.6, 60);
 export const progCost = (q, k, lv) => Math.round(PROGRAMS[k].cost * lv * sizeK(q));
 export const planCost = (q, prog) => PKEYS.reduce((s, k) => s + progCost(q, k, prog[k] | 0), 0);
 
@@ -355,20 +361,27 @@ export function setBuildCap(c, d, v) {
   return { ok: true };
 }
 
-/** Quỹ xây dựng đã tiêu trong 7 ngày gần nhất. */
-export const buildSpent = (c, q) => (q.builds || []).filter((b) => b.day > c.day - 7).reduce((s, b) => s + b.cost, 0);
+/** Quỹ xây dựng đã tiêu trong 7 ngày gần nhất (tiền xây + phí vận hành của công trình quận trong những ngày đó). */
+export const buildSpent = (c, q) => (q.builds || []).reduce((s, b) => s + (b.day > c.day - 7 ? b.cost : 0) + (BUILDS.includes(b.type) ? buildUpkeep(b.type) * clamp(c.day - b.day, 0, 7) : 0), 0);
 
-/** Các công trình quận d xây được lúc này (trong quỹ, đã mở khoá, có chỗ phủ đủ nhiều dân thiếu): [{ type, need, gain, cost, x, y }]. */
+/** Phí vận hành mỗi ngày của một công trình quận. */
+export const buildUpkeep = (t) => Math.round(SERVICES[t].upkeep * RATE);
+
+/**
+ * Các công trình quận d xây được lúc này: [{ type, need, gain, cost, upkeep, x, y }]. Quỹ 7 ngày phải đủ cả tiền xây lẫn
+ * 7 ngày vận hành; thành phố đang lỗ thì không xây thêm (công trình mới còn tốn phí mãi).
+ */
 export function buildCands(c, d) {
   const q = c.dist.list[d], out = [];
   if (!q || !c.fn || !c.fn.distBuildPlan) return out;
-  const left = q.bcap * PERSONAS[q.persona].spend - buildSpent(c, q);
+  const left = q.bcap * PERSONAS[q.persona].spend - buildSpent(c, q), st = c.stats || {}, net = (st.income || 0) - (st.expense || 0);
   for (const t of BUILDS) {
-    const cost = SERVICES[t].cost;
-    if (cost > left || cost > c.money - BUILD_RESERVE) continue;
+    const cost = SERVICES[t].cost, up = buildUpkeep(t);
+    if (cost + up * 7 > left || cost > c.money - BUILD_RESERVE || (!c.sandbox && net - up < 0)) continue; // chế độ Open tiền vô hạn
+    if (q.nope && q.nope[t] > c.day) continue; // thị trưởng vừa bác loại này
     const p = c.fn.distBuildPlan(c, d, t);
     if (p.x == null || p.gain < BUILD_MIN) continue;
-    out.push({ type: t, need: p.need, gain: p.gain, cost, x: p.x, y: p.y });
+    out.push({ type: t, need: p.need, gain: p.gain, cost, upkeep: up, x: p.x, y: p.y });
   }
   return out;
 }
@@ -399,7 +412,7 @@ export function approveBuild(c, d, yes) {
   const q = c.dist.list[d], p = q && q.prop;
   if (!p || p.status !== 'ask') return { ok: false, reason: 'Không có đề xuất chờ duyệt' };
   q.prop = null;
-  if (!yes) { c.events.push({ type: 'council', text: `❌ Thị trưởng bác đề xuất xây ${bName(p.type)} của ${q.name}` }); return { ok: true }; }
+  if (!yes) { (q.nope || (q.nope = {}))[p.type] = c.day + 20; q.nextBuild = c.day + 5; c.events.push({ type: 'council', text: `❌ Thị trưởng bác đề xuất xây ${bName(p.type)} của ${q.name}` }); return { ok: true }; }
   return doBuild(c, d, p.type, 'ask');
 }
 
@@ -408,17 +421,17 @@ function buildHour(c, D) {
   D.list.forEach((q, d) => {
     const p = q.prop;
     if (!p) return;
-    if (p.status === 'ask') { if (c.day >= p.until) { q.prop = null; c.events.push({ type: 'council', text: `⌛ Đề xuất xây ${bName(p.type)} của ${q.name} hết hạn` }); } return; }
+    if (p.status === 'ask') { if (c.day >= p.until) { q.prop = null; q.nextBuild = c.day + 7; (q.nope || (q.nope = {}))[p.type] = c.day + 10; c.events.push({ type: 'council', text: `⌛ Đề xuất xây ${bName(p.type)} của ${q.name} hết hạn` }); } return; }
     if (q.mode !== 'auto' || q.build === 'off') { q.prop = null; return; }
     if (c.hour < p.at) return;
     const a = p.ai;
     if (a && a.type === 'none') { q.prop = null; q.note = String(a.why || 'Quận chưa cần xây thêm.').slice(0, 400); q.noteAi = true; return; }
     if (a && p.cands.some((o) => o.type === a.type)) { p.type = a.type; p.why = String(a.why || '').slice(0, 300) || p.why; p.aiw = true; }
     const o = p.cands.find((x) => x.type === p.type);
-    Object.assign(p, { x: o.x, y: o.y, cost: o.cost, need: o.need });
+    Object.assign(p, { x: o.x, y: o.y, cost: o.cost, upkeep: o.upkeep, need: o.need });
     if (q.build === 'free') { q.prop = null; doBuild(c, d, p.type, 'auto'); return; }
     p.status = 'ask'; p.until = c.day + 3;
-    c.events.push({ type: 'council', text: `✋ ${q.name} xin xây ${bName(p.type)} (${vnd(p.cost)}): duyệt trong bảng 🏙️ Quận` });
+    c.events.push({ type: 'council', text: `✋ ${q.name} xin xây ${bName(p.type)} (${vnd(p.cost)}, vận hành ${vnd(p.upkeep)}/ngày): duyệt trong bảng 🏙️ Quận` });
   });
 }
 
@@ -493,7 +506,7 @@ export function districtHour(c) {
       let r = rng() * tot, d = 0;
       for (; d < D.list.length - 1; d++) { r -= (D.list[d].stat ? D.list[d].stat.pop : 1) + 1; if (r <= 0) break; }
       it.district = d;
-      if (D.list[d].mode === 'auto') { it.chairAt = c.hour + 4; jobs.push({ task: 'pick', d, id: it.id }); }
+      if (D.list[d].mode === 'auto') { it.chairAt = Math.max(c.hour + 4, it.expires * 24 - 18); jobs.push({ task: 'pick', d, id: it.id }); }
     } else if (it.chairAt != null && c.hour >= it.chairAt) {
       const q = D.list[it.district];
       if (!q || q.mode !== 'auto') { delete it.chairAt; continue; }
@@ -525,6 +538,7 @@ export function districtHour(c) {
         const o = q.order, now = q.stat[o.goal], ok = KPIS[o.goal].down ? now < o.start || now === 0 : now > o.start;
         o.status = ok ? 'done' : 'failed'; o.end = now;
         if (ok) q.done++; else q.failed++;
+        q.mode = 'auto'; q.nextPlan = c.day; // xong việc: chủ tịch tự lập kế hoạch lại, không giữ mức của lệnh cũ mãi
         result = { ok, goal: o.goal, from: o.start, to: now };
         c.events.push({ type: 'council', text: `${ok ? '✅' : '❌'} ${q.name}: việc giao "${o.text.slice(0, 40)}" ${ok ? 'hoàn thành' : 'chưa đạt'} (${KPIS[o.goal].name} ${o.start} → ${now})` });
       }
@@ -544,11 +558,13 @@ export function districtHour(c) {
 // ───────────────────────── lưu / nạp ─────────────────────────
 
 export function initDistricts(c, o = {}) {
+  o = cleanText(o);
   const list = Array.isArray(o.list) ? o.list.filter((q) => q && PERSONAS[q.persona]).slice(0, 8).map((q, j) => ({
     name: `Quận ${j + 1}`, chair: String(q.chair || 'Chủ tịch'), persona: q.persona, skill: clamp(+q.skill || 0.5, 0.2, 1), since: q.since | 0, done: q.done | 0, failed: q.failed | 0,
     x: clamp(q.x | 0, 0, N - 1), y: clamp(q.y | 0, 0, N - 1), mode: MODES[q.mode] ? q.mode : 'auto', cap: clamp(+q.cap || 0, 0, 50000), prog: q.prog || {},
     order: q.order || null, reports: Array.isArray(q.reports) ? q.reports.slice(-8) : [], nextPlan: q.nextPlan | 0, nextReport: q.nextReport | 0, note: q.note || '', lastStat: q.lastStat || null, stat: q.stat || null, hall: Number.isFinite(+q.hall) && q.hall !== null ? +q.hall : null,
     build: BUILD_MODES[q.build] ? q.build : 'ask', bcap: clamp(Number.isFinite(+q.bcap) && q.bcap !== null ? +q.bcap : 20000, 0, 200000), nextBuild: q.nextBuild | 0,
+    nope: q.nope && typeof q.nope === 'object' ? Object.fromEntries(Object.entries(q.nope).filter(([t]) => BUILDS.includes(t)).map(([t, v]) => [t, v | 0])) : {},
     builds: Array.isArray(q.builds) ? q.builds.filter((b) => b && BUILDS.includes(b.type)).slice(-12).map((b) => ({ type: b.type, day: b.day | 0, cost: Math.max(0, +b.cost || 0), x: b.x | 0, y: b.y | 0, how: String(b.how || 'auto').slice(0, 6) })) : [],
     prop: q.prop && q.prop.status === 'ask' && BUILDS.includes(q.prop.type) ? { type: q.prop.type, why: String(q.prop.why || '').slice(0, 300), day: q.prop.day | 0, until: q.prop.until | 0, status: 'ask', x: q.prop.x | 0, y: q.prop.y | 0, cost: +q.prop.cost || 0, need: q.prop.need | 0, aiw: !!q.prop.aiw } : null,
   })) : [];

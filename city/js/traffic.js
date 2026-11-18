@@ -96,7 +96,8 @@ export function rebuildTraffic(c) {
   }
   const gone = tr.peds.filter((p) => p.steps.some((st, k) => k >= p.pi && c.edges.get(st.e.id) !== st.e));
   if (gone.length) { tr.peds = tr.peds.filter((p) => !gone.includes(p)); for (const p of gone) c.onArrive(c, p.cb, null); }
-  const lost = tr.vehicles.filter((v) => v.steps.some((s, k) => k >= v.pi && c.edges.get(s.e.id) !== s.e));
+  // xe mất đường: đoạn đã phá, đường thành một chiều ngược hướng xe, hoặc một chiều bị đảo (đầu a đổi). Xác xe tai nạn để vụ tai nạn tự dọn.
+  const lost = tr.vehicles.filter((v) => !v.wreck && v.steps.some((s, k) => k >= v.pi && (c.edges.get(s.e.id) !== s.e || !canTravel(s.e, s.fwd, v.kind) || (v.ends && v.ends[k] !== s.e.a))));
   if (lost.length) {
     tr.vehicles = tr.vehicles.filter((v) => !lost.includes(v));
     for (const v of lost) c.onArrive(c, v.cb, null);
@@ -172,7 +173,7 @@ export function findPath(c, from, to, kind = 'car') {
 }
 
 function place(v, path) {
-  v.steps = path.steps; v.pi = 0; v.e = path.steps[0].e; v.fwd = path.steps[0].fwd; v.s = path.startS; v.endS = path.endS;
+  v.steps = path.steps; v.ends = path.steps.map((st) => st.e.a); v.pi = 0; v.e = path.steps[0].e; v.fwd = path.steps[0].fwd; v.s = path.startS; v.endS = path.endS;
   v.granted = false; v.wait = 0; v.stopT = 0;
   if (v.emergency) { const st = path.steps[path.steps.length - 1], p = pointAt(st.e.pts, st.e.cum, st.fwd ? path.endS : st.e.len - path.endS); v.tx = p[0]; v.tz = p[1]; } // đích theo toạ độ
   if (v.lane >= ROADS[v.e.type].lanes) v.lane = 0;
@@ -209,7 +210,8 @@ export function trip(c, kind, fromCell, toCell, cb, physical = true, color) {
   const tr = c.traffic, from = typeof fromCell === 'number' ? cellPos(c, fromCell) : fromCell, to = typeof toCell === 'number' ? cellPos(c, toCell) : toCell;
   if (!from || !to) { tr.stats.noPath++; return null; }
   const same = kind === 'car' || kind === 'moto' ? tr.vehicles.reduce((n, v) => n + (v.kind === kind), 0) : 0;
-  if (physical && tr.vehicles.length < MAX_VEH && same < (kind === 'car' ? MAX_CARS : kind === 'moto' ? MAX_MOTO : Infinity)) {
+  const prio = VKIND[kind].emergency || kind === 'garbage' || kind === 'hearse'; // xe dịch vụ luôn chạy thật: chuyến ảo không dập lửa, không chở ai
+  if (physical && (prio || tr.vehicles.length < MAX_VEH) && same < (kind === 'car' ? MAX_CARS : kind === 'moto' ? MAX_MOTO : Infinity)) {
     const v = spawnVehicle(c, kind, from, to, cb, color);
     if (!v) { tr.stats.noPath++; return null; }
     return { eta: v.cost, vehicle: v };
@@ -329,7 +331,7 @@ export function stepTraffic(c, dt) {
       let na = lanes.get(k); if (!na) lanes.set(k, na = []);
       na.push(v);
     }
-    if (v.wait > 70) stuck.push(v); // kẹt cứng quá lâu: bỏ xe lại, người coi như tới nơi rất muộn
+    if (v.wait > 70 && done[done.length - 1] !== v) stuck.push(v); // kẹt cứng quá lâu: bỏ xe lại, người coi như tới nơi rất muộn
   }
   if (cnt) tr.speedEma += (sum / cnt - tr.speedEma) * Math.min(1, dt * 0.25); else tr.speedEma += (1 - tr.speedEma) * Math.min(1, dt * 0.1);
   if (done.length || stuck.length) {

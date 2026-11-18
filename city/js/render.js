@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -1961,7 +1961,7 @@ export class View {
     for (let i = 0; i < N * N; i++) {
       const L = c.level[i];
       if (!L) continue;
-      const vnGeo = vn && growableVN(c.zone[i], 1, 0) ? 'v' : '', key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
+      const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '', key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
       let mesh = this.growMeshes[key];
       if (!mesh) { mesh = this.growMeshes[key] = this._inst((vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; }
       if (counts[key] >= mesh.userData.cap) mesh = this._grow(this.growMeshes, key);

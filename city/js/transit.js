@@ -1,10 +1,10 @@
 // Phố Mới — giao thông công cộng: xe buýt và tàu điện (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
-import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
-import { spawnVehicle, reroute, findPath } from './traffic.js';
+import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, ROADS, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
+import { spawnVehicle, reroute, findPath, VKIND } from './traffic.js';
 import { syncFerries } from './ships.js';
 
-const WALK_SPEED = 7; // đơn vị / giây mô phỏng
+const WALK_SPEED = VKIND.ped.speed; // đơn vị / giây mô phỏng: bằng tốc độ người đi bộ thật trên vỉa hè
 const HUES = [0.02, 0.58, 0.13, 0.78, 0.33, 0.9, 0.48, 0.68];
 
 export function initTransit(c) {
@@ -15,7 +15,7 @@ export function initTransit(c) {
 /** Đoạn đường mặt đất gần nhất (trạm xe buýt, tàu điện không đặt trên đường trên cao). */
 function nearestEdge(c, x, z, max = 12) {
   let best = null, bd = max;
-  for (const e of c.edges.values()) { if (e.type === 'highway' || e.type === 'overpass') continue; const r = nearestOnEdge(e, x, z); if (r.d < bd) { bd = r.d; best = { edge: e, along: r.along, x: r.x, z: r.z }; } }
+  for (const e of c.edges.values()) { if (ROADS[e.type].elevated) continue; /* cầu vượt mọi tầng, cao tốc, hầm */ const r = nearestOnEdge(e, x, z); if (r.d < bd) { bd = r.d; best = { edge: e, along: r.along, x: r.x, z: r.z }; } }
   return best;
 }
 
@@ -119,6 +119,10 @@ export function maintainTransit(c) {
       for (const s of line.stops) line.path.push(s.x, s.z);
     }
     line.headway = line.broken ? Infinity : (line.loop / def.speed + n * 2) / line.count;
+    if (line.broken) { // trạm mất đường: khách định xuống trạm đó xuống xe luôn, khách chờ ở đó bỏ về
+      for (const slot of line.veh) { const stay = []; for (const r of slot.riders) if (line.stops[r.to].edge) stay.push(r); else c.onArrive(c, { ...r.cb, late: true }, null); slot.riders = stay; }
+      for (const s of line.stops) if (!s.edge && s.waiting.length) { const w = s.waiting; s.waiting = []; for (const r of w) c.onArrive(c, { ...r.cb, late: true }, null); }
+    }
     // đủ số xe
     while (line.veh.length > line.count) { const slot = line.veh.pop(); for (const r of slot.riders) c.onArrive(c, r.cb, null); if (slot.v) c.traffic.vehicles = c.traffic.vehicles.filter((v) => v !== slot.v); }
     while (line.veh.length < line.count) line.veh.push({ v: null, next: 0, riders: [], s: (line.loop / 2 / line.count) * line.veh.length, dir: 1, dwell: 0, at: -1 });
@@ -149,7 +153,8 @@ export function onBusArrive(c, cb, v) {
     const nx = (slot.next + k) % n;
     if (line.stops[nx].edge && reroute(c, v, stopPos(line.stops[nx]))) { slot.next = nx; v.hold = 1.4; return 'keep'; }
   }
-  slot.v = null;
+  for (const r of slot.riders) c.onArrive(c, r.cb, null); // không tới được trạm nào nữa: khách xuống hết
+  slot.riders = []; slot.v = null;
   return undefined;
 }
 
@@ -196,14 +201,17 @@ export function planRide(c, fromCell, toCell) {
   for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.cruise && !l.single))) { // tuyến tàu nhiều bến (kể cả có chuyến ra biển)
     if (line.broken || !line.count) continue;
     const def = TRANSIT[line.mode];
-    let i = -1, j = -1, di = def.walk, dj = def.walk;
-    line.stops.forEach((s, k) => { if (s.sea || s.turn) return; const a = Math.hypot(s.x - fx, s.z - fz), b = Math.hypot(s.x - tx, s.z - tz); if (a < di) { di = a; i = k; } if (b < dj) { dj = b; j = k; } });
-    if (i < 0 || j < 0 || i === j) continue;
-    let ride;
-    if (def.road) { ride = 0; for (let k = i; k !== j; k = (k + 1) % line.stops.length) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);
-    const stops = def.road ? (j - i + line.stops.length) % line.stops.length : Math.abs(j - i);
-    const eta = (di + dj) / WALK_SPEED + line.headway / 2 + ride / def.speed + stops * 1.6;
-    if (!best || eta < best.eta) best = { line, from: i, to: j, eta };
+    // mọi cặp trạm lên / xuống trong tầm đi bộ: chọn cặp tổng thời gian ít nhất (đi bộ xa hơn chút mà ngồi xe ngắn hơn nhiều)
+    const n = line.stops.length, up = [], down = [];
+    line.stops.forEach((s, k) => { if (s.sea || s.turn) return; const a = Math.hypot(s.x - fx, s.z - fz), b = Math.hypot(s.x - tx, s.z - tz); if (a < def.walk) up.push([k, a]); if (b < def.walk) down.push([k, b]); });
+    for (const [i, di] of up) for (const [j, dj] of down) {
+      if (i === j) continue;
+      let ride;
+      if (def.road) { ride = 0; for (let k = i; k !== j; k = (k + 1) % n) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);
+      const stops = def.road ? (j - i + n) % n : Math.abs(j - i);
+      const eta = (di + dj) / WALK_SPEED + line.headway / 2 + ride / def.speed + stops * 1.4;
+      if (!best || eta < best.eta) best = { line, from: i, to: j, eta };
+    }
   }
   return best;
 }
@@ -219,6 +227,10 @@ export function transitHour(c) {
   for (const line of c.transit.lines.concat(c.ferries || [])) for (const s of line.stops) {
     const gone = s.waiting.filter((r) => t - r.since > 45);
     if (gone.length) { s.waiting = s.waiting.filter((r) => t - r.since <= 45); for (const r of gone) c.onArrive(c, { ...r.cb, late: true }, null); }
+  }
+  for (const line of c.transit.lines) for (const slot of line.veh) { // lưới an toàn: ngồi xe quá lâu (tuyến hỏng, trạm không tới được) thì coi như tới nơi rất muộn
+    const gone = slot.riders.filter((r) => t - r.since > 600);
+    if (gone.length) { slot.riders = slot.riders.filter((r) => t - r.since <= 600); for (const r of gone) c.onArrive(c, { ...r.cb, late: true }, null); }
   }
   maintainTransit(c);
 }

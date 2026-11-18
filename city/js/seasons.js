@@ -93,7 +93,8 @@ export function canOrganize(c, id, start, scale) {
   if (!f || !S) return { ok: false, reason: 'Không có lễ này' };
   if (start + (f.k1 - f.k0) < c.day) return { ok: false, reason: 'Lễ đã qua' };
   if (start - c.day > MONTH_DAYS * 3) return { ok: false, reason: 'Còn xa, chỉ chuẩn bị được trong vòng 30 ngày' };
-  if (c.fest.org && c.fest.org.start + 3 >= c.day && c.fest.org.id === id && c.fest.org.start === start) return { ok: false, reason: 'Đã lên kế hoạch tổ chức lễ này' };
+  const o = c.fest.org; // chỉ giữ một lễ đã đặt: đang chờ / đang diễn ra thì chưa đặt lễ khác (kẻo mất tiền lễ trước)
+  if (o && o.start + ((FEST[o.id] && FEST[o.id].k1 - FEST[o.id].k0) || 0) >= c.day) return { ok: false, reason: o.id === id && o.start === start ? 'Đã lên kế hoạch tổ chức lễ này' : `Đang lo tổ chức ${FEST[o.id] ? FEST[o.id].name : 'một lễ khác'}: xong lễ đó mới đặt lễ tiếp` };
   const venues = c.services.filter((s) => VENUES.includes(s.type) && !(s.build > 0));
   if (!venues.length) return { ok: false, reason: 'Chưa có nơi tổ chức: xây ⛲ quảng trường, 🏟️ sân vận động, 🛕 chùa, 🏝️ bãi biển hoặc công trình biểu tượng' };
   const venue = venues.find((s) => s.type === f.venue) || venues.find((s) => s.type === 'stadium') || venues.find((s) => s.type === 'plaza') || venues[0];

@@ -10,7 +10,7 @@ import { PROGRAMS, PKEYS, KPIS, PERSONAS, MAX_LV, BUILDS } from '../city/js/dist
 import { SERVICES } from '../city/js/base.js';
 
 const MAX_BODY = 24_000;
-const str = (v, n = 200) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, n);
+const str = (v, n = 200) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/[<>]/g, '').slice(0, n); // bỏ < >: lời AI chèn vào trang, lời người chơi không phá được thẻ
 const num = (v) => (Number.isFinite(+v) ? Math.round(+v) : 0);
 
 const STYLE = `Bạn viết lời cho game xây thành phố tiếng Việt "Phố Mới" (đô thị Việt Nam, có xe máy, chợ, lễ hội, mùa mưa bão).
@@ -176,11 +176,12 @@ Có thể xây: ${JSON.stringify(cands)}`, DIST_SCHEMA.build, 500);
       }
       if (task === 'report') {
         const delta = Object.fromEntries(Object.keys(KPIS).map((k) => [k, num(body.delta?.[k])]));
-        const r = body.result && KPIS[body.result.goal] ? { goal: body.result.goal, ok: !!body.result.ok, from: num(body.result.from), to: num(body.result.to), order: str(body.result.order, 200) } : null;
+        const r = body.result && KPIS[body.result.goal] ? { goal: body.result.goal, ok: !!body.result.ok, from: num(body.result.from), to: num(body.result.to) } : null;
+        const said = r && body.result.order ? `\n<mayor>${str(body.result.order, 200)}</mayor>` : ''; // lời giao việc chỉ nằm trong thẻ
         const out = await call(`${sys}
 Nhiệm vụ: viết báo cáo định kỳ gửi thị trưởng, 2–4 câu, đúng giọng tính cách (người chạy thành tích thì tô vẽ lời lẽ nhưng KHÔNG đổi số). Chỉ dùng các con số được cho. Nếu có kết quả việc được giao (result) thì nói rõ đạt hay chưa đạt.`, `${head}
 Thay đổi từ kỳ trước: ${JSON.stringify(delta)}${r ? `
-Kết quả việc được giao: ${JSON.stringify(r)}` : ''}`, DIST_SCHEMA.report, 700);
+Kết quả việc được giao (lời giao việc ở thẻ <mayor>): ${JSON.stringify(r)}${said}` : ''}`, DIST_SCHEMA.report, 700);
         return { text: str(out.text, 700) };
       }
       const D = DILEMMAS[body.type];
@@ -205,7 +206,8 @@ Phương án: ${JSON.stringify(opts)}`, DIST_SCHEMA.pick, 500);
     req.on('end', async () => {
       let body;
       try { body = JSON.parse(raw); } catch { return send(400, { ok: false, reason: 'JSON không hợp lệ' }); }
-      const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
+      // địa chỉ cuối trong X-Forwarded-For là do proxy (Caddy) ghi, client không giả được; phần đầu thì client tự thêm được
+      const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',').at(-1).trim();
       if (!allow(ip)) return send(429, { ok: false, reason: 'Gọi quá nhiều, thử lại sau' });
       try { send(200, { ok: true, data: await run(body) }); } catch (e) {
         if (e.status === 400) return send(400, { ok: false, reason: e.message });

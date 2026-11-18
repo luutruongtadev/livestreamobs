@@ -245,6 +245,8 @@ export function syncFerries(c) {
 function dropSlot(c, sl) { for (const r of sl.riders) c.onArrive(c, r.cb, null); sl.riders = []; }
 
 const fareOf = (c) => (c.transit.ferryFare === undefined ? 4 : c.transit.ferryFare);
+/** Vé đắt thì ít người đi: 4 ₫ ≈ 1, 10 ₫ ≈ 0,68, 20 ₫ chỉ còn 0,15 (thu nhiều nhất quanh 10 ₫). */
+export const fareK = (c) => clamp(1.3 - fareOf(c) / 16, 0.15, 1.3);
 function pay(c, line, n) {
   const f = fareOf(c) * n;
   c.money += f; c.transit.income += f; c.transit.riders += n; line.riders += n;
@@ -257,12 +259,12 @@ function exchange(c, line, sl, k) {
     if (stop.turn) return;
     const rng = c.rng || Math.random, pop = c.pstats ? c.pstats.pop : 0;
     line.travellers += sl.load;
-    const n = Math.min(TRANSIT.ferry.cap, Math.round((6 + pop * 0.005) * (0.6 + rng() * 0.8)));
+    const n = Math.min(TRANSIT.ferry.cap, Math.round((6 + pop * 0.005) * fareK(c) * (0.6 + rng() * 0.8)));
     sl.load = n; pay(c, line, n);
     return;
   }
   // khách tính theo số đông: out = dân đi chơi xa (ra biển), guests = du khách từ biển vào, tour = du khách ra đảo, back = du khách từ đảo về
-  const rng = c.rng || Math.random, pop = c.pstats ? c.pstats.pop : 0, rnd = () => 0.6 + rng() * 0.8;
+  const rng = c.rng || Math.random, pop = c.pstats ? c.pstats.pop : 0, fk = fareK(c), rnd = () => (0.6 + rng() * 0.8) * fk;
   const free = () => Math.max(0, cap - sl.riders.length - (sl.out | 0) - (sl.guests | 0) - (sl.tour | 0) - (sl.back | 0));
   if (stop.sea) {
     line.travellers += sl.out | 0; sl.out = 0; // dân đã ra ngoài
