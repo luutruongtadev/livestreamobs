@@ -3,6 +3,7 @@
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
 import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
+import { festMul } from './seasons.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 import { ferryDay } from './ships.js';
@@ -409,12 +410,12 @@ function bizHour(c, companies, shops, h) {
   const demand = c.pp.count * DEMAND_PER_HEAD * (open ? 1.5 : 0.2);
   const needRaw = {}, supRaw = {}, needGoods = [], supGoods = [], broke = [];
   for (const k of RAW_KINDS) { needRaw[k] = []; supRaw[k] = []; }
-  const boost = c.tech.has('survey') ? 1.2 : 1;
+  const boost = c.tech.has('survey') ? 1.2 : 1, fest = c.fest ? festMul(c, 'ind') : 1; // Tết: nhà máy nghỉ
   let effSum = 0;
   for (const i of companies) {
     const kind = bizKind(c, i), pres = c.present[i], cap = jobCap(c.zone[i], c.level[i]);
     b.money[i] -= 0.12 * c.level[i]; // chi phí cố định
-    const prod = 1 + 0.12 * (c.level[i] - 1);
+    const prod = (1 + 0.12 * (c.level[i] - 1)) * (kind === 'raw' || kind === 'factory' ? fest : 1) * (c.flood && c.flood[i] >= 1.5 ? 0.2 : 1); // ngập: gần như đứng máy
     let active = pres > 0;
     if (kind === 'raw') {
       const rk = ZDEF[c.zone[i]].raw;

@@ -50,7 +50,7 @@ export function initTraffic(c) {
 const laneKey = (e, fwd, lane) => e.id * 8 + (fwd ? 4 : 0) + lane;
 const dirKey = (e, fwd) => e.id * 2 + (fwd ? 1 : 0);
 const canTravel = (e, fwd, kind) => (kind === 'ped' || kind === 'tram' ? !ROADS[e.type].elevated && (kind === 'ped' || e.type !== 'oneway' || fwd) : e.type !== 'oneway' || fwd);
-const baseSpeed = (e, kind) => VKIND[kind].speed * ROADS[e.type].speed;
+const baseSpeed = (e, kind) => VKIND[kind].speed * ROADS[e.type].speed * (e.flood && kind !== 'ped' ? 0.35 : 1); // đường ngập: xe lội nước chậm
 
 /** Mức đông của một chiều đường: 0 thoáng → 1 kín xe. */
 export function loadOf(c, e, fwd) {

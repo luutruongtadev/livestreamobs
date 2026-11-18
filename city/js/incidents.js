@@ -2,12 +2,14 @@
 // cướp giật, cháy rừng, bão đá, lốc xoáy. Công an, xe cứu hộ, cứu hoả phải chạy tới hiện trường bằng xe thật.
 import { N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
 import { trip, reroute, cellPos } from './traffic.js';
+import { seasonWeather } from './seasons.js';
 
 export const WEATHER = {
   clear: { name: 'Trời quang', icon: '☀️' },
   rain: { name: 'Mưa, đường trơn', icon: '🌧️' },
   dry: { name: 'Khô hạn, dễ cháy rừng', icon: '🔥' },
   hail: { name: 'Bão đá', icon: '🌨️' },
+  storm: { name: 'Bão', icon: '🌀' },
 };
 const CRASH_RATE = 4e-5; // xác suất một xe đang chạy gặp tai nạn mỗi giây mô phỏng (trước khi nhân hệ số)
 const CRASH_KINDS = new Set(['car', 'moto', 'truck']);
@@ -26,7 +28,7 @@ const hasEws = (c) => c.services.some((s) => SERVICES[s.type].ews);
 /** Hệ số nguy cơ tai nạn hiện tại (thời tiết, ban đêm). */
 export function crashFactor(c) {
   const w = c.inc.weather;
-  return 1 + (w === 'rain' ? 1.5 : 0) + (w === 'hail' ? (hasEws(c) ? 1.5 : 3) : 0) + (night(c) ? 0.8 : 0);
+  return 1 + (w === 'rain' ? 1.5 : 0) + (w === 'storm' ? 2.5 : 0) + (w === 'hail' ? (hasEws(c) ? 1.5 : 3) : 0) + (night(c) ? 0.8 : 0);
 }
 
 /** Vị trí của xe trên đoạn đường: { edge, along tính từ đầu a, x, z }. */
@@ -257,9 +259,9 @@ export function incidentsStep(c, dt) {
 export function incidentsHour(c) {
   const inc = c.inc, rng = c.rng, h = c.hour % 24;
   // thời tiết đổi mỗi sáng
-  if (c.hour >= inc.wUntil) {
+  if (c.hour >= inc.wUntil && !(c.season && c.season.storm && c.season.storm.hit)) {
     const r = rng();
-    inc.weather = r < 0.22 ? 'rain' : r < 0.36 ? 'dry' : r < 0.38 && c.pp.count >= 400 ? 'hail' : 'clear';
+    inc.weather = seasonWeather(c, r) || (r < 0.22 ? 'rain' : r < 0.36 ? 'dry' : r < 0.38 && c.pp.count >= 400 ? 'hail' : 'clear');
     inc.wUntil = c.hour + (inc.weather === 'hail' ? 3 : 24 - h + (inc.weather === 'dry' ? 24 : 0));
     if (inc.weather === 'hail') c.events.push({ type: 'hail' });
   }
@@ -292,7 +294,7 @@ function wildfireHour(c) {
     const i = (rng() * N * N) | 0;
     if (c.tree[i] && !wild[i] && rng() < (c.cover.watch[i] > 0.05 ? 0.006 : 0.02)) { wild[i] = 6; c.events.push({ type: 'wildfire', x: i % N, y: (i / N) | 0 }); }
   }
-  const spread = w === 'dry' ? 0.06 : w === 'rain' ? 0.005 : 0.025, burning = [];
+  const spread = w === 'dry' ? 0.06 : w === 'rain' || w === 'storm' ? 0.005 : 0.025, burning = [];
   for (let i = 0; i < N * N; i++) if (wild[i]) burning.push(i);
   if (!burning.length) return;
   for (const i of burning) {
@@ -303,7 +305,7 @@ function wildfireHour(c) {
       if (c.tree[j] && !wild[j] && rng() < spread * (watch ? 0.5 : 1)) wild[j] = 6;
       if (c.level[j] && !c.fire[j] && rng() < 0.08) c.fire[j] = 7; // lửa rừng bén vào nhà
     }
-    wild[i] = Math.max(0, wild[i] - (watch ? 2 : 1) - (w === 'rain' && rng() < 0.4 ? 6 : 0));
+    wild[i] = Math.max(0, wild[i] - (watch ? 2 : 1) - ((w === 'rain' || w === 'storm') && rng() < 0.4 ? 6 : 0));
     if (!wild[i]) { c.tree[i] = 0; c.dirty.trees = true; inc.total.burned++; inc.day.burned++; }
   }
   // xe cứu hoả tới đám cháy rừng sát đường (tối đa 2 điểm mỗi giờ)

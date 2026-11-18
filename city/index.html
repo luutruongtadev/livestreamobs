@@ -159,7 +159,7 @@
   <div class="panel stat name"><input id="cityname" maxlength="24" spellcheck="false" aria-label="Tên thành phố"><small id="rank">Vùng đất mới</small></div>
   <div class="panel stat" title="Dân số và việc làm"><span class="ico">👥</span><b id="pop">0</b><span class="sub" id="jobs"></span></div>
   <div class="panel stat" title="Ngân sách và cân đối thu chi mỗi ngày"><span class="ico">💰</span><b id="money">0</b><span class="sub" id="net"></span></div>
-  <div class="panel stat" title="Mức hài lòng của dân, giờ trong game và thời tiết"><span class="ico">❤️</span><b id="happy">–</b><span class="sub" id="date"></span></div>
+  <div class="panel stat" id="dateBox" style="cursor:pointer" title="Mức hài lòng của dân, giờ, ngày âm lịch, lễ hội và thời tiết · bấm để mở 🎎 lễ hội và mùa mưa bão"><span class="ico">❤️</span><b id="happy">–</b><span class="sub" id="date"></span></div>
   <div class="panel" id="demand" title="Nhu cầu: nhà ở / thương mại / công nghiệp / văn phòng">
     <div class="col"><div class="bar"><i id="dr" style="background:#46c85a"></i></div>Dân</div>
     <div class="col"><div class="bar"><i id="dc" style="background:#468cec"></i></div>TM</div>
@@ -187,6 +187,15 @@
 
 <div id="alerts"></div>
 <div id="toasts"></div>
+
+<div class="panel side" id="fest">
+  <h3>🎎 Lễ hội và mùa <button data-close>✕</button></h3>
+  <div id="festNow"></div>
+  <h4>Lễ sắp tới</h4>
+  <div id="festList"></div>
+  <h4>Mùa mưa bão (tháng 8–11 âm)</h4>
+  <div id="stormBox"></div>
+</div>
 
 <div class="panel side" id="layers">
   <h3>Lớp xem <button data-close>✕</button></h3>

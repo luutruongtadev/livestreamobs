@@ -41,6 +41,24 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 11. **Tiền**: thuế riêng cho dân cư / thương mại / công nghiệp thu theo lương và doanh thu thật, tiền vé, phí bảo trì mỗi ngày, vay tối đa 3 khoản. Nợ quá 30.000 ₫ hoặc âm tiền 4 ngày liền thì phá sản.
 12. **Địa hình và tài nguyên**: ngoài sông, hồ, biển và đồi thoải, bản đồ mới có dãy núi ở xa điểm xuất phát (ô quá dốc chỉ làm đường được). Mỗi vùng có tài nguyên riêng: đất màu mỡ ven nước, rừng, khoáng sản trên núi, dầu, vùng nước có cá. Lớp xem 🗺️ *tài nguyên* chỉ ra chỗ nào có gì.
 13. **Khu chuyên biệt** (nhóm ⛏️): nông trại, lâm trường, mỏ, giếng dầu, bến cá. Mỗi khu chỉ mọc trên ô có đúng loại tài nguyên, bán nguyên liệu cho nhà máy cùng ngành trong thành phố, thừa thì xuất khẩu. Mỏ và giếng dầu gây ô nhiễm; nông trại, bến cá gần như không.
+13b. **Lễ hội và mùa mưa bão** (bấm vào ô ngày giờ trên cùng để mở bảng 🎎):
+   - **Lịch âm rút gọn:** 10 ngày game là 1 tháng âm, 120 ngày là 1 năm. Thành phố mới bắt đầu từ tháng 3 âm. Ô ngày giờ hiện ngày âm và biểu tượng lễ.
+   - **Các dịp lễ, tác động thật:**
+     - 🌸 Chợ Tết: cửa hàng đắt khách.
+     - 🧧 Tết Nguyên Đán: nhà máy nghỉ (năng suất ×0,3), du khách ×1,5, khách quốc tế ×1,6 (Việt kiều về), dân vui +6, pháo hoa đêm giao thừa.
+     - 🧳 Sau Tết: xưởng thiếu người.
+     - 🏮 Rằm tháng Giêng, 🪷 Vu Lan: đi chùa.
+     - 🏯 Giỗ Tổ Hùng Vương.
+     - 🚣 Tết Đoan Ngọ: đua thuyền.
+     - 🥮 Trung Thu: rước đèn, pháo hoa.
+   - **Tổ chức lễ hội:** chi 4.000 / 12.000 / 30.000 ₫ (quy mô nhỏ / vừa / lớn) để tăng du khách, khách quốc tế, thuế thương mại, dân vui. Quy mô vừa trở lên có pháo hoa.
+     - Cần nơi tổ chức: quảng trường, sân vận động, chùa, bãi biển, bảo tàng hoặc công trình biểu tượng. Đúng nơi hợp lễ (chùa cho lễ chùa, bãi biển cho đua thuyền) thì khách ×1,3.
+     - Nơi tổ chức không có công an phủ tới thì chen lấn, dân chỉ vui một nửa.
+   - **Mùa mưa bão (tháng 8–11 âm):** mưa nhiều hơn.
+     - **Bão:** báo trước 12 giờ, có trạm cảnh báo sớm thì 30 giờ. Bão đổ bộ làm cây đổ, nhà yếu xuống cấp, huỷ chuyến bay / tàu quốc tế, tăng tai nạn.
+     - **Triều cường:** chiều tối rằm tháng 9–11, nước dâng ở vùng thấp ven sông biển.
+     - **Ngập:** mưa, bão, triều cường làm ngập đất thấp sát nước. Nhà ngập không lên cấp, xưởng gần như đứng máy, dân khó chịu; ngập quá 30 giờ thì nhà xuống cấp. Đường ngập thì xe lội nước chậm và tìm đường khác.
+     - **Chống ngập:** 🌀 trạm bơm (vùng quanh trạm ít ngập, rút rất nhanh) và 🧱 kè ven bờ (chặn nước dâng), trong nhóm 💧 Nước.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.
@@ -82,6 +100,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/seasons.js` | Lịch âm, lễ hội và tổ chức lễ hội, bão, triều cường, ngập lụt, trạm bơm / kè |
 | `js/intl.js` | Khách quốc tế: lịch chuyến bay / tàu nước ngoài, du khách, người nhập cư, thị thực, quảng bá, phí hạ cánh |
 | `js/transport3d.js` | Mô hình cảng container, sân bay, ga tàu hoả, tàu và ga metro; khung khoá chuyển động (máy bay, tàu, cẩu, xe tải) |
 | `js/render.js` | Cảnh three.js: địa hình, mặt nước (shader), bầu trời và ngày đêm, đường, xe, đèn, ray metro, lớp phủ |

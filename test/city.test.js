@@ -1030,3 +1030,55 @@ test('khách quốc tế: tàu nước ngoài chạy từ biển vào cảng, ne
   assert.ok(e && e.landed && e.path === undefined ? true : e.path.length >= 2);
   if (e.immig) assert.equal(e.placed, 0, 'không có nhà trống thì không ai ở lại'), assert.equal(e.turned, e.immig);
 });
+
+test('lễ hội: lịch âm, Tết làm nhà máy nghỉ và hút khách, tổ chức lễ hội cần nơi tổ chức và tiền, tăng du khách / dân vui', () => {
+  const c = town(); c.milestone = S.MILESTONES.length; c.money = 1e6;
+  assert.deepEqual([S.lunar(0).month, S.lunar(0).day], [3, 1], 'thành phố mới bắt đầu từ tháng 3 âm');
+  assert.equal(S.lunar(10).month, 4); assert.equal(S.lunar(100).month, 1, 'ngày 100 là Tết');
+  // nhảy tới Tết
+  c.hour = 100 * 24 + 10; c.day = 100;
+  const tet = S.festivalNow(c); assert.equal(tet.f.id, 'tet');
+  assert.ok(S.festMul(c, 'ind') < 0.5 && S.festMul(c, 'intl') > 1.4 && S.festHappy(c) >= 6);
+  // tổ chức Trung thu: chưa có nơi tổ chức
+  c.hour = 50 * 24 + 6; c.day = 50; // đầu tháng 8 âm
+  const tt = S.upcomingFestivals(c).find((u) => u.f.id === 'trungthu');
+  assert.ok(tt, 'Trung thu sắp tới');
+  assert.match(S.canOrganize(c, 'trungthu', tt.start, 2).reason, /nơi tổ chức/);
+  const sx = c.start.x;
+  assert.ok(S.placeService(c, 'plaza', sx + 6, 18).ok || S.placeService(c, 'plaza', sx - 6, 18).ok);
+  for (const s of c.services) s.build = 0;
+  const m0 = c.money, r = S.organize(c, 'trungthu', tt.start, 2);
+  assert.ok(r.ok, r.reason); assert.equal(m0 - c.money, S.FEST_SCALE[2].cost);
+  c.day = tt.start; c.hour = tt.start * 24 + 20;
+  assert.ok(S.festMul(c, 'tour') > 1.3 * 1.6, 'tổ chức thì du khách tăng mạnh');
+  assert.ok(S.fireworksAt(c).length === 1, 'tối có pháo hoa');
+  const o = JSON.parse(JSON.stringify(S.serialize(c)));
+  assert.equal(S.deserialize(o).fest.org.id, 'trungthu');
+});
+
+test('mùa mưa bão: bão báo trước rồi đổ bộ, mưa làm ngập đất thấp ven nước, nhà ngập, đường ngập xe chậm; trạm bơm, kè chống ngập', () => {
+  const c = town(); c.money = 1e6;
+  c.day = 70; c.hour = 70 * 24 + 7; // tháng 8 âm
+  assert.ok(S.stormSeason(c));
+  // ép bão
+  c.season.storm = { at: c.hour + 2, power: 3, name: 'Bão số 1', hit: false };
+  run(c, 3);
+  assert.equal(c.inc.weather, 'storm');
+  run(c, 6);
+  const wet = c.season.wet;
+  assert.ok(wet > 0, 'có ô ngập');
+  // ô ngập: nhà không lên cấp, dân khó chịu; đường ngập
+  let fi = -1; for (let i = 0; i < S.N * S.N; i++) if (S.flooded(c, i)) { fi = i; break; }
+  assert.ok(fi >= 0);
+  if (c.level[fi]) assert.ok(S.cellHappy(c, fi).needs.some((n) => /ngập/.test(n)));
+  // trạm bơm quanh vùng ngập: ít ngập hơn
+  const d = town(); d.money = 1e6; d.day = 70; d.hour = c.hour - 9;
+  d.season.storm = { at: d.hour + 2, power: 3, name: 'Bão số 1', hit: false };
+  const fx = fi % S.N, fy = (fi / S.N) | 0;
+  let placed = false;
+  for (let r = 0; r < 8 && !placed; r++) for (let dy = -r; dy <= r && !placed; dy++) for (let dx = -r; dx <= r && !placed; dx++) if (S.placeService(d, 'floodpump', fx + dx, fy + dy).ok) placed = true;
+  for (const s of d.services) s.build = 0;
+  S.recalc(d); S.computeMaps(d);
+  run(d, 9);
+  assert.ok(!placed || d.flood[fi] < c.flood[fi], 'trạm bơm làm nước rút / ít ngập');
+});

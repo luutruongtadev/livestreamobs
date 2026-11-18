@@ -16,7 +16,7 @@ const GROUPS = [
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:20', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:21', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
   { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
-  { id: 'water', icon: '💧', label: 'Nước', items: ['tower', 'pump', 'outlet', 'treat', 'line:pipe'] },
+  { id: 'water', icon: '💧', label: 'Nước', items: ['tower', 'pump', 'outlet', 'treat', 'line:pipe', 'floodpump', 'levee'] },
   { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'recycle', 'incinerator'] },
   { id: 'health', icon: '🏥', label: 'Y tế', items: ['clinic', 'hospital', 'cemetery', 'crematorium'] },
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
@@ -79,7 +79,10 @@ function loadSlot(name) {
   if (!d) return false;
   try { startCity(S.deserialize(d.city)); return true; } catch (e) { toast('Không đọc được bản lưu: ' + e.message); return false; }
 }
-function dateText(hour) { const day = Math.floor(hour / 24), h = hour % 24, w = city && S.WEATHER[city.inc.weather]; return `${h >= 6 && h < 19 ? '☀️' : '🌙'} ${String(h).padStart(2, '0')}:00 · ${WEEK[day % 7]} · ngày ${day + 1}${w && city.inc.weather !== 'clear' ? ` · ${w.icon} ${w.name}` : ''}`; }
+function dateText(hour) {
+  const day = Math.floor(hour / 24), h = hour % 24, w = city && S.WEATHER[city.inc.weather], L = S.lunar(day), fe = city && S.festivalNow(city, day);
+  return `${h >= 6 && h < 19 ? '☀️' : '🌙'} ${String(h).padStart(2, '0')}:00 · ${WEEK[day % 7]} · ${L.day}/${L.month} âm${fe ? ` ${fe.f.icon}` : ''}${w && city.inc.weather !== 'clear' ? ` · ${w.icon} ${w.name}` : ''}`;
+}
 
 function renderSlots() {
   const box = $('slots'); box.textContent = '';
@@ -899,6 +902,7 @@ function updateHud(force) {
   const meter = (bar, txt, use, cap) => { $(txt).textContent = `${fmt(use)} / ${fmt(cap)}`; $(bar).style.width = `${cap ? Math.min(100, (use / cap) * 100) : use ? 100 : 0}%`; $(bar).classList.toggle('over', use >= cap && use > 0); };
   meter('pBar', 'pTxt', s.powerUse, s.powerCap); meter('wBar', 'wTxt', s.waterUse, s.waterCap); meter('sBar', 'sTxt', s.waterUse, s.sewCap); meter('tBar', 'tTxt', s.trashUse, s.trashCap);
   if ($('budget').classList.contains('show')) { renderLoans(); renderEcon(); renderExpenses(force); }
+  if ($('fest').classList.contains('show')) renderFest(force);
   // cảnh báo / gợi ý
   const al = [], none = s.none || {}, tight = s.tight || {};
   let zoned = 0, free = 0, dirty = 0, burning = 0;
@@ -1127,7 +1131,8 @@ function bindMinimap() {
 }
 
 function openSide(id) {
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  if (id === 'fest') renderFest(true);
   if (id === 'saves') renderSlots();
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
@@ -1145,6 +1150,7 @@ function bindUi() {
   $('ferryFare').addEventListener('input', (e) => { city.transit.ferryFare = +e.target.value; renderCity(true); });
   for (const b of document.querySelectorAll('[data-dis]')) b.addEventListener('click', () => { const r = S.triggerDisaster(city, b.dataset.dis); if (!r.ok) toast(r.reason); });
   $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
+  $('dateBox').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
@@ -1180,6 +1186,47 @@ function bindUi() {
   $('cityname').addEventListener('change', (e) => { city.name = e.target.value.trim() || 'Phố Mới'; e.target.value = city.name; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) autosave(); });
   window.addEventListener('pagehide', () => autosave());
+}
+
+// ───────────────────────── lễ hội và mùa mưa bão ─────────────────────────
+
+function renderFest(force) {
+  const c = city, key = `${c.day}|${c.hour}|${c.fest.org ? c.fest.org.id + c.fest.org.start : ''}|${Math.round(c.money / 1000)}`;
+  if (!force && renderFest.key === key) return;
+  renderFest.key = key;
+  const L = S.lunar(c.day), now = S.festivalNow(c), org = c.fest.org;
+  const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
+  $('festNow').innerHTML = [
+    row('Hôm nay', `ngày ${L.day} tháng ${L.month} âm · năm thứ ${L.year}`),
+    row('Mùa', S.stormSeason(c) ? '🌧️ Mùa mưa bão' : L.month === 12 || L.month <= 2 ? '🌸 Mùa xuân, Tết' : '☀️ Mùa khô'),
+    now ? row(`${now.f.icon} ${now.f.name}`, `${now.f.desc}${org && org.id === now.f.id && org.start === now.start ? ` · <b>thành phố tổ chức quy mô ${S.FEST_SCALE[org.scale].name.toLowerCase()}</b>${org.safe ? '' : ' · <span class="neg">nơi tổ chức không có công an: chen lấn, dân chỉ vui một nửa</span>'}` : ''}`) : row('Lễ hôm nay', 'không có'),
+    row('Tác động hôm nay', `du khách ×${S.festMul(c, 'tour').toFixed(2)} · khách quốc tế ×${S.festMul(c, 'intl').toFixed(2)} · dân vui +${S.festHappy(c).toFixed(1)}${S.festMul(c, 'ind') < 1 ? ` · nhà máy ×${S.festMul(c, 'ind')}` : ''}`),
+  ].join('');
+  const list = $('festList'); list.textContent = '';
+  for (const u of S.upcomingFestivals(c, 6)) {
+    const box = el('div', 'festItem'), planned = org && org.id === u.f.id && org.start === u.start;
+    box.innerHTML = `${row(`${u.f.icon} <b>${u.f.name}</b>`, u.inDays ? `còn ${u.inDays} ngày` : 'đang diễn ra')}<small>${u.f.desc}${u.f.venue ? ` · hợp tổ chức ở ${S.SERVICES[u.f.venue].icon} ${S.SERVICES[u.f.venue].name.toLowerCase()}` : ''}</small>`;
+    if (planned) box.append(el('div', 'pos', `✔ Đã lên kế hoạch tổ chức quy mô ${S.FEST_SCALE[org.scale].name.toLowerCase()} tại ${S.SERVICES[org.venueType].icon} ${S.SERVICES[org.venueType].name}`));
+    else {
+      const btns = el('div'); btns.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px';
+      for (let k = 1; k <= 3; k++) {
+        const r = S.canOrganize(c, u.f.id, u.start, k), b = el('button', 'mini', `Tổ chức ${S.FEST_SCALE[k].name.toLowerCase()} · ${money(S.FEST_SCALE[k].cost)}`);
+        b.disabled = !r.ok; b.title = r.ok ? `Du khách ×${(1 + 0.35 * k).toFixed(2)}, khách quốc tế ×${(1 + 0.3 * k).toFixed(1)}, dân vui +${k * 2}, thuế thương mại +${k * 4}%${k >= 2 ? ', bắn pháo hoa' : ''} · tại ${S.SERVICES[r.venue.type].name}` : r.reason;
+        b.onclick = () => { const q = S.organize(c, u.f.id, u.start, k); toast(q.ok ? `🎎 Đã chi ${money(q.cost)} chuẩn bị ${u.f.name}${q.safe ? '' : ' · nơi tổ chức chưa có công an phủ tới: dễ chen lấn'}` : q.reason); updateHud(true); renderFest(true); };
+        btns.append(b);
+      }
+      box.append(btns);
+      const r1 = S.canOrganize(c, u.f.id, u.start, 1); if (!r1.ok && r1.reason !== 'Không đủ tiền') box.append(el('small', 'neg', r1.reason));
+    }
+    list.append(box);
+  }
+  const s = c.season, st = s.storm;
+  $('stormBox').innerHTML = [
+    row('Bão', st ? (st.hit ? `🌀 ${st.name} đang đổ bộ` : `⚠️ ${st.name} sẽ tới sau ${Math.max(0, st.at - c.hour)} giờ`) : S.stormSeason(c) ? 'chưa có bão' : 'ngoài mùa bão'),
+    row('Ngập', s.wet ? `<span class="neg">${s.wet} ô ngập, ${s.houses} nhà ngập${s.tide ? ' (triều cường)' : ''}</span>` : 'không có'),
+    row('Chống ngập', `${c.services.filter((v) => v.type === 'floodpump').length} trạm bơm · ${c.services.filter((v) => v.type === 'levee').length} kè · ${c.services.some((v) => S.SERVICES[v.type].ews) ? 'có' : 'chưa có'} trạm cảnh báo sớm`),
+    '<small>Mưa to, bão, triều cường (chiều tối rằm tháng 9–11) làm ngập vùng đất thấp sát sông, hồ, biển: nhà ngập không làm việc, dân khó chịu, ngập lâu thì nhà xuống cấp, đường ngập xe chạy chậm. Đặt 🌀 trạm bơm (vùng quanh trạm ít ngập, rút nhanh) và 🧱 kè ven bờ (chặn nước dâng). Trạm cảnh báo sớm báo bão trước 30 giờ thay vì 12 giờ và giảm thiệt hại.</small>',
+  ].join('');
 }
 
 // ───────────────────────── chọn bản đồ ─────────────────────────
@@ -1280,6 +1327,8 @@ function frame(now) {
     else if (ev.type === 'wildfire') toast('🔥 Cháy rừng! Lửa có thể lan vào nhà dân');
     else if (ev.type === 'hail') toast('🌨️ Bão đá: nhà cửa hư hại, đường trơn dễ tai nạn');
     else if (ev.type === 'tornadoWarn') toast('📡 Cảnh báo sớm: lốc xoáy sẽ tới trong 1 giờ, dân xuống hầm trú ẩn', '⚠️ Cảnh báo thiên tai');
+    else if (['stormWarn', 'stormHit', 'flood'].includes(ev.type)) toast(ev.text, '⚠️ Mùa mưa bão');
+    else if (ev.type === 'stormEnd' || ev.type === 'fest') toast(ev.text);
     else if (ev.type === 'tornado') toast('🌪️ Lốc xoáy xuất hiện! Nhà trên đường đi của nó sẽ bị phá huỷ', '⚠️ Thiên tai');
     else if (ev.type === 'tornadoEnd') toast(`🌪️ Lốc xoáy đã tan · ${city.inc.day.killed || 0} người thiệt mạng hôm nay`);
     else if (ev.type === 'research') { toast('🔬 Viện nghiên cứu vừa làm ra 1 điểm phát triển'); renderDev(); }

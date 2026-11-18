@@ -3,6 +3,7 @@
 import { SERVICES, HOUR_SEC, clamp, resCap } from './base.js';
 import { tourismScore } from './econ.js';
 import { seaGates } from './ships.js';
+import { festMul } from './seasons.js';
 
 export const VISA = {
   strict: { name: 'Hạn chế', icon: '🛂', tour: 0.55, immig: 0.15, freq: 0.6, desc: 'Xét duyệt chặt: ít chuyến, ít khách, gần như không ai nhập cư' },
@@ -49,10 +50,12 @@ export function intlOutlook(c) {
   const feeK = clamp(1 - it.fee / 40, 0.25, 1); // phí cao thì hãng bay, hãng tàu ngại ghé
   const pull = c.pull || 0;
   const mood = clamp(0.6 + ((c.pstats ? c.pstats.happy : 55) - 45) / 60, 0.4, 1.4);
+  const fest = c.fest ? festMul(c, 'intl') : 1, storm = c.inc && c.inc.weather === 'storm';
   return {
+    fest, storm,
     airports, sea, lure, feeK, mood,
-    flights: airports * 1.6 * v.freq * P.k * feeK * Math.sqrt(lure),
-    ships: Math.min(sea, 3) * 0.3 * v.freq * P.k * feeK * Math.sqrt(lure),
+    flights: storm ? 0 : airports * 1.6 * v.freq * P.k * feeK * Math.sqrt(lure) * fest, // bão: huỷ chuyến
+    ships: storm ? 0 : Math.min(sea, 3) * 0.3 * v.freq * P.k * feeK * Math.sqrt(lure) * fest,
     tourPer: Math.round(70 * v.tour * P.k * lure * mood),
     immigPer: pull > 0.05 ? Math.round(14 * v.immig * (0.5 + pull * 1.5)) : 0, // thành phố không hút dân thì không ai tới định cư
   };

@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt } from './sim.js';
 import { metroGeometry, planeGeometry } from './transport3d.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
@@ -595,7 +595,7 @@ export class View {
     this.city = city;
     this._gate(city);
     this._rebuildTerrain();
-    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, terrain: 0 };
+    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, flood: true, terrain: 0 };
     this.puffs.length = 0; this.fireCells = [];
     this.cam.x = cellCenter(city.start.x); this.cam.z = cellCenter(city.start.y + 6);
     this.cam.y = heightAt(city, this.cam.x, this.cam.z);
@@ -1286,6 +1286,56 @@ export class View {
     if (Math.abs(hx) + Math.abs(hz) < 1e-3) { const r = at(10); hx = p[0] - r[0]; hz = p[1] - r[1]; }
     o.position.set(p[0], WATER_Y + Math.sin(this.time * 1.1 + e.id) * 0.12, p[1]); o.rotation.set(0, Math.atan2(hx, hz), 0);
     return true;
+  }
+
+  /** Nước ngập trên các ô đất thấp (mùa mưa bão): tấm nước đục phủ lên mặt đất, cao theo độ ngập. */
+  _floodWater() {
+    const c = this.city;
+    if (!c.dirty.flood) return;
+    c.dirty.flood = false;
+    if (!this.floodMesh) {
+      this.floodMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(T * 1.02, T * 1.02).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x6b8a8f, transparent: true, opacity: 0.72, depthWrite: false }), N * N);
+      this.floodMesh.frustumCulled = false; this.floodMesh.renderOrder = 4; this.scene.add(this.floodMesh);
+    }
+    const fl = c.flood, m = new THREE.Matrix4();
+    let n = 0;
+    if (fl) for (let i = 0; i < N * N; i++) {
+      if (fl[i] < 0.6) continue;
+      m.makeTranslation(cellX(i), c.cellH[i] + 0.25 + Math.min(fl[i], 4) * 0.22, cellZ(i));
+      this.floodMesh.setMatrixAt(n++, m);
+    }
+    this.floodMesh.count = n; this.floodMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Pháo hoa ban đêm ở nơi tổ chức lễ (đêm giao thừa, Trung thu, lễ hội quy mô vừa trở lên). */
+  _fireworks(simDt, dt) {
+    const c = this.city;
+    if (!this.fwMesh) {
+      this.fwMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.3, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), 600);
+      this.fwMesh.frustumCulled = false; this.fwMesh.count = 0; this.scene.add(this.fwMesh); this.fw = []; this.fwT = 0;
+    }
+    const sites = fireworksAt(c);
+    if (sites.length && simDt > 0) {
+      this.fwT -= dt;
+      if (this.fwT <= 0 && this.fw.length < 520) {
+        this.fwT = 0.35 + Math.random() * 0.6;
+        const s = c.services.find((v) => v.uid === sites[(Math.random() * sites.length) | 0]);
+        if (s) {
+          const sz = SERVICES[s.type].size, x = (s.x + sz / 2) * T - HALF + (Math.random() - 0.5) * 30, z = (s.y + sz / 2) * T - HALF + (Math.random() - 0.5) * 30, y = this._padY(s.x, s.y, sz) + 45 + Math.random() * 30;
+          const hue = Math.random(), col = new THREE.Color().setHSL(hue, 0.9, 0.6), sp = 9 + Math.random() * 6;
+          for (let k = 0; k < 60; k++) { const a = Math.random() * Math.PI * 2, b = Math.acos(2 * Math.random() - 1); this.fw.push({ x, y, z, vx: Math.sin(b) * Math.cos(a) * sp, vy: Math.cos(b) * sp, vz: Math.sin(b) * Math.sin(a) * sp, life: 1.6 + Math.random() * 0.6, col }); }
+        }
+      }
+    }
+    const m = new THREE.Matrix4();
+    let n = 0;
+    this.fw = this.fw.filter((p) => (p.life -= dt) > 0);
+    for (const p of this.fw) {
+      p.vy -= 6 * dt; p.vx *= 0.985; p.vz *= 0.985; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+      const s = Math.min(1, p.life);
+      m.makeScale(s, s, s).setPosition(p.x, p.y, p.z); this.fwMesh.setMatrixAt(n, m); this.fwMesh.setColorAt(n++, p.col);
+    }
+    this.fwMesh.count = n; this.fwMesh.instanceMatrix.needsUpdate = true; if (this.fwMesh.instanceColor) this.fwMesh.instanceColor.needsUpdate = true;
   }
 
   /** Vật chuyển động trong công trình (xem transport3d.js): nội suy khung khoá theo thời gian. */
@@ -2077,11 +2127,11 @@ export class View {
     }
     this.debris.visible = !!t;
     // mưa / mưa đá quanh tâm camera
-    const w = inc.weather, wet = w === 'rain' || w === 'hail';
+    const w = inc.weather, wet = w === 'rain' || w === 'hail' || w === 'storm';
     this.rain.visible = wet;
     if (wet) {
       const cx = this.cam.x, cz = this.cam.z, span = Math.min(700, this.cam.dist * 1.6), fall = w === 'hail' ? 80 : 140;
-      this.rain.material.color.set(w === 'hail' ? 0xf4f8ff : 0xa9c4dc);
+      this.rain.material.color.set(w === 'hail' ? 0xf4f8ff : w === 'storm' ? 0x8fa9c0 : 0xa9c4dc);
       for (let k = 0; k < this.rain.count; k++) {
         const hx = hash2(k, 1, 7), hz = hash2(k, 2, 7), hy = (hash2(k, 3, 7) * 120 - this.time * fall) % 120;
         m.makeScale(w === 'hail' ? 2.2 : 1, w === 'hail' ? 0.25 : 1, w === 'hail' ? 2.2 : 1).setPosition(cx + (hx - 0.5) * span, (hy < 0 ? hy + 120 : hy) + 2, cz + (hz - 0.5) * span); this.rain.setMatrixAt(k, m);
@@ -2201,6 +2251,8 @@ export class View {
     this._ships(simDt);
     this._intl();
     this._weather(dt);
+    this._floodWater();
+    this._fireworks(simDt, dt);
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._movers(simDt);

@@ -13,12 +13,14 @@ import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, 
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
 import { intlHour, intlDay, promoCost } from './intl.js';
+import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
+export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
 export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
@@ -288,6 +290,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   addEdge(c, a, b, 'small');
   roadsChanged(c);
   initEcon(c);
+  initSeason(c);
   computeMaps(c);
   return c;
 }
@@ -430,7 +433,7 @@ function attach(c) {
   c.occ = new Int16Array(N * N);
   c.landValue = fl().fill(30);
   c.pollution = fl(); c.air = fl(); c.ground = fl(); c.noise = fl(); c.waterPol = fl();
-  c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl(), care: fl(), death: fl(), sci: fl(), watch: fl(), shelter: fl() };
+  c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl(), care: fl(), death: fl(), sci: fl(), watch: fl(), shelter: fl(), flood: fl(), levee: fl() };
   c.crime = fl(); c.gloom = fl();
   c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, terrain: 0 };
   syncLand(c);
@@ -1526,6 +1529,7 @@ export function computeMaps(c) {
 export function cellHappy(c, i) {
   const needs = [], pop = c.pp.count;
   let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * 3 + c.bonus.happy;
+  if (flooded(c, i)) { h -= 18; needs.push('🌊 Nhà đang bị ngập nước'); }
   if (c.pOk[i] !== 1) { h -= 30; needs.push(c.pOk[i] ? 'Điện chập chờn' : 'Không có điện'); }
   if (c.wOk[i] !== 1) { h -= 20; needs.push(c.wOk[i] ? 'Nước yếu' : 'Không có nước'); }
   if (c.sOk[i] !== 1) { h -= 12; needs.push(c.sOk[i] ? 'Cống quá tải' : 'Không có chỗ xả nước thải'); }
@@ -1575,6 +1579,7 @@ export function recalc(c) {
     if (def.group === 'civic') civic++;
   }
   for (const k in c.budget || {}) if (c.services.some((sv) => sectorOf(sv.type) === k)) bonus.happy += (c.budget[k] - 100) / 50; // dân thấy dịch vụ tốt lên / tệ đi
+  if (c.fest) { bonus.happy += festHappy(c); bonus.comm += festMul(c, 'comm'); } // lễ hội
   c.bonus = bonus;
   let depots = 0, graves = 0, used = 0, cremate = 0, cells = 0;
   for (const sv of c.services) { const d = SERVICES[sv.type]; depots += d.depot || 0; if (d.graves) { graves += d.graves; used += sv.fill || 0; } cremate += d.cremate || 0; cells += d.cells || 0; }
@@ -1714,7 +1719,7 @@ function growth(c) {
   let built = false;
   for (let k = 0; k < samples; k++) {
     const i = zoned[(rng() * zoned.length) | 0], z = c.zone[i], dm = c.demand[ZDEF[z].cat];
-    const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1;
+    const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1 && !flooded(c, i);
     if (!c.level[i]) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
       if (rng() < Math.max(0, dm) * 0.4) {
@@ -1751,7 +1756,9 @@ function hourTick(c) {
   peopleHour(c);
   c.entryLinked = outsidePositions(c).length > 0;
   const rooms = tourismHour(c, touristSpend) + intlHour(c, { spend: touristSpend, addCitizen }); // du khách: tiền phòng, phí hạ cánh / cập cảng của khách quốc tế
-  incidentsHour(c); // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
+  incidentsHour(c);
+  seasonHour(c); // bão, ngập, triều cường
+  // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
   transitHour(c);
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
   const fares = c.transit.income - c.fareSeen; c.fareSeen = c.transit.income;
@@ -1800,7 +1807,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -1887,6 +1894,7 @@ function deserializeAt(o) {
   }
   if (Array.isArray(o.weather) && WEATHER_KINDS.includes(o.weather[0])) { c.inc.weather = o.weather[0]; c.inc.wUntil = num(o.weather[1], 0); }
   initEcon(c, o.econ || {});
+  initSeason(c, o.season || {});
   if (o.sandbox) enableSandbox(c);
   computeMaps(c); recalc(c);
   return c;

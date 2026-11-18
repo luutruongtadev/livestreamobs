@@ -1086,6 +1086,26 @@ export function serviceModel(type, size) {
       g.cyl(-6.5, 0.58, -9.2, 0.35, 0.35, 0.5, 0xf28a1e, 8); // phao cứu sinh
       break;
     }
+    case 'levee': { // kè chống ngập: tường bê tông dốc phía nước (sau), lối đi trên đỉnh kè, lan can, cột đèn
+      g.box(0, 0, 0.8, e, 0.14, e - 1.6, 0x9fae7a);
+      g.at(new THREE.Matrix4().makeTranslation(0, -1.2, -3.2).multiply(new THREE.Matrix4().makeRotationX(0.5))).box(0, 0, 0, e, 0.6, 3.6, 0xb8b2a6).at(null); // mái kè
+      g.box(0, 0, -2.3, e, 1.5, 1.6, 0xc9c3b6); g.box(0, 1.5, -2.3, e + 0.1, 0.12, 1.8, 0x9a948a); // đỉnh kè, lối đi
+      for (const x of [-4.2, -1.4, 1.4, 4.2]) g.box(x, 1.62, -3.05, 0.12, 0.9, 0.12, 0x5b6670);
+      g.box(0, 2.4, -3.05, e, 0.08, 0.08, 0x5b6670);
+      g.cyl(3.5, 1.62, -1.7, 0.08, 0.06, 3.2, 0x5b6670, 5); g.box(3.5, 4.8, -1.9, 0.5, 0.15, 0.6, 0xfff2c0);
+      break;
+    }
+    case 'floodpump': { // trạm bơm: nhà máy bơm, 3 ống xả lớn, bể chứa, cửa van
+      pave(0x9c9a92);
+      g.box(-3, 0.14, 1.5, 9, 5.2, 7, 0xd6dde2, true); g.box(-3, 5.34, 1.5, 9.4, 0.4, 7.4, 0x2c6fb0);
+      g.box(-3, 2.2, 5.05, 3.2, 3, 0.08, 0x55606a); // cửa cuốn
+      for (const z of [-1, 1.5, 4]) { g.at(new THREE.Matrix4().makeTranslation(1.5, 2.2, z).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2))).cyl(0, 0, 0, 0.75, 0.75, 7.5, 0x2f6fb0, 10).at(null); } // ống xả
+      g.box(6.6, 0.14, 1.5, 2, 3.6, 8.4, 0x8d887e); g.box(6.6, 3.74, 1.5, 2.3, 0.2, 8.7, 0x6f7a82); // cửa xả
+      g.box(-1, -0.5, -6.5, 15, 0.7, 5, 0x4a7fa8); g.box(-1, 0.14, -4, 15, 0.6, 0.3, 0x8d887e); // bể hút
+      for (const x of [-6, -1, 4]) g.box(x, 0.14, -6.5, 0.3, 1.4, 5, 0x8d887e);
+      g.box(-6.8, 0.14, 6.6, 0.25, 6, 0.25, 0x8a949c); g.box(-6.8, 6, 6.6, 1.4, 0.8, 0.12, 0xe6a01e); // biển báo mực nước
+      break;
+    }
     case 'beach': { // bãi biển: cát hai tông, dù che nắng, ghế nằm, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa
       g.box(0, 0, 0, e, 0.14, e, 0xecd9a8);
       g.box(0, 0.141, -9, e, 0.02, 11, 0xdcc48d); // cát ướt phía mép nước (sau)
