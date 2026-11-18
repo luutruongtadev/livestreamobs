@@ -1,6 +1,6 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
-import { View } from './render.js';
+import { View, DCOL } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -30,9 +30,10 @@ const GROUPS = [
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp'], ['raise', '⏫', 'Nâng tầng'], ['lower', '⏬', 'Hạ tầng'], ['bridge', '🌉', 'Đổi cầu']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước'], ['district', 'Lớp xem: các quận (mỗi quận một màu, ô trắng là trụ sở quận)', '🏙️', 'Quận']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
+let seatPick = null, distSel = 0; // đang chọn chỗ đặt trụ sở cho quận nào; quận đang xem trong bảng 🏙️
 let roadMode = 'line', gridSnap = true, moving = null, draw = null; // draw: { a, ctrl } khi đang vẽ đường / dây, { stops } khi vẽ tuyến
 let bridgeStyle = (() => { try { return S.BRIDGES[localStorage.getItem('phomoi.v2.bridge')] ? localStorage.getItem('phomoi.v2.bridge') : 'auto'; } catch { return 'auto'; } })(); // kiểu cầu cho đường mới qua sông
 let brush = 2, stroke = null; // cỡ cọ đào đắp (ô); stroke: { target, at, spent } khi đang giữ chuột đào đắp
@@ -583,6 +584,7 @@ function showInfo(tile) {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
     const kind = S.bizKind(c, i);
     const need = kind === 'factory' || kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
+    const dq = S.districtOf(c, i); if (dq >= 0) add('Quận', `${c.dist.list[dq].name} · chủ tịch ${c.dist.list[dq].chair}`);
     title = L ? `${zd.icon} ${need && kind === 'factory' ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${need.product}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
     if (L) {
       const h = S.cellHappy(c, i), rc = S.resCap(z, L), jb = S.jobCap(z, L);
@@ -951,7 +953,9 @@ function updateHud(force) {
   if ($('budget').classList.contains('show')) { renderLoans(); renderEcon(); renderExpenses(force); }
   if ($('fest').classList.contains('show')) renderFest(force);
   if ($('inbox').classList.contains('show')) renderInbox(force);
-  aiPump();
+  if ($('dist').classList.contains('show')) renderDist(force);
+  aiPump(); distPump();
+  $('distN').textContent = c.dist.on ? String(c.dist.list.length) : '';
   { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
   { const u = S.upcomingFestivals(c, 1)[0]; $('festN').textContent = u ? (u.inDays ? `${u.f.icon} ${u.inDays} ngày` : `${u.f.icon} hôm nay`) : ''; } // lễ gần nhất
   // cảnh báo / gợi ý
@@ -1032,6 +1036,7 @@ function bindInput() {
     if (e.button === 2 || e.button === 1) { rot = { x: e.clientX, y: e.clientY }; return; }
     if (e.button !== 0) return;
     hover = view.pick(e.clientX, e.clientY);
+    if (seatPick != null && hover) { const r = S.moveSeat(city, seatPick, hover.x, hover.y); toast(r.ok ? `📍 Đã dời trụ sở ${city.dist.list[seatPick].name}: ranh giới các quận vẽ lại` : r.reason); if (r.ok) { seatPick = null; city.dirty.zones = true; renderDist(true); } return; }
     if (tool === 'info') { grab = view.groundPoint(e.clientX, e.clientY); cv.style.cursor = 'grabbing'; return; }
     if (!hover) return;
     if (tool === 'move') { moveClick(); return; }
@@ -1182,9 +1187,10 @@ function bindMinimap() {
 }
 
 function openSide(id) {
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
+  if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
   if (id === 'saves') renderSlots();
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
@@ -1204,6 +1210,7 @@ function bindUi() {
   $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
   $('dateBox').addEventListener('click', () => openSide('fest'));
   $('bInbox').addEventListener('click', () => openSide('inbox'));
+  $('bDist').addEventListener('click', () => openSide('dist'));
   $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
@@ -1262,6 +1269,7 @@ function aiPump() {
   Promise.allSettled(jobs).then(() => { aiPump.busy = false; if (city === c) renderInbox(true); });
 }
 
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
 const starsOf = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
 
 function renderInbox(force) {
@@ -1282,6 +1290,8 @@ function renderInbox(force) {
   for (const it of pend) {
     const card = el('div', 'card'), opts = el('div', 'opts');
     card.append(el('b', null, `⚖️ ${it.title}`), el('p', null, it.story), el('small', null, `Còn ${Math.max(0, it.expires - c.day)} ngày; quá hạn thì thành phố tự chọn phương án cuối.`));
+    const dq = it.chairAt != null && c.dist.on ? c.dist.list[it.district] : null;
+    if (dq) card.append(el('small', 'pos', ` 🏙️ Việc của ${dq.name}: chủ tịch ${dq.chair} sẽ tự quyết sau ~${Math.max(0, it.chairAt - c.hour)} giờ${it.pick ? ' (đã chọn hướng)' : ''}; bạn vẫn quyết thay được.`));
     for (const o of it.options) {
       const b = el('button', 'mini'), D = S.DILEMMAS[it.type].options.find((x) => x.id === o.id);
       b.append(el('b', null, o.label)); if (o.note) b.append(el('small', null, o.note));
@@ -1328,7 +1338,7 @@ function renderInbox(force) {
   if (!K.reviews.length) rbox.append(el('small', null, 'Chưa có du khách nào viết đánh giá: xây điểm tham quan, khách sạn, đón khách qua cửa ngõ.'));
   // đã xử lý
   const done = K.inbox.filter((i) => i.status !== 'pending').slice(-6).reverse();
-  $('inboxDone').innerHTML = done.length ? done.map((i) => `<div class="row"><span>${i.kind === 'deal' ? '🤝 ' + i.who : '⚖️ ' + i.title}</span><span>${i.kind === 'deal' ? { signed: 'đã ký', rejected: i.walked ? 'đối tác rút lui' : 'từ chối', expired: 'hết hạn' }[i.status] : (i.auto ? '⌛ ' : '') + (i.options.find((o) => o.id === i.chose) || {}).label}</span></div>`).join('') : '<small>Chưa có</small>';
+  $('inboxDone').innerHTML = done.length ? done.map((i) => `<div class="row"><span>${i.kind === 'deal' ? '🤝 ' + i.who : '⚖️ ' + i.title}</span><span>${i.kind === 'deal' ? { signed: 'đã ký', rejected: i.walked ? 'đối tác rút lui' : 'từ chối', expired: 'hết hạn' }[i.status] : (i.auto ? '⌛ ' : i.by ? '🏙️ ' : '') + (i.options.find((o) => o.id === i.chose) || {}).label}</span></div>${i.by && i.why ? `<small>${i.by}: ${esc(i.why)}</small>` : ''}`).join('') : '<small>Chưa có</small>';
 }
 
 function effectText(o) {
@@ -1352,6 +1362,148 @@ async function negotiate(it, text) {
   S.applyCounter(c, it.id, d.reply, d.offer, d.status);
   if (d.status === 'walkaway') toast(`🚪 ${it.who} rút khỏi đàm phán`);
   renderInbox(true);
+}
+
+// ───────────────────────── quận và chủ tịch quận (Claude đóng vai chủ tịch, game tính số) ─────────────────────────
+
+/** Gửi các việc của chủ tịch quận cho AI: lập kế hoạch tự chủ, viết báo cáo, chọn phương án tình huống. */
+function distPump() {
+  const c = city, q = c.distQueue;
+  if (!q || !q.length || distPump.busy || !c.dist.on) return;
+  const jobs = q.splice(0, 3), sum = citySummary(c, S);
+  distPump.busy = true;
+  Promise.allSettled(jobs.map((j) => distJob(c, j, sum))).then(() => { distPump.busy = false; if (city === c) renderDist(true); });
+}
+async function distJob(c, j, sum) {
+  const q = c.dist.list[j.d];
+  if (!q) return;
+  const base = { city: sum, q: S.distSummary(c, j.d) };
+  if (j.task === 'plan') {
+    const d = await aiCall('district', { ...base, task: 'plan' });
+    if (d && city === c && q.mode === 'auto') S.applyPlan(c, j.d, { ...d, ai: true });
+  } else if (j.task === 'report') {
+    const r = q.reports.find((x) => x.id === j.id);
+    if (!r) return;
+    const d = await aiCall('district', { ...base, task: 'report', delta: r.delta, result: r.result && { ...r.result, order: q.order ? q.order.text : '' } });
+    if (d && d.text) { r.text = d.text; r.ai = true; }
+  } else if (j.task === 'pick') {
+    const it = c.council.inbox.find((i) => i.id === j.id);
+    if (!it || it.status !== 'pending') return;
+    const effects = Object.fromEntries(S.DILEMMAS[it.type].options.map((o) => [o.id, effectText(o)]));
+    const d = await aiCall('district', { ...base, task: 'pick', type: it.type, title: it.title, story: it.story, effects });
+    if (d && d.id && it.status === 'pending') it.pick = { id: d.id, why: d.why };
+  }
+}
+
+/** Thị trưởng giao việc: AI biến lệnh thành kế hoạch; không có AI thì tìm từ khoá. */
+async function sendOrder(d, text) {
+  const c = city, q = c.dist.list[d];
+  if (!q || q.wait) return;
+  q.wait = text; renderDist(true);
+  let p = await aiCall('district', { city: citySummary(c, S), q: S.distSummary(c, d), task: 'order', text });
+  if (p) p.ai = true; else p = S.orderFallback(q, text);
+  q.wait = null;
+  if (city !== c) return;
+  const r = S.applyOrder(c, d, text, p);
+  if (r.ok) toast(`📋 ${q.name} nhận việc: ${S.KPIS[r.order.goal].name} được chấm sau ${r.order.until - c.day} ngày`);
+  S.recalc(c); updateHud(true); renderDist(true);
+}
+
+function renderDist(force) {
+  const c = city, D = c.dist;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length).join('|')}`;
+  if (!force && renderDist.key === key) return;
+  renderDist.key = key;
+  $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : '🤖 AI chưa sẵn sàng: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.';
+  const setup = $('distSetup'), tabs = $('distTabs'), body = $('distBody');
+  setup.textContent = ''; tabs.textContent = ''; body.textContent = '';
+  const can = S.canSplit(c), maxK = S.maxDistricts(c);
+  const sel = el('select'); for (let k = 2; k <= maxK; k++) { const o = el('option', null, `${k} quận`); o.value = k; if (k === (D.on ? D.list.length : Math.min(4, maxK))) o.selected = true; sel.append(o); }
+  const split = el('button', 'mini acc', D.on ? 'Chia lại' : '🏙️ Chia quận');
+  split.disabled = !can.ok; split.title = can.ok ? 'Game tự chia theo nơi dân ở, việc làm; sau đó dời trụ sở để chỉnh ranh giới' : can.reason;
+  split.onclick = () => { const r = S.splitDistricts(c, +sel.value); if (!r.ok) { toast(r.reason); return; } distSel = 0; c.dirty.zones = true; layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); S.recalc(c); updateHud(true); renderDist(true); };
+  const row = el('div'); row.style.cssText = 'display:flex;gap:6px;align-items:center;flex-wrap:wrap';
+  row.append(sel, split);
+  if (D.on) {
+    const off = el('button', 'mini', 'Giải thể');
+    off.onclick = () => { if (!confirm('Giải thể các quận? Mọi chương trình quận dừng, chủ tịch quận nghỉ việc.')) return; S.dissolve(c); c.dirty.zones = true; S.recalc(c); updateHud(true); renderDist(true); };
+    row.append(off);
+  } else {
+    setup.append(el('p', null, 'Chia thành phố thành nhiều quận, mỗi quận có một chủ tịch với tính cách, năng lực riêng. Với từng quận bạn chọn: 🖐️ tự làm (tự chỉnh chương trình quận), 📋 giao việc (gõ lệnh, chủ tịch lập kế hoạch và bị chấm đạt / chưa đạt), hoặc 🤖 để chủ tịch tự chủ trong ngân sách bạn cấp (tự lập kế hoạch, tự quyết tình huống khó xử của quận).'));
+    if (!can.ok) setup.append(el('small', 'neg', can.reason));
+  }
+  setup.append(row);
+  if (!D.on) return;
+  if (distSel >= D.list.length) distSel = 0;
+  D.list.forEach((q, d) => {
+    const b = el('button', 'mini' + (d === distSel ? ' on' : ''), q.name), [r, g, bb] = DCOL[d % DCOL.length];
+    b.style.borderLeft = `4px solid rgb(${r},${g},${bb})`; b.title = `${q.chair} · ${S.MODES[q.mode]}`;
+    b.onclick = () => { distSel = d; renderDist(true); };
+    tabs.append(b);
+  });
+  const d = distSel, q = D.list[d], P = S.PERSONAS[q.persona], st = q.stat || {};
+  const head = el('div', 'card');
+  head.innerHTML = `<b>${q.name}</b> · chủ tịch <b></b><br><small></small>`;
+  head.querySelectorAll('b')[1].textContent = q.chair;
+  head.querySelector('small').textContent = `${P.name}: ${P.desc} · năng lực ${starsOf(1 + q.skill * 4)} · việc giao: ${q.done} đạt, ${q.failed} chưa đạt`;
+  const kp = el('div', 'kpis');
+  for (const [ic, v, nm] of [['👥', fmt(st.pop || 0), 'dân'], ['💼', fmt(st.jobs || 0), 'việc làm'], ['🙂', st.happy || 0, 'mức vui'], ['💰', st.value || 0, 'giá đất'], ['🚨', st.crime || 0, 'tội phạm'], ['🌫️', st.pollution || 0, 'ô nhiễm'], ['🌊', st.flood || 0, 'nhà ngập'], ['🏠', st.built || 0, 'công trình']]) { const s = el('span', null, `${ic} ${v}`); s.append(el('small', null, nm)); kp.append(s); }
+  head.append(kp);
+  const nav = el('div'); nav.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+  const look = el('button', 'mini', '👁️ Tới trụ sở'); look.onclick = () => flyTo((q.x + 0.5) * S.T - S.HALF, (q.y + 0.5) * S.T - S.HALF);
+  const mv = el('button', 'mini' + (seatPick === d ? ' acc' : ''), seatPick === d ? '📍 Bấm lên bản đồ…' : '📍 Dời trụ sở');
+  mv.title = 'Bấm rồi chọn ô trên bản đồ: ranh giới các quận vẽ lại theo trụ sở gần nhất';
+  mv.onclick = () => { seatPick = seatPick === d ? null : d; if (seatPick != null) { setTool('info'); toast(`Bấm lên bản đồ để đặt trụ sở mới cho ${q.name}`); } renderDist(true); };
+  const swap = el('button', 'mini', '🔄 Thay chủ tịch'); swap.onclick = () => { const r = S.replaceChair(c, d); if (!r.ok) toast(r.reason); renderDist(true); };
+  nav.append(look, mv, swap); head.append(nav);
+  body.append(head);
+  // chế độ
+  body.append(el('h4', null, 'Cách điều hành'));
+  const seg = el('div', 'seg');
+  for (const [m, label] of Object.entries(S.MODES)) { const b = el('button', 'mini' + (q.mode === m ? ' on' : ''), label); b.onclick = () => { S.setMode(c, d, m); S.recalc(c); updateHud(true); renderDist(true); }; seg.append(b); }
+  body.append(seg, el('small', null, { self: 'Bạn tự chỉnh từng chương trình, hiệu quả đủ 100%.', order: 'Chủ tịch làm theo lệnh gần nhất của bạn; tới hạn thì chấm theo số liệu thật.', auto: 'Chủ tịch tự lập kế hoạch 4 ngày một lần trong trần ngân sách, và tự quyết tình huống khó xử của quận.' }[q.mode]));
+  const cost = S.planCost(q, q.prog);
+  if (q.mode !== 'self') {
+    const cap = el('input'); cap.type = 'range'; cap.min = 0; cap.max = 8000; cap.step = 100; cap.value = q.cap; cap.style.width = '100%';
+    const lab = el('div', 'row'); lab.innerHTML = `<span>Trần ngân sách</span><span><b>${money(q.cap)}</b>/ngày · đang chi ${money(cost)}</span>`;
+    cap.addEventListener('input', () => { lab.lastChild.innerHTML = `<b>${money(+cap.value)}</b>/ngày`; });
+    cap.addEventListener('change', () => { S.setCap(c, d, +cap.value); S.recalc(c); updateHud(true); renderDist(true); });
+    body.append(lab, cap);
+  } else { const lab = el('div', 'row'); lab.innerHTML = `<span>Đang chi</span><span><b>${money(cost)}</b>/ngày</span>`; body.append(lab); }
+  // chương trình
+  body.append(el('h4', null, `Chương trình quận · hiệu quả ${Math.round(S.efficiency(q) * 100)}%`));
+  for (const k of S.PKEYS) {
+    const D0 = S.PROGRAMS[k], lv = q.prog[k] | 0, r = el('div', 'prog');
+    r.title = `${D0.desc} · ${money(S.progCost(q, k, 1))}/ngày mỗi mức`;
+    r.append(el('span', null, D0.icon), el('span', 'nm', D0.name), el('span', 'lv', '●'.repeat(lv) + '○'.repeat(S.MAX_LV - lv)));
+    if (q.mode === 'self') for (const dv of [-1, 1]) { const b = el('button', 'mini', dv < 0 ? '−' : '+'); b.disabled = lv + dv < 0 || lv + dv > S.MAX_LV; b.onclick = () => { S.setProgram(c, d, k, lv + dv); S.recalc(c); updateHud(true); renderDist(true); }; r.append(b); }
+    body.append(r);
+  }
+  if (q.mode === 'auto' && q.note) { const ch = el('div', 'chat'); ch.append(el('div', 'them', `${q.chair}: ${q.note}`)); body.append(ch); }
+  // giao việc
+  body.append(el('h4', null, '📋 Giao việc'));
+  const o = q.order;
+  if (o || q.wait) {
+    const ch = el('div', 'chat');
+    ch.append(el('div', 'us', q.wait || o.text));
+    if (q.wait) ch.append(el('div', 'them', '… chủ tịch đang lên kế hoạch'));
+    else {
+      if (o.reply) ch.append(el('div', 'them', o.reply));
+      const K = S.KPIS[o.goal];
+      ch.append(el('div', o.status === 'done' ? 'them pos' : o.status === 'failed' ? 'them neg' : 'them', o.status === 'active' ? `Chỉ tiêu: ${K.name} ${K.down ? 'giảm' : 'tăng'} so với ${o.start} · chấm vào ngày ${o.until + 1} (còn ${Math.max(0, o.until - c.day)} ngày)` : o.status === 'cancelled' ? 'Đã huỷ vì đổi cách điều hành' : `${o.status === 'done' ? '✅ Đạt' : '❌ Chưa đạt'}: ${K.name} ${o.start} → ${o.end}`));
+    }
+    body.append(ch);
+  }
+  const inp = el('input'), send = el('button', 'mini acc', 'Giao'), irow = el('div');
+  irow.style.cssText = 'display:flex;gap:6px'; inp.style.flex = '1'; inp.maxLength = 300; inp.placeholder = 'VD: giảm trộm cắp quanh chợ trong 10 ngày';
+  const go = () => { const t = inp.value.trim(); if (t) sendOrder(d, t); };
+  send.onclick = go; inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+  send.disabled = !!q.wait;
+  irow.append(inp, send); body.append(irow, el('small', null, 'Quận chỉ làm được các chương trình trên; xây dựng, thuế vẫn là việc của thị trưởng.'));
+  // báo cáo
+  body.append(el('h4', null, 'Báo cáo của chủ tịch'));
+  if (!q.reports.length) body.append(el('small', null, 'Chưa có báo cáo: 6 ngày chủ tịch gửi một lần, và khi tới hạn việc được giao.'));
+  for (const r of q.reports.slice(-3).reverse()) { const card = el('div', 'card'); card.append(el('small', null, `Ngày ${r.day + 1}${r.result ? (r.result.ok ? ' · ✅ việc giao đạt' : ' · ❌ việc giao chưa đạt') : ''}`), el('p', null, r.text)); body.append(card); }
 }
 
 // ───────────────────────── lễ hội và mùa mưa bão ─────────────────────────

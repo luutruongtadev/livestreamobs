@@ -98,6 +98,22 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Tác dụng:** sức hút du lịch +0,3 mỗi ô (tối đa +18), dân cả thành phố vui hơn (tối đa +3), du khách khen bãi biển đẹp.
    - Không xây nhà, công trình trên bãi; làm đường qua thì bỏ phần bãi dưới đường. 🧽 *Xoá bãi* để bỏ ô bãi (địa hình giữ nguyên).
    - Bãi biển kiểu cũ (khối 3 × 3) trong bản lưu cũ vẫn giữ nguyên.
+13f. **🏙️ Quận và chủ tịch quận** (nút 🏙️ góc trái dưới, trên 🎎; mở từ 400 dân, chế độ Open thì mở ngay). Code: `js/districts.js`.
+   - **Chia quận:** chọn số quận (2 tới 8, nhiều hơn khi đông dân) rồi bấm *Chia quận*. Game tự chia theo nơi dân ở và việc làm; Quận 1 ở trung tâm. Mỗi ô thuộc quận có trụ sở gần nhất. *📍 Dời trụ sở* rồi bấm lên bản đồ để chỉnh ranh giới. Lớp xem 🏙️ *Quận* tô màu từng quận, ô trắng là trụ sở. Bấm vào nhà để xem nó thuộc quận nào.
+   - **Chủ tịch quận:** mỗi quận một người, có tên, năng lực (hiệu quả 75–120%) và tính cách: gần dân, mát tay kinh tế, kỷ cương, xanh – sạch, tiết kiệm (chỉ tiêu khoảng 60% ngân sách), chạy thành tích. *🔄 Thay chủ tịch* được 5 ngày một lần.
+   - **Chương trình quận** (mức 0–3, tốn tiền mỗi ngày theo cỡ quận, cộng vào mục chi 🏙️ *Chương trình các quận*). Tác dụng chỉ trong quận:
+     - 👮 Dân phòng, an ninh trật tự: tội phạm giảm.
+     - 🌳 Trồng cây, chỉnh trang đô thị: bớt bụi và tiếng ồn, giá đất tăng.
+     - 🕳️ Nạo vét cống, chống ngập: nước dâng ít hơn, rút nhanh hơn.
+     - 🎭 Văn hoá, thể thao phường: dân vui hơn.
+     - 🏪 Hỗ trợ hộ kinh doanh: cửa hàng, văn phòng mọc nhanh hơn, doanh nghiệp có thêm vốn mỗi ngày.
+     - 🏠 Hỗ trợ an cư: nhà ở mọc nhanh hơn.
+   - **Ba cách điều hành, chọn riêng cho từng quận:**
+     - 🖐️ *Tự làm:* thị trưởng tự chỉnh mức từng chương trình, hiệu quả 100%.
+     - 📋 *Giao việc:* gõ lệnh, ví dụ "giảm trộm cắp quanh chợ trong 10 ngày". Chủ tịch trả lời nhận lệnh, chọn mức chương trình trong trần ngân sách, số ngày (3–15) và chỉ tiêu để chấm (dân số, mức vui, tội phạm, ô nhiễm, giá đất, nhà ngập, việc làm). Tới hạn game chấm *đạt* / *chưa đạt* bằng số liệu thật và cộng vào thành tích của chủ tịch. Lệnh vượt quyền quận (xây công trình, đổi thuế) thì chủ tịch nói là ngoài thẩm quyền.
+     - 🤖 *Tự chủ:* chủ tịch tự lập kế hoạch 4 ngày một lần trong trần ngân sách, theo chỗ quận đang yếu và theo tính cách. Tình huống khó xử của quận (mỗi tình huống mới được giao cho một quận, quận đông dân dễ nhận hơn) do chủ tịch tự quyết sau khoảng 4 giờ. Trong lúc đó thị trưởng vẫn quyết thay được trong 📨.
+   - **Báo cáo:** 6 ngày một lần (và khi tới hạn việc giao), chủ tịch gửi báo cáo kèm số liệu thật và thay đổi so với kỳ trước. Người "chạy thành tích" nói hoa mỹ hơn nhưng không được đổi số.
+   - **AI:** Claude đóng vai chủ tịch qua `POST /api/city/ai` với `kind: 'district'` (`task`: `plan`, `order`, `report`, `pick`). Mức chương trình bị ép về 0–3 và cắt cho vừa trần ngân sách, số ngày 3–15, phương án lạ bị bỏ, lệnh của thị trưởng nằm trong thẻ `<mayor>`. Không có AI thì chủ tịch dùng kế hoạch soạn sẵn theo nhu cầu × tính cách, lệnh được hiểu theo từ khoá, báo cáo theo mẫu.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.

@@ -25,6 +25,7 @@ const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
+export const DCOL = [[255, 99, 71], [64, 160, 255], [80, 200, 120], [250, 190, 40], [190, 110, 240], [40, 210, 210], [255, 130, 190], [160, 200, 60]]; // màu từng quận
 const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
 const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], overpass2: [1.8], overpass3: [1.8], tunnel: [1.8], highway: [2.1, 5.4, 8.7] }; // thiếu loại nào thì xe chạy trên đó làm lỗi vòng vẽ
@@ -819,6 +820,16 @@ export class View {
         if (z && !c.water[i]) { [r, g, b] = ZCOL[z]; a = c.level[i] ? 90 : 170; }
         else if (this.ovZone && c.acc[i] && !c.occ[i] && !c.steep[i] && hasResource(c, i, this.ovZone)) { r = g = b = 255; a = 150; }
         else if (rs) { [r, g, b] = RESCOL[rs]; a = rs === 5 ? 95 : 135; }
+      } else if (mode === 'district') {
+        // quận: mỗi quận một màu, viền đậm ở ranh giới, ô trụ sở trắng
+        const q = c.dmap ? c.dmap[i] : 255;
+        if (q !== 255 && c.dist && c.dist.on) {
+          const s = c.dist.list[q], x = i % N, y = (i / N) | 0;
+          [r, g, b] = DCOL[q % DCOL.length];
+          const edge = (x + 1 < N && c.dmap[i + 1] !== q) || (y + 1 < N && c.dmap[i + N] !== q) || (x > 0 && c.dmap[i - 1] !== q) || (y > 0 && c.dmap[i - N] !== q);
+          a = c.water[i] ? 25 : edge ? 210 : 70;
+          if (s && Math.abs(s.x - x) <= 1 && Math.abs(s.y - y) <= 1) { r = g = b = 255; a = 230; }
+        }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
       } else if (!c.water[i]) {

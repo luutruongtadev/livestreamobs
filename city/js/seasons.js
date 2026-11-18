@@ -1,6 +1,7 @@
 // Phố Mới — lịch âm, lễ hội Việt Nam và mùa mưa bão (bão, ngập lụt, triều cường).
 // Lịch rút gọn: 10 ngày game = 1 tháng âm, 120 ngày = 1 năm. Mỗi ngày game ứng với ngày âm 1, 4, 7, ... 28 của tháng.
 import { N, SERVICES, idx, inMap, clamp, cellOf } from './base.js';
+import { distFx } from './districts.js';
 
 export const MONTH_DAYS = 10, YEAR_DAYS = 120;
 const OFFSET = 20; // thành phố mới bắt đầu từ tháng 3 âm: còn thời gian chuẩn bị trước mùa bão và Tết
@@ -200,7 +201,9 @@ export function seasonHour(c) {
     let add = rain * risk[i] + (tideOn && c.floodTide[i] ? 1.3 : 0);
     if (levee[i] > 0.05) add *= 0.15;
     if (pump[i] > 0.05) add *= 0.4;
-    const drain = (rain ? 0.25 : 0.9) + (pump[i] > 0.05 ? 2.5 : 0);
+    const dd = distFx(c, i, 'drain'); // nạo vét cống của quận
+    if (dd) add *= 1 - 0.12 * dd;
+    const drain = (rain ? 0.25 : 0.9) + (pump[i] > 0.05 ? 2.5 : 0) + dd * 0.35;
     fl[i] = clamp(fl[i] + add - drain, 0, 6);
     if (fl[i] >= 1.5) {
       wet++;

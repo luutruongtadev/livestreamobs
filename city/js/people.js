@@ -10,6 +10,7 @@ import { planRide, board, onBusArrive } from './transit.js';
 import { ferryDay } from './ships.js';
 import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
+import { distFx } from './districts.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
 const DEMAND_PER_HEAD = 0.025; // hàng hoá mỗi người mua mỗi giờ
@@ -618,7 +619,7 @@ function crimeDay(c) {
     const L = c.level[i];
     if (!L) { c.crime[i] = 0; continue; }
     const people = resCap(c.zone[i], L) + jobCap(c.zone[i], L);
-    const target = clamp(0.08 + unemp * 1.1 + (40 - c.landValue[i]) / 140 - c.cover.police[i] * police, 0, 1);
+    const target = clamp(0.08 + unemp * 1.1 + (40 - c.landValue[i]) / 140 - c.cover.police[i] * police - distFx(c, i, 'security') * 0.07, 0, 1); // dân phòng của quận
     c.crime[i] += (target - c.crime[i]) * 0.3;
     arrests += c.crime[i] * c.cover.police[i] * people * 0.02;
     sum += c.crime[i]; n++;

@@ -419,8 +419,8 @@ function newDeal(c, rng) {
   return it;
 }
 
-/** Thị trưởng chọn phương án cho tình huống. auto = hết hạn, tự chọn phương án cuối (chần chừ). */
-export function decide(c, id, optId, auto = false) {
+/** Thị trưởng chọn phương án cho tình huống. auto = hết hạn, tự chọn phương án cuối (chần chừ); by = chủ tịch quận quyết thay. */
+export function decide(c, id, optId, auto = false, by = null) {
   const it = c.council.inbox.find((i) => i.id === id && i.kind === 'dilemma');
   if (!it || it.status !== 'pending') return { ok: false, reason: 'Việc này đã xử lý' };
   const o = DILEMMAS[it.type].options.find((x) => x.id === optId);
@@ -434,8 +434,8 @@ export function decide(c, id, optId, auto = false) {
     for (let k = 0; k < o.fire && homes.length; k++) { const j = homes.splice(((c.rng || Math.random)() * homes.length) | 0, 1)[0]; c.fire[j] = 7; }
     c.dirty.fx = true;
   }
-  it.status = 'done'; it.chose = optId; it.auto = auto;
-  c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${o.money ? ` (${o.money > 0 ? '+' : ''}${o.money.toLocaleString('vi-VN')} ₫)` : ''}` });
+  it.status = 'done'; it.chose = optId; it.auto = auto; if (by) it.by = by;
+  c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : by ? `🏙️ ${by} quyết` : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${o.money ? ` (${o.money > 0 ? '+' : ''}${o.money.toLocaleString('vi-VN')} ₫)` : ''}` });
   return { ok: true, option: o };
 }
 
