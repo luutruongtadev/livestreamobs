@@ -2,7 +2,7 @@
 //   { kind: 'dilemma' | 'reviews' | 'negotiate', ... } → { ok: true, data } hoặc { ok: false, offline: true }
 // Game tự tính mọi con số và hậu quả; ở đây Claude chỉ viết lời (tình huống, đánh giá) và mặc cả trong khung số
 // của game (đề nghị trả về luôn bị ép lại vào khung, ở đây và ở trình duyệt).
-// Biến môi trường: ANTHROPIC_API_KEY (hoặc ANTHROPIC_AUTH_TOKEN), CITY_AI_MODEL (mặc định claude-opus-5-5),
+// Biến môi trường: ANTHROPIC_API_KEY (hoặc ANTHROPIC_AUTH_TOKEN), CITY_AI_MODEL (mặc định claude-haiku-5-5),
 //   CITY_AI_DAILY (số lượt gọi tối đa mỗi ngày cho cả server, mặc định 3000).
 import Anthropic from '@anthropic-ai/sdk';
 import { DEALS, clampOffer } from '../city/js/council.js';
@@ -66,7 +66,7 @@ function cityText(city = {}) {
 export function createCityAi({ env = process.env, client = undefined, log = console, now = () => Date.now() } = {}) {
   const hasKey = !!(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
   const ai = client !== undefined ? client : hasKey ? new Anthropic() : null;
-  const model = env.CITY_AI_MODEL || 'claude-opus-5-5';
+  const model = env.CITY_AI_MODEL || 'claude-haiku-5-5'; // nhanh, rẻ; đặt claude-opus-5-5 nếu muốn lời văn tinh tế hơn
   const daily = Number(env.CITY_AI_DAILY) || 3000;
   const perIp = new Map(); // ip → [mốc thời gian gọi gần đây]
   let day = '', used = 0;

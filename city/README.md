@@ -69,7 +69,7 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
      - **Hãng bay (cần sân bay):** thành phố trợ giá mỗi ngày, đổi lại thêm chuyến bay quốc tế.
      - Bảng đàm phán có ước tính lời / lỗ cho thành phố.
    - **⭐ Đánh giá du khách:** mỗi tối vài du khách viết đánh giá. Số sao do game chấm từ trải nghiệm thật: điểm tham quan, bãi biển, lễ hội, kẹt xe, ngập, bão, móc túi, ô nhiễm, hết phòng, dân thân thiện. Điểm trung bình 30 bài gần nhất nhân lượng du khách và khách quốc tế từ ×0,7 (1 sao) tới ×1,3 (5 sao).
-   - **Máy chủ:** `POST /api/city/ai` (`gateway/city-ai.js`): model `claude-opus-5-5` (đổi bằng `CITY_AI_MODEL`), mỗi máy tối đa 12 lượt / phút, cả server `CITY_AI_DAILY` lượt / ngày.
+   - **Máy chủ:** `POST /api/city/ai` (`gateway/city-ai.js`): model `claude-haiku-5-5` (đổi bằng `CITY_AI_MODEL`, ví dụ `claude-opus-5-5`), mỗi máy tối đa 12 lượt / phút, cả server `CITY_AI_DAILY` lượt / ngày.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.

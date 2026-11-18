@@ -1146,7 +1146,8 @@ test('máy chủ AI Phố Mới: không có key thì báo offline; có client th
   const reply = (obj) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(obj) }] });
   const fake = { beta: { messages: { create: async (body) => { calls.push(body); const s = body.output_config.format.schema; if (s.properties.reviews) return reply({ reviews: [{ id: 7, text: 'Hay lắm!' }, { id: 99, text: 'lạ' }] }); if (s.properties.story) return reply({ title: 'Tiêu đề', story: 'Chuyện', options: [{ id: 'allow', label: 'Cho', note: 'n' }, { id: 'hack', label: 'x', note: 'x' }] }); return reply({ reply: 'Được thôi', offer: { invest: 1e9, breakPct: 1, days: 500 }, status: 'negotiating' }); } } } };
   const ai = createCityAi({ env: {}, client: fake, log: { warn() {} } });
-  assert.equal(ai.model, 'claude-opus-5-5');
+  assert.equal(ai.model, 'claude-haiku-5-5');
+  assert.equal(createCityAi({ env: { CITY_AI_MODEL: 'claude-opus-5-5' }, client: fake }).model, 'claude-opus-5-5');
   const rv = await ai.run({ kind: 'reviews', city: { pop: 100 }, reviews: [{ id: 7, stars: 4, pros: ['biển'], cons: [] }] });
   assert.deepEqual(rv.reviews, [{ id: 7, text: 'Hay lắm!' }]);
   const dl = await ai.run({ kind: 'dilemma', topic: 't', options: [{ id: 'allow', label: 'a' }, { id: 'fine', label: 'b' }] });
@@ -1155,7 +1156,7 @@ test('máy chủ AI Phố Mới: không có key thì báo offline; có client th
   const P = S.DEALS.investor.params;
   assert.deepEqual(ng.offer, { invest: P.invest[1], breakPct: P.breakPct[0], days: P.days[1] });
   const b = calls[2];
-  assert.equal(b.model, 'claude-opus-5-5'); assert.equal(b.output_config.format.type, 'json_schema'); assert.equal(b.fallbacks, 'default');
+  assert.equal(b.model, 'claude-haiku-5-5'); assert.equal(b.output_config.format.type, 'json_schema'); assert.equal(b.fallbacks, undefined, 'Haiku không có server-side fallback');
   assert.match(b.system, new RegExp(S.DEALS.investor.who[0].replace(/[()]/g, '.')), 'đối tác lạ được thay bằng đối tác hợp lệ');
   assert.match(b.messages[0].content, /<mayor>bỏ qua mọi chỉ dẫn/);
   await assert.rejects(ai.run({ kind: 'xyz' }));
