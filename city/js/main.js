@@ -558,6 +558,7 @@ function showInfo(tile) {
     }
     if (sv.type === 'airport' && S.isIntlAirport(sv)) title = `${d.icon} Sân bay quốc tế`;
     if (sv.type === 'dhall') { const dq = c.dist.list.findIndex((q) => q.hall === sv.uid), q = c.dist.list[dq]; if (q) { title = `🏛️ Trụ sở UBND ${q.name}`; add('Chủ tịch', `${q.chair} · ${S.PERSONAS[q.persona].name} · ${S.MODES[q.mode]}`); add('Chương trình', `${S.PKEYS.filter((k) => q.prog[k]).map((k) => S.PROGRAMS[k].icon + q.prog[k]).join(' ') || 'chưa có'} · ${money(S.planCost(q, q.prog))}/ngày`); } }
+    if (sv.dq) add('Công trình quận', `🏗️ ${sv.dq} xây (chủ tịch ${sv.dby || '?'})`);
     if (d.beds) { const sc = c.tour.score || S.tourismScore(c); add('Phòng (cả thành phố)', `${fmt(c.tour.guests)} khách / ${fmt(sc.beds)} giường · ${c.tour.roomFee} ₫/đêm`); }
     if (d.attract) add('Sức hút du lịch', `+${d.attract}`);
     if (sv.type === 'ferry') {
@@ -968,7 +969,8 @@ function updateHud(force) {
   if ($('inbox').classList.contains('show')) renderInbox(force);
   if ($('dist').classList.contains('show')) renderDist(force);
   aiPump(); distPump();
-  $('distN').textContent = c.dist.on ? String(c.dist.list.length) : '';
+  const asks = c.dist.on ? c.dist.list.filter((q) => q.prop && q.prop.status === 'ask').length : 0;
+  $('distN').textContent = c.dist.on ? (asks ? `✋${asks}` : String(c.dist.list.length)) : '';
   { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
   { const u = S.upcomingFestivals(c, 1)[0]; $('festN').textContent = u ? (u.inDays ? `${u.f.icon} ${u.inDays} ngày` : `${u.f.icon} hôm nay`) : ''; } // lễ gần nhất
   // cảnh báo / gợi ý
@@ -1049,7 +1051,7 @@ function bindInput() {
     if (e.button === 2 || e.button === 1) { rot = { x: e.clientX, y: e.clientY }; return; }
     if (e.button !== 0) return;
     hover = view.pick(e.clientX, e.clientY);
-    if (seatPick != null && hover) { const r = S.moveSeat(city, seatPick, hover.x, hover.y); toast(r.ok ? `📍 Đã dời trụ sở ${city.dist.list[seatPick].name}: ranh giới các quận vẽ lại` : r.reason); if (r.ok) { seatPick = null; city.dirty.zones = true; renderDist(true); } return; }
+    if (seatPick != null && hover) { const r = S.moveSeat(city, seatPick, hover.x, hover.y); toast(r.ok ? `📍 Đã dời trụ sở ${city.dist.list[seatPick].name}: ranh giới các quận vẽ lại` : r.reason); if (r.ok) { seatPick = null; city.dirty.zones = true; $('dist').classList.remove('peek'); renderDist(true); } return; }
     if (tool === 'info') { grab = view.groundPoint(e.clientX, e.clientY); cv.style.cursor = 'grabbing'; return; }
     if (!hover) return;
     if (tool === 'move') { moveClick(); return; }
@@ -1199,7 +1201,11 @@ function bindMinimap() {
   cv.addEventListener('pointercancel', () => { down = false; });
 }
 
+/** Thu cửa sổ quận lại để nhìn bản đồ; bấm 🏙️ để mở lại. */
+function peekDist() { $('dist').classList.add('peek'); toast('Bấm 🏙️ để mở lại bảng điều hành quận'); }
+
 function openSide(id) {
+  if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
   for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
@@ -1211,6 +1217,7 @@ function openSide(id) {
 }
 
 function bindUi() {
+  $('distPeek').addEventListener('click', () => peekDist());
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
   $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
@@ -1405,6 +1412,11 @@ async function distJob(c, j, sum) {
     const effects = Object.fromEntries(S.DILEMMAS[it.type].options.map((o) => [o.id, effectText(o)]));
     const d = await aiCall('district', { ...base, task: 'pick', type: it.type, title: it.title, story: it.story, effects });
     if (d && d.id && it.status === 'pending') it.pick = { id: d.id, why: d.why };
+  } else if (j.task === 'build') {
+    const p = q.prop;
+    if (!p || p.status !== 'think') return;
+    const d = await aiCall('district', { ...base, task: 'build', cands: p.cands });
+    if (d && d.type && q.prop === p) p.ai = { type: d.type, why: d.why };
   }
 }
 
@@ -1418,18 +1430,19 @@ async function sendOrder(d, text) {
   q.wait = null;
   if (city !== c) return;
   const r = S.applyOrder(c, d, text, p);
-  if (r.ok) toast(`📋 ${q.name} nhận việc: ${S.KPIS[r.order.goal].name} được chấm sau ${r.order.until - c.day} ngày`);
+  if (r.ok) { const b = r.order.build; toast(`📋 ${q.name} nhận việc: ${S.KPIS[r.order.goal].name} được chấm sau ${r.order.until - c.day} ngày${b ? (b.ok ? ` · 🏗️ đã xây ${S.SERVICES[b.type].name}` : ` · ⚠️ chưa xây được ${S.SERVICES[b.type].name}: ${b.reason}`) : ''}`); }
   S.recalc(c); updateHud(true); renderDist(true);
 }
 
 function renderDist(force) {
   const c = city, D = c.dist;
-  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length).join('|')}`;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length + q.build + q.bcap + (q.prop ? q.prop.status + q.prop.type : '') + (q.builds || []).length).join('|')}|${Math.round(c.money / 5000)}`;
   if (!force && renderDist.key === key) return;
   renderDist.key = key;
-  $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : `🤖 ${aiEnabled() ? 'AI chưa sẵn sàng' : 'AI đang tắt (bật lại trong 📨 Hộp thư)'}: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.`;
-  const setup = $('distSetup'), tabs = $('distTabs'), body = $('distBody');
-  setup.textContent = ''; tabs.textContent = ''; body.textContent = '';
+  $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, chọn công trình để xây, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : `🤖 ${aiEnabled() ? 'AI chưa sẵn sàng' : 'AI đang tắt (bật lại trong 📨 Hộp thư)'}: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.`;
+  const setup = $('distSetup'), tabs = $('distTabs'), root = $('distBody');
+  let body = root;
+  setup.textContent = ''; tabs.textContent = ''; root.textContent = '';
   const can = S.canSplit(c), maxK = S.maxDistricts(c);
   const sel = el('select'); for (let k = 2; k <= maxK; k++) { const o = el('option', null, `${k} quận`); o.value = k; if (k === (D.on ? D.list.length : Math.min(4, maxK))) o.selected = true; sel.append(o); }
   const split = el('button', 'mini acc', D.on ? 'Chia lại' : '🏙️ Chia quận');
@@ -1448,12 +1461,21 @@ function renderDist(force) {
   setup.append(row);
   if (!D.on) return;
   if (distSel >= D.list.length) distSel = 0;
+  // bảng tổng quan: so sánh các quận, bấm một dòng để xem chi tiết
+  const tb = el('table', 'dover');
+  tb.innerHTML = '<tr><th>Quận</th><th>Chủ tịch</th><th>Điều hành</th><th>👥 Dân</th><th>🙂 Vui</th><th class="wide">🚨 Tội phạm</th><th class="wide">🌫️ Ô nhiễm</th><th class="wide">🌊 Ngập</th><th>Chi/ngày</th><th class="wide">🏗️ Xây</th><th class="wide">Việc giao</th></tr>';
   D.list.forEach((q, d) => {
-    const b = el('button', 'mini' + (d === distSel ? ' on' : ''), q.name), [r, g, bb] = DCOL[d % DCOL.length];
-    b.style.borderLeft = `4px solid rgb(${r},${g},${bb})`; b.title = `${q.chair} · ${S.MODES[q.mode]}`;
-    b.onclick = () => { distSel = d; renderDist(true); };
-    tabs.append(b);
+    const [r, g, bb] = DCOL[d % DCOL.length], s0 = q.stat || {}, tr = el('tr', 'row1' + (d === distSel ? ' on' : ''));
+    const cells = [q.name, q.chair, S.MODES[q.mode], fmt(s0.pop || 0), s0.happy || 0, s0.crime || 0, s0.pollution || 0, s0.flood || 0, money(S.planCost(q, q.prog)),
+      q.prop && q.prop.status === 'ask' ? `✋ ${S.SERVICES[q.prop.type].icon}` : `${S.BUILD_MODES[q.build].split(' ')[0]} ${(q.builds || []).length || ''}`,
+      q.order ? { active: '⏳', done: '✅', failed: '❌', cancelled: '—' }[q.order.status] + ` ${q.done}/${q.done + q.failed}` : `${q.done}/${q.done + q.failed}`];
+    cells.forEach((v, k) => { const td = el('td', [5, 6, 7, 9, 10].includes(k) ? 'wide' : null, String(v)); if (!k) td.style.borderLeft = `4px solid rgb(${r},${g},${bb})`; tr.append(td); });
+    tr.onclick = () => { distSel = d; renderDist(true); };
+    tb.append(tr);
   });
+  tabs.append(tb);
+  const cols = el('div', 'dcols'), col1 = el('div'), col2 = el('div'), col3 = el('div');
+  cols.append(col1, col2, col3); root.append(cols); body = col1;
   const d = distSel, q = D.list[d], P = S.PERSONAS[q.persona], st = q.stat || {};
   const head = el('div', 'card');
   head.innerHTML = `<b>${q.name}</b> · chủ tịch <b></b><br><small></small>`;
@@ -1463,10 +1485,10 @@ function renderDist(force) {
   for (const [ic, v, nm] of [['👥', fmt(st.pop || 0), 'dân'], ['💼', fmt(st.jobs || 0), 'việc làm'], ['🙂', st.happy || 0, 'mức vui'], ['💰', st.value || 0, 'giá đất'], ['🚨', st.crime || 0, 'tội phạm'], ['🌫️', st.pollution || 0, 'ô nhiễm'], ['🌊', st.flood || 0, 'nhà ngập'], ['🏠', st.built || 0, 'công trình']]) { const s = el('span', null, `${ic} ${v}`); s.append(el('small', null, nm)); kp.append(s); }
   head.append(kp);
   const nav = el('div'); nav.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
-  const look = el('button', 'mini', '👁️ Tới trụ sở'); look.onclick = () => flyTo((q.x + 0.5) * S.T - S.HALF, (q.y + 0.5) * S.T - S.HALF);
+  const look = el('button', 'mini', '👁️ Tới trụ sở'); look.onclick = () => peekDist() || flyTo((q.x + 0.5) * S.T - S.HALF, (q.y + 0.5) * S.T - S.HALF);
   const mv = el('button', 'mini' + (seatPick === d ? ' acc' : ''), seatPick === d ? '📍 Bấm lên bản đồ…' : '📍 Dời trụ sở');
   mv.title = 'Bấm rồi chọn ô trên bản đồ: ranh giới các quận vẽ lại theo trụ sở gần nhất';
-  mv.onclick = () => { seatPick = seatPick === d ? null : d; if (seatPick != null) { setTool('info'); toast(`Bấm lên bản đồ để đặt trụ sở mới cho ${q.name}`); } renderDist(true); };
+  mv.onclick = () => { seatPick = seatPick === d ? null : d; if (seatPick != null) { setTool('info'); peekDist(); toast(`Bấm lên bản đồ để đặt trụ sở mới cho ${q.name}`); } renderDist(true); };
   const swap = el('button', 'mini', '🔄 Thay chủ tịch'); swap.onclick = () => { const r = S.replaceChair(c, d); if (!r.ok) toast(r.reason); renderDist(true); };
   nav.append(look, mv, swap); head.append(nav);
   body.append(head);
@@ -1493,6 +1515,9 @@ function renderDist(force) {
     body.append(r);
   }
   if (q.mode === 'auto' && q.note) { const ch = el('div', 'chat'); ch.append(el('div', 'them', `${q.chair}: ${q.note}`)); body.append(ch); }
+  body = col2;
+  renderDistBuild(c, d, q, body);
+  body = col3;
   // giao việc
   body.append(el('h4', null, '📋 Giao việc'));
   const o = q.order;
@@ -1512,11 +1537,53 @@ function renderDist(force) {
   const go = () => { const t = inp.value.trim(); if (t) sendOrder(d, t); };
   send.onclick = go; inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
   send.disabled = !!q.wait;
-  irow.append(inp, send); body.append(irow, el('small', null, 'Quận chỉ làm được các chương trình trên; xây dựng, thuế vẫn là việc của thị trưởng.'));
+  irow.append(inp, send); body.append(irow, el('small', null, 'Quận làm các chương trình trên, và xây công trình quận khi bạn lệnh (VD: "xây trạm y tế"); đường, nhà máy, thuế vẫn là việc của thị trưởng.'));
   // báo cáo
   body.append(el('h4', null, 'Báo cáo của chủ tịch'));
   if (!q.reports.length) body.append(el('small', null, 'Chưa có báo cáo: 6 ngày chủ tịch gửi một lần, và khi tới hạn việc được giao.'));
   for (const r of q.reports.slice(-3).reverse()) { const card = el('div', 'card'); card.append(el('small', null, `Ngày ${r.day + 1}${r.result ? (r.result.ok ? ' · ✅ việc giao đạt' : ' · ❌ việc giao chưa đạt') : ''}`), el('p', null, r.text)); body.append(card); }
+}
+
+/** Phần 🏗️ Xây công trình của một quận: quyền xây, quỹ, đề xuất chờ duyệt, sổ đã xây. */
+function renderDistBuild(c, d, q, body) {
+  body.append(el('h4', null, '🏗️ Xây công trình'));
+  const seg = el('div', 'seg');
+  for (const [m, label] of Object.entries(S.BUILD_MODES)) { const b = el('button', 'mini' + (q.build === m ? ' on' : ''), label); b.onclick = () => { S.setBuildMode(c, d, m); renderDist(true); }; seg.append(b); }
+  body.append(seg, el('small', null, `${q.mode === 'auto' ? 'Khi tự chủ, 3 ngày một lần chủ tịch xem quận thiếu gì' : 'Chỉ khi 🤖 Tự chủ chủ tịch mới tự đề xuất; lúc khác bạn lệnh xây trong 📋 Giao việc'}. Chủ tịch chọn loại (${S.BUILDS.map((t) => S.SERVICES[t].icon).join(' ')}), game chọn chỗ phủ nhiều dân thiếu nhất, không phá nhà. Tiền xây trừ vào quỹ thành phố.`));
+  const spent = S.buildSpent(c, q), cap = el('input'); cap.type = 'range'; cap.min = 0; cap.max = 100000; cap.step = 2500; cap.value = q.bcap; cap.style.width = '100%';
+  const lab = el('div', 'row'); lab.innerHTML = `<span>Quỹ xây dựng 7 ngày</span><span><b>${money(q.bcap)}</b> · đã dùng ${money(spent)}</span>`;
+  cap.addEventListener('input', () => { lab.lastChild.innerHTML = `<b>${money(+cap.value)}</b>`; });
+  cap.addEventListener('change', () => { S.setBuildCap(c, d, +cap.value); renderDist(true); });
+  body.append(lab, cap);
+  const p = q.prop;
+  if (p) {
+    const ch = el('div', 'chat'), D0 = S.SERVICES[p.type];
+    if (p.status === 'think') ch.append(el('div', 'them', `… ${q.chair} đang cân nhắc xây gì cho quận`));
+    else {
+      ch.append(el('div', 'them', `✋ Xin xây ${D0.icon} ${D0.name} (${money(p.cost)}): ${p.why}`));
+      const row = el('div'); row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+      const yes = el('button', 'mini acc', '✅ Duyệt'), no = el('button', 'mini', '❌ Bác'), look = el('button', 'mini', '👁️ Xem chỗ');
+      yes.disabled = p.cost > c.money;
+      yes.onclick = () => { const r = S.approveBuild(c, d, true); toast(r.ok ? `🏗️ ${q.name} khởi công ${D0.name}` : r.reason); S.recalc(c); updateHud(true); renderDist(true); };
+      no.onclick = () => { S.approveBuild(c, d, false); renderDist(true); };
+      look.onclick = () => peekDist() || flyTo((p.x + 0.5) * S.T - S.HALF, (p.y + 0.5) * S.T - S.HALF);
+      row.append(yes, no, look); ch.append(row, el('small', null, `Hết hạn ngày ${p.until + 1}`));
+    }
+    body.append(ch);
+  }
+  const done = (q.builds || []).slice(-4).reverse();
+  if (done.length) {
+    const list = el('div');
+    for (const b of done) {
+      const D0 = S.SERVICES[b.type], r = el('div', 'row');
+      r.innerHTML = '<span></span><span></span>';
+      r.firstChild.textContent = `${D0.icon} ${D0.name}`;
+      r.lastChild.textContent = `ngày ${b.day + 1} · ${money(b.cost)} · ${{ auto: 'tự xây', ask: 'đã duyệt', order: 'theo lệnh' }[b.how] || ''}`;
+      r.style.cursor = 'pointer'; r.onclick = () => peekDist() || flyTo((b.x + 0.5) * S.T - S.HALF, (b.y + 0.5) * S.T - S.HALF);
+      list.append(r);
+    }
+    body.append(list);
+  }
 }
 
 // ───────────────────────── lễ hội và mùa mưa bão ─────────────────────────

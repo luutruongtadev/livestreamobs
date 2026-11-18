@@ -29,7 +29,7 @@ export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, c
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
-export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap } from './districts.js';
+export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild } from './districts.js';
 export { isIntlAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
@@ -490,7 +490,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall };
+  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
@@ -1528,6 +1528,10 @@ export function syncHalls(c) {
   let occ = false, moved = false;
   if (D && D.on) for (const q of D.list) {
     let s = q.hall != null ? c.services.find((v) => v.uid === q.hall && v.type === 'dhall') : null;
+    if (!s) { // nạp bản lưu (uid không lưu): nhận lại toà UBND đang đứng đúng chỗ trụ sở
+      s = c.services.find((v) => v.type === 'dhall' && v.x === q.x && v.y === q.y && !keep.has(v.uid)) || null;
+      if (s) q.hall = s.uid;
+    }
     if (!s) {
       const fp = hallSpot(c, q.x, q.y);
       if (!fp) continue;
@@ -1552,6 +1556,55 @@ export function moveHall(c, d, x, y) {
   const r = moveService(c, k, x, y);
   if (r.ok) syncHalls(c);
   return r;
+}
+
+// ───────────────────────── công trình do chủ tịch quận xây (chủ tịch chọn loại, game chọn chỗ) ─────────────────────────
+
+/**
+ * Chỗ xây công trình type trong quận d: ô trống (không phá nhà) có tâm trong quận, phủ được nhiều dân đang thiếu
+ * công trình đó nhất (cùng loại phủ: công viên, trường, y tế, công an, cứu hoả, chống ngập ở vùng trũng).
+ * Trả về { need: số dân thiếu, gain: số dân chỗ tốt nhất phủ thêm, x, y } hoặc { need, reason } nếu không xây được.
+ */
+export function distBuildPlan(c, d, type) {
+  const def = SERVICES[type];
+  if (!def || !c.dist || !c.dist.on || !c.dist.list[d]) return { need: 0, reason: 'Không có quận này' };
+  if (!isUnlocked(c, type)) return { need: 0, reason: `${def.name}: ${lockText(def)}` };
+  const cv = def.cover, map = c.cover[cv], pts = [], q = c.dist.list[d];
+  let need = 0;
+  for (let i = 0; i < N * N; i++) {
+    const rc = c.resCount[i];
+    if (!rc || c.dmap[i] !== d || map[i] >= 0.05) continue;
+    if (cv === 'flood' && !(c.floodRisk && c.floodRisk[i] > 0.3)) continue;
+    pts.push(i % N, (i / N) | 0, rc); need += rc;
+  }
+  const R = def.radius || 6;
+  let best = null, bs = -Infinity, bg = 0;
+  for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
+    if (c.dmap[idx(x, y)] !== d) continue;
+    const ck = canPlace(c, type, x, y);
+    if (!ck.ok) continue;
+    let built = false, zoned = 0;
+    for (let a = 0; a < ck.fp.size && !built; a++) for (let b = 0; b < ck.fp.size; b++) { const i = idx(ck.fp.x + a, ck.fp.y + b); if (c.level[i]) { built = true; break; } if (c.zone[i]) zoned++; }
+    if (built) continue;
+    let g = 0;
+    for (let k = 0; k < pts.length; k += 3) { const dd = Math.hypot(pts[k] - x, pts[k + 1] - y); if (dd <= R) g += pts[k + 2] * (1 - dd / (R + 1)); }
+    const s = g - zoned * 2 - Math.hypot(x - q.x, y - q.y) * 0.05; // bằng nhau thì chọn đất chưa quy hoạch, gần trụ sở
+    if (s > bs) { bs = s; best = ck.fp; bg = g; }
+  }
+  if (!best) return { need, reason: def.cost > c.money ? 'Không đủ tiền' : 'Quận không còn đất trống hợp lệ' };
+  const h = (def.size - 1) >> 1;
+  return { need, gain: Math.round(bg), x: best.x + h, y: best.y + h };
+}
+
+/** Xây công trình type cho quận d ở chỗ game chọn; đánh dấu là công trình của quận. */
+export function distBuild(c, d, type) {
+  const p = distBuildPlan(c, d, type);
+  if (p.x == null) return { ok: false, reason: p.reason };
+  const r = placeService(c, type, p.x, p.y);
+  if (!r.ok) return r;
+  const s = c.services[c.services.length - 1], q = c.dist.list[d];
+  s.dq = q.name; s.dby = q.chair;
+  return { ok: true, cost: r.cost, uid: s.uid, x: p.x, y: p.y, gain: p.gain };
 }
 
 // ───────────────────────── bản đồ phủ, ô nhiễm, giá đất ─────────────────────────
@@ -1936,7 +1989,7 @@ export function serialize(c) {
     }),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
-    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}) })),
+    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}), ...(s.dq ? { dq: s.dq, dby: s.dby } : {}) })),
     transit: { fare: c.transit.fare, ferryFare: c.transit.ferryFare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
     tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
     ...(terra.length ? { terra } : {}), // đào đắp: [chỉ số đỉnh, độ lệch × 10, ...] chỉ gồm đỉnh đã đổi
@@ -1970,7 +2023,7 @@ function deserializeAt(o) {
     debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
     nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
-    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}) })),
+    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}), ...(s.dq ? { dq: String(s.dq).slice(0, 12), dby: String(s.dby || '').slice(0, 40) } : {}) })),
   };
   if (!c.owned.some((v) => v)) c.owned.fill(1);
   for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);
