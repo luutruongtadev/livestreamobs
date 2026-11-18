@@ -201,8 +201,8 @@ test('city: xe cứu hoả chạy tới dập lửa; không có trạm thì nhà
   const pick = () => { for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && !c.fire[i]) return i; return -1; };
   const a = pick();
   c.fire[a] = 7; run(c, 8);
-  assert.equal(c.level[a], 0, 'không có trạm cứu hoả: cháy rụi');
-  assert.ok(c.events.some((e) => e.type === 'fire'));
+  // nhà cháy rụi (ô trống có thể kịp mọc nhà mới trong giờ cuối, nên xét sự kiện cháy rụi của đúng ô đó)
+  assert.ok(c.events.some((e) => e.type === 'fire' && e.x === a % S.N && e.y === ((a / S.N) | 0)), 'không có trạm cứu hoả: cháy rụi');
   c.milestone = 2;
   assert.ok(S.placeService(c, 'fire', sx - 16, 18).ok);
   const b = pick();
