@@ -72,6 +72,11 @@ export function tourismScore(c) {
   let leisure = 0;
   for (let i = 0; i < N * N; i++) if (c.level[i] && ZDEF[c.zone[i]].biz === 'leisure') leisure += c.level[i];
   attract += Math.min(12, leisure * 0.15);
+  { // đảo có tàu khách ra: mỗi đảo tính một lần
+    const seen = new Set(); let isl = 0;
+    for (const l of c.ferries || []) for (const x of l.isles || []) if (!seen.has(x.id)) { seen.add(x.id); isl += x.att; }
+    if (isl) { attract += isl; parts.island = Math.round(isl * 10) / 10; }
+  }
   const nb = beachCount(c); // bãi biển tô theo ô
   if (nb) { const a = Math.min(18, nb * 0.3); attract += a; parts.beachZone = Math.round(a * 10) / 10; }
   // cửa ngõ đón khách: đường vào thành phố, ga, sân bay, tàu khách ra biển
@@ -110,7 +115,7 @@ export function tourismHour(c, spend) {
 export function tourismDay(c) {
   const t = c.tour;
   t.last = { ...t.day, guests: t.guests, beds: t.score ? t.score.beds : 0 };
-  t.day = { visitors: 0, stayed: 0, rooms: 0, ferry: 0 };
+  t.day = { visitors: 0, stayed: 0, rooms: 0, ferry: 0, isle: 0 };
 }
 
 // ───────────────────────── khởi tạo, lưu / nạp ─────────────────────────
@@ -126,7 +131,7 @@ export function initEcon(c, o = {}) {
   if (!c.market.hist.length) c.market.hist.push(MKT_KINDS.map((k) => c.market.p[k]));
   const t = o.tour || {};
   initIntl(c, o.intl || {});
-  c.tour = { guests: Math.max(0, t.guests | 0), roomFee: clamp(Number.isFinite(+t.roomFee) ? +t.roomFee : 12, 0, 40), day: { visitors: 0, stayed: 0, rooms: 0, ferry: 0 }, last: null, score: null };
+  c.tour = { guests: Math.max(0, t.guests | 0), roomFee: clamp(Number.isFinite(+t.roomFee) ? +t.roomFee : 12, 0, 40), day: { visitors: 0, stayed: 0, rooms: 0, ferry: 0, isle: 0 }, last: null, score: null };
 }
 
 export function packEcon(c) {

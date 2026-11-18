@@ -1226,6 +1226,36 @@ test('quận: chia quận, chương trình có tác dụng và tốn tiền, t�
   assert.ok(S.moveSeat(c, 0, D.list[2].x, D.list[2].y).ok === false, 'không trùng trụ sở');
 });
 
+test('tàu ra đảo: bến trên đảo thành tuyến du khách ra đảo, đảo cộng sức hút; tuyến nhiều bến bật được chuyến ra biển, lưu lại', () => {
+  const c = openCity(777);
+  // vịnh nhân tạo thông ra mép bắc, giữa vịnh có một hòn đảo
+  for (let y = 0; y < 30; y++) for (let x = 5; x < 75; x++) c.water[cell(x, y)] = 1;
+  for (let y = 12; y < 20; y++) for (let x = 38; x < 48; x++) c.water[cell(x, y)] = 0;
+  for (let y = 30; y < 34; y++) for (let x = 5; x < 75; x++) c.water[cell(x, y)] = 0;
+  const dock = (x, y) => { c.services.push({ type: 'ferry', x, y, dir: 0, uid: c.nextId++ }); return c.services.length - 1; };
+  const kA = dock(15, 30); dock(62, 30); const kI = dock(42, 15);
+  const sc0 = S.tourismScore(c).attract;
+  S.syncFerries(c);
+  const line = c.ferries[0];
+  assert.equal(c.ferries.length, 1); assert.ok(line.isle && !line.out && line.isles.length === 1 && line.isles[0].att >= 4);
+  assert.ok(Object.values(c.ferryState).every((s) => s === 'line'));
+  assert.ok(S.tourismScore(c).attract > sc0, 'đảo có tàu ra thì thành phố hút khách hơn');
+  // du khách đang ở thành phố đi tàu ra đảo, trả vé
+  c.tour.guests = 400; const m0 = c.money;
+  c.ferrySig = c.services.filter((s) => s.type === 'ferry').map((s) => s.uid + ':' + s.x + ',' + s.y + ';').join('');
+  for (let k = 0; k < 6000; k++) S.stepFerries(c, 0.25);
+  assert.ok(c.ferries[0].islanders > 0 && c.tour.day.isle > 0 && c.money > m0);
+  // bật chuyến ra biển ở một bến bất kỳ: tuyến nối thêm chặng ra mép bản đồ, thêm một tàu
+  assert.ok(S.setFerrySea(c, kI, true).out);
+  const sea = c.ferries[0];
+  assert.ok(sea.out && !sea.single && sea.stops.at(-1).sea && sea.count === 4 && sea.isle);
+  for (let k = 0; k < 6000; k++) S.stepFerries(c, 0.25);
+  assert.ok(sea.guests + sea.travellers > 0, 'đón du khách từ biển, chở dân ra biển');
+  const o = JSON.parse(JSON.stringify(S.serialize(c)));
+  assert.equal(o.services.filter((s) => s.sea).length, 1);
+  assert.equal(S.setFerrySea(c, kA, false).out, false, 'tắt ở bến nào cũng tắt cả tuyến');
+});
+
 test('đường phố: vỉa hè đổi thuế / du khách / tốc độ xe; cấm xe máy nội đô, phí ô tô, làn buýt; hẻm cho nhà ở hàng thứ ba; bụi mịn', () => {
   const c = town(); c.money = 1e6; c.style = 'vn';
   // vỉa hè

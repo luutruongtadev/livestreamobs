@@ -193,11 +193,11 @@ export function metroPoint(line, slot) {
 export function planRide(c, fromCell, toCell) {
   const fx = cellX(fromCell), fz = cellZ(fromCell), tx = cellX(toCell), tz = cellZ(toCell);
   let best = null;
-  for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.out && !l.cruise))) {
+  for (const line of c.transit.lines.concat((c.ferries || []).filter((l) => !l.cruise && !l.single))) { // tuyến tàu nhiều bến (kể cả có chuyến ra biển)
     if (line.broken || !line.count) continue;
     const def = TRANSIT[line.mode];
     let i = -1, j = -1, di = def.walk, dj = def.walk;
-    line.stops.forEach((s, k) => { const a = Math.hypot(s.x - fx, s.z - fz), b = Math.hypot(s.x - tx, s.z - tz); if (a < di) { di = a; i = k; } if (b < dj) { dj = b; j = k; } });
+    line.stops.forEach((s, k) => { if (s.sea || s.turn) return; const a = Math.hypot(s.x - fx, s.z - fz), b = Math.hypot(s.x - tx, s.z - tz); if (a < di) { di = a; i = k; } if (b < dj) { dj = b; j = k; } });
     if (i < 0 || j < 0 || i === j) continue;
     let ride;
     if (def.road) { ride = 0; for (let k = i; k !== j; k = (k + 1) % line.stops.length) ride += line.legLen[k]; } else ride = Math.abs(line.pos[j] - line.pos[i]);

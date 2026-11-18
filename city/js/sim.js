@@ -24,7 +24,7 @@ const planCostQ = (q) => planCost(q, q.prog);
 export * from './base.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
-export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
+export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
@@ -288,6 +288,17 @@ export function paintBeach(c, x0, y0, x1, y1, opts = {}) {
 }
 
 /** Kết thúc một lượt đào đắp (nhả chuột): tính lại tài nguyên; nếu bờ nước đổi thì tính lại ô quy hoạch, mạng điện nước, ô nhiễm. */
+/** Bật / tắt chuyến ra biển cho tuyến tàu nhiều bến (cờ đặt ở bến k; tuyến có một bến bật là chạy ra biển). */
+export function setFerrySea(c, k, on) {
+  const s = c.services[k];
+  if (!s || s.type !== 'ferry') return { ok: false, reason: 'Không phải bến tàu khách' };
+  const line = (c.ferries || []).find((l) => l.stops.some((t) => t.uid === s.uid));
+  if (on) s.sea = 1; else { delete s.sea; if (line) for (const t of line.stops) { const o = c.services.find((v) => v.uid === t.uid); if (o) delete o.sea; } }
+  c.ferrySig = null; syncFerries(c);
+  const now = (c.ferries || []).find((l) => l.stops.some((t) => t.uid === s.uid));
+  return { ok: true, out: !!(now && now.out), fail: !!(now && now.seaFail) };
+}
+
 export function terraformDone(c) {
   makeResources(c, heightFn(c));
   if (c.terraWet) { c.terraWet = false; roadsChanged(c); computeMaps(c); }
@@ -1870,7 +1881,7 @@ export function serialize(c) {
     }),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
-    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}) })),
+    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}) })),
     transit: { fare: c.transit.fare, ferryFare: c.transit.ferryFare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
     tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
     ...(terra.length ? { terra } : {}), // đào đắp: [chỉ số đỉnh, độ lệch × 10, ...] chỉ gồm đỉnh đã đổi
@@ -1904,7 +1915,7 @@ function deserializeAt(o) {
     debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
     nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
-    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}) })),
+    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}) })),
   };
   if (!c.owned.some((v) => v)) c.owned.fill(1);
   for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);

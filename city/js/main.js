@@ -525,7 +525,7 @@ const face = (h) => (h >= 65 ? '😊' : h >= 45 ? '😐' : '😟');
 
 function showInfo(tile) {
   const i = tile.y * S.N + tile.x, c = city, rows = [];
-  let title = 'Ô đất', needs = null, mods = null, canal = null;
+  let title = 'Ô đất', needs = null, mods = null, canal = null, seaRun = null;
   const add = (k, v) => rows.push(`<div class="row"><span>${k}</span><span>${v}</span></div>`);
   const state = (v) => ['✖ không có', '✔ đủ', '⚠ thiếu'][v];
   const edge = S.edgeAt(c, tile.wx, tile.wz, 0);
@@ -559,8 +559,11 @@ function showInfo(tile) {
     if (d.attract) add('Sức hút du lịch', `+${d.attract}`);
     if (sv.type === 'ferry') {
       const st = (c.ferryState || {})[sv.uid], fl = (c.ferries || []).find((l) => l.stops.some((s) => s.uid === sv.uid));
-      add('Tuyến tàu', st === 'line' ? `✔ nối ${fl ? fl.stops.length - 1 : '?'} bến khác · ${fmt(fl ? fl.ridersDay : 0)} khách hôm qua` : st === 'sea' ? `✔ chạy ra cửa biển · ${fmt(fl ? fl.guestsDay : 0)} du khách tới hôm qua` : st === 'cruise' ? `✔ du ngoạn quanh hồ · ${fmt(fl ? fl.ridersDay : 0)} vé hôm qua (thêm bến cùng hồ để thành tuyến, hoặc bấm ⛏️ Đào kênh ra biển bên dưới để đón du khách)` : st === 'pond' ? '⚠ mặt nước quá nhỏ cho tàu chạy' : st === 'close' ? '⚠ quá sát bến khác (chung chỗ cập tàu): dời bến ra xa hơn' : st === 'dry' ? '✖ không sát mặt nước' : 'đang dựng tuyến…');
+      add('Tuyến tàu', st === 'line' ? `✔ nối ${fl ? fl.stops.filter((t) => t.uid != null).length - 1 : '?'} bến khác · ${fmt(fl ? fl.ridersDay : 0)} vé hôm qua${fl && fl.isle ? ` · 🏝️ ${fmt(fl.islandersDay || 0)} du khách ra đảo` : ''}${fl && fl.out ? ` · 🌊 có chuyến ra biển, ${fmt(fl.guestsDay || 0)} du khách tới` : ''}` : st === 'sea' ? `✔ chạy ra cửa biển · ${fmt(fl ? fl.guestsDay : 0)} du khách tới hôm qua` : st === 'cruise' ? `✔ du ngoạn quanh hồ · ${fmt(fl ? fl.ridersDay : 0)} vé hôm qua (thêm bến cùng hồ để thành tuyến, hoặc bấm ⛏️ Đào kênh ra biển bên dưới để đón du khách)` : st === 'pond' ? '⚠ mặt nước quá nhỏ cho tàu chạy' : st === 'close' ? '⚠ quá sát bến khác (chung chỗ cập tàu): dời bến ra xa hơn' : st === 'dry' ? '✖ không sát mặt nước' : 'đang dựng tuyến…');
       add('Giá vé', `${c.transit.ferryFare ?? 4} ₫ (chỉnh ở bảng 👥)`);
+      const stop = fl && fl.stops.find((t) => t.uid === sv.uid);
+      if (stop && stop.isl >= 0) add('🏝️ Bến trên đảo', `sức hút ${(fl.isles.find((x) => x.id === stop.isl) || { att: 0 }).att} · ${fmt(stop.stay || 0)} du khách đang chơi trên đảo`);
+      if (st === 'line') seaRun = { k: c.occ[i] - 1, on: !!(fl && (fl.out || fl.seaFail)), fail: !!(fl && fl.seaFail) };
       if (st === 'cruise' || st === 'pond') canal = { k: c.occ[i] - 1, plan: S.planSeaCanal(c, c.occ[i] - 1) };
     }
     if (d.outside) add('Cửa ngõ xuất nhập khẩu', sv.cell >= 0 ? '✔ xe tải ra vào được' : '✖ chưa sát đường');
@@ -637,6 +640,12 @@ function showInfo(tile) {
     if (!needs.length) ul.append(el('li', 'ok', '✔ Không thiếu gì'));
     for (const n of needs) ul.append(el('li', null, `✖ ${n}`));
     $('iBody').append(ul);
+  }
+  if (seaRun) { // tuyến nhiều bến: bật / tắt chuyến ra biển
+    const row = el('div', 'slot'), info = el('div'), b = el('button', seaRun.on ? 'mini' : 'mini acc', seaRun.on ? 'Tắt' : 'Bật');
+    info.append(el('b', null, '🌊 Chuyến ra biển'), el('small', seaRun.fail ? 'neg' : null, seaRun.fail ? 'Đang bật nhưng mặt nước này không thông ra biển: đào kênh hoặc dời bến' : seaRun.on ? 'Tàu chạy hết tuyến rồi ra cửa biển: đón du khách từ ngoài vào, chở dân đi chơi xa (thêm 1 tàu)' : 'Nối thêm chặng từ đầu tuyến gần biển nhất ra cửa biển: đón du khách, chở dân đi chơi xa'));
+    b.addEventListener('click', () => { const r = S.setFerrySea(city, seaRun.k, !seaRun.on); toast(!r.ok ? r.reason : r.out ? '🌊 Tuyến tàu có thêm chuyến ra biển' : r.fail ? '⚠ Mặt nước không thông ra biển' : 'Đã tắt chuyến ra biển'); showInfo(tile); updateHud(true); });
+    row.append(info, b); $('iBody').append(row);
   }
   if (canal) { // hồ kín: game tự tìm đường kênh ra biển, bấm là đào
     const p = canal.plan, row = el('div', 'slot'), info = el('div');
@@ -919,8 +928,8 @@ function renderCity(force) {
   }
   for (const l of c.ferries || []) { // tuyến tàu khách tự mở theo các bến, không thêm bớt tay
     const r = el('div', 'slot'), info = el('div');
-    info.append(el('b', null, l.out ? '⛴️ Tàu ra cửa biển' : l.cruise ? '⛴️ Tàu du ngoạn hồ' : `⛴️ Tuyến tàu ${l.stops.length} bến`),
-      el('small', null, l.cruise ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua (dân đi ngắm cảnh)` : l.out ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua · ${fmt(l.guestsDay || 0)} du khách tới, ${fmt(l.travellersDay || 0)} dân đi chơi xa` : `${l.count} tàu · ${fmt(l.ridersDay || 0)} khách hôm qua`));
+    info.append(el('b', null, l.single && l.out ? '⛴️ Tàu ra cửa biển' : l.cruise ? '⛴️ Tàu du ngoạn hồ' : `${l.isle ? '🏝️' : '⛴️'} Tuyến tàu ${l.stops.filter((t) => t.uid != null).length} bến${l.isle ? ' ra đảo' : ''}${l.out ? ' + ra biển' : ''}`),
+      el('small', null, l.cruise ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua (dân đi ngắm cảnh)` : !l.single ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua${l.isle ? ` · ${fmt(l.islandersDay || 0)} du khách ra đảo` : ''}${l.out ? ` · ${fmt(l.guestsDay || 0)} du khách từ biển vào` : ''}` : l.out ? `${l.count} tàu · ${fmt(l.ridersDay || 0)} vé hôm qua · ${fmt(l.guestsDay || 0)} du khách tới, ${fmt(l.travellersDay || 0)} dân đi chơi xa` : `${l.count} tàu · ${fmt(l.ridersDay || 0)} khách hôm qua`));
     r.append(info); lb.append(r);
   }
   $('fareV').textContent = `${tr.fare} ₫ · ${fmt(tr.ridersDay || 0)} khách hôm qua`;

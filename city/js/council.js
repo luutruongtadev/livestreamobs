@@ -315,6 +315,7 @@ export function visitorExperience(c) {
     if (c.street.sidewalk === 'free') { stars += 0.25; pros.push('ẩm thực vỉa hè tuyệt vời'); } else if (c.street.sidewalk === 'clear') { stars -= 0.1; cons.push('phố xá vắng vẻ'); }
     if (c.street.aqi > 150) { stars -= 0.5; cons.push('bụi mịn mù mịt'); }
   }
+  if ((c.ferries || []).some((l) => l.isle)) { stars += 0.3; pros.push('đi tàu ra đảo'); }
   const fe = c.fest && c.fest.org && c.fest.org.start <= c.day && c.fest.org.start + 3 >= c.day;
   if (fe) { stars += 0.5; pros.push('lễ hội rất vui'); }
   if (cong > 0.45) { stars -= 0.7; cons.push('kẹt xe kinh khủng'); } else if (cong > 0.25) { stars -= 0.3; cons.push('đường đông'); } else pros.push('đi lại dễ');
