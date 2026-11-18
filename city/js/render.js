@@ -1591,7 +1591,13 @@ export class View {
         }
         prevPole = [px, top, pz];
         // xe đẩy bán hàng có ô che ở vỉa hè bên kia, thỉnh thoảng
-        if (hash2(e.id, Math.round(b.s), 61) < 0.35) {
+        const swk = c.street ? c.street.sidewalk : 'free', vendor = swk === 'free' ? 0.6 : swk === 'license' ? 0.3 : 0; // chính sách vỉa hè
+        if (swk === 'free' && hash2(e.id, Math.round(b.s), 67) < 0.55) { // quán cóc: bàn thấp, ghế nhựa đỏ xanh bày ra vỉa hè phía bên kia
+          const tx = b.x + b.rx * sd * (half - 1.6) * -1, tz = b.z + b.rz * sd * (half - 1.6) * -1;
+          st.box(tx, b.y, tz, 0.9, 0.5, 0.9, 0xd7d2c4);
+          for (const [ox, oz] of [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]]) st.box(tx + ox, b.y, tz + oz, 0.36, 0.3, 0.36, hash2(e.id, ox * 7 + oz, 69) < 0.5 ? 0xd8262e : 0x1f6fc8);
+        }
+        if (hash2(e.id, Math.round(b.s), 61) < vendor) {
           const vx = b.x - b.rx * sd * (half - 1.2), vz = b.z - b.rz * sd * (half - 1.2), um = [0xd8262e, 0x1f6fc8, 0xe8681f, 0x16935a][(hash2(e.id, Math.round(b.s), 63) * 4) | 0];
           st.box(vx, b.y, vz, 1.4, 0.9, 0.8, 0x7a5a36); st.box(vx, b.y + 0.9, vz, 1.5, 0.08, 0.9, 0xd9d4c8);
           st.cyl(vx + 0.5, b.y, vz, 0.05, 0.05, 2.6, 0x3a3f46, 4); st.cyl(vx + 0.5, b.y + 2.3, vz, 1.6, 0.05, 0.6, um, 8);
@@ -2211,6 +2217,11 @@ export class View {
     this.sunV.value.copy(this.sunDir).transformDirection(this.camera.matrixWorldInverse); this.sunCol.value.copy(this.sun.color).multiplyScalar(Math.min(1.2, this.sun.intensity / 2.2) * (1 + su.uDusk.value * 0.6)); // lá ngược nắng chiều sáng rõ hơn
     su.uCloud.value += ((storm ? 1 : wet ? 0.85 : c.inc.weather === 'dry' ? 0.05 : 0.3) - su.uCloud.value) * k;
     this.scene.fog.color.copy(su.uHor.value); this.scene.background.copy(su.uHor.value);
+    { // bụi mịn: trời mù, sương khói ngả xám nâu, nhìn không xa
+      const aqi = this.city && this.city.street ? this.city.street.aqi : 0, k = clamp((aqi - 90) / 220, 0, 0.65);
+      this.scene.fog.near = 700 - k * 600; this.scene.fog.far = 2600 - k * 1900;
+      if (k > 0) { this._haze = this._haze || new THREE.Color(0x9c9284); this.scene.fog.color.lerp(this._haze, k); this.scene.background.lerp(this._haze, k * 0.8); }
+    }
     wu.uSun.value.copy(this.sunDir); wu.uSunCol.value.copy(this.sun.color).multiplyScalar(this.sun.intensity / 3.1);
     wu.uSkyTop.value.copy(su.uTop.value); wu.uSkyHor.value.copy(su.uHor.value);
     wu.uLight.value = (0.32 + 0.68 * day) * (wet ? 0.8 : 1);

@@ -813,9 +813,45 @@ function renderLoans() {
   });
 }
 
+/** Mục 🛵 trong bảng 👥: chính sách vỉa hè, hẻm, cấm xe máy, phí ô tô, làn buýt; tỷ lệ phương tiện, bụi mịn. */
+function renderStreet(force) {
+  const c = city, st = c.street, last = st.last || {}, m = (c.econ.last || {}).mode || c.pstats.mode;
+  const key = `${c.day}|${st.sidewalk}|${st.motoBan}|${st.busLane}|${st.alley}|${st.centerFee}|${st.aqi}`;
+  if (!force && renderStreet.key === key) return;
+  renderStreet.key = key;
+  const box = $('streetBox'); box.textContent = '';
+  const row = (a, b) => { const r = el('div', 'row'); r.innerHTML = `<span>${a}</span><span>${b}</span>`; return r; };
+  const [lv, col] = S.aqiLevel(st.aqi), priv = (m.cars || 0) + (m.moto || 0), all = m.car + m.bus + (m.tram || 0) + m.metro + (m.ferry || 0) + m.walk;
+  const pc = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
+  box.append(
+    row('🌫️ Bụi mịn AQI', `<b style="color:${col}">${st.aqi} · ${lv}</b>${st.aqi > 100 ? ' · dân ốm nhiều, kém vui' : ''}${st.aqi > 150 ? ', du khách chê' : ''}`),
+    row('Hôm qua: 🛵 xe máy · 🚗 ô tô · 🚌 công cộng · 🚶 đi bộ', `${pc(m.moto || 0, all)} · ${pc(m.cars || 0, all)} · ${pc(m.bus + (m.tram || 0) + m.metro + (m.ferry || 0), all)} · ${pc(m.walk, all)}`),
+    row('Nội đô', st.center ? `bán kính ${Math.round(st.center.r)} ô quanh khu thương mại, văn phòng` : 'chưa hình thành (cần khu thương mại, văn phòng)'),
+  );
+  if (st.motoBan || st.centerFee) box.append(row('Hôm qua vì chính sách', `${fmt(last.shift || 0)} chuyến chuyển sang công cộng / đi bộ · ${fmt(last.taxi || 0)} chuyến phải gọi taxi · thu phí ${fmt(last.fee || 0)} ₫`));
+  const sub = (t) => { const h = el('b', null, t); h.style.cssText = 'display:block;margin:10px 0 2px'; return h; };
+  box.append(sub('Vỉa hè'));
+  const sw = el('div'); sw.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:4px 0';
+  for (const [k, d] of Object.entries(S.SIDEWALK)) { const b = el('button', 'mini' + (st.sidewalk === k ? ' acc' : ''), `${d.icon} ${d.name}`); b.title = `${d.desc}${d.cost ? ` · ${fmt(d.cost)} ₫/ngày` : ''}`; b.onclick = () => { S.setSidewalk(c, k); S.recalc(c); updateHud(true); renderStreet(true); }; sw.append(b); }
+  box.append(sw, el('small', null, S.SIDEWALK[st.sidewalk].desc));
+  box.append(sub('Chính sách'));
+  for (const [k, d] of Object.entries(S.STREET_POLICY)) {
+    const lab = el('label', 'row'), cb = el('input');
+    cb.type = 'checkbox'; cb.checked = !!st[k];
+    cb.onchange = () => { S.setPolicy(c, k, cb.checked); if (k === 'alley') S.roadsChanged(c); S.recalc(c); updateHud(true); renderStreet(true); toast(`${d.icon} ${cb.checked ? 'Bật' : 'Tắt'}: ${d.name}`); };
+    const t = el('span'); t.innerHTML = `${d.icon} ${d.name}${d.cost ? ` <small>(${fmt(d.cost)} ₫/ngày)</small>` : ''}<br><small>${d.desc}</small>`;
+    lab.append(t, cb); lab.style.alignItems = 'flex-start'; box.append(lab);
+  }
+  const fr = row('💳 Phí ô tô vào nội đô', `<b id="feeV">${st.centerFee ? `${st.centerFee} ₫ / lượt` : 'không thu'}</b>`), inp = el('input');
+  Object.assign(inp, { type: 'range', min: 0, max: S.FEE_MAX, step: 1, value: st.centerFee }); inp.setAttribute('aria-label', 'Phí ô tô vào nội đô');
+  inp.oninput = () => { st.centerFee = +inp.value; $('feeV').textContent = st.centerFee ? `${st.centerFee} ₫ / lượt` : 'không thu'; };
+  box.append(fr, inp, el('small', null, 'Phí từ 6 ₫ trở lên: người có ô tô chuyển sang công cộng nếu có tuyến; còn lại trả phí vào ngân sách.'));
+}
+
 /** Bảng 👥: dân cư, việc làm, đi lại, doanh nghiệp, tuyến giao thông công cộng. */
 function renderCity(force) {
   if (!$('people').classList.contains('show')) return;
+  renderStreet(force);
   const c = city, ps = c.pstats, s = c.stats, last = c.econ.last || {}, mode = last.mode || ps.mode, box = $('pBody');
   const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '–');
   const adults = ps.edu.reduce((a, b) => a + b, 0), trips = mode.car + mode.bus + (mode.tram || 0) + mode.metro + (mode.ferry || 0) + mode.walk;
@@ -907,6 +943,7 @@ function updateHud(force) {
   if ($('inbox').classList.contains('show')) renderInbox(force);
   aiPump();
   { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
+  { const u = S.upcomingFestivals(c, 1)[0]; $('festN').textContent = u ? (u.inDays ? `${u.f.icon} ${u.inDays} ngày` : `${u.f.icon} hôm nay`) : ''; } // lễ gần nhất
   // cảnh báo / gợi ý
   const al = [], none = s.none || {}, tight = s.tight || {};
   let zoned = 0, free = 0, dirty = 0, burning = 0;
@@ -1157,6 +1194,7 @@ function bindUi() {
   $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
   $('dateBox').addEventListener('click', () => openSide('fest'));
   $('bInbox').addEventListener('click', () => openSide('inbox'));
+  $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));

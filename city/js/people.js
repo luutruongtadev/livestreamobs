@@ -4,6 +4,7 @@
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
 import { N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
 import { festMul } from './seasons.js';
+import { chooseVehicle, countTrip, inCenter, aqiSick } from './street.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
 import { ferryDay } from './ships.js';
@@ -134,10 +135,15 @@ function go(c, id, dest, purpose) {
   const hue = (id * 0.6180339) % 1;
   if (d < 115) { mode.walk++; if (!walk(c, from, dest, cb, hue)) later(c, d / 9 + 1, cb); return; }
   const carEta = (d * 1.35) / 22 / Math.max(0.35, c.traffic.speedEma) + (purpose !== 'home' && c.parked[dest] >= spots(c, dest) ? 8 : 0);
-  const ride = planRide(c, from, dest);
-  if (ride && ride.eta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
-  mode.car++;
-  const kind = (c.style === 'vn' ? id % 8 === 0 : id % 5 < 2) ? 'car' : 'moto'; // phần đông đi xe máy; kiểu Việt Nam thì gần như ai cũng xe máy
+  const ride = planRide(c, from, dest), rideEta = ride ? ride.eta * (c.street && c.street.busLane && ride.line.mode === 'bus' ? 0.8 : 1) : 0; // làn riêng: buýt nhanh hơn
+  if (ride && rideEta * (1 + c.transit.fare * 0.05) < carEta * 1.3 + 4) { mode[ride.line.mode]++; board(c, ride, cb); return; }
+  // xe riêng: ô tô hay xe máy (theo thu nhập, học vấn), chính sách cấm xe máy nội đô, phí ô tô vào trung tâm
+  const ch = chooseVehicle(c, id, ride, d, inCenter(c, from) || inCenter(c, dest));
+  countTrip(c, ch);
+  if (ch.kind === 'transit') { mode[ride.line.mode]++; board(c, ride, cb); return; }
+  if (ch.kind === 'walk') { mode.walk++; if (!walk(c, from, dest, cb, hue)) later(c, d / 9 + 1, cb); return; }
+  mode.car++; if (ch.kind === 'car') mode.cars = (mode.cars || 0) + 1; else mode.moto = (mode.moto || 0) + 1;
+  const kind = ch.kind; // kiểu Việt Nam: gần như ai cũng xe máy, giàu lên mới mua ô tô
   if (kind === 'car') cb.car = true; // chỉ ô tô mới phải tìm chỗ đỗ
   if (!trip(c, kind, from, dest, cb, Math.random() < c.carSample, hue)) later(c, 6, { ...cb, fail: true });
 }
@@ -560,7 +566,7 @@ function peopleDay(c) {
     // sinh, bệnh, mất
     const hm = pp.home[id], care = hm >= 0 ? c.cover.care[hm] : 0, oldHome = hm >= 0 && whoOf(c, hm) === 'senior';
     if (age >= 20 && age <= 40 && hm >= 0 && !whoOf(c, hm) && c.resCount[hm] < resCap(c.zone[hm], c.level[hm]) + 2 && rng() < 0.05 * clamp(pp.happy[id] / 50, 0.4, 1.3)) { addCitizen(c, 0, 0, hm, 0); c.econ.born++; day.born++; }
-    if (!pp.sick[id] && hm >= 0 && rng() < 0.004 + c.air[hm] * 0.035 + c.ground[hm] * 0.02 + pumpDirty + (c.garbage[hm] > garbageLimit(c.zone[hm], c.level[hm]) ? 0.012 : 0) + (age > 65 ? (oldHome ? 0.006 : 0.01) : 0)) pp.sick[id] = 1;
+    if (!pp.sick[id] && hm >= 0 && rng() < 0.004 + c.air[hm] * 0.035 + c.ground[hm] * 0.02 + 0.004 * (aqiSick(c) - 1) + pumpDirty + (c.garbage[hm] > garbageLimit(c.zone[hm], c.level[hm]) ? 0.012 : 0) + (age > 65 ? (oldHome ? 0.006 : 0.01) : 0)) pp.sick[id] = 1;
     if (pp.sick[id] > 48) { if (rng() < 0.25 * (1 - 0.7 * care)) { die(c, id); continue; } pp.sick[id] = 0; pp.amb[id] = 0; } // bệnh viện cứu được phần lớn ca nặng
     if (age > 70 && rng() < (age - 70) * 0.025 * (1 - 0.35 * care) * (oldHome ? 0.8 : 1)) { die(c, id); continue; }
     // tiền nhà, hài lòng, bỏ đi
@@ -590,7 +596,7 @@ function peopleDay(c) {
   // sổ sách theo ngày
   c.econ.last = { ...day, riders: c.transit.riders, mode: { ...ps.mode } };
   for (const k of Object.keys(day)) day[k] = 0;
-  ps.mode = { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 };
+  ps.mode = { car: 0, cars: 0, moto: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 };
   c.transit.ridersDay = c.transit.riders; c.transit.riders = 0;
   for (const l of c.transit.lines) { l.ridersDay = l.riders; l.riders = 0; }
   ferryDay(c);

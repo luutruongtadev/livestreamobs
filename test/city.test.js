@@ -360,11 +360,12 @@ test('city: module nâng công suất công trình; công trình biểu tượng
   assert.ok(S.unlockTech(c, 'lm1').ok);
   assert.equal(c.points, 0);
   assert.equal(S.unlockTech(c, 'forest').reason, 'Không đủ điểm phát triển');
+  const h0 = c.bonus.happy;
   assert.ok(S.placeService(c, 'monument', sx + 18, 20).ok);
-  assert.equal(c.bonus.happy, 2);
+  assert.equal(c.bonus.happy, h0 + 2, 'tượng đài +2 điểm vui');
   assert.match(S.canPlace(c, 'monument', sx + 22, 20).reason, /chỉ có một/);
   const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-  assert.deepEqual([[...c2.tech].sort(), c2.points, c2.services[tower].mods, c2.stats.waterCap, c2.bonus.happy], [['lm1', 'm_water'], 0, ['tank'], cap + 125, 2]);
+  assert.deepEqual([[...c2.tech].sort(), c2.points, c2.services[tower].mods, c2.stats.waterCap, c2.bonus.happy], [['lm1', 'm_water'], 0, ['tank'], cap + 125, c.bonus.happy]);
 });
 
 test('city: không còn mua đất — cả bản đồ mở từ đầu; bản đồ mới có núi; bản lưu cũ cũng mở cả bản đồ', () => {
@@ -1171,4 +1172,48 @@ test('máy chủ AI Phố Mới: không có key thì báo offline; có client th
   assert.deepEqual([codes[0], codes[12]], [200, 429]);
   const off = createCityAi({ env: {} }), r2 = await new Promise((resolve) => off.handle({}, { writeHead() {}, end: (x) => resolve(JSON.parse(x)) }));
   assert.equal(r2.offline, true);
+});
+
+test('đường phố: vỉa hè đổi thuế / du khách / tốc độ xe; cấm xe máy nội đô, phí ô tô, làn buýt; hẻm cho nhà ở hàng thứ ba; bụi mịn', () => {
+  const c = town(); c.money = 1e6; c.style = 'vn';
+  // vỉa hè
+  assert.equal(c.street.sidewalk, 'free');
+  const e = [...c.edges.values()].find((x) => x.type === 'small');
+  assert.ok(e.spMul < 1, 'vỉa hè tự do: xe chậm hơn');
+  S.recalc(c); const comm0 = c.bonus.comm;
+  assert.ok(S.setSidewalk(c, 'clear')); S.recalc(c);
+  assert.equal(e.spMul, 1); assert.ok(c.bonus.comm < comm0, 'dẹp vỉa hè: thuế thương mại giảm');
+  assert.ok(c.stats.exp.transit >= S.SIDEWALK.clear.cost);
+  // phương tiện: ô tô theo thu nhập, học vấn
+  const pp = c.pp; let rich = 0;
+  const id0 = [...Array(pp.n).keys()].find((i) => pp.alive[i]);
+  pp.edu[id0] = 3; pp.money[id0] = 2000; for (let g = 0; g < 40; g++) { pp.gen[id0] = g; if (S.vehicleOf(c, id0) === 'car') rich++; }
+  assert.ok(rich > 15, 'người giàu học cao hay đi ô tô');
+  // nội đô + cấm xe máy
+  c.street.center = { x: 10, y: 10, r: 4 };
+  assert.ok(S.inCenter(c, 10 * S.N + 11)); assert.ok(!S.inCenter(c, 30 * S.N + 30));
+  c.street.motoBan = true;
+  // chooseVehicle được dùng trong people.js; thử qua mô phỏng: một ngày có cấm xe thì có người chuyển sang đi bộ / taxi
+  c.street.center = S.centerOf(c) || { x: c.start.x, y: 20, r: 12 };
+  for (let h = 0; h < 30; h++) run(c, 1);
+  assert.ok(c.street.last && (c.street.last.shift + c.street.last.taxi) > 0, 'cấm xe máy: có người đổi cách đi');
+  assert.ok(Number.isFinite(c.street.aqi) && c.street.aqi >= 0);
+  // làn buýt
+  S.setPolicy(c, 'busLane', true);
+  const big = [...c.edges.values()].find((x) => x.type === 'large');
+  if (big) assert.ok(big.busMul > big.spMul, 'làn riêng: buýt nhanh hơn xe khác');
+  // hẻm: ô hàng thứ ba thành ô quy hoạch, chỉ nhà ở
+  const acc0 = c.acc.reduce((n, v) => n + (v ? 1 : 0), 0);
+  S.setPolicy(c, 'alley', true); S.roadsChanged(c);
+  const acc1 = c.acc.reduce((n, v) => n + (v ? 1 : 0), 0), alleys = c.alley.reduce((n, v) => n + v, 0);
+  assert.ok(alleys > 0 && acc1 > acc0, 'có thêm ô trong hẻm');
+  // bụi mịn: nhiều xe thì AQI cao, kém vui
+  c.street.last = { moto: 40000, car: 20000, taxi: 0, fee: 0, shift: 0 };
+  c.street.aqi = S.computeAqi(c);
+  assert.ok(c.street.aqi > 150, `AQI cao (${c.street.aqi})`);
+  S.recalc(c); assert.ok(S.streetBonus(c).happy < 0);
+  assert.equal(S.aqiLevel(30)[0], 'Tốt');
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual([d.street.sidewalk, d.street.motoBan, d.street.busLane, d.street.alley], ['clear', true, true, true]);
+  assert.equal(d.alley.reduce((n, v) => n + v, 0), alleys, 'hẻm giữ nguyên sau khi nạp');
 });

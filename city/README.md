@@ -70,6 +70,20 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
      - Bảng đàm phán có ước tính lời / lỗ cho thành phố.
    - **⭐ Đánh giá du khách:** mỗi tối vài du khách viết đánh giá. Số sao do game chấm từ trải nghiệm thật: điểm tham quan, bãi biển, lễ hội, kẹt xe, ngập, bão, móc túi, ô nhiễm, hết phòng, dân thân thiện. Điểm trung bình 30 bài gần nhất nhân lượng du khách và khách quốc tế từ ×0,7 (1 sao) tới ×1,3 (5 sao).
    - **Máy chủ:** `POST /api/city/ai` (`gateway/city-ai.js`): model `claude-haiku-5-5` (đổi bằng `CITY_AI_MODEL`, ví dụ `claude-opus-5-5`), mỗi máy tối đa 12 lượt / phút, cả server `CITY_AI_DAILY` lượt / ngày.
+13d. **🛵 Đường phố và xe cộ** (bảng 👥, mục cuối). Các chính sách đều có đánh đổi:
+   - **Vỉa hè:**
+     - 🍜 *Để tự do*: quán cóc, ghế nhựa, xe đẩy bày kín vỉa hè; thuế thương mại +4%, du khách ×1,08 (đánh giá khen ẩm thực vỉa hè), dân vui +1; nhưng xe chạy chậm 10% trên đường phố.
+     - 🪧 *Cấp phép theo giờ*: cân bằng, tốn 300 ₫/ngày.
+     - 🚧 *Dẹp vỉa hè*: đường thông, nhưng thuế thương mại −3%, du khách giảm, dân kém vui 20 ngày đầu, tốn 500 ₫/ngày.
+     - Hàng quán trên vỉa hè hiện theo chính sách.
+   - **Xe máy hay ô tô:** mỗi người đi xe riêng bằng xe máy hoặc ô tô tuỳ học vấn và thu nhập (kiểu Việt Nam: phần lớn xe máy). Thành phố giàu lên thì ô tô nhiều, đường tắc hơn.
+   - **Nội đô:** vùng quanh khu thương mại, văn phòng, tự tính lại mỗi ngày.
+     - 🛵 *Cấm xe máy vào nội đô* (400 ₫/ngày): người đi xe máy chuyển sang buýt, metro, đi bộ. Chỗ chưa có tuyến thì họ gọi taxi (thêm ô tô) và bực bội.
+     - 💳 *Phí ô tô vào nội đô* (0–20 ₫ mỗi lượt): từ 6 ₫, người có ô tô chuyển sang công cộng nếu có tuyến; còn lại trả phí vào ngân sách.
+   - 🚌 **Làn riêng xe buýt** (200 ₫/ngày): trên đại lộ, buýt nhanh hơn 30% (nhiều người chọn buýt hơn); xe khác chậm hơn 12%.
+   - 🏘️ **Quy hoạch hẻm:** nhà ở được mọc sâu tới hàng thứ ba sau mặt đường (thêm chỗ ở). Trong hẻm chỉ có nhà ở; dân trong hẻm kém vui vì chật chội.
+   - 🌫️ **Bụi mịn AQI:** tính mỗi ngày từ số chuyến xe máy, ô tô trên tổng chiều dài đường và ô nhiễm nhà máy. Trên 100 thì dân ốm nhiều hơn và kém vui; trên 150 thì du khách chê, du khách giảm. Trời mù xám theo AQI.
+   - 🎎 Nút lễ hội góc trái dưới (trên 📨) cho biết lễ gần nhất và mở bảng lễ hội. Bấm vào ô ngày giờ trên cùng cũng mở được.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.
@@ -111,6 +125,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/street.js` | Vỉa hè, hẻm, xe máy / ô tô, cấm xe máy nội đô, phí ô tô, làn buýt, bụi mịn AQI |
 | `js/council.js` | Hộp thư thị trưởng: tình huống khó xử, đàm phán hợp đồng, đánh giá du khách (game tính số; lời dự phòng) |
 | `js/ai.js` | Gọi `/api/city/ai` (Claude viết lời), tóm tắt thành phố gửi kèm |
 | `js/seasons.js` | Lịch âm, lễ hội và tổ chức lễ hội, bão, triều cường, ngập lụt, trạm bơm / kè |
