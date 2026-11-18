@@ -210,8 +210,14 @@ export function reservoirOf(c, s) {
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] >= 0 && down[j] <= d0) return true; }
     return false;
   };
+  // phía hạ lưu của thân đập (theo hướng dòng chảy qua đập): không bao giờ ngập
+  let mx = 0, mz = 0, fx = 0, fz = 0;
+  for (const i of s.dam.cells) { mx += i % N; mz += (i / N) | 0; fx += flow.dir[i * 2]; fz += flow.dir[i * 2 + 1]; }
+  mx /= s.dam.cells.length; mz /= s.dam.cells.length;
+  const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
+  const below = (i) => ((i % N) - mx) * fx + (((i / N) | 0) - mz) * fz > -0.6;
   const seen = new Uint8Array(N * N), q = [], cells = [], land = [];
-  for (const i of s.dam.cells) { const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] > d0 && !seen[j]) { seen[j] = 1; q.push([j, 0]); } } }
+  for (const i of s.dam.cells) { const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] > d0 && !below(j) && !seen[j]) { seen[j] = 1; q.push([j, 0]); } } }
   for (let h = 0; h < q.length; h++) {
     const [i, dist] = q[h];
     cells.push(i);
@@ -222,6 +228,7 @@ export function reservoirOf(c, s) {
       const a = x + dx, b = y + dy; if (!inMap(a, b)) continue;
       const j = idx(a, b);
       if (seen[j] || dam.has(j)) continue;
+      if (below(j) || c.occ[j] || c.road[j]) continue; // không lan xuống hạ lưu, không ngập công trình, đường
       if (c.water[j] ? !(down[j] > d0 || down[j] < 0) : lowV(j) >= level - 0.05 || downstream(j)) continue;
       seen[j] = 1; q.push([j, dist + 1]);
     }
