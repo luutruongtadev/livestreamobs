@@ -1,7 +1,7 @@
 // Phố Mới — mô hình 3D dựng bằng code (không cần file .glb). Mỗi ô = T đơn vị, mặt tiền nhìn về +z.
 import * as THREE from '../vendor/three.module.min.js';
 import { mulberry32, T, ZDEF } from './sim.js';
-import { containerPort, trainStation, airport, metroStation } from './transport3d.js';
+import { containerPort, trainStation, airport, airportIntl, metroStation } from './transport3d.js';
 
 export { T };
 const FOUND = 0x8b857a; // móng chìm dưới đất để nhà đứng được trên sườn dốc
@@ -1147,6 +1147,10 @@ export function serviceModel(type, size) {
     }
     case 'airport': { // sân bay (transport3d.js)
       out.movers = airport(g, e);
+      break;
+    }
+    case 'airportIntl': { // sân bay quốc tế 8×8 (transport3d.js)
+      out.movers = airportIntl(g, e);
       break;
     }
     case 'nuclear': {

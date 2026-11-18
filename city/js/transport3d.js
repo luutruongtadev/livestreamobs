@@ -315,17 +315,7 @@ export function airport(g, e) {
   // ống lồng (jet bridge) từ nhà ga ra cửa máy bay
   for (const x of [-15, -4, 7]) { bar(g, [x + 2.4, 3.3, 7.6], [x + 1.5, 2.9, 4.4], 1.5, 1.9, 0xd9dcd8); g.box(x + 1.6, 0.14, 4.8, 0.35, 1.2, 0.35, STEEL); }
   // máy bay đỗ ở 3 chỗ (mũi hướng nhà ga), xe kéo, xe chở hành lý
-  const pl = planeGeometry(0x2c5aa0);
-  const putPlane = (x, z, yaw, liv) => {
-    const geo = liv === 0x2c5aa0 ? pl : planeGeometry(liv), m = new THREE.Matrix4().makeTranslation(x, 0.17, z).multiply(new THREE.Matrix4().makeRotationY(yaw));
-    const p = geo.attributes.position, n = geo.attributes.normal, c = geo.attributes.color, idx = geo.index.array, v = new THREE.Vector3(), base = g.p.length / 3, nm = new THREE.Matrix3().getNormalMatrix(m);
-    for (let i = 0; i < p.count; i++) {
-      v.fromBufferAttribute(p, i).applyMatrix4(m); g.p.push(v.x, v.y, v.z);
-      v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); g.n.push(v.x, v.y, v.z);
-      g.c.push(c.getX(i), c.getY(i), c.getZ(i)); g.u.push(0.03, 0.03);
-    }
-    for (const k of idx) g.i.push(base + k);
-  };
+  const putPlane = (x, z, yaw, liv) => mergeInto(g, planeGeometry(liv), new THREE.Matrix4().makeTranslation(x, 0.17, z).multiply(new THREE.Matrix4().makeRotationY(yaw)));
   putPlane(-15, 0.5, 0, 0x2c5aa0); putPlane(7, 0.5, 0, 0xd0342c);
   for (const [x, z] of [[-11, 1], [-1, -6]]) { g.box(x, 0.14, z, 1.6, 0.9, 2.6, 0xe6a01e); for (let k = 1; k <= 2; k++) g.box(x, 0.14, z - k * 2.4, 1.4, 0.9, 2, 0xb9c2c8); }
   // đài kiểm soát không lưu
@@ -348,6 +338,115 @@ export function airport(g, e) {
     K(0.8, 14, y0, RZ, E, -0.05, 'i'), K(0.83, 30, 4, RZ, E, -0.18), K(0.98, 300, 70, RZ, E, -0.14), K(0.985, 300, 70, RZ, E, -0.14, 'h'), K(1, -260, 52, RZ, E, -0.06, 'h'),
   ];
   return [{ parts: [{ geometry: planeGeometry(0x2f8f5a), off: 0 }], period: 75, keys }];
+}
+
+/** Chép một BufferGeometry (có màu đỉnh) vào GB g theo ma trận m. */
+function mergeInto(g, geo, m) {
+  const p = geo.attributes.position, n = geo.attributes.normal, c = geo.attributes.color, idx = geo.index.array, v = new THREE.Vector3(), base = g.p.length / 3, nm = new THREE.Matrix3().getNormalMatrix(m);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).applyMatrix4(m); g.p.push(v.x, v.y, v.z);
+    v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize(); g.n.push(v.x, v.y, v.z);
+    g.c.push(c.getX(i), c.getY(i), c.getZ(i)); g.u.push(0.03, 0.03);
+  }
+  for (const k of idx) g.i.push(base + k);
+}
+
+/** Vị trí đường băng trong lô (để vẽ chuyến bay quốc tế, nội địa đáp xuống): rz = tâm đường băng, td = điểm chạm bánh, stop = điểm dừng, exit = lùi vào đường lăn. */
+export const RUNWAY = { airport: { rz: -18.5, td: -14, stop: 12, exit: 7 }, airportIntl: { rz: -31, td: -28, stop: 24, exit: 12 } };
+
+/**
+ * Sân bay quốc tế 8×8 ô (80 m): đường băng dài rộng có vạch ngưỡng, vạch chạm bánh, vạch điểm ngắm, đèn lề, đèn cuối đường băng;
+ * đường lăn song song với hai lối thoát nhanh; sân đỗ lớn; nhà ga hai tầng mái sóng, vách kính, ống lồng ra máy bay thân rộng;
+ * đường trên cao cho khách đi, ga đến bên dưới; nhà xe nhiều tầng, bãi đỗ; đài kiểm soát cao, khu hàng hoá, nhà chứa máy bay,
+ * bồn nhiên liệu, ra-đa. Máy bay hạ cánh, lăn, cất cánh thật trên đường băng.
+ */
+export function airportIntl(g, e) {
+  const H = e / 2, RZ = RUNWAY.airportIntl.rz, RW = 11, TZ = -18.5;
+  g.box(0, 0, 0, e, 0.14, e, 0x7da55a);
+  // đường băng
+  g.box(0, 0.14, RZ, e - 0.4, 0.06, RW + 1.6, 0x8a8a84); // lề đường băng
+  g.box(0, 0.16, RZ, e - 1, 0.06, RW, 0x3f4247);
+  for (let x = -H + 12; x < H - 12; x += 5) g.box(x, 0.23, RZ, 3, 0.02, 0.3, WHITE); // vạch tim
+  for (const dz of [-RW / 2 + 0.25, RW / 2 - 0.25]) g.box(0, 0.23, RZ + dz, e - 2, 0.02, 0.18, WHITE); // vạch lề
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 8; k++) g.box(s * (H - 2.6), 0.23, RZ - 4.55 + k * 1.3, 3.2, 0.02, 0.6, WHITE); // vạch ngưỡng "phím đàn"
+    for (const dz of [-3.6, 3.6]) { g.box(s * (H - 9), 0.23, RZ + dz, 4, 0.02, 0.9, WHITE); g.box(s * (H - 15.5), 0.23, RZ + dz, 5.5, 0.02, 1.6, WHITE); g.box(s * (H - 22), 0.23, RZ + dz, 3, 0.02, 0.8, WHITE); } // chạm bánh, điểm ngắm
+    for (let k = 0; k < 2; k++) g.box(s * (H - 6.2), 0.23, RZ - 1 + k * 2, 1.6, 0.02, 0.35, WHITE); // số đường băng (giản lược)
+    for (let k = 0; k < 7; k++) g.box(s * (H - 0.5), 0.14, RZ - 4.8 + k * 1.6, 0.3, 0.3, 0.3, s > 0 ? 0xff3b30 : 0x35e06a); // đèn cuối / đầu đường băng
+  }
+  for (let x = -H + 1.5; x < H; x += 4) for (const dz of [-RW / 2 - 0.5, RW / 2 + 0.5]) g.box(x, 0.14, RZ + dz, 0.22, 0.3, 0.22, 0xfff2c0); // đèn lề
+  // đường lăn song song, hai lối thoát nhanh xiên, hai lối nối ở đầu
+  g.box(0, 0.14, TZ, 72, 0.05, 4.6, 0x55595e); g.box(0, 0.2, TZ, 72, 0.02, 0.14, YEL);
+  for (let x = -35; x <= 35; x += 3.5) for (const dz of [-2.5, 2.5]) g.box(x, 0.14, TZ + dz, 0.18, 0.25, 0.18, 0x3f7cff);
+  for (const x of [-35, 35]) { g.box(x, 0.14, (TZ + RZ) / 2, 4.6, 0.05, TZ - RZ, 0x55595e); g.box(x, 0.2, (TZ + RZ) / 2, 0.14, 0.02, TZ - RZ, YEL); }
+  for (const x of [-10, 14]) { bar(g, [x - 5, 0.19, RZ + 3], [x + 5, 0.19, TZ], 4.6, 0.05, 0x55595e); bar(g, [x - 5, 0.23, RZ + 3], [x + 5, 0.23, TZ], 0.14, 0.02, YEL); }
+  for (let x = -20; x <= 20; x += 20) g.box(x, 0.2, TZ + 2.5, 0.8, 0.02, 0.5, YEL); // vạch dừng chờ
+  // sân đỗ
+  g.box(-8, 0.14, -6.5, 56, 0.06, 18, 0xa9a7a0);
+  const STANDS = [[-26, 0.95, 0x1f5f8b], [-10, 0.72, 0xd0342c], [6, 0.95, 0x2f8f5a]];
+  for (const [x] of STANDS) { g.box(x, 0.21, -6, 0.14, 0.02, 15, YEL); g.box(x, 0.21, 1.5, 3, 0.02, 0.14, YEL); g.box(x - 7, 0.21, -6, 0.1, 0.02, 15, 0xd0342c); }
+  for (const [x, sc, liv] of STANDS) mergeInto(g, planeGeometry(liv, sc), new THREE.Matrix4().makeTranslation(x, 0.2, -4.6));
+  // xe phục vụ: xe kéo, xe hành lý, xe bồn nhiên liệu
+  for (const [x, z] of [[-31, -10], [-15, -11], [1, -10]]) { g.box(x, 0.2, z, 1.6, 0.9, 2.6, 0xe6a01e); for (let k = 1; k <= 3; k++) g.box(x, 0.2, z - k * 2.3, 1.4, 0.9, 1.9, 0xb9c2c8); }
+  for (const x of [-20, 12]) { g.box(x, 0.2, -12, 2, 1.2, 1.6, 0xeeeeee); tube(g, x, 1.5, -15.5, -12.8, 1, 1, 0xdddddd); }
+  // nhà ga: hai tầng, vách kính, mái sóng vươn ra
+  const TX = -9, TL = 46, TZ0 = 6, TZ1 = 18;
+  g.box(TX, 0.14, (TZ0 + TZ1) / 2, TL, 4.2, TZ1 - TZ0, 0xd5dce0);
+  g.box(TX, 4.34, (TZ0 + TZ1) / 2, TL, 4.6, TZ1 - TZ0 - 1, 0xe2e8ec);
+  for (const z of [TZ0 - 0.05, TZ1 + 0.05]) { g.box(TX, 0.6, z, TL - 0.8, 3.2, 0.1, GLASS_L); g.box(TX, 4.8, z + (z < 10 ? 0.5 : -0.5), TL - 0.8, 3.6, 0.1, GLASS_L); }
+  for (let k = 0; k <= 15; k++) for (const z of [TZ0 - 0.1, TZ1 + 0.1]) g.box(TX - TL / 2 + k * (TL / 15), 0.14, z, 0.22, 8.6, 0.16, 0xb5bcc2);
+  for (let k = 0; k < 8; k++) { // mái sóng: các tấm cong lên xuống theo trục z
+    const z = TZ0 - 2.2 + k * 2.3, y = 9.2 + Math.sin((k / 7) * Math.PI) * 1.8, a = Math.cos((k / 7) * Math.PI) * 0.35;
+    g.at(new THREE.Matrix4().makeTranslation(TX, y, z).multiply(new THREE.Matrix4().makeRotationX(a))).box(0, 0, 0, TL + 4, 0.35, 2.5, 0xc4ccd3).at(null);
+  }
+  g.box(TX, 7.6, TZ1 + 0.2, 16, 1.4, 0.12, 0x2c5aa0); g.box(TX, 7.6, TZ0 - 0.6, 12, 1.2, 0.12, 0x2c5aa0); // biển tên
+  // ống lồng tới cửa máy bay
+  for (const [x, sc] of STANDS) { const nz = -4.6 + 7.9 * sc * 0.72 - 1.5; bar(g, [x + 3.5, 4.2, TZ0 - 0.2], [x + 1.6, 3.4, nz + 1], 1.6, 2.1, 0xd9dcd8); g.box(x + 2, 0.2, nz + 2.4, 0.4, 2.6, 0.4, STEEL); }
+  // đường trên cao cho khách đi (tầng đi) + làn ga đến bên dưới, đường dẫn ra mặt tiền lô
+  g.box(TX, 4.2, 21.5, 40, 0.5, 5, 0x6a6e73); for (let k = 0; k < 7; k++) g.box(TX - 18 + k * 6, 0.14, 21.5, 0.7, 4.1, 0.7, CONC);
+  g.box(TX, 4.7, 23.9, 40, 0.9, 0.2, 0xd8d4cc); g.box(TX, 0.14, 22, 44, 0.06, 6, 0x55595e); g.box(TX, 7.2, 19.8, 40, 0.25, 4, 0xe9ecef);
+  for (let k = 0; k < 6; k++) g.box(TX - 15 + k * 6, 0.2, 22, 2.2, 0.02, 0.15, WHITE);
+  g.box(-2, 0.14, 32, 8, 0.06, 18, 0x55595e); g.box(-2, 0.2, 32, 0.15, 0.02, 18, WHITE);
+  // bãi đỗ ngoài trời
+  const rr = mulberry32(31), CARS = [0xd0342c, 0x2f6fb0, 0xeeeeee, 0x222222, 0x8a949c, 0xd8b93a];
+  g.box(-24, 0.14, 32, 28, 0.06, 13, 0x6a6e73);
+  for (let row = 0; row < 3; row++) for (let k = 0; k < 11; k++) if (rr() > 0.25) g.box(-36.5 + k * 2.5, 0.2, 27.5 + row * 4.4, 1.6, 1, 3.2, CARS[(rr() * CARS.length) | 0]);
+  // nhà xe nhiều tầng
+  g.box(22, 0.14, 30, 18, 0.5, 14, CONC);
+  for (let f = 1; f <= 4; f++) { g.box(22, f * 2.8, 30, 18, 0.35, 14, CONC); for (let k = 0; k < 6; k++) if (rr() > 0.35) g.box(14.5 + k * 3, f * 2.8 + 0.35, 25 + (k % 2) * 9, 1.6, 0.9, 3, CARS[(rr() * CARS.length) | 0]); }
+  for (const [x, z] of [[13.2, 23.2], [30.8, 23.2], [13.2, 36.8], [30.8, 36.8], [22, 23.2], [22, 36.8]]) g.box(x, 0.14, z, 0.6, 11.4, 0.6, 0xa8a49a);
+  g.box(31.5, 0.14, 36, 3, 13, 3, 0xd9dcd8); // tháp thang
+  // đài kiểm soát không lưu cao
+  g.cyl(30, 0.14, 10, 2, 1.5, 30, 0xe6e9ec, 14); g.cyl(30, 30.14, 10, 2.8, 3.6, 1.2, 0xd9dcd8, 14); g.cyl(30, 31.34, 10, 3.6, 3.6, 2.8, 0x6fa8ff, 14); g.cyl(30, 34.14, 10, 3.9, 2.8, 0.8, 0x5b6670, 14);
+  g.cyl(30, 34.94, 10, 0.14, 0.14, 3.4, 0x9aa3aa, 5); g.box(30, 38.3, 10, 0.35, 0.35, 0.35, 0xff3b30);
+  g.box(30, 0.14, 15, 8, 4, 5, 0xe0e4e6);
+  // khu hàng hoá + nhà chứa máy bay
+  g.box(29, 0.14, -6.5, 18, 0.06, 18, 0xa9a7a0);
+  g.box(30, 0.14, -2, 14, 6.5, 7, 0xc9cdd0); g.box(30, 6.64, -2, 14.4, 0.3, 7.4, 0x8a949c); g.box(30, 0.3, -5.55, 11, 5, 0.1, 0x6f7a82);
+  for (let k = 0; k < 6; k++) g.box(24 + (k % 3) * 2.8, 0.2, -10 - Math.floor(k / 3) * 3, 2.4, 2.4, 6 / 2.2, CARS[(k * 3 + 1) % CARS.length]);
+  g.box(34, 0.14, -12, 10, 7, 9, 0xd3d6d8); for (let k = 0; k < 4; k++) g.box(34, 7.14 + Math.sin(((k + 0.5) / 4) * Math.PI) * 1.8, -16.5 + k * 2.25 + 1.1, 10.2, 0.3, 2.4, 0x8a949c);
+  // bồn nhiên liệu, ra-đa, ống gió, đèn hiệu
+  for (const [x, z] of [[-36, 8], [-36, 13], [-31.5, 8]]) { g.cyl(x, 0.14, z, 2, 2, 3.2, 0xeeeeee, 14); g.cyl(x, 3.34, z, 2, 1.6, 0.4, 0xd9dcd8, 14); }
+  g.box(-34, 0.14, -13, 1, 6, 1, 0x9aa3aa); g.at(new THREE.Matrix4().makeTranslation(-34, 6.4, -13).multiply(new THREE.Matrix4().makeRotationX(-0.5))).box(0, 0, 0, 4.2, 0.3, 1.6, 0xf0f0f0).at(null);
+  g.cyl(-38, 0.14, -22, 0.07, 0.07, 4.5, 0xe9ecef, 5); g.at(new THREE.Matrix4().makeTranslation(-38, 4.5, -22).multiply(new THREE.Matrix4().makeRotationZ(-1.45))).cyl(0, 0, 0, 0.35, 0.18, 2, 0xe07b2e, 6).at(null);
+  // máy bay động: chiếc thân hẹp hạ cánh, lăn về, cất cánh; chiếc thân rộng lăn ra cất cánh theo chu kỳ khác
+  const E = Math.PI / 2, y0 = 0.22;
+  const land = [
+    K(0, -330, 60, RZ, E, -0.06, 'h'), K(0.02, -330, 60, RZ, E, -0.06),
+    K(0.2, -40, y0 + 2, RZ, E, -0.1), K(0.22, -30, y0, RZ, E, 0),
+    K(0.33, 8, y0, RZ, E, 0, 'o'), K(0.37, 14, y0, (RZ + TZ) / 2, E * 0.6, 0), K(0.4, 19, y0, TZ, E, 0),
+    K(0.5, 33, y0, TZ, E, 0), K(0.53, 35, y0, TZ - 3, Math.PI, 0), K(0.56, 35, y0, RZ + 1, Math.PI, 0), K(0.58, 33, y0, RZ, -E, 0), K(0.6, 33, y0, RZ, -E, 0),
+    K(0.72, -14, y0, RZ, -E, -0.05, 'i'), K(0.75, -34, 5, RZ, -E, -0.18), K(0.98, -360, 80, RZ, -E, -0.14), K(0.985, -360, 80, RZ, -E, -0.14, 'h'), K(1, -330, 60, RZ, E, -0.06, 'h'),
+  ];
+  const wide = [
+    K(0, -36, y0, TZ, E, 0, 'h'), K(0.3, -36, y0, TZ, E, 0, 'h'), K(0.31, -36, y0, TZ, E, 0),
+    K(0.45, -36, y0, TZ, Math.PI, 0), K(0.5, -36, y0, RZ + 1, Math.PI, 0), K(0.53, -34, y0, RZ, E, 0), K(0.56, -34, y0, RZ, E, 0),
+    K(0.7, 20, y0, RZ, E, -0.06, 'i'), K(0.74, 42, 6, RZ, E, -0.18), K(0.95, 380, 85, RZ, E, -0.14), K(0.96, 380, 85, RZ, E, -0.14, 'h'), K(1, -36, y0, TZ, E, 0, 'h'),
+  ];
+  return [
+    { parts: [{ geometry: planeGeometry(0x2c5aa0, 0.72), off: 0 }], period: 80, keys: land },
+    { parts: [{ geometry: planeGeometry(0x8a2f6b, 0.95), off: 0 }], period: 110, keys: wide },
+  ];
 }
 
 /** Ga metro trên cao (dọc trục z, ray ở giữa): 2 sân ga hai bên, mái cong, vách kính, tháp thang. */

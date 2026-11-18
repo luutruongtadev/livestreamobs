@@ -34,7 +34,7 @@ export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild } from './districts.js';
-export { isIntlAirport, flyHappy } from './intl.js';
+export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
 export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
@@ -1480,11 +1480,53 @@ export function moduleList(c, s) {
   });
 }
 
+/**
+ * Chỗ mở rộng sân bay nội địa (5×5) thành sân bay quốc tế 8×8 bao trùm lô cũ: phần đất thêm phải là đất trống trong bản đồ
+ * (không nước, đường, ray, công trình khác, đất quá dốc); nhà dân trên đó bị giải toả. Ưu tiên lô có mặt sát đường, ít nhà phải dỡ.
+ * Trả về { ok, x, y, houses, reason }.
+ */
+export function airportExpand(c, s) {
+  const big = SERVICES.airportIntl.size, sz = SERVICES[s.type].size, k = c.services.indexOf(s) + 1;
+  let best = null, why = 'Không đủ đất trống quanh sân bay để mở rộng thành 8×8 ô (đường băng dài hơn): dọn đất, dời đường hoặc dời sân bay';
+  for (let oy = sz - big; oy <= 0; oy++) for (let ox = sz - big; ox <= 0; ox++) {
+    const x0 = s.x + ox, y0 = s.y + oy;
+    let ok = true, houses = 0, road = 0;
+    for (let dy = 0; dy < big && ok; dy++) for (let dx = 0; dx < big; dx++) {
+      const a = x0 + dx, b = y0 + dy;
+      if (!inMap(a, b)) { ok = false; break; }
+      const i = idx(a, b);
+      if (c.occ[i] === k) { if (c.acc[i] === 1) road++; continue; }
+      if (c.water[i] || c.road[i] || c.occ[i] || c.steep[i] || (c.railCell && c.railCell[i]) || (c.beach && c.beach[i])) { ok = false; break; }
+      if (c.level[i]) houses++;
+      if (c.acc[i] === 1) road++;
+    }
+    if (!ok) continue;
+    if (!road) { why = 'Lô mở rộng phải còn sát đường'; continue; }
+    const score = houses * 3 - road;
+    if (!best || score < best.score) best = { x: x0, y: y0, houses, score };
+  }
+  return best ? { ok: true, ...best } : { ok: false, reason: why };
+}
+
 /** Gắn module id vào công trình thứ k. */
 export function addModule(c, k, id) {
   const s = c.services[k], m = s && moduleList(c, s).find((o) => o.id === id);
   if (!m) return { ok: false, reason: 'Công trình này không gắn được module đó' };
   if (m.state !== 'ok') return { ok: false, reason: { done: 'Đã có module này', lock: `Module ${lockText(MODULES[id])}`, poor: 'Không đủ tiền' }[m.state] };
+  if (id === 'intl' && s.type === 'airport') { // sân bay quốc tế: mở rộng lô thành 8×8
+    const ex = airportExpand(c, s);
+    if (!ex.ok) return ex;
+    const big = SERVICES.airportIntl.size;
+    for (let dy = 0; dy < big; dy++) for (let dx = 0; dx < big; dx++) { const i = idx(ex.x + dx, ex.y + dy); c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i); clearDecor(c, i); }
+    { const votes = [0, 0, 0, 0]; for (let dy = 0; dy < big; dy++) for (let dx = 0; dx < big; dx++) { const i = idx(ex.x + dx, ex.y + dy); if (c.acc[i] === 1) votes[c.rdir[i]]++; } if (Math.max(...votes)) s.dir = votes.indexOf(Math.max(...votes)); } // mặt nhà ga quay ra đường
+    s.type = 'airportIntl'; s.x = ex.x; s.y = ex.y;
+    (s.mods || (s.mods = [])).push(id);
+    c.money -= m.cost;
+    rebuildOcc(c);
+    Object.assign(c.dirty, { services: true, zones: true, trees: true, buildings: true });
+    computeMaps(c); computeNetworks(c); recalc(c);
+    return { ok: true, cost: m.cost, expanded: true, houses: ex.houses };
+  }
   (s.mods || (s.mods = [])).push(id);
   c.money -= m.cost;
   c.dirty.services = true;

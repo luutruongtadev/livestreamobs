@@ -1015,7 +1015,7 @@ test('khách quốc tế: sân bay nội địa chở dân bay đi, nâng cấp 
   assert.ok(tourists > 0 && fees > 0, 'du khách tới, thu phí hạ cánh');
   assert.ok(c.pp.count > pop0, 'dân số tăng');
   assert.ok(c.intl.last.out > 0 && S.flyHappy(c) > 0, 'dân bay đi chơi, công tác thì vui hơn');
-  const old = JSON.parse(JSON.stringify(S.serialize(c))); delete old.apv; c.services[ap].mods = []; old.services.find((s) => s.type === 'airport').mods = [];
+  const old = JSON.parse(JSON.stringify(S.serialize(c))); delete old.apv; { const o2 = old.services.find((s) => s.type === 'airportIntl'); o2.type = 'airport'; o2.mods = []; } // bản lưu cũ: sân bay 5×5 chưa gắn module
   assert.ok(S.isIntlAirport(S.deserialize(old).services.find((s) => s.type === 'airport')), 'bản lưu cũ: sân bay đã là quốc tế');
   for (const e of c.intl.sched) if (e.kind === 'plane') assert.equal(e.t1 - e.t0, S.FLY_H * S.HOUR_SEC);
   const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
@@ -1473,4 +1473,36 @@ test('đường sắt: cửa khẩu ở mép bản đồ, ray từ ga ra cửa k
   assert.ok(S.bulldozeRect(d, cx, cy, cx, cy).ok);
   assert.equal(d.rail.lines.length, 0, 'san ủi dỡ ray');
   assert.equal(S.linkedStations(d).length, 0);
+});
+
+test('sân bay quốc tế: gắn nhà ga quốc tế thì sân bay mở rộng 5×5 → 8×8 ra đất trống, vẫn đón chuyến nội địa và quốc tế; hết chỗ thì báo', () => {
+  const c = S.newCity(5); S.enableSandbox(c);
+  const x = c.start.x;
+  road(c, x, 7, x, 60);
+  let ok = false;
+  for (let y = 25; y < 50 && !ok; y++) ok = S.placeService(c, 'airport', x + 3, y).ok;
+  const k = c.services.findIndex((s) => s.type === 'airport'), sv = c.services[k];
+  delete sv.build;
+  const r = S.addModule(c, k, 'intl');
+  assert.ok(r.ok && r.expanded, r.reason);
+  assert.equal(sv.type, 'airportIntl');
+  assert.ok(S.isIntlAirport(sv) && S.isAirport(sv));
+  let n = 0;
+  for (let i = 0; i < S.N * S.N; i++) if (c.occ[i] === k + 1) n++;
+  assert.equal(n, 64, 'chiếm 8×8 ô');
+  assert.ok(sv.cell >= 0, 'vẫn sát đường');
+  const o = S.intlOutlook(c);
+  assert.ok(o.airports === 1 && o.domAirports === 1);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(d.services.some((s) => s.type === 'airportIntl' && S.isIntlAirport(s)));
+  // sân bay bị vây kín: không mở rộng được
+  const c2 = S.newCity(5); S.enableSandbox(c2);
+  road(c2, x, 7, x, 60);
+  let ok2 = false;
+  for (let y = 25; y < 50 && !ok2; y++) ok2 = S.placeService(c2, 'airport', x + 3, y).ok;
+  const k2 = c2.services.findIndex((s) => s.type === 'airport'), s2 = c2.services[k2];
+  for (let dy = -4; dy < 9; dy++) for (let dx = -4; dx < 9; dx++) { const a = s2.x + dx, b = s2.y + dy; if (S.inMap(a, b) && !c2.occ[b * S.N + a] && !c2.road[b * S.N + a]) c2.water[b * S.N + a] = 1; }
+  const r2 = S.addModule(c2, k2, 'intl');
+  assert.equal(r2.ok, false);
+  assert.equal(s2.type, 'airport');
 });

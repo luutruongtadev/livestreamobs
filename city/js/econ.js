@@ -81,7 +81,7 @@ export function tourismScore(c) {
   if (nb) { const a = Math.min(18, nb * 0.3); attract += a; parts.beachZone = Math.round(a * 10) / 10; }
   // cửa ngõ đón khách: đường vào thành phố, ga, sân bay, tàu khách ra biển
   if (c.entryLinked) gates += 1;
-  for (const s of c.services) gates += s.type === 'train' ? 1.5 : s.type === 'airport' ? 3 : 0;
+  for (const s of c.services) gates += s.type === 'train' ? 1.5 : s.type === 'airport' ? 3 : s.type === 'airportIntl' ? 4.5 : 0;
   for (const l of c.ferries || []) if (l.out) gates += 1;
   const happy = c.pstats ? c.pstats.happy : 55;
   const k = clamp(0.6 + (happy - 45) / 60, 0.4, 1.4); // thành phố vui vẻ, sạch sẽ thì khách thích

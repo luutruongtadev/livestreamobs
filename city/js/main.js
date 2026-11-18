@@ -606,9 +606,9 @@ function showInfo(tile) {
     if (d.spots) add('Xe đang đỗ', `${sv.cell >= 0 ? c.parked[sv.cell] : 0} / ${val('spots')}`);
     if (d.radius) add('Bán kính phục vụ', `${val('radius')} ô`);
     if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
-    if ((sv.type === 'airport' || sv.type === 'port' || sv.type === 'ferry') && c.intl) {
+    if ((sv.type === 'airport' || sv.type === 'airportIntl' || sv.type === 'port' || sv.type === 'ferry') && c.intl) {
       const inc = c.intl.sched.filter((e) => e.uid === sv.uid && !e.landed);
-      if (sv.type === 'airport') { const o = S.intlOutlook(c); add('Loại', S.isIntlAirport(sv) ? '🌏 Sân bay quốc tế: chuyến nội địa và quốc tế' : '🛫 Sân bay nội địa · gắn module 🌏 Nhà ga quốc tế bên dưới để đón chuyến quốc tế'); add('Bay nội địa', `~${o.dom.toFixed(1)} chuyến/ngày (cả thành phố) · ~${fmt(o.flyPer)} dân bay đi mỗi chuyến`); }
+      if (sv.type === 'airport' || sv.type === 'airportIntl') { const o = S.intlOutlook(c); add('Loại', S.isIntlAirport(sv) ? '🌏 Sân bay quốc tế: chuyến nội địa và quốc tế' : '🛫 Sân bay nội địa · gắn module 🌏 Nhà ga quốc tế bên dưới để đón chuyến quốc tế'); add('Bay nội địa', `~${o.dom.toFixed(1)} chuyến/ngày (cả thành phố) · ~${fmt(o.flyPer)} dân bay đi mỗi chuyến`); }
       add('Chuyến đang tới', inc.length ? inc.map((e) => `${e.dom ? '🛫' : e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} (${e.tourists} khách)`).join(', ') : 'chưa có');
     }
     if (sv.type === 'airport' && S.isIntlAirport(sv)) title = `${d.icon} Sân bay quốc tế`;
@@ -735,7 +735,7 @@ function showInfo(tile) {
       const d = S.MODULES[m.id], row = el('div', 'slot'), info = el('div'), b = el('button', m.state === 'ok' ? 'mini acc' : 'mini', m.state === 'done' ? '✔' : m.state === 'lock' ? '🔒' : fmt(m.cost));
       info.append(el('b', null, `${d.icon} ${d.name}`), el('small', null, m.state === 'lock' ? `${d.desc} · ${S.lockText(d)}` : d.desc));
       b.disabled = m.state !== 'ok';
-      b.addEventListener('click', () => { const r = S.addModule(city, mods.k, m.id); toast(r.ok ? `Đã gắn ${d.name.toLowerCase()} · ${money(r.cost)}` : r.reason); showInfo(tile); updateHud(true); });
+      b.addEventListener('click', () => { const r = S.addModule(city, mods.k, m.id); toast(r.ok ? r.expanded ? `🛫 Đã mở rộng thành sân bay quốc tế 8×8 · ${money(r.cost)}${r.houses ? ` · giải toả ${r.houses} nhà` : ''}` : `Đã gắn ${d.name.toLowerCase()} · ${money(r.cost)}` : r.reason); showInfo(tile); updateHud(true); });
       row.append(info, b); $('iBody').append(row);
     }
   }

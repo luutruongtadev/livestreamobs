@@ -30,7 +30,9 @@ const SHIPS = ['Ocean Pearl', 'Star Lotus', 'Blue Horizon', 'Coral Queen', 'Sea 
 
 const blankDay = () => ({ flights: 0, ships: 0, tourists: 0, immig: 0, turned: 0, fees: 0, dom: 0, domTourists: 0, out: 0, abroad: 0 });
 /** Sân bay quốc tế: sân bay đã gắn module Nhà ga quốc tế. */
-export const isIntlAirport = (s) => s.type === 'airport' && !!(s.mods && s.mods.includes('intl'));
+export const isIntlAirport = (s) => s.type === 'airportIntl' || (s.type === 'airport' && !!(s.mods && s.mods.includes('intl')));
+/** Sân bay (nội địa hoặc quốc tế). */
+export const isAirport = (s) => s.type === 'airport' || s.type === 'airportIntl';
 export const simTime = (c) => c.hour * HOUR_SEC + (c.clock || 0);
 
 export function initIntl(c, o = {}) {
@@ -50,7 +52,7 @@ const ready = (s) => !(s.build > 0);
 /** Ước lượng: số chuyến bay / tàu mỗi ngày, khách mỗi chuyến, và các yếu tố ảnh hưởng (cho bảng ngân sách). */
 export function intlOutlook(c) {
   const it = c.intl, v = VISA[it.visa], P = PROMO[it.promo];
-  const airports = c.services.filter((s) => isIntlAirport(s) && ready(s)).length, domAirports = c.services.filter((s) => s.type === 'airport' && ready(s)).length;
+  const airports = c.services.filter((s) => isIntlAirport(s) && ready(s)).length, domAirports = c.services.filter((s) => isAirport(s) && ready(s)).length;
   const pop = c.pstats ? c.pstats.pop : 0;
   const sea = c.services.filter((s) => (s.type === 'port' || (s.type === 'ferry' && c.ferryState && c.ferryState[s.uid] === 'sea')) && ready(s)).length;
   const sc = c.tour && c.tour.score ? c.tour.score : tourismScore(c);
@@ -119,7 +121,7 @@ export function intlHour(c, { spend, addCitizen }) {
     it.sched.push({ id: it.nextId++, kind: 'plane', uid: ap.uid, t0: now, t1: now + FLY_H * HOUR_SEC, tourists, immig, code: `${pick(CODES)}${100 + ((rng() * 900) | 0)}`, from: pick(CITIES), ang: (rng() - 0.5) * 1.2 });
   }
   if (o.domAirports && h >= 5 && h <= 23 && busy('plane', true) < 3 && rng() < o.dom / 19) {
-    const ap = pick(c.services.filter((s) => s.type === 'airport' && ready(s)));
+    const ap = pick(c.services.filter((s) => isAirport(s) && ready(s)));
     const tourists = Math.max(5, Math.round(o.domTourPer * (0.6 + rng() * 0.8)));
     it.sched.push({ id: it.nextId++, kind: 'plane', dom: true, uid: ap.uid, t0: now, t1: now + FLY_H * HOUR_SEC, tourists, immig: 0, code: `${pick(DOM_CODES)}${100 + ((rng() * 900) | 0)}`, from: pick(DOM_CITIES), ang: (rng() - 0.5) * 1.2 });
   }
@@ -148,4 +150,4 @@ export function intlDay(c) {
 }
 
 /** Tên công trình đón khách quốc tế (cho bảng thông tin). */
-export const intlGate = (type) => type === 'airport' || type === 'port' || type === 'ferry' ? SERVICES[type].name : null;
+export const intlGate = (type) => type === 'airport' || type === 'airportIntl' || type === 'port' || type === 'ferry' ? SERVICES[type].name : null;

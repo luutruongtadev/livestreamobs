@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt } from './sim.js';
-import { metroGeometry, planeGeometry, trainParts, bar } from './transport3d.js';
+import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -1254,8 +1254,8 @@ export class View {
     const def = SERVICES[s.type], r = ROT[s.dir & 3], cr = Math.cos(r), sr = Math.sin(r);
     const cx = (s.x + def.size / 2) * T - HALF, cz = (s.y + def.size / 2) * T - HALF, gy = this._padY(s.x, s.y, def.size) + 0.2;
     const W = (lx, lz) => [cx + lx * cr + lz * sr, cz - lx * sr + lz * cr]; // toạ độ trong lô sân bay -> thế giới
-    const RZ = -18.5, dir = [cr, -sr]; // hướng đường băng (+x của lô)
-    const fin = W(-200, RZ), td = W(-14, RZ), stop = W(12, RZ);
+    const RW = RUNWAY[s.type] || RUNWAY.airport, RZ = RW.rz, dir = [cr, -sr]; // hướng đường băng (+x của lô)
+    const fin = W(-200, RZ), td = W(RW.td, RZ), stop = W(RW.stop, RZ);
     // điểm xuất phát ngoài bản đồ, phía bên kia thành phố so với sân bay: máy bay bay ngang qua trung tâm
     const a0 = Math.atan2(-cz, -cx) + (e.ang || 0), R = HALF + 300;
     const P0 = [Math.cos(a0) * R, Math.sin(a0) * R], C = [fin[0] - dir[0] * 260, fin[1] - dir[1] * 260];
@@ -1275,7 +1275,7 @@ export class View {
     } else { // chạm bánh, giảm tốc tới cuối đường băng rồi rẽ vào sân đỗ (khuất sau 1 giờ)
       const t = Math.min(1, (u - 0.88) / 0.12), k = 1 - (1 - t) * (1 - t);
       x = td[0] + (stop[0] - td[0]) * k; z = td[1] + (stop[1] - td[1]) * k; hx = dir[0]; hz = dir[1]; y = gy;
-      if (u > 1) { const w = W(12, RZ + 7 * Math.min(1, (u - 1) / 0.1)); x = w[0]; z = w[1]; hx = sr; hz = cr; }
+      if (u > 1) { const w = W(RW.stop, RZ + RW.exit * Math.min(1, (u - 1) / 0.1)); x = w[0]; z = w[1]; hx = sr; hz = cr; }
     }
     o.position.set(x, y, z); o.rotation.set(pitch, Math.atan2(hx, hz), roll, 'YXZ');
     return true;
