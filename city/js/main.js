@@ -1414,7 +1414,7 @@ function renderDist(force) {
   const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length).join('|')}`;
   if (!force && renderDist.key === key) return;
   renderDist.key = key;
-  $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : '🤖 AI chưa sẵn sàng: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.';
+  $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : `🤖 ${aiEnabled() ? 'AI chưa sẵn sàng' : 'AI đang tắt (bật lại trong 📨 Hộp thư)'}: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.`;
   const setup = $('distSetup'), tabs = $('distTabs'), body = $('distBody');
   setup.textContent = ''; tabs.textContent = ''; body.textContent = '';
   const can = S.canSplit(c), maxK = S.maxDistricts(c);
