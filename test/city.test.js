@@ -1238,3 +1238,46 @@ test('hộp thư: 22 loại tình huống Việt Nam, điều kiện chạy đư
   const after = big.fire.reduce((n, v) => n + (v ? 1 : 0), 0);
   assert.ok(after > before, 'có nhà bốc cháy');
 });
+
+test('bãi biển tô theo ô: chỉ gần biển (không phải sông), đất thoải dần xuống biển, nước nông sát bờ; hút du khách; lưu / nạp', () => {
+  const c = newCity(77, { size: 96, map: 'river' }); c.owned.fill(1); c.own.fill(1); c.money = 1e6;
+  const si = S.seaInfo(c);
+  assert.ok(si.sea.some((v) => v), 'bản đồ sông và biển có biển ở phía nam');
+  // ô sát sông nhưng xa biển: không được
+  let riverCell = -1, seaCell = -1;
+  for (let i = 0; i < S.N * S.N; i++) {
+    if (c.water[i] || c.road[i]) continue;
+    const x = i % S.N, y = (i / S.N) | 0;
+    const nearWater = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => c.water[(y + dy) * S.N + x + dx]);
+    if (nearWater && si.dist[i] === 255 && riverCell < 0) riverCell = i;
+    if (si.dist[i] === 1 && seaCell < 0 && y < S.N - 4 && x > 10 && x < S.N - 10) seaCell = i;
+  }
+  assert.ok(riverCell >= 0 && seaCell >= 0);
+  assert.equal(S.beachOk(c, riverCell), false, 'bờ sông không làm bãi biển được');
+  assert.equal(S.beachOk(c, seaCell), true);
+  assert.match(S.paintBeach(c, riverCell % S.N, (riverCell / S.N) | 0, riverCell % S.N, (riverCell / S.N) | 0).reason, /BIỂN/);
+  // tô một dải 8 × 5 ô từ bờ biển vào trong
+  const sx = seaCell % S.N, sy = (seaCell / S.N) | 0, m0 = c.money, a0 = S.tourismScore(c).attract;
+  const r = S.paintBeach(c, sx - 4, sy - 5, sx + 4, sy);
+  assert.ok(r.ok && r.count > 10, r.reason);
+  assert.equal(m0 - c.money, r.count * S.BEACH.cost);
+  assert.ok(S.tourismScore(c).attract > a0, 'bãi biển hút du khách');
+  // địa hình thoải: hai đỉnh kề nhau trong vùng bãi chênh nhau không quá 1 m, vùng bãi thấp
+  const V = S.N + 1;
+  let maxStep = 0, maxH = 0;
+  for (let y = sy - 4; y <= sy; y++) for (let x = sx - 3; x <= sx + 3; x++) {
+    if (!c.beach[y * S.N + x]) continue;
+    const k = y * V + x;
+    maxH = Math.max(maxH, c.hv[k]);
+    for (const k2 of [k + 1, k + V]) if (c.beach[Math.floor(k2 / V) * S.N + (k2 % V)] && !c.water[Math.floor(k2 / V) * S.N + (k2 % V)]) maxStep = Math.max(maxStep, Math.abs(c.hv[k2] - c.hv[k]));
+  }
+  assert.ok(maxStep <= 1.0, `bãi thoải (bậc lớn nhất ${maxStep.toFixed(2)} m)`);
+  assert.ok(maxH < 3, `bãi thấp gần mặt nước (cao nhất ${maxH.toFixed(2)} m)`);
+  // không xây nhà, công trình trên bãi
+  assert.match(S.canPlace(c, 'park', sx, sy - 1).reason || '', /bãi biển/);
+  // xoá
+  const e = S.paintBeach(c, sx, sy, sx, sy, { erase: true });
+  assert.ok(e.ok && !c.beach[sy * S.N + sx]);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(S.beachCount(d), S.beachCount(c));
+});

@@ -595,7 +595,7 @@ export class View {
     this.city = city;
     this._gate(city);
     this._rebuildTerrain();
-    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, flood: true, terrain: 0 };
+    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, flood: true, beach: true, terrain: 0 };
     this.puffs.length = 0; this.fireCells = [];
     this.cam.x = cellCenter(city.start.x); this.cam.z = cellCenter(city.start.y + 6);
     this.cam.y = heightAt(city, this.cam.x, this.cam.z);
@@ -635,7 +635,7 @@ export class View {
     const W = N + 2 * BORDER, V = W + 1;
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
     const soil = new THREE.Color(0x9a7b55);
-    const grass = new THREE.Color(0x5e9c43), grass2 = new THREE.Color(0x74ad4c), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), snow = new THREE.Color(0xe9ebe6), c = new THREE.Color(), tint = new THREE.Color();
+    const beachSand = new THREE.Color(0xeedfae), grass = new THREE.Color(0x5e9c43), grass2 = new THREE.Color(0x74ad4c), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), snow = new THREE.Color(0xe9ebe6), c = new THREE.Color(), tint = new THREE.Color();
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const gx = i - BORDER, gy = j - BORDER, k = j * V + i;
       const inside = gx >= 0 && gy >= 0 && gx <= N && gy <= N;
@@ -654,6 +654,7 @@ export class View {
           c.lerp(forest, Math.min(1, m / 18)).lerp(rock, Math.min(1, Math.max(0, (m - 34) / 30)));
         } else if (isWater(gx - 2, gy) || isWater(gx + 1, gy) || isWater(gx, gy - 2) || isWater(gx, gy + 1) || isWater(gx - 2, gy - 1) || isWater(gx - 1, gy - 2) || isWater(gx + 1, gy - 1) || isWater(gx - 1, gy + 1)) c.lerp(sand, 0.45);
       }
+      if (inside && city.beach && [[gx - 1, gy - 1], [gx, gy - 1], [gx - 1, gy], [gx, gy]].some(([a, b]) => a >= 0 && b >= 0 && a < N && b < N && city.beach[b * N + a])) c.copy(beachSand).lerp(sand, wn > 0 ? 0.6 : 0.12 * vnoise(gx * 0.7, gy * 0.7, seed + 91)); // bãi biển tô theo ô: cát sáng, mép nước cát ướt
       pos[k * 3] = gx * T - HALF; pos[k * 3 + 1] = h; pos[k * 3 + 2] = gy * T - HALF;
       col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       uv[k * 2] = gx * 0.5; uv[k * 2 + 1] = gy * 0.5;
@@ -1288,6 +1289,54 @@ export class View {
     return true;
   }
 
+  /** Đồ trên bãi biển tô theo ô: dù, ghế nằm, khăn, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa, phao bơi. */
+  _beachProps() {
+    const c = this.city;
+    if (this.beachMesh) { this.scene.remove(this.beachMesh); this.beachMesh.geometry.dispose(); this.beachMesh = null; }
+    if (!c.beach || !c.beach.some((v) => v)) return;
+    const g = new GB(), UM = [0xd0342c, 0x2f8fd0, 0xf2c14e, 0x2aa37a, 0xe8894a, 0xffffff];
+    let n = 0;
+    for (let i = 0; i < N * N; i++) {
+      if (!c.beach[i]) continue;
+      const x = i % N, y = (i / N) | 0, cx = cellX(i), cz = cellZ(i), r = hash2(x, y, 401), r2 = hash2(x, y, 403);
+      const H = (dx, dz) => heightAt(c, cx + dx, cz + dz);
+      // hướng ra biển: ô nước gần nhất
+      let sx = 0, sz = 0;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const a = x + dx, b = y + dy; if (a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a]) { sx += dx; sz += dy; } }
+      const yaw = Math.atan2(sx, sz), shore = c.water.some ? [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const a = x + dx, b = y + dy; return a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a]; }) : false;
+      g.at(new THREE.Matrix4().makeTranslation(cx, 0, cz).multiply(new THREE.Matrix4().makeRotationY(yaw)));
+      const y0 = H(0, 0);
+      if (r < 0.55) { // dù và 2 ghế nằm, khăn
+        const ox = (r2 - 0.5) * 4, oz = (hash2(x, y, 405) - 0.5) * 3, col = UM[(r * 97 | 0) % UM.length];
+        g.cyl(ox, y0, oz, 0.06, 0.06, 2.5, 0xeeeeee, 4); g.cyl(ox, y0 + 2.2, oz, 1.7, 0.05, 0.6, col, 8, col);
+        for (const s of [-0.8, 0.8]) { g.box(ox + s, y0 + 0.25, oz + 0.9, 0.6, 0.12, 1.7, 0xf4f1ea); g.at(new THREE.Matrix4().makeTranslation(cx, 0, cz).multiply(new THREE.Matrix4().makeRotationY(yaw)).multiply(new THREE.Matrix4().makeTranslation(ox + s, y0 + 0.45, oz + 0.15).multiply(new THREE.Matrix4().makeRotationX(-0.6)))).box(0, 0, 0, 0.6, 0.08, 0.7, 0xf4f1ea).at(new THREE.Matrix4().makeTranslation(cx, 0, cz).multiply(new THREE.Matrix4().makeRotationY(yaw))); }
+        if (r2 > 0.5) g.box(ox - 2, y0 + 0.02, oz + 1, 0.9, 0.03, 1.8, UM[(r2 * 53 | 0) % UM.length]);
+      } else if (!shore && r < 0.68) { // dừa (phía trong bãi)
+        g.cyl(0.6, y0, 0.4, 0.22, 0.15, 6, 0x8a6a45, 6);
+        for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; g.at(new THREE.Matrix4().makeTranslation(cx, 0, cz).multiply(new THREE.Matrix4().makeRotationY(yaw)).multiply(new THREE.Matrix4().makeTranslation(0.6, y0 + 6, 0.4)).multiply(new THREE.Matrix4().makeRotationY(a)).multiply(new THREE.Matrix4().makeRotationX(0.45))).box(0, 0, 1.2, 0.6, 0.06, 2.4, k % 2 ? 0x4f9440 : 0x5fa848).at(null); }
+      }
+      g.at(new THREE.Matrix4().makeTranslation(cx, 0, cz).multiply(new THREE.Matrix4().makeRotationY(yaw)));
+      const k = n++;
+      if (shore && k % 23 === 3) { // chòi cứu hộ trên cao, cờ đỏ
+        for (const [dx, dz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) g.box(dx, y0, dz - 2, 0.15, 2.6, 0.15, 0xffffff);
+        g.box(0, y0 + 2.6, -2, 2, 0.15, 2, 0xd0342c); g.box(0, y0 + 2.75, -2, 1.8, 1.2, 1.8, 0xf4f1ea); g.gable(0, y0 + 3.95, -2, 2.2, 0.7, 2.2, 0xd0342c);
+        g.cyl(1.2, y0 + 2.75, -2.8, 0.04, 0.04, 2, 0x999999, 4); g.box(1.5, y0 + 4.3, -2.8, 0.6, 0.4, 0.04, 0xd0342c);
+      } else if (!shore && k % 31 === 7) { // quán nước mái lá
+        g.box(0, y0, 2, 3.4, 1.1, 1.4, 0x8a6a45); g.box(0, y0 + 1.1, 2, 3.6, 0.1, 1.6, 0xd9ca94);
+        for (const dx of [-1.6, 1.6]) g.cyl(dx, y0, 1.4, 0.07, 0.07, 2.6, 0x6b4a2f, 4);
+        g.gable(0, y0 + 2.6, 1.8, 4.2, 0.9, 2.6, 0xc9a85a, true, 0xc9a85a);
+        for (const dx of [-1.2, 0, 1.2]) g.box(dx, y0, 3.6, 0.4, 0.45, 0.4, 0x2f8fd0);
+      } else if (k % 41 === 11) { // lưới bóng chuyền
+        for (const dx of [-3.5, 3.5]) g.cyl(dx, y0, 0, 0.06, 0.06, 2.4, 0xeeeeee, 4);
+        g.box(0, y0 + 1.6, 0, 7, 0.8, 0.04, 0xf4f4f4);
+      } else if (shore && k % 9 === 5) g.cyl(0, y0 + 0.05, -3.5, 0.5, 0.5, 0.15, 0xe8894a, 10); // phao bơi
+      g.at(null);
+    }
+    this.beachMesh = new THREE.Mesh(g.build(), this.matBuilding);
+    this.beachMesh.castShadow = true; this.beachMesh.receiveShadow = true;
+    this.scene.add(this.beachMesh);
+  }
+
   /** Nước ngập trên các ô đất thấp (mùa mưa bão): tấm nước đục phủ lên mặt đất, cao theo độ ngập. */
   _floodWater() {
     const c = this.city;
@@ -1734,7 +1783,7 @@ export class View {
     // đá: sườn dốc, bãi khoáng sản, đôi chỗ ven bờ
     let nr = 0;
     for (let i = 0; i < N * N && nr < MAX_ROCKS; i++) {
-      if (c.water[i] || c.road[i] || c.level[i] || c.occ[i]) continue;
+      if (c.water[i] || c.road[i] || c.level[i] || c.occ[i] || (c.beach && c.beach[i])) continue; // bãi biển: không đá
       const x = i % N, y = (i / N) | 0, hv = hash2(x, y, 37);
       if (!(c.steep[i] ? hv < 0.6 : c.res[i] === 3 ? hv < 0.3 && !c.acc[i] : hv < 0.05 && !c.acc[i] && shore(x, y))) continue;
       const wx = cellCenter(x) + (hash2(x, y, 38) - 0.5) * T * 0.8, wz = cellCenter(y) + (hash2(x, y, 39) - 0.5) * T * 0.8, sc = 0.7 + hash2(x, y, 40) * 1.6;
@@ -2254,6 +2303,7 @@ export class View {
     if (d.transit) { this._transit(); d.transit = false; }
     if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i] || c.inc.wild[i]) this.fireCells.push(i); d.fx = false; }
     if (d.zones) { this._zones(); d.zones = false; }
+    if (d.beach || d.terrain === 2) { this._beachProps(); d.beach = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
     this._vehicles(dt);
     this._animals(simDt);

@@ -23,7 +23,7 @@ const GROUPS = [
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
   { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'port', 'airport'] },
   { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium'] },
-  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach', 'hotel', 'resort', 'pagoda', 'museum'] },
+  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'hotel', 'resort', 'pagoda', 'museum'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
   { id: 'terra', icon: '⛰️', label: 'Địa hình', items: ['terra:dig', 'terra:raise', 'terra:level', 'terra:canal'] },
@@ -57,6 +57,9 @@ function toolInfo(id) {
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
   if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
+  if (kind === 'beach') return arg === 'erase'
+    ? { kind, erase: true, icon: '🧽', label: 'Xoá bãi', desc: '<b>Xoá bãi biển</b> · kéo để bỏ các ô bãi biển (địa hình giữ nguyên)' }
+    : { kind, erase: false, icon: '🏖️', label: 'Bãi biển', desc: `<b>Bãi biển</b> · ${fmt(S.BEACH.cost)} ₫ / ô, phí ${S.BEACH.upkeep} ₫ / ô / ngày · kéo chuột tô vùng bãi tuỳ ý, chỉ trên đất trống cách <b>biển</b> tối đa ${S.BEACH.reach} ô (sông, hồ không được) · đất tự hạ thoải dần xuống mép nước, nước sát bờ thành nước nông · càng rộng càng hút du khách (tối đa +18 sức hút), dân cả thành phố vui hơn` };
   if (kind === 'line') { const d = S.LINES[arg]; return { kind, line: arg, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô · bấm điểm đầu rồi điểm cuối · ${d.desc}` }; }
   const d = S.SERVICES[id];
   const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.hearses && `${d.hearses} xe tang`, d.graves && `${d.graves} phần mộ`, d.cremate && `${d.cremate} người / ngày`, d.cells && `${d.cells} chỗ giam`, d.depot && `+${d.depot} xe buýt / tàu điện`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
@@ -392,6 +395,12 @@ function updatePreview() {
   if (drag) drag.to = b;
   const tiles = rectTiles(a, b);
   if (t.kind === 'bulldoze') view.setPreview(tiles, 0xff5b4a);
+  else if (t.kind === 'beach') {
+    const ok = t.erase ? tiles.filter(([x, y]) => city.beach[y * S.N + x]) : tiles.filter(([x, y]) => S.beachOk(city, y * S.N + x));
+    view.setPreview(ok, t.erase ? 0xff5b4a : 0xf2d98a);
+    if (drag || hover) renderHint(ok.length ? `${t.label}: <b>${ok.length} ô</b>${t.erase ? '' : ` · ${money(ok.length * S.BEACH.cost)}`}` : t.erase ? 'Không có ô bãi biển nào ở đây' : `<b>Chỉ tô được trên đất trống cách biển tối đa ${S.BEACH.reach} ô</b> (sông, hồ không được)`);
+    return;
+  }
   else view.setPreview(t.zone ? tiles.filter(([x, y]) => city.acc[y * S.N + x] && city.own[y * S.N + x] && S.hasResource(city, y * S.N + x, t.zone)) : tiles, S.ZDEF[t.zone].color);
   if (drag) renderHint(`${t.label}: <b>${Math.abs(a.x - b.x) + 1} × ${Math.abs(a.y - b.y) + 1} ô</b>`);
 }
@@ -503,7 +512,8 @@ function commitDrag() {
   if (!drag) return;
   const a = drag.from, b = drag.to || a, t = toolInfo(tool);
   drag = null;
-  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'beach' ? S.paintBeach(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  if (r && r.ok && t.kind === 'beach') toast(t.erase ? `Đã xoá ${r.count} ô bãi biển` : `🏖️ Đã làm ${r.count} ô bãi biển · ${money(r.cost)}`);
   if (r && !r.ok && r.reason) toast(r.reason);
   renderHint(); updatePreview(); updateHud(true);
 }

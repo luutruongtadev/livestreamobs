@@ -309,7 +309,7 @@ export function visitorExperience(c) {
   let stars = 3.4;
   const attract = sc ? sc.attract : 0;
   if (attract > 10) { stars += 0.6; pros.push('nhiều điểm tham quan'); } else if (attract < 3) { stars -= 0.5; cons.push('ít chỗ tham quan'); }
-  if (c.services.some((v) => v.type === 'beach')) { stars += 0.3; pros.push('bãi biển đẹp'); }
+  if (c.services.some((v) => v.type === 'beach') || (c.beach && c.beach.some((v) => v))) { stars += 0.3; pros.push('bãi biển đẹp'); }
   if (c.services.some((v) => v.type === 'pagoda' || v.type === 'museum')) { stars += 0.2; pros.push('chùa cổ, bảo tàng'); }
   if (c.street) {
     if (c.street.sidewalk === 'free') { stars += 0.25; pros.push('ẩm thực vỉa hè tuyệt vời'); } else if (c.street.sidewalk === 'clear') { stars -= 0.1; cons.push('phố xá vắng vẻ'); }

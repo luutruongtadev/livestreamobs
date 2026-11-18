@@ -4,6 +4,7 @@ import { initIntl, packIntl } from './intl.js';
 import { festMul } from './seasons.js';
 import { councilMod } from './council.js';
 import { streetBonus } from './street.js';
+import { beachCount } from './beach.js';
 
 // ───────────────────────── ngân sách theo ngành ─────────────────────────
 
@@ -71,6 +72,8 @@ export function tourismScore(c) {
   let leisure = 0;
   for (let i = 0; i < N * N; i++) if (c.level[i] && ZDEF[c.zone[i]].biz === 'leisure') leisure += c.level[i];
   attract += Math.min(12, leisure * 0.15);
+  const nb = beachCount(c); // bãi biển tô theo ô
+  if (nb) { const a = Math.min(18, nb * 0.3); attract += a; parts.beachZone = Math.round(a * 10) / 10; }
   // cửa ngõ đón khách: đường vào thành phố, ga, sân bay, tàu khách ra biển
   if (c.entryLinked) gates += 1;
   for (const s of c.services) gates += s.type === 'train' ? 1.5 : s.type === 'airport' ? 3 : 0;

@@ -90,6 +90,14 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - 🏘️ **Quy hoạch hẻm:** nhà ở được mọc sâu tới hàng thứ ba sau mặt đường (thêm chỗ ở). Trong hẻm chỉ có nhà ở; dân trong hẻm kém vui vì chật chội.
    - 🌫️ **Bụi mịn AQI:** tính mỗi ngày từ số chuyến xe máy, ô tô trên tổng chiều dài đường và ô nhiễm nhà máy. Trên 100 thì dân ốm nhiều hơn và kém vui; trên 150 thì du khách chê, du khách giảm. Trời mù xám theo AQI.
    - 🎎 Nút lễ hội góc trái dưới (trên 📨) cho biết lễ gần nhất và mở bảng lễ hội. Bấm vào ô ngày giờ trên cùng cũng mở được.
+13e. **🏖️ Bãi biển tô theo ô** (nhóm 🧳 Du lịch): kéo chuột tô vùng bãi tuỳ ý, hình dạng bất kỳ.
+   - **Chỉ trên đất trống cách biển tối đa 6 ô.** Game tự nhận ra biển (vùng nước rộng chạm mép bản đồ); sông, kênh, hồ không tính, riêng đoạn cửa sông sát biển thì được.
+   - **Địa hình tự thoải:** tô xong, đất hạ dần từ trong ra tới mép nước (mỗi ô khoảng 0,35 m), vành đất sau bãi hạ theo dốc thoải, nước sát bờ thành nước nông. Không còn bờ dốc bậc thang.
+   - **Đồ trên bãi:** cát sáng, cát ướt ở mép nước, dù, ghế nằm, khăn, dừa, chòi cứu hộ, quán nước mái lá, lưới bóng chuyền, phao bơi.
+   - **Chi phí:** 250 ₫ / ô, phí 4 ₫ / ô / ngày.
+   - **Tác dụng:** sức hút du lịch +0,3 mỗi ô (tối đa +18), dân cả thành phố vui hơn (tối đa +3), du khách khen bãi biển đẹp.
+   - Không xây nhà, công trình trên bãi; làm đường qua thì bỏ phần bãi dưới đường. 🧽 *Xoá bãi* để bỏ ô bãi (địa hình giữ nguyên).
+   - Bãi biển kiểu cũ (khối 3 × 3) trong bản lưu cũ vẫn giữ nguyên.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.
@@ -131,6 +139,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/beach.js` | Bãi biển tô theo ô: nhận diện biển, kiểm tra ô, san địa hình thoải xuống biển |
 | `js/street.js` | Vỉa hè, hẻm, xe máy / ô tô, cấm xe máy nội đô, phí ô tô, làn buýt, bụi mịn AQI |
 | `js/council.js` | Hộp thư thị trưởng: tình huống khó xử, đàm phán hợp đồng, đánh giá du khách (game tính số; lời dự phòng) |
 | `js/ai.js` | Gọi `/api/city/ai` (Claude viết lời), tóm tắt thành phố gửi kèm |

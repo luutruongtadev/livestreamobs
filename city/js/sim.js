@@ -16,6 +16,7 @@ import { intlHour, intlDay, promoCost } from './intl.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
+import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 
 export * from './base.js';
@@ -23,6 +24,7 @@ export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampM
 export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
+export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
@@ -263,6 +265,25 @@ export function digSeaCanal(c, k) {
   return { ok: true, cost: m0 - c.money, cells: p.cells.length, open: c.ferryState[c.services[k].uid] === 'sea' };
 }
 
+/** Tô (hoặc xoá) bãi biển trong hình chữ nhật, rồi san địa hình cho thoải xuống biển. */
+export function paintBeach(c, x0, y0, x1, y1, opts = {}) {
+  const r = beachRect(c, x0, y0, x1, y1, opts);
+  if (!r.ok || opts.dry || !c.beachTouched) return r;
+  const V = N + 1, cells = new Set();
+  for (const k of c.beachTouched) {
+    c.hv[k] = vertexH(c, k);
+    const gx = k % V, gy = (k / V) | 0;
+    for (const [a, b] of [[gx - 1, gy - 1], [gx, gy - 1], [gx - 1, gy], [gx, gy]]) if (inMap(a, b)) cells.add(idx(a, b));
+  }
+  c.beachTouched = null;
+  let wet = false;
+  for (const i of cells) if (cellTerrain(c, i % N, (i / N) | 0)) wet = true;
+  if (wet) c.terraWet = true;
+  terraformDone(c);
+  recalc(c);
+  return r;
+}
+
 /** Kết thúc một lượt đào đắp (nhả chuột): tính lại tài nguyên; nếu bờ nước đổi thì tính lại ô quy hoạch, mạng điện nước, ô nhiễm. */
 export function terraformDone(c) {
   makeResources(c, heightFn(c));
@@ -434,7 +455,7 @@ const ownedAt = (c, wx, wz) => c.own[idx(clamp(cellOf(wx), 0, N - 1), clamp(cell
 function attach(c) {
   const mk = () => new Uint8Array(N * N), fl = () => new Float32Array(N * N);
   c.own = mk(); c.bonus = { happy: 0, pull: 0, comm: 0 };
-  c.road = mk(); c.alley = mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
+  c.road = mk(); c.alley = mk(); c.beach = c.beach && c.beach.length === N * N ? c.beach : mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
   c.pOk = mk(); c.wOk = mk(); c.sOk = mk();
   c.age = new Uint16Array(N * N);
   c.occ = new Int16Array(N * N);
@@ -980,6 +1001,7 @@ function rebuildRoadCells(c) {
     if (c.alley) c.alley[i] = alley ? 1 : 0;
     if (!c.acc[i] && !c.road[i]) c.cedge[i] = -1;
     if (c.road[i]) {
+      if (c.beach) c.beach[i] = 0; // làm đường qua bãi
       clearBuilding(c, i);
       c.zone[i] = 0; c.tree[i] = 0;
     } else if (!c.acc[i] && c.zone[i] && !c.level[i]) c.zone[i] = 0;
@@ -1312,7 +1334,7 @@ export function zoneRect(c, x0, y0, x1, y1, z) {
     if (!inMap(x, y)) continue;
     const i = idx(x, y);
     if (!c.own[i]) { locked++; continue; }
-    if (c.water[i] || c.road[i] || c.occ[i] || c.zone[i] === z) continue;
+    if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || c.zone[i] === z) continue;
     if (z !== 0 && (!c.acc[i] || c.steep[i])) continue;
     if (!hasResource(c, i, z)) { noRes++; continue; }
     if (c.level[i]) { if (z !== 0) continue; clearBuilding(c, i); } // chỉ "bỏ quy hoạch" mới dỡ nhà
@@ -1374,6 +1396,7 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
       if (c.water[i]) return { ok: false, reason: 'Không xây được trên nước', fp };
       if (c.road[i]) return { ok: false, reason: 'Đang có đường', fp };
       if (c.occ[i]) return { ok: false, reason: 'Đang có công trình khác', fp };
+      if (c.beach && c.beach[i]) return { ok: false, reason: 'Đang là bãi biển (xoá bãi trước)', fp };
       if (c.steep[i]) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.acc[i] === 1) nearRoad = true;
     } else if (c.water[i]) nearWater = true;
@@ -1591,6 +1614,7 @@ export function recalc(c) {
   }
   for (const k in c.budget || {}) if (c.services.some((sv) => sectorOf(sv.type) === k)) bonus.happy += (c.budget[k] - 100) / 50; // dân thấy dịch vụ tốt lên / tệ đi
   if (c.fest) { bonus.happy += festHappy(c); bonus.comm += festMul(c, 'comm'); } // lễ hội
+  { const nb = beachCount(c); if (nb) bonus.happy += Math.min(3, nb / 25); } // bãi biển: dân cả thành phố vui hơn
   if (c.street) { const sb = streetBonus(c); bonus.happy += sb.happy; bonus.comm += sb.comm; } // vỉa hè, bụi mịn, cấm xe
   if (c.council) { bonus.happy += councilMod(c, 'happy'); bonus.pull += councilMod(c, 'pull'); bonus.comm += councilMod(c, 'comm'); } // quyết định của thị trưởng, hợp đồng
   c.bonus = bonus;
@@ -1599,6 +1623,7 @@ export function recalc(c) {
   Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
   exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c) * kT;
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
+  exp.park += beachCount(c) * BEACH.upkeep; // giữ vệ sinh, cứu hộ bãi biển (theo ngày)
   exp.transit += c.street ? streetBonus(c).cost : 0; // quản lý vỉa hè, cấm xe, làn buýt (theo ngày)
   exp.tourism += promoCost(c) + dealCost(c); // quảng bá du lịch quốc tế, trợ giá đường bay (đã tính theo ngày)
   for (const ln of c.loans) exp.loans += ln.daily;
@@ -1734,6 +1759,7 @@ function growth(c) {
   for (let k = 0; k < samples; k++) {
     const i = zoned[(rng() * zoned.length) | 0], z = c.zone[i], dm = c.demand[ZDEF[z].cat];
     if (c.alley && c.alley[i] && ZDEF[z].cat !== 'r') continue; // trong hẻm chỉ có nhà ở
+    if (c.beach && c.beach[i]) continue;
     const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1 && !flooded(c, i);
     if (!c.level[i]) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
@@ -1825,7 +1851,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), street: packStreet(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), street: packStreet(c), beach: packBeach(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -1878,6 +1904,7 @@ function deserializeAt(o) {
   c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước tự nhiên sinh lại từ seed; phần đào đắp nạp từ bản lưu (makeTerrain dọn nhà, cây trên ô nước)
   c.terra = new Int16Array((N + 1) * (N + 1));
   if (Array.isArray(o.terra)) for (let p = 0; p + 1 < o.terra.length; p += 2) { const k = o.terra[p] | 0; if (k >= 0 && k < c.terra.length) c.terra[k] = clamp(o.terra[p + 1] | 0, -800, 800); }
+  unpackBeach(c, o.beach);
   attach(c);
   initStreet(c, o.street || {}); // trước khi dựng ô quy hoạch: hẻm cần biết chính sách
   for (const n of o.nodes || []) {
