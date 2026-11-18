@@ -131,6 +131,20 @@
   .modal.show { display: flex; }
   .modal .panel.wide { max-width: 900px; width: min(900px, 96vw); }
   .mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
+  #bInbox { position: fixed; left: 8px; bottom: 104px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
+  #bInbox span { font-size: 12px; font-weight: 700; background: var(--bad); color: #fff; border-radius: 999px; padding: 1px 6px; vertical-align: top; }
+  #bInbox span:empty { display: none; }
+  .card { background: rgba(255, 255, 255, .06); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+  .card p { margin: 6px 0; line-height: 1.45; }
+  .card .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .card .opts button { text-align: left; }
+  .card .opts small { display: block; opacity: .75; font-weight: 400; }
+  .chat { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  .chat div { padding: 6px 10px; border-radius: 10px; max-width: 88%; line-height: 1.4; font-size: 13px; }
+  .chat .them { background: rgba(255, 255, 255, .08); align-self: flex-start; }
+  .chat .us { background: rgba(70, 140, 236, .35); align-self: flex-end; }
+  .offer { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; margin: 6px 0; }
+  .stars { color: var(--gold); letter-spacing: 1px; }
   .mapcard { background: rgba(255, 255, 255, .06); border: 2px solid transparent; border-radius: 12px; padding: 8px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
   .mapcard:hover { background: rgba(255, 255, 255, .12); }
   .mapcard.on { border-color: var(--acc); background: rgba(255, 255, 255, .14); }
@@ -187,6 +201,20 @@
 
 <div id="alerts"></div>
 <div id="toasts"></div>
+
+<button class="panel" id="bInbox" title="Hộp thư thị trưởng: việc cần quyết, đàm phán, đánh giá của du khách">📨 <span id="inboxN"></span></button>
+<div class="panel side" id="inbox">
+  <h3>📨 Hộp thư thị trưởng <button data-close>✕</button></h3>
+  <div id="inboxAi" class="sub"></div>
+  <h4>Việc cần quyết</h4>
+  <div id="inboxDecide"></div>
+  <h4>Đàm phán</h4>
+  <div id="inboxDeals"></div>
+  <h4>Đánh giá của du khách</h4>
+  <div id="inboxReviews"></div>
+  <h4>Đã xử lý</h4>
+  <div id="inboxDone"></div>
+</div>
 
 <div class="panel side" id="fest">
   <h3>🎎 Lễ hội và mùa <button data-close>✕</button></h3>

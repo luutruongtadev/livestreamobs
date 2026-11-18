@@ -59,6 +59,17 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
      - **Triều cường:** chiều tối rằm tháng 9–11, nước dâng ở vùng thấp ven sông biển.
      - **Ngập:** mưa, bão, triều cường làm ngập đất thấp sát nước. Nhà ngập không lên cấp, xưởng gần như đứng máy, dân khó chịu; ngập quá 30 giờ thì nhà xuống cấp. Đường ngập thì xe lội nước chậm và tìm đường khác.
      - **Chống ngập:** 🌀 trạm bơm (vùng quanh trạm ít ngập, rút rất nhanh) và 🧱 kè ven bờ (chặn nước dâng), trong nhóm 💧 Nước.
+13c. **📨 Hộp thư thị trưởng** (nút 📨 góc trái dưới, có số việc đang chờ). Lời văn do Claude viết từ số liệu thật của thành phố; mọi con số và hậu quả do game tính. Server chưa có `ANTHROPIC_API_KEY` thì dùng lời soạn sẵn.
+   - **⚖️ Tình huống khó xử:** thỉnh thoảng có việc cần quyết, chỉ xuất hiện khi thành phố có điều kiện tương ứng: nhà máy xin xả thải, hàng rong lấn vỉa hè, vùng trũng bị ngập đòi di dời, hộ dân không chịu giải toả, lễ hội ồn ào, du khách bị chặt chém, nắng hạn thiếu nước.
+     - Mỗi phương án có hậu quả thật: tiền, dân vui, sức hút dân, thuế thương mại, du khách, đánh giá du khách. Rê chuột vào phương án để xem.
+     - Quá 3 ngày không quyết thì thành phố tự chọn phương án cuối (thường là chần chừ).
+   - **🤝 Đàm phán:** đối tác gửi đề nghị và bạn gõ lời mặc cả; Claude đóng vai đối tác có tính cách riêng, nhượng bộ khi bạn có lý lẽ. Đề nghị luôn bị game ép vào khung cho phép. Bấm Ký để chốt; quá 5 ngày thì họ đi.
+     - **Nhà đầu tư nước ngoài:** góp tiền ngay, đổi lại miễn một phần thuế thương mại và công nghiệp; dân tới ở đông hơn trong thời gian đó.
+     - **Bộ / trung ương:** hỗ trợ tiền ngay, kèm cam kết xây thêm trạm bơm hoặc kè trong hạn; không đạt thì hoàn trả gấp 1,5 lần.
+     - **Hãng bay (cần sân bay):** thành phố trợ giá mỗi ngày, đổi lại thêm chuyến bay quốc tế.
+     - Bảng đàm phán có ước tính lời / lỗ cho thành phố.
+   - **⭐ Đánh giá du khách:** mỗi tối vài du khách viết đánh giá. Số sao do game chấm từ trải nghiệm thật: điểm tham quan, bãi biển, lễ hội, kẹt xe, ngập, bão, móc túi, ô nhiễm, hết phòng, dân thân thiện. Điểm trung bình 30 bài gần nhất nhân lượng du khách và khách quốc tế từ ×0,7 (1 sao) tới ×1,3 (5 sao).
+   - **Máy chủ:** `POST /api/city/ai` (`gateway/city-ai.js`): model `claude-opus-5-5` (đổi bằng `CITY_AI_MODEL`), mỗi máy tối đa 12 lượt / phút, cả server `CITY_AI_DAILY` lượt / ngày.
 14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
    - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
    - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.
@@ -100,6 +111,8 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/council.js` | Hộp thư thị trưởng: tình huống khó xử, đàm phán hợp đồng, đánh giá du khách (game tính số; lời dự phòng) |
+| `js/ai.js` | Gọi `/api/city/ai` (Claude viết lời), tóm tắt thành phố gửi kèm |
 | `js/seasons.js` | Lịch âm, lễ hội và tổ chức lễ hội, bão, triều cường, ngập lụt, trạm bơm / kè |
 | `js/intl.js` | Khách quốc tế: lịch chuyến bay / tàu nước ngoài, du khách, người nhập cư, thị thực, quảng bá, phí hạ cánh |
 | `js/transport3d.js` | Mô hình cảng container, sân bay, ga tàu hoả, tàu và ga metro; khung khoá chuyển động (máy bay, tàu, cẩu, xe tải) |

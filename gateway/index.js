@@ -95,13 +95,18 @@ export function resolveStatic(urlPath, root = ROOT) {
   return null;
 }
 
-export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig }) {
+export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig, cityAi = null }) {
   const catalogJson = JSON.stringify(catalog);
   const widgetsJson = JSON.stringify(widgets);
   const configJs = `window.PLATFORM = ${JSON.stringify(publicConfig)};\n`;
   return (req, res) => {
     const url = new URL(req.url, 'http://x');
     const head = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
+    if (url.pathname === '/api/city/ai') { // Phố Mới: lời văn do Claude viết cho hộp thư thị trưởng
+      if (req.method !== 'POST') { res.writeHead(405, head); return res.end(); }
+      if (!cityAi) { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"offline":true}'); }
+      return cityAi.handle(req, res, head);
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, head); return res.end(); }
     if (url.pathname === '/health') { res.writeHead(200, { ...head, 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
     if (url.pathname === '/api/games') { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'], 'Cache-Control': 'no-cache' }); return res.end(catalogJson); }
@@ -137,11 +142,13 @@ async function main() {
   // tên đăng nhập → email nội bộ <tên>@<usernameDomain>; cố định sau lần deploy đầu (đổi là mất đăng nhập của tài khoản cũ)
   const usernameDomain = String(env.AUTH_USERNAME_DOMAIN || env.PLAY_DOMAIN || 'localhost').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
   const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain, memes: memes.enabled, soundSearch: sounds.enabled };
-  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig }));
+  const { createCityAi } = await import('./city-ai.js');
+  const cityAi = createCityAi({ env });
+  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig, cityAi }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);
   server.listen(port, env.HOST || '0.0.0.0', () => {
-    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  ${widgets.length} widget  ·  lưu trữ: ${store.kind}  ·  meme GIPHY: ${memes.enabled ? 'bật' : 'tắt (chưa có GIPHY_API_KEY)'}  ·  âm Freesound: ${sounds.enabled ? 'bật' : 'tắt (chưa có FREESOUND_API_KEY)'}`);
+    console.log(`[gateway] http://localhost:${port}  ·  ${catalog.length} game: ${catalog.map((g) => g.id).join(', ')}  ·  ${widgets.length} widget  ·  lưu trữ: ${store.kind}  ·  meme GIPHY: ${memes.enabled ? 'bật' : 'tắt (chưa có GIPHY_API_KEY)'}  ·  âm Freesound: ${sounds.enabled ? 'bật' : 'tắt (chưa có FREESOUND_API_KEY)'}  ·  AI Phố Mới: ${cityAi.enabled ? cityAi.model : 'tắt (chưa có ANTHROPIC_API_KEY)'}`);
   });
   const stop = async () => { await gw.close(); server.close(); process.exit(0); };
   process.on('SIGINT', stop);

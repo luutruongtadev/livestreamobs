@@ -2,6 +2,7 @@
 import { SERVICES, RAW, RAW_KINDS, ZDEF, N, clamp } from './base.js';
 import { initIntl, packIntl } from './intl.js';
 import { festMul } from './seasons.js';
+import { councilMod } from './council.js';
 
 // ───────────────────────── ngân sách theo ngành ─────────────────────────
 
@@ -75,7 +76,7 @@ export function tourismScore(c) {
   for (const l of c.ferries || []) if (l.out) gates += 1;
   const happy = c.pstats ? c.pstats.happy : 55;
   const k = clamp(0.6 + (happy - 45) / 60, 0.4, 1.4); // thành phố vui vẻ, sạch sẽ thì khách thích
-  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
+  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour')), fest: c.fest ? festMul(c, 'tour') : 1 };
 }
 
 /**

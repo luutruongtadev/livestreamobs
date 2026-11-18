@@ -4,6 +4,7 @@ import { SERVICES, HOUR_SEC, clamp, resCap } from './base.js';
 import { tourismScore } from './econ.js';
 import { seaGates } from './ships.js';
 import { festMul } from './seasons.js';
+import { councilMod } from './council.js';
 
 export const VISA = {
   strict: { name: 'Hạn chế', icon: '🛂', tour: 0.55, immig: 0.15, freq: 0.6, desc: 'Xét duyệt chặt: ít chuyến, ít khách, gần như không ai nhập cư' },
@@ -50,7 +51,7 @@ export function intlOutlook(c) {
   const feeK = clamp(1 - it.fee / 40, 0.25, 1); // phí cao thì hãng bay, hãng tàu ngại ghé
   const pull = c.pull || 0;
   const mood = clamp(0.6 + ((c.pstats ? c.pstats.happy : 55) - 45) / 60, 0.4, 1.4);
-  const fest = c.fest ? festMul(c, 'intl') : 1, storm = c.inc && c.inc.weather === 'storm';
+  const fest = (c.fest ? festMul(c, 'intl') : 1) * councilMod(c, 'intl'), storm = c.inc && c.inc.weather === 'storm';
   return {
     fest, storm,
     airports, sea, lure, feeK, mood,

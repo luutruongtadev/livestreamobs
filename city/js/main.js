@@ -1,6 +1,7 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
 import { View } from './render.js';
+import { aiCall, aiOnline, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
 const WEEK = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
@@ -903,6 +904,9 @@ function updateHud(force) {
   meter('pBar', 'pTxt', s.powerUse, s.powerCap); meter('wBar', 'wTxt', s.waterUse, s.waterCap); meter('sBar', 'sTxt', s.waterUse, s.sewCap); meter('tBar', 'tTxt', s.trashUse, s.trashCap);
   if ($('budget').classList.contains('show')) { renderLoans(); renderEcon(); renderExpenses(force); }
   if ($('fest').classList.contains('show')) renderFest(force);
+  if ($('inbox').classList.contains('show')) renderInbox(force);
+  aiPump();
+  { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
   // cảnh báo / gợi ý
   const al = [], none = s.none || {}, tight = s.tight || {};
   let zoned = 0, free = 0, dirty = 0, burning = 0;
@@ -1131,8 +1135,9 @@ function bindMinimap() {
 }
 
 function openSide(id) {
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (id === 'fest') renderFest(true);
+  if (id === 'inbox') renderInbox(true);
   if (id === 'saves') renderSlots();
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
@@ -1151,6 +1156,7 @@ function bindUi() {
   for (const b of document.querySelectorAll('[data-dis]')) b.addEventListener('click', () => { const r = S.triggerDisaster(city, b.dataset.dis); if (!r.ok) toast(r.reason); });
   $('bLayer').addEventListener('click', () => { openSide('layers'); refreshLayers(); });
   $('dateBox').addEventListener('click', () => openSide('fest'));
+  $('bInbox').addEventListener('click', () => openSide('inbox'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
@@ -1186,6 +1192,111 @@ function bindUi() {
   $('cityname').addEventListener('change', (e) => { city.name = e.target.value.trim() || 'Phố Mới'; e.target.value = city.name; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) autosave(); });
   window.addEventListener('pagehide', () => autosave());
+}
+
+// ───────────────────────── hộp thư thị trưởng (Claude viết lời, game tính số) ─────────────────────────
+
+/** Gửi các mục mới (tình huống, đánh giá) cho AI viết lại lời; không có AI thì giữ mẫu câu sẵn có. */
+function aiPump() {
+  const c = city, q = c.aiQueue;
+  if (!q || !q.length || aiPump.busy) return;
+  const ids = q.splice(0), items = ids.map((id) => c.council.inbox.find((i) => i.id === id) || c.council.reviews.find((r) => r.id === id)).filter(Boolean);
+  const reviews = items.filter((i) => i.kind === 'review'), dilemmas = items.filter((i) => i.kind === 'dilemma');
+  const sum = citySummary(c, S), jobs = [];
+  if (reviews.length) jobs.push(aiCall('reviews', { city: sum, reviews }).then((d) => { for (const r of d?.reviews || []) { const it = reviews.find((x) => x.id === r.id); if (it && r.text) { it.text = r.text; it.ai = true; } } }));
+  for (const it of dilemmas) jobs.push(aiCall('dilemma', { city: sum, topic: it.topic, title: it.title, story: it.story, options: it.options }).then((d) => {
+    if (!d || it.status !== 'pending') return;
+    if (d.title) it.title = d.title; if (d.story) it.story = d.story;
+    for (const o of d.options || []) { const t = it.options.find((x) => x.id === o.id); if (t) { t.label = o.label || t.label; t.note = o.note; } }
+    it.ai = true;
+  }));
+  aiPump.busy = true;
+  Promise.allSettled(jobs).then(() => { aiPump.busy = false; if (city === c) renderInbox(true); });
+}
+
+const starsOf = (n) => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+
+function renderInbox(force) {
+  const c = city, K = c.council, key = `${c.day}|${c.hour}|${K.nextId}|${K.inbox.map((i) => i.status + (i.chat ? i.chat.length : '') + (i.ai ? 1 : 0) + (i.wait ? 1 : 0)).join('')}|${K.reviews.length}`;
+  if (!force && renderInbox.key === key) return;
+  renderInbox.key = key;
+  $('inboxAi').textContent = aiOnline() ? '✍️ Lời văn do AI (Claude) viết từ số liệu thật của thành phố; mọi con số và hậu quả do game tính.' : '✍️ AI chưa sẵn sàng (server chưa có khoá API hoặc mất mạng): dùng lời soạn sẵn.';
+  // tình huống
+  const box = $('inboxDecide'); box.textContent = '';
+  const pend = K.inbox.filter((i) => i.kind === 'dilemma' && i.status === 'pending');
+  if (!pend.length) box.append(el('small', null, 'Chưa có việc gì cần quyết.'));
+  for (const it of pend) {
+    const card = el('div', 'card'), opts = el('div', 'opts');
+    card.append(el('b', null, `⚖️ ${it.title}`), el('p', null, it.story), el('small', null, `Còn ${Math.max(0, it.expires - c.day)} ngày; quá hạn thì thành phố tự chọn phương án cuối.`));
+    for (const o of it.options) {
+      const b = el('button', 'mini'), D = S.DILEMMAS[it.type].options.find((x) => x.id === o.id);
+      b.append(el('b', null, o.label)); if (o.note) b.append(el('small', null, o.note));
+      b.title = effectText(D);
+      b.onclick = () => { const r = S.decide(c, it.id, o.id); if (!r.ok) toast(r.reason); S.recalc(c); updateHud(true); renderInbox(true); };
+      opts.append(b);
+    }
+    card.append(opts); box.append(card);
+  }
+  // đàm phán
+  const dbox = $('inboxDeals'); dbox.textContent = '';
+  const deals = K.inbox.filter((i) => i.kind === 'deal' && i.status === 'pending');
+  if (!deals.length) dbox.append(el('small', null, 'Chưa có đối tác nào gửi đề nghị.'));
+  for (const it of deals) {
+    const D = S.DEALS[it.type], card = el('div', 'card'), chat = el('div', 'chat'), offer = el('div', 'offer'), o = S.clampOffer(it.type, it.offer);
+    card.append(el('b', null, `🤝 ${it.who}`), el('small', null, ` · còn ${Math.max(0, it.expires - c.day)} ngày`));
+    for (const m of it.chat) chat.append(el('div', m.from === 'us' ? 'us' : 'them', m.text));
+    if (it.wait) chat.append(el('div', 'them', '… đang soạn trả lời'));
+    for (const [k, [lo, hi, unit]] of Object.entries(D.params)) { const v = el('b', null, fmt(o[k])); v.title = `khung ${fmt(lo)}–${fmt(hi)}`; offer.append(el('span', null, unit), v); }
+    const w = D.worth(o), row = el('div'), inp = el('input'), send = el('button', 'mini', 'Gửi'), sign = el('button', 'mini acc', '✍️ Ký theo đề nghị này'), no = el('button', 'mini', 'Từ chối');
+    row.style.cssText = 'display:flex;gap:6px;margin-top:6px'; inp.style.flex = '1'; inp.placeholder = 'Mặc cả: đưa lý lẽ, đề nghị con số…'; inp.maxLength = 400;
+    const go = () => { const t = inp.value.trim(); if (t && !it.wait) negotiate(it, t); };
+    send.onclick = go; inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+    sign.onclick = () => { const r = S.signDeal(c, it.id); toast(r.ok ? '🤝 Đã ký hợp đồng' : r.reason); S.recalc(c); updateHud(true); renderInbox(true); };
+    no.onclick = () => { S.rejectDeal(c, it.id); renderInbox(true); };
+    row.append(inp, send);
+    const btns = el('div'); btns.style.cssText = 'display:flex;gap:6px;margin-top:6px'; btns.append(sign, no);
+    card.append(chat, offer, el('small', w >= 0 ? 'pos' : 'neg', `${D.summary(o)} · ước tính ${w >= 0 ? 'có lợi' : 'thiệt'} ~${fmt(Math.abs(w))} ₫ cho thành phố`), row, btns);
+    dbox.append(card);
+    chat.scrollTop = chat.scrollHeight; // tin mới nhất
+  }
+  const act = K.deals.filter((d) => d.until >= c.day);
+  if (act.length) dbox.append(el('small', null, 'Hợp đồng đang chạy: ' + act.map((d) => `${d.who} (tới ngày ${d.until + 1}${d.type === 'grant' ? `, cam kết ${d.target} công trình chống ngập` : ''})`).join(' · ')));
+  // đánh giá
+  const rbox = $('inboxReviews'), avg = S.ratingAvg(c); rbox.textContent = '';
+  rbox.append(el('div', 'row', null));
+  rbox.lastChild.innerHTML = `<span>Điểm trung bình (30 bài gần nhất)</span><span>${avg == null ? 'chưa có' : `<span class="stars">${starsOf(avg)}</span> ${avg.toFixed(1)} · du khách, khách quốc tế ×${S.ratingK(c).toFixed(2)}`}</span>`;
+  for (const r of K.reviews.slice(-8).reverse()) {
+    const card = el('div', 'card');
+    card.innerHTML = `<span class="stars">${starsOf(r.stars)}</span> <b>${r.name}</b> <small>(${r.country}) · ngày ${r.day + 1}</small><p></p>`;
+    card.querySelector('p').textContent = r.text;
+    rbox.append(card);
+  }
+  if (!K.reviews.length) rbox.append(el('small', null, 'Chưa có du khách nào viết đánh giá: xây điểm tham quan, khách sạn, đón khách qua cửa ngõ.'));
+  // đã xử lý
+  const done = K.inbox.filter((i) => i.status !== 'pending').slice(-6).reverse();
+  $('inboxDone').innerHTML = done.length ? done.map((i) => `<div class="row"><span>${i.kind === 'deal' ? '🤝 ' + i.who : '⚖️ ' + i.title}</span><span>${i.kind === 'deal' ? { signed: 'đã ký', rejected: i.walked ? 'đối tác rút lui' : 'từ chối', expired: 'hết hạn' }[i.status] : (i.auto ? '⌛ ' : '') + (i.options.find((o) => o.id === i.chose) || {}).label}</span></div>`).join('') : '<small>Chưa có</small>';
+}
+
+function effectText(o) {
+  if (!o) return '';
+  const N = { happy: 'dân vui', pull: 'sức hút dân', comm: 'thuế thương mại', tour: 'du khách', intl: 'khách quốc tế' };
+  const p = [];
+  if (o.money) p.push(`${o.money > 0 ? '+' : ''}${fmt(o.money)} ₫`);
+  for (const [k, v, d] of o.mods) p.push(`${N[k]} ${k === 'tour' || k === 'intl' ? '×' + v : (v > 0 ? '+' : '') + (k === 'happy' ? v : Math.round(v * 100) + '%')} trong ${d} ngày`);
+  if (o.rating) p.push(`đánh giá du khách ${o.rating > 0 ? 'tốt lên' : 'xấu đi'}`);
+  return p.join(' · ');
+}
+
+async function negotiate(it, text) {
+  const c = city;
+  it.chat.push({ from: 'us', text }); it.wait = true; renderInbox(true);
+  let d = await aiCall('negotiate', { type: it.type, who: it.who, offer: it.offer, chat: it.chat, city: citySummary(c, S) });
+  if (!d) d = S.counterFallback(it);
+  it.wait = false;
+  if (city !== c) return;
+  S.applyCounter(c, it.id, d.reply, d.offer, d.status);
+  if (d.status === 'walkaway') toast(`🚪 ${it.who} rút khỏi đàm phán`);
+  renderInbox(true);
 }
 
 // ───────────────────────── lễ hội và mùa mưa bão ─────────────────────────
@@ -1328,7 +1439,7 @@ function frame(now) {
     else if (ev.type === 'hail') toast('🌨️ Bão đá: nhà cửa hư hại, đường trơn dễ tai nạn');
     else if (ev.type === 'tornadoWarn') toast('📡 Cảnh báo sớm: lốc xoáy sẽ tới trong 1 giờ, dân xuống hầm trú ẩn', '⚠️ Cảnh báo thiên tai');
     else if (['stormWarn', 'stormHit', 'flood'].includes(ev.type)) toast(ev.text, '⚠️ Mùa mưa bão');
-    else if (ev.type === 'stormEnd' || ev.type === 'fest') toast(ev.text);
+    else if (ev.type === 'stormEnd' || ev.type === 'fest' || ev.type === 'council') toast(ev.text);
     else if (ev.type === 'tornado') toast('🌪️ Lốc xoáy xuất hiện! Nhà trên đường đi của nó sẽ bị phá huỷ', '⚠️ Thiên tai');
     else if (ev.type === 'tornadoEnd') toast(`🌪️ Lốc xoáy đã tan · ${city.inc.day.killed || 0} người thiệt mạng hôm nay`);
     else if (ev.type === 'research') { toast('🔬 Viện nghiên cứu vừa làm ra 1 điểm phát triển'); renderDev(); }
