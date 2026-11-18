@@ -1217,3 +1217,24 @@ test('đường phố: vỉa hè đổi thuế / du khách / tốc độ xe; c�
   assert.deepEqual([d.street.sidewalk, d.street.motoBan, d.street.busLane, d.street.alley], ['clear', true, true, true]);
   assert.equal(d.alley.reduce((n, v) => n + v, 0), alleys, 'hẻm giữ nguyên sau khi nạp');
 });
+
+test('hộp thư: 22 loại tình huống Việt Nam, điều kiện chạy được ở mọi thành phố, phương án hợp lệ; làm ngơ phòng cháy thì cháy nhà thật', () => {
+  const small = newCity(3), big = town(); big.money = 1e6;
+  assert.ok(Object.keys(S.DILEMMAS).length >= 20);
+  for (const [k, D] of Object.entries(S.DILEMMAS)) {
+    assert.doesNotThrow(() => D.when(small), k); assert.doesNotThrow(() => D.when(big), k);
+    assert.ok(D.topic && D.text.title && D.text.story, k);
+    assert.ok(D.options.length >= 2 && new Set(D.options.map((o) => o.id)).size === D.options.length, k);
+  }
+  // thành phố nhỏ (vài chục dân) cũng có việc để quyết
+  big.pp.count = 50;
+  assert.ok(Object.values(S.DILEMMAS).filter((D) => D.when(big)).length >= 3, 'thành phố nhỏ vẫn có tình huống');
+  big.pp.count = big.pp.n;
+  // chung cư mini: làm ngơ → cháy
+  let built = 0; for (let i = 0; i < S.N * S.N && built < 20; i++) if (big.zone[i] === 1) { big.level[i] = 1; built++; }
+  const before = big.fire.reduce((n, v) => n + (v ? 1 : 0), 0);
+  big.council.inbox.push({ id: 777, kind: 'dilemma', type: 'miniFire', day: big.day, expires: big.day + 3, status: 'pending', title: 't', story: 's', options: S.DILEMMAS.miniFire.options.map((o) => ({ id: o.id, label: o.label })) });
+  assert.ok(S.decide(big, 777, 'blind').ok);
+  const after = big.fire.reduce((n, v) => n + (v ? 1 : 0), 0);
+  assert.ok(after > before, 'có nhà bốc cháy');
+});

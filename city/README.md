@@ -63,6 +63,11 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **⚖️ Tình huống khó xử:** thỉnh thoảng có việc cần quyết, chỉ xuất hiện khi thành phố có điều kiện tương ứng: nhà máy xin xả thải, hàng rong lấn vỉa hè, vùng trũng bị ngập đòi di dời, hộ dân không chịu giải toả, lễ hội ồn ào, du khách bị chặt chém, nắng hạn thiếu nước.
      - Mỗi phương án có hậu quả thật: tiền, dân vui, sức hút dân, thuế thương mại, du khách, đánh giá du khách. Rê chuột vào phương án để xem.
      - Quá 3 ngày không quyết thì thành phố tự chọn phương án cuối (thường là chần chừ).
+     - **22 loại tình huống đậm chất Việt Nam**, nhiều loại xuất hiện ngay từ khi thành phố còn vài chục dân:
+       - *Đời sống khu phố:* karaoke loa kéo tới khuya, đám cưới dựng rạp chiếm đường, loa phường 6 giờ sáng, cả phố "đi bão" khi đội tuyển vô địch, mồ mả tổ tiên trên đất quy hoạch.
+       - *Kinh tế:* thưởng Tết công nhân (tháng Chạp), xe ôm truyền thống phản đối xe công nghệ, quán bún đậu nổi tiếng trên mạng gây kẹt phố, giá lúa rớt, làng nghề gốm mở rộng.
+       - *Thiên tai, môi trường:* nắng nóng 40 độ, cát tặc làm sạt lở bờ sông, sốt xuất huyết mùa mưa.
+       - *Phòng cháy, tôn giáo:* chung cư mini không đạt phòng cháy (làm ngơ thì có nhà cháy thật), chùa xin đất mở rộng.
    - **🤝 Đàm phán:** đối tác gửi đề nghị và bạn gõ lời mặc cả; Claude đóng vai đối tác có tính cách riêng, nhượng bộ khi bạn có lý lẽ. Đề nghị luôn bị game ép vào khung cho phép. Bấm Ký để chốt; quá 5 ngày thì họ đi.
      - **Nhà đầu tư nước ngoài:** góp tiền ngay, đổi lại miễn một phần thuế thương mại và công nghiệp; dân tới ở đông hơn trong thời gian đó.
      - **Bộ / trung ương:** hỗ trợ tiền ngay, kèm cam kết xây thêm trạm bơm hoặc kè trong hạn; không đạt thì hoàn trả gấp 1,5 lần.

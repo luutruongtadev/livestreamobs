@@ -2,6 +2,7 @@
 // Mọi con số và hậu quả do game tính ở đây; LLM (qua /api/city/ai, xem city/js/ai.js) chỉ viết lời và mặc cả
 // trong khung số game cho phép. Không có LLM thì dùng mẫu câu soạn sẵn bên dưới.
 import { N, SERVICES, ZDEF, clamp } from './base.js';
+import { lunar, stormSeason } from './seasons.js';
 
 // ───────────────────────── hiệu ứng tạm thời ─────────────────────────
 
@@ -99,6 +100,157 @@ export const DILEMMAS = {
       { id: 'industry', label: 'Ưu tiên dân, cắt nước nhà máy', money: 0, mods: [['comm', -0.04, 6]] },
     ],
     text: { title: 'Nắng hạn kéo dài', story: 'Nhiều ngày không mưa, mực nước sông xuống thấp. Nhà máy nước cảnh báo không đủ cấp cho cả khu dân cư lẫn khu công nghiệp.' },
+  },
+  // ── đời sống khu phố (xuất hiện cả khi thành phố còn nhỏ) ──
+  karaoke: {
+    topic: 'Karaoke loa kéo hát tới khuya, hàng xóm khiếu nại',
+    when: (c) => c.pp.count >= 40,
+    options: [
+      { id: 'curfew', label: 'Cấm hát sau 22 giờ, phạt nặng', money: 1500, mods: [['happy', 1, 15]] },
+      { id: 'remind', label: 'Tổ dân phố nhắc nhở', money: 0, mods: [] },
+      { id: 'ignore', label: 'Chuyện nhà người ta', money: 0, mods: [['happy', -2, 15]] },
+    ],
+    text: { title: 'Loa kéo lúc nửa đêm', story: 'Nhà ông Ba trong xóm mua dàn loa kéo mới, đêm nào cũng hát "Duyên phận" tới 12 giờ. Hàng xóm có con nhỏ, người già gửi đơn lên phường lần thứ ba.' },
+  },
+  wedding: {
+    topic: 'Đám cưới, đám ma dựng rạp chiếm hết lòng đường',
+    when: (c) => c.pp.count >= 40 && c.edges.size >= 4,
+    options: [
+      { id: 'allow', label: 'Cho dựng rạp, phong tục mà', money: 0, mods: [['happy', 1, 10], ['comm', -0.01, 10]] },
+      { id: 'rule', label: 'Quy định giờ giấc, phải xin phép', money: -1000, mods: [] },
+      { id: 'ban', label: 'Cấm dựng rạp dưới lòng đường', money: 0, mods: [['happy', -2, 15]] },
+    ],
+    text: { title: 'Rạp cưới giữa phố', story: 'Cuối tuần này có ba đám cưới cùng dựng rạp kín lòng đường, xe máy phải đi vòng cả cây số. Người dân chia hai phe: phong tục bao đời hay giao thông là trên hết?' },
+  },
+  loudspeaker: {
+    topic: 'Loa phường phát thanh 6 giờ sáng: người thích, người ghét',
+    when: (c) => c.pp.count >= 30,
+    options: [
+      { id: 'keep', label: 'Giữ loa phường như cũ', money: 0, mods: [['happy', -1, 10], ['pull', 0.01, 10]] },
+      { id: 'app', label: 'Chuyển sang ứng dụng điện thoại', money: -3000, mods: [['happy', 1, 20]] },
+      { id: 'later', label: 'Lùi giờ phát sang 7 giờ', money: 0, mods: [] },
+    ],
+    text: { title: 'Loa phường đánh thức cả xóm', story: 'Đúng 6 giờ sáng loa phường lại vang "Alô alô, thông báo...". Các cụ thì quen rồi, nhưng dân văn phòng mới chuyển tới phàn nàn trên nhóm Zalo khu phố.' },
+  },
+  football: {
+    topic: 'Đội tuyển Việt Nam vô địch, cổ động viên đổ ra đường "đi bão"',
+    when: (c) => c.pp.count >= 60 && c.edges.size >= 4,
+    options: [
+      { id: 'party', label: 'Cho đi bão, thắt chặt an ninh', money: -1500, mods: [['happy', 4, 5], ['tour', 1.05, 5]] },
+      { id: 'square', label: 'Tổ chức cổ vũ ở quảng trường', money: -4000, mods: [['happy', 4, 5], ['tour', 1.08, 5]], rating: 0.2 },
+      { id: 'block', label: 'Phong toả trung tâm', money: 0, mods: [['happy', -3, 10]] },
+    ],
+    text: { title: 'Cả phố đi bão', story: 'Tiếng còi trọng tài vừa dứt, cả thành phố đổ ra đường với cờ đỏ sao vàng, kèn, nồi niêu. Công an đề nghị phương án: cho đi bão hay phong toả trung tâm?' },
+  },
+  tetBonus: {
+    topic: 'Công nhân chờ thưởng Tết, nhiều xưởng nợ lương',
+    when: (c) => lunar(c.day).month === 12 && count(c, (z) => z.cat === 'i') >= 3,
+    options: [
+      { id: 'force', label: 'Buộc doanh nghiệp trả đủ trước Tết', money: 0, mods: [['happy', 3, 15], ['comm', -0.03, 15]] },
+      { id: 'help', label: 'Thành phố hỗ trợ quà Tết', money: -8000, mods: [['happy', 3, 15], ['pull', 0.02, 20]] },
+      { id: 'wait', label: 'Để doanh nghiệp tự lo', money: 0, mods: [['happy', -3, 20], ['pull', -0.02, 20]] },
+    ],
+    text: { title: 'Tết này có thưởng không?', story: 'Còn ít ngày nữa là Tết, nhiều công nhân ở khu xưởng vẫn chưa nhận lương tháng trước, nói gì tới thưởng. Họ tụ tập trước cổng xin về quê sớm.' },
+  },
+  xeOm: {
+    topic: 'Xe ôm truyền thống phản đối xe ôm công nghệ',
+    when: (c) => c.pp.count >= 300,
+    options: [
+      { id: 'tech', label: 'Cấp phép xe công nghệ', money: 2000, mods: [['comm', 0.02, 20], ['happy', -1, 10]] },
+      { id: 'support', label: 'Hỗ trợ xe ôm chuyển đổi', money: -5000, mods: [['happy', 2, 20]] },
+      { id: 'limit', label: 'Hạn chế xe công nghệ', money: 0, mods: [['comm', -0.02, 20]], rating: -0.2 },
+    ],
+    text: { title: 'Chú xe ôm và ứng dụng', story: 'Mấy chục chú xe ôm đầu ngõ kéo về trụ sở phường: "Từ ngày có xe ôm công nghệ, cả ngày không chạy nổi một cuốc". Phía hãng xe công nghệ thì xin mở rộng hoạt động.' },
+  },
+  bunDau: {
+    topic: 'Quán ăn nổi tiếng trên mạng, khách xếp hàng gây kẹt phố',
+    when: (c) => count(c, (z) => z.cat === 'c') >= 3,
+    options: [
+      { id: 'tables', label: 'Cho bày bàn ra vỉa hè', money: 0, mods: [['tour', 1.06, 15]], rating: 0.2 },
+      { id: 'clear', label: 'Bắt quán dọn gọn', money: 500, mods: [], rating: -0.1 },
+      { id: 'food', label: 'Quy hoạch phố ẩm thực', money: -6000, mods: [['tour', 1.12, 30], ['comm', 0.02, 30]], rating: 0.3 },
+    ],
+    text: { title: 'Hàng bún đậu nổi tiếng', story: 'Một quán bún đậu mắm tôm trong hẻm bỗng nổi tiếng nhờ clip triệu view. Khách từ khắp nơi đến xếp hàng, xe máy dựng kín hai bên đường, cả khu phố tắc từ trưa tới tối.' },
+  },
+  heat: {
+    topic: 'Nắng nóng 40 độ, điện quá tải, dân kêu',
+    when: (c) => c.inc && c.inc.weather === 'dry' && c.pp.count >= 80,
+    options: [
+      { id: 'cool', label: 'Mở điểm tránh nóng, phát nước', money: -3000, mods: [['happy', 2, 5]] },
+      { id: 'cut', label: 'Cắt điện luân phiên', money: 0, mods: [['happy', -3, 5], ['comm', -0.02, 5]] },
+      { id: 'buy', label: 'Mua thêm điện giá cao', money: -6000, mods: [] },
+    ],
+    text: { title: 'Nắng như đổ lửa', story: 'Nhiệt độ ngoài trời lên tới 40 độ. Nhà nhà bật điều hoà, trạm biến áp quá tải, vài khu đã mất điện. Các cụ già và trẻ nhỏ mệt lả.' },
+  },
+  rice: {
+    topic: 'Giá lúa rớt mạnh, nông dân xin hỗ trợ',
+    when: (c) => count(c, (z) => z.raw === 'agri') >= 3,
+    options: [
+      { id: 'buy', label: 'Mua tạm trữ lúa cho dân', money: -8000, mods: [['happy', 2, 20]] },
+      { id: 'switch', label: 'Hỗ trợ chuyển sang cây trái', money: -4000, mods: [['comm', 0.02, 30]] },
+      { id: 'market', label: 'Để thị trường tự điều chỉnh', money: 0, mods: [['happy', -2, 20], ['pull', -0.02, 20]] },
+    ],
+    text: { title: 'Được mùa mất giá', story: 'Năm nay lúa trúng mùa nhưng thương lái ép giá thấp chưa từng có. Bà con ở cánh đồng phía ngoại thành chất lúa đầy sân, không biết bán cho ai.' },
+  },
+  sand: {
+    topic: 'Khai thác cát trái phép làm sạt lở bờ sông',
+    when: (c) => c.pp.count >= 150 && c.water.some((v) => v),
+    options: [
+      { id: 'raid', label: 'Truy quét "cát tặc"', money: -4000, mods: [['happy', 1, 20]] },
+      { id: 'license', label: 'Cấp phép, thu thuế tài nguyên', money: 7000, mods: [['happy', -2, 20], ['tour', 0.95, 20]] },
+      { id: 'embank', label: 'Làm kè chống sạt lở', money: -10000, mods: [['happy', 2, 30]] },
+    ],
+    text: { title: 'Cát tặc trên sông', story: 'Đêm nào cũng nghe tiếng máy hút cát rầm rầm. Sáng nay một đoạn bờ sông sạt lở, kéo theo hai căn nhà và vườn chuối của dân.' },
+  },
+  dengue: {
+    topic: 'Mùa mưa, sốt xuất huyết bùng phát',
+    when: (c) => stormSeason(c) && c.pp.count >= 120,
+    options: [
+      { id: 'spray', label: 'Phun thuốc diệt muỗi toàn thành phố', money: -3000, mods: [['happy', 1, 15]] },
+      { id: 'field', label: 'Lập điểm điều trị dã chiến', money: -9000, mods: [['happy', 3, 20]] },
+      { id: 'leaflet', label: 'Phát tờ rơi tuyên truyền', money: -500, mods: [['happy', -2, 15]] },
+    ],
+    text: { title: 'Sốt xuất huyết vào mùa', story: 'Trạm y tế báo số ca sốt xuất huyết tăng gấp ba so với tuần trước, nhiều nhất ở khu nhà trọ ven kênh. Hành lang bệnh viện đã phải kê thêm giường.' },
+  },
+  miniFire: {
+    topic: 'Chung cư mini, nhà trọ không đạt chuẩn phòng cháy',
+    when: (c) => count(c, (z) => z.cat === 'r') >= 12,
+    options: [
+      { id: 'close', label: 'Đình chỉ, buộc cải tạo ngay', money: 0, mods: [['pull', -0.04, 20], ['happy', -1, 15]] },
+      { id: 'deadline', label: 'Cho 3 tháng cải tạo, hỗ trợ một phần', money: -4000, mods: [] },
+      { id: 'blind', label: 'Làm ngơ, chưa có chuyện gì', money: 0, mods: [], fire: 3 },
+    ],
+    text: { title: 'Nhà trọ không lối thoát', story: 'Đoàn kiểm tra phát hiện hàng chục nhà trọ, chung cư mini chỉ có một cầu thang, cửa sổ bịt khung sắt, không bình chữa cháy. Chủ nhà nói "xưa giờ vẫn vậy".' },
+  },
+  craft: {
+    topic: 'Làng nghề gốm, mây tre xin mở rộng, khói lò ảnh hưởng dân',
+    when: (c) => count(c, (z) => z.cat === 'i') >= 2 && c.pp.count >= 80,
+    options: [
+      { id: 'support', label: 'Hỗ trợ làng nghề làm du lịch', money: -5000, mods: [['tour', 1.08, 30]], rating: 0.2 },
+      { id: 'move', label: 'Di dời lò ra xa khu dân cư', money: -3000, mods: [['happy', 1, 20], ['comm', -0.02, 20]] },
+      { id: 'keep', label: 'Giữ nguyên như cũ', money: 0, mods: [['happy', -1, 20]] },
+    ],
+    text: { title: 'Khói lò làng gốm', story: 'Làng gốm trăm năm tuổi xin thêm đất xây lò mới vì đơn hàng xuất khẩu tăng. Nhưng khu dân cư mới mọc ngay cạnh đã kêu khói lò làm cay mắt mỗi chiều.' },
+  },
+  grave: {
+    topic: 'Mồ mả tổ tiên nằm trên đất quy hoạch',
+    when: (c) => c.pp.count >= 100 && c.edges.size >= 8,
+    options: [
+      { id: 'rebury', label: 'Hỗ trợ cải táng chu đáo', money: -6000, mods: [['happy', 1, 20]] },
+      { id: 'park', label: 'Giữ lại, làm công viên tưởng niệm', money: -2500, mods: [['tour', 1.02, 30]] },
+      { id: 'force', label: 'Cưỡng chế giải toả', money: 0, mods: [['happy', -4, 30]] },
+    ],
+    text: { title: 'Mộ tổ giữa công trình', story: 'Máy xúc đang san nền thì phát hiện cụm mộ của dòng họ Nguyễn đã có từ bốn đời. Con cháu kéo đến đứng chắn, xin giữ lại nơi thờ tự.' },
+  },
+  pagodaLand: {
+    topic: 'Chùa xin thêm đất mở rộng làm lễ hội',
+    when: (c) => c.services.some((s) => s.type === 'pagoda' && !(s.build > 0)),
+    options: [
+      { id: 'grant', label: 'Cấp đất, hỗ trợ trùng tu', money: -4000, mods: [['tour', 1.06, 40], ['happy', 1, 30]], rating: 0.2 },
+      { id: 'restore', label: 'Chỉ trùng tu phần cũ', money: -1500, mods: [['tour', 1.02, 30]] },
+      { id: 'refuse', label: 'Từ chối, đất dành làm đường', money: 0, mods: [['happy', -1, 20]] },
+    ],
+    text: { title: 'Chùa làng xin đất', story: 'Sư trụ trì chùa cổ gửi thư mời thị trưởng: mùa lễ đông người không đủ chỗ, chùa xin thêm khoảnh đất trống bên cạnh để làm sân lễ và bãi gửi xe.' },
   },
 };
 
@@ -276,6 +428,12 @@ export function decide(c, id, optId, auto = false) {
   c.money += o.money;
   for (const [key, v, days] of o.mods) c.council.mods.push({ key, v, until: c.day + days, from: it.type });
   if (o.rating) c.council.ratingBias += o.rating;
+  if (o.fire) { // làm ngơ chuyện phòng cháy: vài căn nhà ở bốc cháy thật
+    const homes = [];
+    for (let i = 0; i < N * N; i++) if (c.level[i] && ZDEF[c.zone[i]].cat === 'r' && !c.fire[i]) homes.push(i);
+    for (let k = 0; k < o.fire && homes.length; k++) { const j = homes.splice(((c.rng || Math.random)() * homes.length) | 0, 1)[0]; c.fire[j] = 7; }
+    c.dirty.fx = true;
+  }
   it.status = 'done'; it.chose = optId; it.auto = auto;
   c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${o.money ? ` (${o.money > 0 ? '+' : ''}${o.money.toLocaleString('vi-VN')} ₫)` : ''}` });
   return { ok: true, option: o };

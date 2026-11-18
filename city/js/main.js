@@ -1322,6 +1322,7 @@ function effectText(o) {
   if (o.money) p.push(`${o.money > 0 ? '+' : ''}${fmt(o.money)} ₫`);
   for (const [k, v, d] of o.mods) p.push(`${N[k]} ${k === 'tour' || k === 'intl' ? '×' + v : (v > 0 ? '+' : '') + (k === 'happy' ? v : Math.round(v * 100) + '%')} trong ${d} ngày`);
   if (o.rating) p.push(`đánh giá du khách ${o.rating > 0 ? 'tốt lên' : 'xấu đi'}`);
+  if (o.fire) p.push('⚠️ có thể cháy nhà');
   return p.join(' · ');
 }
 
