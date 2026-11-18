@@ -985,12 +985,15 @@ test('hầm chui qua sông: được khi hầm xuống hết độ sâu trước
   assert.match(S.planLevel(c, at(88).id, -1).reason || '', /qua sông/);
 });
 
-test('khách quốc tế: sân bay có chuyến bay đưa du khách, người nhập cư; thị thực, quảng bá, phí hạ cánh tác động; lưu / nạp chính sách', () => {
+test('khách quốc tế: sân bay nội địa chở dân bay đi, nâng cấp nhà ga quốc tế thì có chuyến quốc tế đưa du khách, người nhập cư; thị thực, quảng bá, phí; lưu / nạp', () => {
   const c = town(), sx = c.start.x; c.milestone = S.MILESTONES.length; c.money = 1e7;
   assert.equal(S.intlOutlook(c).flights, 0, 'chưa có sân bay thì không có chuyến bay');
   road(c, sx + 14, 24, sx + 22, 24);
   const r = S.placeService(c, 'airport', sx + 17, 27); assert.ok(r.ok, r.reason);
   for (const s of c.services) s.build = 0;
+  const dom = S.intlOutlook(c), ap = c.services.findIndex((s) => s.type === 'airport');
+  assert.ok(dom.flights === 0 && dom.dom > 0 && dom.flyPer > 0, 'sân bay mới là nội địa: chỉ có chuyến trong nước');
+  assert.ok(S.addModule(c, ap, 'intl').ok); assert.ok(S.isIntlAirport(c.services[ap]));
   const base = S.intlOutlook(c);
   assert.ok(base.flights > 0 && base.tourPer > 0);
   c.intl.visa = 'open'; c.intl.promo = 3; const big = S.intlOutlook(c);
@@ -1011,6 +1014,9 @@ test('khách quốc tế: sân bay có chuyến bay đưa du khách, người nh
   assert.ok(seen.every((ev) => /hạ cánh/.test(ev.text)));
   assert.ok(tourists > 0 && fees > 0, 'du khách tới, thu phí hạ cánh');
   assert.ok(c.pp.count > pop0, 'dân số tăng');
+  assert.ok(c.intl.last.out > 0 && S.flyHappy(c) > 0, 'dân bay đi chơi, công tác thì vui hơn');
+  const old = JSON.parse(JSON.stringify(S.serialize(c))); delete old.apv; c.services[ap].mods = []; old.services.find((s) => s.type === 'airport').mods = [];
+  assert.ok(S.isIntlAirport(S.deserialize(old).services.find((s) => s.type === 'airport')), 'bản lưu cũ: sân bay đã là quốc tế');
   for (const e of c.intl.sched) if (e.kind === 'plane') assert.equal(e.t1 - e.t0, S.FLY_H * S.HOUR_SEC);
   const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(d.intl.visa, 'open'); assert.equal(d.intl.promo, 3); assert.equal(d.intl.fee, 5);

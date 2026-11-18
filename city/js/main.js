@@ -553,8 +553,10 @@ function showInfo(tile) {
     if (d.bonus) add('Cả thành phố', [d.bonus.happy && `hài lòng +${d.bonus.happy}`, d.bonus.comm && `thuế thương mại +${Math.round(d.bonus.comm * 100)}%`, d.bonus.pull && 'hút dân tới ở'].filter(Boolean).join(', '));
     if ((sv.type === 'airport' || sv.type === 'port' || sv.type === 'ferry') && c.intl) {
       const inc = c.intl.sched.filter((e) => e.uid === sv.uid && !e.landed);
-      add('Khách quốc tế đang tới', inc.length ? inc.map((e) => `${e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} (${e.tourists} khách)`).join(', ') : 'chưa có');
+      if (sv.type === 'airport') { const o = S.intlOutlook(c); add('Loại', S.isIntlAirport(sv) ? '🌏 Sân bay quốc tế: chuyến nội địa và quốc tế' : '🛫 Sân bay nội địa · gắn module 🌏 Nhà ga quốc tế bên dưới để đón chuyến quốc tế'); add('Bay nội địa', `~${o.dom.toFixed(1)} chuyến/ngày (cả thành phố) · ~${fmt(o.flyPer)} dân bay đi mỗi chuyến`); }
+      add('Chuyến đang tới', inc.length ? inc.map((e) => `${e.dom ? '🛫' : e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} (${e.tourists} khách)`).join(', ') : 'chưa có');
     }
+    if (sv.type === 'airport' && S.isIntlAirport(sv)) title = `${d.icon} Sân bay quốc tế`;
     if (d.beds) { const sc = c.tour.score || S.tourismScore(c); add('Phòng (cả thành phố)', `${fmt(c.tour.guests)} khách / ${fmt(sc.beds)} giường · ${c.tour.roomFee} ₫/đêm`); }
     if (d.attract) add('Sức hút du lịch', `+${d.attract}`);
     if (sv.type === 'ferry') {
@@ -731,7 +733,8 @@ function renderEcon() {
   // khách quốc tế
   const it = c.intl, o = S.intlOutlook(c), il = it.last;
   $('intlBox').innerHTML = [
-    ['Cửa ngõ quốc tế', o.airports || o.sea ? `${o.airports ? `✈️ ${o.airports} sân bay` : ''}${o.airports && o.sea ? ' · ' : ''}${o.sea ? `🚢 ${o.sea} cảng / bến ra biển` : ''}` : '<span class="neg">✖ xây ✈️ sân bay, ⚓ cảng hoặc ⛴️ bến tàu ra biển</span>'],
+    ['Sân bay nội địa', o.domAirports ? `🛫 ~${o.dom.toFixed(1)} chuyến/ngày · ~${fmt(o.domTourPer)} khách tới, ~${fmt(o.flyPer)} dân bay đi mỗi chuyến${il ? ` · hôm qua ${il.dom || 0} chuyến, ${fmt(il.out || 0)} dân bay đi (${fmt(il.abroad || 0)} ra nước ngoài)` : ''}` : 'chưa có ✈️ sân bay'],
+    ['Cửa ngõ quốc tế', o.domAirports > o.airports && !o.airports && !o.sea ? '<span class="neg">✖ sân bay mới là nội địa: gắn module 🌏 Nhà ga quốc tế (từ 12.000 dân), hoặc xây ⚓ cảng / ⛴️ bến tàu ra biển</span>' : o.airports || o.sea ? `${o.airports ? `✈️ ${o.airports} sân bay` : ''}${o.airports && o.sea ? ' · ' : ''}${o.sea ? `🚢 ${o.sea} cảng / bến ra biển` : ''}` : '<span class="neg">✖ xây ✈️ sân bay, ⚓ cảng hoặc ⛴️ bến tàu ra biển</span>'],
     ['Chuyến mỗi ngày (ước)', `✈️ ${o.flights.toFixed(1)} · 🚢 ${o.ships.toFixed(1)}`],
     ['Mỗi chuyến bay', `~${fmt(o.tourPer)} du khách · ${o.immigPer ? `~${fmt(o.immigPer)} người tới định cư` : 'không ai tới định cư (thành phố chưa hút dân)'}`],
     ['Yếu tố', `sức hút ×${o.lure.toFixed(2)} · dân vui ×${o.mood.toFixed(2)} · phí ×${o.feeK.toFixed(2)}`],
@@ -751,7 +754,7 @@ function renderEcon() {
   $('intlFeeV').textContent = `${it.fee} ₫`;
   if (document.activeElement !== $('intlFee')) $('intlFee').value = it.fee;
   const now = S.simTime(c), up = it.sched.filter((e) => !e.landed);
-  $('intlNext').innerHTML = up.length ? up.map((e) => `<div class="row"><span>${e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} từ ${e.from}</span><span>${fmt(e.tourists)} khách${e.immig ? `, ${fmt(e.immig)} định cư` : ''} · tới sau ${Math.max(1, Math.ceil((e.t1 - now) / S.HOUR_SEC))} giờ</span></div>`).join('') : '<div class="row"><span>Chưa có chuyến nào đang tới</span></div>';
+  $('intlNext').innerHTML = up.length ? up.map((e) => `<div class="row"><span>${e.dom ? '🛫' : e.kind === 'plane' ? '✈️' : '🚢'} ${e.code} từ ${e.from}</span><span>${fmt(e.tourists)} khách${e.immig ? `, ${fmt(e.immig)} định cư` : ''} · tới sau ${Math.max(1, Math.ceil((e.t1 - now) / S.HOUR_SEC))} giờ</span></div>`).join('') : '<div class="row"><span>Chưa có chuyến nào đang tới</span></div>';
   // giá thị trường
   const m = c.market;
   $('mktNews').innerHTML = m.news ? `<span>${m.news.up ? '📈' : '📉'} ${m.news.text}</span><span>ngày ${m.news.day + 1}</span>` : '<span>Chưa có biến động lớn</span>';

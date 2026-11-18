@@ -282,7 +282,7 @@ export const DEALS = {
   airline: {
     who: ['Hãng bay Sky Lotus', 'Hãng bay Pacific Wings', 'Hãng bay Dragon Air'],
     persona: 'Giám đốc phát triển đường bay, năng nổ, hay khoe số khách, đòi trợ giá vì đường bay mới chưa chắc có lãi',
-    when: (c) => c.services.some((s) => s.type === 'airport' && !(s.build > 0)),
+    when: (c) => c.services.some((s) => s.type === 'airport' && s.mods && s.mods.includes('intl') && !(s.build > 0)), // đường bay quốc tế
     params: { subsidy: [200, 2500, '₫ trợ giá mỗi ngày', 'them'], boost: [20, 120, '% thêm chuyến bay quốc tế', 'us'], days: [15, 90, 'ngày', 'us'] },
     start: (c, P) => ({ subsidy: 2000, boost: 40, days: 30 }),
     summary: (o) => `Trợ giá ${o.subsidy.toLocaleString('vi-VN')} ₫ mỗi ngày trong ${o.days} ngày, hãng mở thêm ${o.boost}% chuyến bay quốc tế`,

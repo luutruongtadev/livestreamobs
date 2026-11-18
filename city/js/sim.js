@@ -12,7 +12,7 @@ import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPe
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
-import { intlHour, intlDay, promoCost } from './intl.js';
+import { intlHour, intlDay, promoCost, flyHappy } from './intl.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
@@ -30,6 +30,7 @@ export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap } from './districts.js';
+export { isIntlAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
 export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
@@ -1431,7 +1432,7 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
 export function moduleList(c, s) {
   return Object.keys(MODULES).filter((m) => MODULES[m].for.includes(s.type)).map((id) => {
     const cost = moduleCost(s.type, id);
-    return { id, cost, state: s.mods && s.mods.includes(id) ? 'done' : !c.tech.has(MODULES[id].tech) ? 'lock' : cost > c.money ? 'poor' : 'ok' };
+    return { id, cost, state: s.mods && s.mods.includes(id) ? 'done' : !unlockedAt(c, MODULES[id]) ? 'lock' : cost > c.money ? 'poor' : 'ok' };
   });
 }
 
@@ -1632,6 +1633,7 @@ export function recalc(c) {
   if (c.fest) { bonus.happy += festHappy(c); bonus.comm += festMul(c, 'comm'); } // lễ hội
   { const nb = beachCount(c); if (nb) bonus.happy += Math.min(3, nb / 25); } // bãi biển: dân cả thành phố vui hơn
   if (c.street) { const sb = streetBonus(c); bonus.happy += sb.happy; bonus.comm += sb.comm; } // vỉa hè, bụi mịn, cấm xe
+  bonus.happy += flyHappy(c); // dân được bay đi chơi, công tác
   if (c.council) { bonus.happy += councilMod(c, 'happy'); bonus.pull += councilMod(c, 'pull'); bonus.comm += councilMod(c, 'comm'); } // quyết định của thị trưởng, hợp đồng
   c.bonus = bonus;
   let depots = 0, graves = 0, used = 0, cremate = 0, cells = 0;
@@ -1871,7 +1873,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), beach: packBeach(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), beach: packBeach(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -1963,6 +1965,7 @@ function deserializeAt(o) {
   initSeason(c, o.season || {});
   initCouncil(c, o.council || {});
   initDistricts(c, o.dist || {});
+  if (!o.apv) for (const sv of c.services) if (sv.type === 'airport' && !(sv.mods || (sv.mods = [])).includes('intl')) sv.mods.push('intl'); // bản lưu trước khi có sân bay nội địa: sân bay cũ đã là quốc tế
   applyStreet(c);
   if (o.sandbox) enableSandbox(c);
   computeMaps(c); recalc(c);
