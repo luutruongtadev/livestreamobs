@@ -118,6 +118,15 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Ga thông ra cửa khẩu** (bấm vào ga để xem): tàu liên vận vào ga lúc 7, 11, 15, 19 giờ. Mỗi chuyến chở du khách (theo sức hút du lịch), người tới định cư (khi thành phố hút dân), dân lên tàu đi chơi; thu 6 ₫ vé mỗi khách. Bão thì huỷ chuyến.
    - **Thưởng:** mỗi ga thông ra cửa khẩu (tối đa 2) hút dân +4%, thuế thương mại +2%; hàng xuất khẩu bán được giá thêm 8%; dân được đi tàu vui hơn một chút.
    - Tàu khách xanh và tàu hàng vàng thay nhau chạy từ cửa khẩu vào ga, dừng ở sân ga rồi chạy ra. Ô có ray không quy hoạch, không xây được; 🚜 san ủi lên ray để dỡ cả đoạn. Ga chưa có ray vẫn là cửa ngõ xuất nhập khẩu như cũ.
+13j. **💧 Mực nước theo vùng trũng** (code: `js/water.js`). Nước không còn chung một mực cố định:
+   - **Chảy từ cao xuống thấp, lấp đầy chỗ trũng:** mỗi chỗ trũng có "miệng" (yên ngựa thấp nhất trên đường ra). Nước mưa trên lưu vực (các ô đổ dốc về nó) đọng lại theo **thể tích**: ít nước thì chỉ đọng dưới đáy, đủ nước thì đầy tới miệng. Mùa mưa ao hồ đầy, mùa khô cạn bớt; bão mưa nhiều hơn.
+   - **Đầy thì tràn:** nước dư chảy qua miệng xuống dốc thành dòng suối tới chỗ trũng thấp hơn (cũng được đổ thêm nước) hoặc ra sông, biển, mép bản đồ. Dòng tràn hiện trên bản đồ, chỗ dốc thành thác.
+   - **Đào ao trên đồi** có nước mưa đọng, mặt ao cao hơn mực sông biển. **Hố đào thấp hơn mực biển nhưng không thông ra sông** không còn tự đầy nước tới mực biển: chỉ đọng nước mưa. Đào kênh thông ra sông, biển thì nước ở mực biển.
+   - **Chặn sông:** đắp đất ngang sông thì nước phía thượng nguồn dâng lên tới khi tràn qua chỗ thấp nhất của bờ. Đầu nguồn sông (chỗ sông chảy vào bản đồ) là nguồn nước, không phải lối thoát.
+   - **Hồ đập là nước thật:** thân đập kèm hai vai đập tựa vào bờ đến chỗ đất đủ cao; nước phía trên dâng tới ngưỡng tràn (hoặc tới chỗ thấp nhất của bờ hồ nếu thấp hơn), ngập vùng trũng ven sông thành lòng hồ (nhà bị giải toả, có thông báo). Tàu thuyền đi được trong hồ, đặt bến, trạm bơm ven hồ được; làm đường, ray qua hồ thì thành cầu.
+   - Đất trũng tự nhiên của bản đồ coi như đã thấm nước ổn định nên không tự thành hồ; bản đồ, bản lưu cũ giữ nguyên mặt nước.
+   - **Ngập mùa mưa chảy theo địa hình:** mưa rơi khắp nơi, nước ngập dồn từ ô cao xuống ô thấp và thoát vào sông hồ, nên đọng ở chỗ trũng; trạm bơm, kè, nạo vét cống giảm ngập như trước.
+   - Không đào đắp được trên hầm đường sắt, bãi biển, thân đập.
 13i. **🌊 Dòng chảy, đập thuỷ điện, thác nước.** Code: `js/hydro.js`.
    - **Nước chảy từ cao xuống thấp:** mỗi ô nước có hướng và tốc độ chảy. Sông chảy ra biển; sông không ra biển chảy về mép bản đồ phía bờ thấp hơn. Lòng sông hẹp, bờ dốc thì chảy xiết, sông rộng chậm hơn, hồ và biển gần như lặng. Mùa mưa bão (tháng 8–11 âm) nước lớn chảy nhanh hơn 30%, mùa khô (tháng 1–4) chậm lại. Mặt nước có sóng trôi theo dòng, chỗ xiết có vệt bọt kéo dài, ghềnh trắng xoá. Bấm vào ô nước để xem dòng chảy (lặng, chậm, vừa, nhanh, xiết).
    - **🏞️ Đập thuỷ điện** (nhóm ⚡, từ 2.500 dân, 60.000 ₫): đặt nhà máy sát bờ sông, thân đập tự chắn ngang tới bờ bên kia (dài tối đa 16 ô). Chỉ chắn được sông có dòng chảy (không phải biển, hồ lặng).
@@ -185,6 +194,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/water.js` | Mực nước theo vùng trũng: lấp trũng từ cửa thoát, thể tích nước mưa theo lưu vực và mùa, đầy thì tràn xuống vùng thấp |
 | `js/hydro.js` | Dòng chảy (hướng, tốc độ, mùa nước), đập thuỷ điện (thân đập, công suất), thác nước |
 | `js/decor.js` | Trang trí tô theo ô: cây xanh, thảm cỏ, lối đi bộ, bồn hoa; ảnh hưởng giá đất, bụi, hài lòng |
 | `js/rail.js` | Đường sắt: cửa khẩu, vẽ ray bo góc, cao độ giới hạn dốc (hầm, cầu, xẻ đất), mạng ga – cửa khẩu, tàu liên vận |

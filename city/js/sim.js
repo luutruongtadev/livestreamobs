@@ -13,12 +13,13 @@ import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, 
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
 import { intlHour, intlDay, promoCost, flyHappy, intlOutlook } from './intl.js';
-import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
+import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, tunnelCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
-import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, cliffDrop, seasonFlow, reservoirOf } from './hydro.js';
+import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, damSpan, cliffDrop, seasonFlow, reservoirLevel } from './hydro.js';
+import { solveWater, rainK } from './water.js';
 import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
@@ -31,7 +32,8 @@ export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo,
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
-export { computeFlow, flowAt, flowName, planDam, damPower, cliffDrop, fallGeom, seasonFlow, DAM_MAX, reservoirOf, reservoirLevel } from './hydro.js';
+export { computeFlow, flowAt, flowName, planDam, damPower, damSpan, cliffDrop, fallGeom, seasonFlow, DAM_MAX, reservoirLevel } from './hydro.js';
+export { solveWater, rainK } from './water.js';
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
@@ -91,11 +93,9 @@ function makeTerrain(c) {
   for (let gy = 0; gy <= N; gy++) for (let gx = 0; gx <= N; gx++) { const k = gy * V + gx; c.hv0[k] = hf.height(gx, gy); c.hv[k] = vertexH(c, k); }
   c.cellH = new Float32Array(N * N); // cao độ nền nhà của ô = đỉnh cao nhất
   c.steep = new Uint8Array(N * N);
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    cellTerrain(c, x, y);
-    const i = idx(x, y);
-    if (c.water[i]) { c.tree[i] = 0; c.zone[i] = 0; c.level[i] = 0; }
-  }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) cellTerrain(c, x, y);
+  waterSync(c, { quiet: true });
+  for (let i = 0; i < N * N; i++) if (c.water[i]) { c.tree[i] = 0; c.zone[i] = 0; c.level[i] = 0; }
   makeResources(c, hf);
 }
 
@@ -108,14 +108,33 @@ function cellTerrain(c, x, y) {
   const touched = c.terra[k] || c.terra[k + 1] || c.terra[k + V] || c.terra[k + V + 1];
   c.cellH[i] = hi;
   c.steep[i] = (c.tgen >= 2 || touched) && hi - Math.min(a, b, d, e) > STEEP ? 1 : 0;
-  let w = c.water0[i];
-  if (touched) { // ô đã đào đắp: ngập từ 3 đỉnh trở lên là nước; ngập đúng 2 đỉnh thì giữ như tự nhiên (mép bờ)
-    const below = (a < WATER_LEVEL) + (b < WATER_LEVEL) + (d < WATER_LEVEL) + (e < WATER_LEVEL);
-    w = below >= 3 ? 1 : below === 2 ? c.water0[i] : 0;
+  return false; // đất / nước do waterSync quyết định (mực nước theo vùng trũng)
+}
+
+/**
+ * Giải lại mực nước cả bản đồ (water.js): nước chảy từ cao xuống thấp, đọng ở chỗ trũng theo thể tích, đầy thì tràn;
+ * thân đập thuỷ điện là tường chắn, hồ chứa sau đập là nước thật. Ô vừa ngập thì dỡ nhà, bỏ quy hoạch, cây, trang trí.
+ * Trả về số ô đổi giữa đất và nước.
+ */
+export function waterSync(c, { quiet = false } = {}) {
+  const walls = new Map();
+  for (const s of c.services) if (s.type === 'hydro' && s.dam) { const crest = reservoirLevel(s); for (const i of damSpan(c, s)) walls.set(i, Math.max(crest, walls.get(i) ?? -Infinity)); } // thân đập + vai đập
+  const r = solveWater(c, { walls, rain: rainK(c) });
+  let changed = 0, moved = !c.wl;
+  for (let i = 0; i < N * N; i++) {
+    const w = Number.isNaN(r.wl[i]) ? 0 : 1;
+    if (!moved && (Number.isNaN(c.wl[i]) ? !Number.isNaN(r.wl[i]) : Math.abs(c.wl[i] - r.wl[i]) > 0.01 || Number.isNaN(r.wl[i]))) moved = true;
+    if (w === c.water[i]) continue;
+    changed++;
+    c.water[i] = w;
+    if (w && !quiet) { c.zone[i] = 0; c.tree[i] = 0; if (c.level[i]) clearBuilding(c, i); clearDecor(c, i); if (c.beach) c.beach[i] = 0; }
   }
-  const was = c.water[i];
-  c.water[i] = w;
-  return was !== w;
+  c.wl = r.wl; c.wsolve = r;
+  if (changed || moved) {
+    c.waterVer = (c.waterVer || 0) + 1;
+    if (c.dirty) Object.assign(c.dirty, { water: true, terrain: changed ? 2 : Math.max(c.dirty.terrain | 0, 0), zones: true, trees: true, buildings: true });
+  }
+  return changed;
 }
 
 /**
@@ -219,7 +238,7 @@ export function terraform(c, mode, x, y, { size = 1, target = 0, dry = false } =
     for (let dy = -1; dy <= 0; dy++) for (let dx = -1; dx <= 0; dx++) {
       const i = idx(gx + dx, gy + dy);
       if (!c.own[i]) mine = false;
-      if (c.road[i] || c.occ[i] || c.level[i] || (c.railCell && c.railCell[i])) free = false;
+      if (c.road[i] || c.occ[i] || c.level[i] || (c.railCell && c.railCell[i]) || (c.tunnelCell && c.tunnelCell[i]) || (c.beach && c.beach[i]) || (c.damCell && c.damCell[i])) free = false;
     }
     if (!mine) { locked++; continue; }
     if (!free) { blocked++; continue; }
@@ -232,19 +251,14 @@ export function terraform(c, mode, x, y, { size = 1, target = 0, dry = false } =
     plan.push(k, tv);
   }
   cost = Math.ceil(cost);
-  if (!plan.length) return { ok: false, cost: 0, reason: locked && !blocked ? LOCKED : blocked ? 'Không đào đắp được dưới đường, nhà và công trình' : mode === 'level' ? 'Chỗ này đã bằng cao độ cần san' : mode === 'canal' ? 'Chỗ này đã là nước' : 'Đã chạm giới hạn độ sâu / độ cao' };
+  if (!plan.length) return { ok: false, cost: 0, reason: locked && !blocked ? LOCKED : blocked ? 'Không đào đắp được dưới đường, nhà, công trình, đường ray, hầm, bãi biển, thân đập' : mode === 'level' ? 'Chỗ này đã bằng cao độ cần san' : mode === 'canal' ? 'Chỗ này đã là nước' : 'Đã chạm giới hạn độ sâu / độ cao' };
   if (cost > c.money) return { ok: false, cost, reason: 'Không đủ tiền' };
   if (dry) return { ok: true, cost, n: plan.length / 2 };
   for (let p = 0; p < plan.length; p += 2) { c.terra[plan[p]] = plan[p + 1]; c.hv[plan[p]] = vertexH(c, plan[p]); }
-  let wet = false;
-  for (let b = y0 - 1; b <= y0 + s; b++) for (let a = x0 - 1; a <= x0 + s; a++) {
-    if (!inMap(a, b) || !cellTerrain(c, a, b)) continue;
-    wet = true;
-    const i = idx(a, b);
-    if (c.water[i]) { c.zone[i] = 0; c.tree[i] = 0; c.acc[i] = 0; }
-  }
+  for (let b = y0 - 1; b <= y0 + s; b++) for (let a = x0 - 1; a <= x0 + s; a++) if (inMap(a, b)) cellTerrain(c, a, b);
+  const wet = true; // mặt nước giải lại khi nhả chuột (terraformDone)
   c.money -= cost;
-  if (wet) c.terraWet = true;
+  c.terraWet = true;
   c.dirty.terrain = Math.max(c.dirty.terrain | 0, 1); c.dirty.zones = true;
   return { ok: true, cost, n: plan.length / 2, wet };
 }
@@ -286,9 +300,8 @@ export function paintBeach(c, x0, y0, x1, y1, opts = {}) {
     for (const [a, b] of [[gx - 1, gy - 1], [gx, gy - 1], [gx - 1, gy], [gx, gy]]) if (inMap(a, b)) cells.add(idx(a, b));
   }
   c.beachTouched = null;
-  let wet = false;
-  for (const i of cells) if (cellTerrain(c, i % N, (i / N) | 0)) wet = true;
-  if (wet) c.terraWet = true;
+  for (const i of cells) cellTerrain(c, i % N, (i / N) | 0);
+  c.terraWet = true;
   terraformDone(c);
   recalc(c);
   return r;
@@ -307,6 +320,7 @@ export function setFerrySea(c, k, on) {
 }
 
 export function terraformDone(c) {
+  if (c.terraWet) waterSync(c);
   makeResources(c, heightFn(c));
   if (c.terraWet) { c.terraWet = false; roadsChanged(c); computeMaps(c); }
   Object.assign(c.dirty, { terrain: 2, trees: true, roads: true, lines: true, transit: true, zones: true, land: true, services: true });
@@ -340,7 +354,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   initCouncil(c);
   initDistricts(c);
   initStreet(c);
-  initRail(c); c.railCell = railCells(c);
+  initRail(c); c.railCell = railCells(c); c.tunnelCell = tunnelCells(c);
   applyStreet(c);
   computeMaps(c);
   return c;
@@ -477,26 +491,30 @@ function hydroSync(c) {
   for (const s of c.services) {
     if (s.type !== 'hydro') continue;
     any = true;
-    if (s.damAt !== `${s.x},${s.y},${s.dir}`) { attachDam(c, s); fresh = true; }
+    const key = `${s.x},${s.y},${s.dir}`;
+    if (s.damAt === undefined && s.dam) s.damAt = key; // nạp từ bản lưu: thân đập đã lưu sẵn
+    if (s.damAt !== key) { // đặt mới hoặc dời: tính thân đập trên mặt nước khi chưa có đập này
+      if (s.dam) { s.dam = null; waterSync(c); }
+      attachDam(c, s); fresh = true;
+    }
     s.hp = damPower(c, s);
   }
-  const had = !!c.damCell, sig = c.services.filter((s) => s.type === 'hydro').map((s) => s.damAt + (s.dam ? s.dam.cells.length : 0)).join('|');
   c.damCell = any ? damCells(c) : null;
-  if (sig !== c._hydroSig || fresh) { // hồ chứa: mặt nước dâng sau đập, đất trũng trong lòng hồ ngập (dỡ nhà, không quy hoạch)
-    c._hydroSig = sig;
-    c.resvCell = any ? new Uint8Array(N * N) : null;
-    for (const s of c.services) {
-      if (s.type !== 'hydro') continue;
-      s.res = reservoirOf(c, s);
-      if (s.res) for (const i of s.res.land) { c.resvCell[i] = 1; if (c.level[i]) clearBuilding(c, i); c.zone[i] = 0; c.tree[i] = 0; clearDecor(c, i); }
-    }
-    if (any || had) Object.assign(c.dirty, { water: true, buildings: true, trees: true, zones: true });
+  const sig = c.services.filter((s) => s.type === 'hydro' && s.dam).map((s) => s.damAt).join('|');
+  if (fresh || sig !== (c._damSig || '')) { // đập mới, dời hoặc phá: hồ chứa dâng hoặc rút theo mực nước giải lại
+    c._damSig = sig;
+    const before = c.water.slice(), lv0 = c.level.slice();
+    waterSync(c);
+    let flooded = 0, houses = 0;
+    for (let i = 0; i < N * N; i++) if (c.water[i] && !before[i]) { flooded++; if (lv0[i]) houses++; }
+    if (flooded && c.events && fresh) c.events.push({ type: 'reservoir', text: `🏞️ Hồ thuỷ điện tích nước: mặt hồ dâng lên, ${flooded} ô đất ven sông ngập thành lòng hồ${houses ? `, ${houses} nhà phải giải toả` : ''}` });
   }
 }
 
 /** Đường ray đổi: tính lại ô có ray, ô quy hoạch, mạng lưới; báo cảnh 3D vẽ lại. */
 function railChanged(c) {
   c.railCell = railCells(c);
+  c.tunnelCell = tunnelCells(c); // không đào đắp trên hầm ray
   for (let i = 0; i < N * N; i++) if (c.railCell[i]) { if (c.level[i]) clearBuilding(c, i); c.zone[i] = 0; c.tree[i] = 0; clearDecor(c, i); }
   c._railNet = null;
   Object.assign(c.dirty, { rail: true, trees: true, zones: true, buildings: true });
@@ -2067,6 +2085,10 @@ function hourTick(c) {
   if (tb) { c.hourInc.c *= 1 - tb; c.hourInc.i *= 1 - tb; c.econ.ring[h].c = c.hourInc.c; c.econ.ring[h].i = c.hourInc.i; }
   c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i + rooms - s.expense / 24;
   if (h === 0) { marketDay(c); tourismDay(c); intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); }
+  if (h === 0 || (c.inc && c.inc.weather !== c._wWeather)) { // mùa mưa / khô, trời bão: ao hồ do đào đắp đầy lên hoặc cạn bớt
+    c._wWeather = c.inc && c.inc.weather;
+    if (waterSync(c)) { makeResources(c, heightFn(c)); roadsChanged(c); computeMaps(c); }
+  }
   c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   for (const ln of c.loans) { ln.h = (ln.h ?? Math.round(ln.left * 24)) - 1; ln.left = ln.h / 24; } // đếm giờ nguyên: vay 4 ngày trả đúng 96 giờ
   if (c.loans.some((ln) => ln.h <= 0)) { c.loans = c.loans.filter((ln) => ln.h > 0); c.events.push({ type: 'loanPaid' }); recalc(c); }
@@ -2129,7 +2151,7 @@ export function serialize(c) {
     }),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
-    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}), ...(s.dq ? { dq: s.dq, dby: s.dby } : {}) })),
+    services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}), ...(s.dq ? { dq: s.dq, dby: s.dby } : {}), ...(s.type === 'hydro' && s.dam ? { dam: { cells: s.dam.cells, head: s.dam.head, q: r1(s.dam.q) } } : {}) })),
     transit: { fare: c.transit.fare, ferryFare: c.transit.ferryFare, lines: c.transit.lines.map((l) => ({ mode: l.mode, count: l.count, stops: l.stops.map((s) => [r1(s.x), r1(s.z)]) })) },
     tree: pack('tree'), zone: pack('zone'), level: pack('level'), variant: pack('variant'), dir: pack('dir'),
     ...(terra.length ? { terra } : {}), // đào đắp: [chỉ số đỉnh, độ lệch × 10, ...] chỉ gồm đỉnh đã đổi
@@ -2184,7 +2206,7 @@ function deserializeAt(o) {
     debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
     nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
-    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}), ...(s.dq ? { dq: String(s.dq).slice(0, 12), dby: String(s.dby || '').slice(0, 40) } : {}) })),
+    services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}), ...(s.dq ? { dq: String(s.dq).slice(0, 12), dby: String(s.dby || '').slice(0, 40) } : {}), ...(s.type === 'hydro' && s.dam && Array.isArray(s.dam.cells) && s.dam.cells.length && s.dam.cells.length <= 17 && s.dam.cells.every((i) => Number.isInteger(i) && i >= 0 && i < N * N) ? { dam: { cells: s.dam.cells.slice(), head: clamp(num(s.dam.head, 8), 8, 36), q: clamp(num(s.dam.q, 0), 0, 30) } } : {}) })),
   };
   if (!c.owned.some((v) => v)) c.owned.fill(1);
   for (const k of ['tree', 'zone', 'level', 'variant', 'dir']) c[k] = unb64(o[k], N * N);
@@ -2197,7 +2219,7 @@ function deserializeAt(o) {
   unpackBeach(c, o.beach); unpackDecor(c, o.decor);
   attach(c);
   initStreet(c, o.street || {}); // trước khi dựng ô quy hoạch: hẻm cần biết chính sách
-  initRail(c, o.rail || {}); c.railCell = railCells(c); // đường ray: ô có ray không quy hoạch
+  initRail(c, o.rail || {}); c.railCell = railCells(c); c.tunnelCell = tunnelCells(c); // đường ray: ô có ray không quy hoạch
   for (const n of o.nodes || []) {
     const id = n[0] | 0, node = { id, x: num(n[1], 0), z: num(n[2], 0) };
     if (n[3]) node.ctl = clamp(n[3] | 0, 0, 2);

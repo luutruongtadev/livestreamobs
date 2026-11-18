@@ -308,7 +308,7 @@ function exchange(c, line, sl, k) {
 export function stepFerries(c, dt) {
   const def = TRANSIT.ferry;
   // bến tàu vừa xây, dời hoặc phá: dựng lại tuyến ngay, không đợi tới giờ sau
-  let sig = '';
+  let sig = `${c.waterVer || 0}|`; // mặt nước đổi (hồ dâng, ao cạn, đào kênh) cũng dựng lại tuyến
   for (const s of c.services) if (s.type === 'ferry' || s.type === 'hydro') sig += s.uid + ':' + s.x + ',' + s.y + ';';
   if (sig !== c.ferrySig) { c.ferrySig = sig; syncFerries(c); }
   for (const line of c.ferries || []) {

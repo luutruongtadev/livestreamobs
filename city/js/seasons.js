@@ -205,12 +205,24 @@ export function seasonHour(c) {
     const dd = distFx(c, i, 'drain'); // nạo vét cống của quận
     if (dd) add *= 1 - 0.12 * dd;
     const drain = (rain ? 0.25 : 0.9) + (pump[i] > 0.05 ? 2.5 : 0) + dd * 0.35;
-    fl[i] = clamp(fl[i] + add - drain, 0, 6);
+    fl[i] = clamp(fl[i] + add + rain * 0.12 - drain, 0, 6); // mưa rơi khắp nơi, cộng nước sông tràn bờ
     if (fl[i] >= 1.5) {
       wet++;
       if (c.level[i]) { houses++; c.floodHours[i]++; if (c.floodHours[i] > 30 && c.level[i] > 1 && rng() < 0.04) { c.level[i]--; c.dirty.buildings = true; } }
     } else c.floodHours[i] = 0;
   }
+  // nước ngập chảy từ cao xuống thấp: dồn về ô kề thấp hơn (theo mặt đất + độ ngập), chảy vào sông hồ thì thoát
+  if (rain || s.anyWet) for (let pass = 0; pass < 3; pass++) for (let i = 0; i < N * N; i++) {
+    if (c.water[i] || fl[i] < 0.05) continue;
+    const x = i % N, y = (i / N) | 0, hi = c.cellH[i] + fl[i];
+    let best = -1, bh = hi;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b), hj = c.water[j] ? c.cellH[j] - 3 : c.cellH[j] + fl[j]; if (hj < bh) { bh = hj; best = j; } }
+    if (best < 0) continue;
+    const mv = Math.min(fl[i], (hi - bh) / 2) * 0.6;
+    fl[i] -= mv; if (!c.water[best]) fl[best] = Math.min(6, fl[best] + mv);
+  }
+  wet = 0; houses = 0;
+  for (let i = 0; i < N * N; i++) if (!c.water[i] && fl[i] >= 1.5) { wet++; if (c.level[i]) houses++; }
   if (wet && !s.wasWet) c.events.push({ type: 'flood', text: `🌊 ${tideOn ? 'Triều cường' : storm ? 'Bão' : 'Mưa lớn'} gây ngập ${wet} ô, ${houses} nhà bị ngập: dân không đi làm được, kinh doanh đình trệ` });
   s.wasWet = wet > 0; s.wet = wet; s.houses = houses; s.tide = tideOn;
   // đường ngập: xe chạy chậm, tìm đường khác

@@ -698,7 +698,8 @@ test('city: đào, đắp, san phẳng, dẫn nước — đổi địa hình v�
   assert.notEqual(S.canPlace(c, 'outlet', x, y + 4).reason, 'Phải đặt sát bờ nước');
   assert.equal(S.terraform(c, 'canal', x, y + 5).ok, false, 'đã là nước thì thôi');
   // đắp lên kênh: thành đất trở lại
-  for (let n = 0; n < 4; n++) S.terraform(c, 'raise', x, y + 5);
+  // (ô còn nằm trong ao đọng nước mưa thì phải đắp cao hơn mặt ao mới khô)
+  for (let n = 0; n < 20 && c.water[cell(x, y + 5)]; n++) { S.terraform(c, 'raise', x, y + 5); S.terraformDone(c); }
   assert.equal(c.water[cell(x, y + 5)], 0);
   // không đào được dưới đường, không đào được đất chưa mua, hết tiền thì thôi
   assert.equal(S.terraform(c, 'dig', sx, 4).ok, false);
@@ -1026,6 +1027,7 @@ test('khách quốc tế: tàu nước ngoài chạy từ biển vào cảng, ne
   const c = S.newCity(7);
   c.water.fill(0);
   for (let y = 0; y < S.N; y++) for (let x = 40; x < 46; x++) c.water[y * S.N + x] = 1; // sông chảy ra mép bản đồ
+  c.water0 = c.water.slice(); delete c._wedges; delete c._wsink; S.waterSync(c); // coi như sông tự nhiên để bộ giải mực nước giữ lại
   c.services = [{ type: 'port', x: 46, y: 70, dir: 0, uid: 903 }];
   const g = S.seaGates(c); assert.equal(g.length, 1); assert.ok(g[0].path.length >= 2);
   c.pull = 0.5; c.intl.visa = 'open';
@@ -1642,4 +1644,66 @@ test('dòng chảy, đập thuỷ điện, thác nước: sông chảy ra biển
   // thác nước: chỗ bằng phẳng không được
   const flat = c.start.x;
   assert.match(S.canPlace(c, 'waterfall', flat, 12).reason || '', /sườn dốc|dốc/);
+});
+
+test('mực nước theo vùng trũng: ao đào trên cao đọng nước mưa theo thể tích (mùa khô cạn hơn), đầy thì tràn xuống dốc; hố tự nhiên không tự ngập; lưu / nạp', () => {
+  const c = S.newCity(7, { map: 'river' }); S.enableSandbox(c);
+  let at = null;
+  for (let y = 12; y < S.N - 12 && !at; y++) for (let x = 12; x < S.N - 12 && !at; x++) {
+    let ok = c.cellH[cell(x, y)] > 2;
+    for (let dy = -5; dy <= 5 && ok; dy++) for (let dx = -5; dx <= 5 && ok; dx++) { const j = cell(x + dx, y + dy); if (c.water[j] || c.steep[j] || c.road[j] || c.occ[j]) ok = false; }
+    if (ok) at = [x, y];
+  }
+  assert.ok(at, 'có chỗ đất cao bằng phẳng');
+  const [x, y] = at, i = cell(x, y);
+  for (let n = 0; n < 4; n++) S.terraform(c, 'dig', x, y, { size: 3 });
+  S.terraformDone(c);
+  assert.equal(c.water[i], 1, 'ao trên cao có nước mưa đọng');
+  assert.ok(c.wl[i] > S.WATER_LEVEL + 0.5, `mặt ao cao hơn mực sông biển (${c.wl[i]})`);
+  const B = c.wsolve.basins[c.wsolve.basinOf[i]];
+  assert.ok(B && c.wl[i] <= B.F + 1e-6, 'không cao hơn miệng ao');
+  for (const j of B.cells) if (c.water[j]) assert.ok(Math.abs(c.wl[j] - c.wl[i]) < 1e-6, 'cả ao một mặt nước phẳng');
+  // thể tích: mưa ít (mùa khô) thì mặt ao thấp hơn hoặc cạn
+  const dry = S.solveWater(c, { rain: 0.05 }), wet = S.solveWater(c, { rain: 3 });
+  const lv = (r) => (Number.isNaN(r.wl[i]) ? -99 : r.wl[i]);
+  assert.ok(lv(dry) < lv(wet), 'ít nước thì mặt ao thấp hơn');
+  const Bw = wet.basins[wet.basinOf[i]];
+  assert.ok(Bw.full && Bw.path.length > 0, 'nhiều nước thì ao đầy và tràn ra theo đường dốc');
+  for (let k = 1; k < Bw.path.length; k++) assert.ok(wet.F[Bw.path[k]] <= wet.F[Bw.path[k - 1]] + 1e-6, 'dòng tràn chảy từ cao xuống thấp');
+  // bản đồ tự nhiên: không có hồ lạ, mọi mặt nước tự nhiên ở mực biển
+  const n0 = S.newCity(11, { map: 'highland' });
+  for (let j = 0; j < S.N * S.N; j++) { assert.equal(n0.water[j], n0.water0[j]); if (n0.water[j]) assert.ok(Math.abs(n0.wl[j] - S.WATER_LEVEL) < 1e-6); }
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual([...d.water], [...c.water], 'nạp lại đúng mặt nước');
+});
+
+test('đập thuỷ điện dâng hồ thật: mặt hồ cao hơn hạ lưu, ngập vùng trũng ven sông thành nước, tàu thuyền đi trong hồ; đắp chặn sông thì nước dâng và tràn; hầm ray không đào lộ được', () => {
+  const c = S.newCity(7, { map: 'highland' }); S.enableSandbox(c);
+  const before = c.water.reduce((a, b) => a + b, 0);
+  let d = null;
+  for (let y = 5; y < S.N - 5 && !d; y += 2) for (let x = 3; x < S.N - 3 && !d; x += 2) if (S.canPlace(c, 'hydro', x, y).ok && S.placeService(c, 'hydro', x, y).ok) d = c.services[c.services.length - 1];
+  assert.ok(d && d.dam);
+  const crest = S.reservoirLevel(d);
+  let up = 0, low = 0;
+  for (let j = 0; j < S.N * S.N; j++) { if (!c.water[j]) continue; if (Math.abs(c.wl[j] - crest) < 0.05) up++; if (Math.abs(c.wl[j] - S.WATER_LEVEL) < 0.01) low++; }
+  assert.ok(up > 10 && low > 0, `hồ chứa ở mực ngưỡng tràn (${up} ô), hạ lưu ở mực sông (${low} ô)`);
+  assert.ok(c.water.reduce((a, b) => a + b, 0) > before, 'vùng trũng ven sông ngập thành lòng hồ');
+  assert.ok(c.events.some((e) => e.type === 'reservoir'));
+  for (const j of d.dam.cells) assert.equal(c.water[j], 0, 'thân đập là tường chắn');
+  const r = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual([...r.water], [...c.water], 'nạp lại vẫn có hồ');
+  // đắp đất chặn ngang một con sông (không có đập): nước phía trên dâng lên, đầy thì tràn qua chỗ thấp
+  const c2 = S.newCity(7, { map: 'river' }); S.enableSandbox(c2);
+  const f = S.computeFlow(c2);
+  let tgt = -1;
+  for (let j = 0; j < S.N * S.N && tgt < 0; j++) { const x = j % S.N, y = (j / S.N) | 0; if (c2.water[j] && y > 20 && y < S.N / 2 && f.speed[j] > 0.2 && !S.seaInfo(c2).sea[j]) tgt = j; }
+  const tx = tgt % S.N, ty = (tgt / S.N) | 0;
+  let x0 = tx, x1 = tx; while (x0 > 0 && c2.water[cell(x0 - 1, ty)]) x0--; while (x1 < S.N - 1 && c2.water[cell(x1 + 1, ty)]) x1++;
+  for (let n = 0; n < 12; n++) { for (let x = x0 - 1; x <= x1 + 1; x++) S.terraform(c2, 'raise', x, ty, { size: 2 }); }
+  S.terraformDone(c2);
+  let raised = 0; for (let j = 0; j < S.N * S.N; j++) if (c2.water[j] && c2.wl[j] > S.WATER_LEVEL + 0.5) raised++;
+  assert.ok(raised > 0, 'đắp chặn sông: phía thượng nguồn nước dâng cao hơn');
+  // hầm đường sắt: không đào đắp phía trên được
+  c.tunnelCell = new Uint8Array(S.N * S.N); const tc = cell(c.start.x + 10, 30); c.tunnelCell[tc] = 1;
+  assert.equal(S.terraform(c, 'dig', c.start.x + 10, 30).ok, false);
 });

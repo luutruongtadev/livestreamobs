@@ -10,7 +10,7 @@ export const BEACH = { cost: 250, upkeep: 4, reach: 6 }; // giá mỗi ô, phí 
  */
 export function seaInfo(c) {
   let sig = 0;
-  for (let i = 0; i < N * N; i += 7) sig = (sig * 31 + c.water[i] * (i + 1)) | 0;
+  for (let i = 0; i < N * N; i++) if (c.water[i]) sig = (sig * 31 + i + 1) | 0; // đủ mọi ô: đào kênh, lấn đất ở đâu cũng nhận ra
   if (c._sea && c._sea.sig === sig && c._sea.sea.length === N * N) return c._sea;
   const inner = new Uint8Array(N * N).fill(255), q = [];
   for (let i = 0; i < N * N; i++) {

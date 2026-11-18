@@ -299,6 +299,20 @@ export function railCells(c) {
   return out;
 }
 
+/** Ô có hầm ray chạy bên dưới (kèm một vòng ô quanh): không cho đào đắp kẻo lộ hầm, ngập hầm. */
+export function tunnelCells(c) {
+  const out = new Uint8Array(N * N);
+  for (const l of c.rail.lines) {
+    const geo = lineGeo(l);
+    for (let k = 0; k < geo.n; k++) {
+      if (l.kinds[k] !== 't') continue;
+      const cx = cellOf(geo.pts[k * 2]), cz = cellOf(geo.pts[k * 2 + 1]);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(cx + dx, cz + dy)) out[idx(cx + dx, cz + dy)] = 1;
+    }
+  }
+  return out;
+}
+
 // ───────────────────────── mạng lưới ─────────────────────────
 
 /**

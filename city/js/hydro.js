@@ -31,7 +31,8 @@ export function seasonFlow(c) {
  */
 export function computeFlow(c) {
   let sig = 0;
-  for (let i = 0; i < N * N; i += 5) sig = (sig * 31 + c.water[i] * (i + 1)) | 0;
+  sig = c.waterVer !== undefined ? c.waterVer * 7919 : 0;
+  for (let i = 0; i < N * N; i++) if (c.water[i]) sig = (sig * 31 + i + 1) | 0; // đủ mọi ô (đào kênh ở đâu cũng nhận ra)
   for (const s of c.services) if (s.type === 'hydro') sig = (sig * 17 + s.x * 131 + s.y + 7 + (s.dam ? s.dam.cells.length * 977 : 0)) | 0;
   if (c._flow && c._flow.sig === sig && c._flow.speed.length === N * N) return c._flow;
   const si = seaInfo(c), dam = damCells(c);
@@ -60,6 +61,13 @@ export function computeFlow(c) {
     for (let h = 0; h < list.length; h++) { const i = list[h], x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && comp[j] < 0) { comp[j] = s; list.push(j); } } }
     const sea = list.filter((i) => si.sea[i]);
     if (sea.length) { outs.push(...sea); continue; }
+    // hồ, ao đọng trên cao: chảy về chỗ tràn của vùng trũng (yên ngựa thấp nhất, ngưỡng tràn của đập)
+    const ws = c.wsolve, spill = [];
+    if (ws) { const seen = new Set(); for (const i of list) { const b = ws.basinOf[i]; if (b >= 0 && !seen.has(b)) { seen.add(b); if (ws.basins[b].spill >= 0) spill.push(ws.basins[b].spill); } } }
+    if (spill.length) {
+      for (const i of list) { const x = i % N, y = (i / N) | 0; if (spill.some((sp) => Math.abs((sp % N) - x) + Math.abs(((sp / N) | 0) - y) <= 1)) outs.push(i); }
+      if (outs.length) continue;
+    }
     let best = -1;
     for (const i of list) { const x = i % N, y = (i / N) | 0; if ((x === 0 || y === 0 || x === N - 1 || y === N - 1) && (best < 0 || bank[i] < bank[best])) best = i; }
     if (best >= 0) for (const i of list) { const x = i % N, y = (i / N) | 0; if ((x === 0 || y === 0 || x === N - 1 || y === N - 1) && Math.hypot(x - (best % N), y - ((best / N) | 0)) < 6) outs.push(i); }
@@ -85,17 +93,12 @@ export function computeFlow(c) {
     const slope = Math.max(0, up - dn) / 6;
     speed[i] = clamp(0.12 + 0.7 / (w + 0.6) + slope * 0.5, 0.03, 1) * (si.sea[i] ? 0.4 : w >= 6 ? 0.35 : 1);
   }
-  // đập: hồ chứa phía trên lặng, ngay dưới đập xả xiết
-  for (const s of c.services) {
-    if (s.type !== 'hydro' || !s.dam) continue;
-    const d0 = Math.min(...s.dam.cells.map((i) => (down[i] >= 0 ? down[i] : 1e9)));
-    for (let i = 0; i < N * N; i++) {
-      if (!c.water[i] || down[i] < 0 || comp[i] !== comp[s.dam.cells[0]]) continue;
-      const dd = down[i] - d0;
-      if (dd > 0 && dd < 22) speed[i] *= 0.15 + (dd / 22) * 0.6;
-      else if (dd <= 0 && dd > -5) speed[i] = Math.min(1, speed[i] + 0.55 * (1 + dd / 5));
-    }
-    for (const i of s.dam.cells) speed[i] = 0;
+  // đập: hồ chứa phía trên lặng (mực cao hơn), ngay dưới đập nước xả xiết
+  for (const sv of c.services) {
+    if (sv.type !== 'hydro' || !sv.dam) continue;
+    const crest = reservoirLevel(sv), seen = new Set(), q3 = [];
+    for (const i of sv.dam.cells) { const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (!c.water[j] || seen.has(j)) continue; seen.add(j); const lv = c.wl ? c.wl[j] : NaN; if (lv >= crest - 0.3) speed[j] *= 0.3; else q3.push([j, 0]); } }
+    for (let h = 0; h < q3.length; h++) { const [i, d] = q3[h]; speed[i] = Math.min(1, speed[i] + 0.6 * (1 - d / 6)); if (d >= 5) continue; const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !seen.has(j) && !(c.wl && c.wl[j] >= crest - 0.3)) { seen.add(j); q3.push([j, d + 1]); } } }
   }
   c._flow = { sig, dir, speed, down, inner };
   return c._flow;
@@ -109,6 +112,7 @@ export function flowName(v) { return v < 0.06 ? 'lặng' : v < 0.2 ? 'chậm' : 
 
 // ───────────────────────── đập thuỷ điện ─────────────────────────
 
+const natH = (c, i) => { const V = N + 1, x = i % N, y = (i / N) | 0, k = y * V + x; return Math.max(c.hv0[k], c.hv0[k + 1], c.hv0[k + V], c.hv0[k + V + 1]); };
 export const FACE = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // hướng 0..3 (đông, nam, tây, bắc) như rdir
 
 /**
@@ -139,13 +143,34 @@ export function planDam(c, x, y, size, dir) {
     if (cells.some((i) => c.occ[i] || c.road[i])) { if (!best || !best.ok) best = { ok: false, reason: 'Thân đập vướng cầu, đường hoặc công trình trên sông' }; continue; }
     const discharge = cells.reduce((s, i) => s + flow.speed[i], 0);
     // đập tựa vào sườn hai bên: bờ càng cao (thung lũng hẹp, núi hai bên) thì đập càng cao, cột nước càng lớn
-    const sideMax = (x0, y0, sgn) => { let m = 0; for (let k = 0; k < 4; k++) for (let l = -1; l <= 1; l++) { const a2 = x0 + dx * k * sgn + (dx ? 0 : l), b2 = y0 + dy * k * sgn + (dy ? 0 : l); if (inMap(a2, b2) && !c.water[idx(a2, b2)]) m = Math.max(m, c.cellH[idx(a2, b2)]); } return m; };
+    const sideMax = (x0, y0, sgn) => { let m = 0; for (let k = 0; k < 4; k++) for (let l = -1; l <= 1; l++) { const a2 = x0 + dx * k * sgn + (dx ? 0 : l), b2 = y0 + dy * k * sgn + (dy ? 0 : l); if (inMap(a2, b2) && !c.water[idx(a2, b2)]) m = Math.max(m, natH(c, idx(a2, b2))); } return m; }; // độ cao bờ tự nhiên: đắp đất không làm tăng cột nước
     const near = sideMax(sx0 - dx, sy0 - dy, -1), farH = sideMax(far % N, (far / N) | 0, 1);
     const head = Math.round(clamp(Math.min(near, farH) * 0.8 + 8, 8, 36)); // cột nước tối thiểu 8 m
     const cand = { ok: true, cells, len: cells.length, head, discharge };
     if (!best || !best.ok || cand.discharge * cand.head > best.discharge * best.head) best = cand;
   }
   return best || { ok: false, reason: 'Nhà máy thuỷ điện phải đặt sát bờ sông, mặt quay ra sông' };
+}
+
+/**
+ * Toàn bộ tường chắn của đập: thân đập trên lòng sông + hai vai đập kéo vào bờ tới chỗ đất tự nhiên cao hơn ngưỡng tràn
+ * (tối đa 10 ô mỗi bên), để nước không vòng qua hai đầu đập. Trả về danh sách ô theo thứ tự dọc thân đập.
+ */
+export function damSpan(c, s) {
+  if (!s.dam || !s.dam.cells.length) return [];
+  const [dx, dy] = FACE[(s.dir + 2) & 3], crest = reservoirLevel(s), V = N + 1, cells = s.dam.cells;
+  const lowN = (i) => { const x = i % N, y = (i / N) | 0, k = y * V + x; return Math.min(c.hv0[k], c.hv0[k + 1], c.hv0[k + V], c.hv0[k + V + 1]); };
+  const before = [], after = [];
+  for (const [list, sx, sy, sg] of [[before, cells[0] % N, (cells[0] / N) | 0, -1], [after, cells[cells.length - 1] % N, (cells[cells.length - 1] / N) | 0, 1]]) {
+    for (let k = 1; k <= 10; k++) {
+      const x = sx + dx * k * sg, y = sy + dy * k * sg;
+      if (!inMap(x, y)) break;
+      const i = idx(x, y);
+      list.push(i);
+      if (lowN(i) >= crest + 0.3) break; // tựa vào sườn đủ cao
+    }
+  }
+  return [...before.reverse(), ...cells, ...after];
 }
 
 /** Công suất điện của đập (đã tính mùa nước). */
@@ -193,45 +218,3 @@ export const WATER_Y = -0.9; // mặt nước sông, biển (như render.js)
 
 /** Mực nước hồ chứa của đập (cao hơn mặt sông phía dưới): theo cột nước, tối đa ~5,5 m. */
 export const reservoirLevel = (s) => WATER_Y + clamp((s.dam ? s.dam.head : 8) * 0.32, 2.5, 5.5);
-
-/**
- * Lòng hồ phía thượng nguồn đập: các ô (nước hoặc đất trũng) liền nhau từ mặt thượng lưu của thân đập, có đỉnh lưới thấp hơn
- * mực hồ, không lan sang phía hạ lưu. Trả về { level, cells (mọi ô có mặt hồ phủ), land (ô đất ngập hẳn) }.
- */
-export function reservoirOf(c, s) {
-  if (!s.dam || !s.dam.cells.length) return null;
-  const flow = computeFlow(c), level = reservoirLevel(s), V = N + 1, down = flow.down;
-  const d0 = Math.min(...s.dam.cells.map((i) => (down[i] >= 0 ? down[i] : 1e9)));
-  if (d0 >= 1e9) return null;
-  const dam = new Set(s.dam.cells), lowV = (i) => { const x = i % N, y = (i / N) | 0, k = y * V + x; return Math.min(c.hv[k], c.hv[k + 1], c.hv[k + V], c.hv[k + V + 1]); };
-  const highV = (i) => { const x = i % N, y = (i / N) | 0, k = y * V + x; return Math.max(c.hv[k], c.hv[k + 1], c.hv[k + V], c.hv[k + V + 1]); };
-  const downstream = (i) => { // gần nước phía hạ lưu (hoặc ngang thân đập) thì không ngập
-    const x = i % N, y = (i / N) | 0;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] >= 0 && down[j] <= d0) return true; }
-    return false;
-  };
-  // phía hạ lưu của thân đập (theo hướng dòng chảy qua đập): không bao giờ ngập
-  let mx = 0, mz = 0, fx = 0, fz = 0;
-  for (const i of s.dam.cells) { mx += i % N; mz += (i / N) | 0; fx += flow.dir[i * 2]; fz += flow.dir[i * 2 + 1]; }
-  mx /= s.dam.cells.length; mz /= s.dam.cells.length;
-  const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
-  const below = (i) => ((i % N) - mx) * fx + (((i / N) | 0) - mz) * fz > -0.6;
-  const seen = new Uint8Array(N * N), q = [], cells = [], land = [];
-  for (const i of s.dam.cells) { const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] > d0 && !below(j) && !seen[j]) { seen[j] = 1; q.push([j, 0]); } } }
-  for (let h = 0; h < q.length; h++) {
-    const [i, dist] = q[h];
-    cells.push(i);
-    if (!c.water[i] && highV(i) < level - 0.3) land.push(i);
-    if (dist >= 60) continue;
-    const x = i % N, y = (i / N) | 0;
-    for (const [dx, dy] of D4) {
-      const a = x + dx, b = y + dy; if (!inMap(a, b)) continue;
-      const j = idx(a, b);
-      if (seen[j] || dam.has(j)) continue;
-      if (below(j) || c.occ[j] || c.road[j]) continue; // không lan xuống hạ lưu, không ngập công trình, đường
-      if (c.water[j] ? !(down[j] > d0 || down[j] < 0) : lowV(j) >= level - 0.05 || downstream(j)) continue;
-      seen[j] = 1; q.push([j, dist + 1]);
-    }
-  }
-  return { level, cells, land };
-}
