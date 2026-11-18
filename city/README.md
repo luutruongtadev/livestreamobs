@@ -118,6 +118,13 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Ga thông ra cửa khẩu** (bấm vào ga để xem): tàu liên vận vào ga lúc 7, 11, 15, 19 giờ. Mỗi chuyến chở du khách (theo sức hút du lịch), người tới định cư (khi thành phố hút dân), dân lên tàu đi chơi; thu 6 ₫ vé mỗi khách. Bão thì huỷ chuyến.
    - **Thưởng:** mỗi ga thông ra cửa khẩu (tối đa 2) hút dân +4%, thuế thương mại +2%; hàng xuất khẩu bán được giá thêm 8%; dân được đi tàu vui hơn một chút.
    - Tàu khách xanh và tàu hàng vàng thay nhau chạy từ cửa khẩu vào ga, dừng ở sân ga rồi chạy ra. Ô có ray không quy hoạch, không xây được; 🚜 san ủi lên ray để dỡ cả đoạn. Ga chưa có ray vẫn là cửa ngõ xuất nhập khẩu như cũ.
+13i. **🌊 Dòng chảy, đập thuỷ điện, thác nước.** Code: `js/hydro.js`.
+   - **Nước chảy từ cao xuống thấp:** mỗi ô nước có hướng và tốc độ chảy. Sông chảy ra biển; sông không ra biển chảy về mép bản đồ phía bờ thấp hơn. Lòng sông hẹp, bờ dốc thì chảy xiết, sông rộng chậm hơn, hồ và biển gần như lặng. Mùa mưa bão (tháng 8–11 âm) nước lớn chảy nhanh hơn 30%, mùa khô (tháng 1–4) chậm lại. Mặt nước có sóng trôi theo dòng, chỗ xiết có vệt bọt kéo dài, ghềnh trắng xoá. Bấm vào ô nước để xem dòng chảy (lặng, chậm, vừa, nhanh, xiết).
+   - **🏞️ Đập thuỷ điện** (nhóm ⚡, từ 2.500 dân, 60.000 ₫): đặt nhà máy sát bờ sông, thân đập tự chắn ngang tới bờ bên kia (dài tối đa 16 ô). Chỉ chắn được sông có dòng chảy (không phải biển, hồ lặng).
+     - **Công suất** = lưu lượng (bề rộng × tốc độ chảy qua đập) × cột nước (đập tựa vào bờ: núi hai bên càng cao, đập càng cao, 8–36 m). Sông hẹp xiết giữa thung lũng sâu ra nhiều điện nhất, có thể hơn nhà máy nhiệt điện, mà không có khói. Mùa mưa nhiều điện hơn, mùa khô ít hơn.
+     - Trên đập thành hồ lặng, ngay dưới đập nước xả xiết. **Tàu thuyền không qua được đập**, tuyến tàu khách bị cắt đôi.
+     - Hình: thân đập bê tông có chân bậc, đường trên đập, lan can, đèn, cửa van xả tràn với màn nước trắng đổ xuống, bụi nước; nhà máy bên bờ có gian máy, cửa xả tua-bin, trạm biến áp, cột điện.
+   - **💦 Thác nước** (nhóm 🧳, từ 400 dân, 16.000 ₫): đặt trên sườn dốc (chênh cao trong lô từ 4 m). Nước từ suối trên đỉnh đổ xuống hồ dưới chân, vách đá hai bên, bụi nước, đài ngắm cảnh trên đỉnh. Sức hút du lịch +5, dân vui hơn, giá đất quanh đó tăng.
 13f. **🏙️ Quận và chủ tịch quận** (nút 🏙️ góc trái dưới, trên 🎎; mở từ 400 dân, chế độ Open thì mở ngay). Code: `js/districts.js`.
    - **Chia quận:** chọn số quận (2 tới 8, nhiều hơn khi đông dân) rồi bấm *Chia quận*. Game tự chia theo nơi dân ở và việc làm; Quận 1 ở trung tâm. Mỗi ô thuộc quận có trụ sở gần nhất. Trụ sở là toà 🏛️ UBND quận (nhà vàng, sảnh cột, cột cờ) tự xây trên đất trống gần trung tâm quận, không phá nhà dân. *📍 Dời trụ sở* rồi bấm lên bản đồ (hoặc ✋ Di chuyển toà UBND) để chỉnh ranh giới; phá toà UBND thì quận xây lại, giải thể quận thì dỡ hết. Lớp xem 🏙️ *Quận* tô màu từng quận, viền đậm là ranh giới. Bấm vào nhà để xem nó thuộc quận nào.
    - **Chủ tịch quận:** mỗi quận một người, có tên, năng lực (hiệu quả 75–120%) và tính cách: gần dân, mát tay kinh tế, kỷ cương, xanh – sạch, tiết kiệm (chỉ tiêu khoảng 60% ngân sách), chạy thành tích. *🔄 Thay chủ tịch* được 5 ngày một lần.
@@ -176,6 +183,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/hydro.js` | Dòng chảy (hướng, tốc độ, mùa nước), đập thuỷ điện (thân đập, công suất), thác nước |
 | `js/decor.js` | Trang trí tô theo ô: cây xanh, thảm cỏ, lối đi bộ, bồn hoa; ảnh hưởng giá đất, bụi, hài lòng |
 | `js/rail.js` | Đường sắt: cửa khẩu, vẽ ray bo góc, cao độ giới hạn dốc (hầm, cầu, xẻ đất), mạng ga – cửa khẩu, tàu liên vận |
 | `js/beach.js` | Bãi biển tô theo ô: nhận diện biển, kiểm tra ô, san địa hình thoải xuống biển |

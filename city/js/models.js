@@ -776,6 +776,13 @@ export function serviceModel(type, size) {
   const g = new GB(), S = size * T, e = S - 0.3;
   const out = {};
   const pave = (c) => g.box(0, 0, 0, e, 0.14, e, c);
+  if (type === 'waterfall') { // thác nước: phần thác, hồ, vách đá vẽ riêng theo địa hình (render.js); ở đây chỉ có đài ngắm cảnh trên đỉnh
+    g.box(0, 0.05, 0, 4, 0.3, 3, 0x8a6a45);
+    for (const [x, z, w, d] of [[0, -1.45, 4, 0.1], [-1.95, 0, 0.1, 3], [1.95, 0, 0.1, 3]]) g.box(x, 0.35, z, w, 1, d, 0x6b4a2f);
+    g.box(1.2, 0.35, 1.2, 0.12, 1.6, 0.12, 0x6b4a2f); g.box(1.2, 1.7, 1.25, 1.4, 0.8, 0.08, 0x2f6b3a);
+    out.geometry = g.build();
+    return out;
+  }
   g.box(0, -7, 0, e, 7, e, FOUND);
   switch (type) {
     case 'wind': {
@@ -881,6 +888,20 @@ export function serviceModel(type, size) {
       for (let k = 0; k < 6; k++) for (const z of [-5.2, 5.2]) if (rr() > 0.45) { const x = -6.5 + k * 2.6; g.box(x, 0.3, z, 1.5, 0.6, 3.3, cols[(rr() * 6) | 0]); g.box(x, 0.9, z - 0.2, 1.35, 0.5, 1.7, 0x39454f); }
       g.box(-8.6, 0.14, 8.6, 1.6, 2.4, 1.6, 0xe6e9ec, false, 0x2c5aa0);
       g.box(8.9, 0.14, -8.9, 0.3, 5, 0.3, 0x8a949c); g.box(8.9, 5, -8.9, 1.8, 1.8, 0.2, 0x2c5aa0);
+      break;
+    }
+    case 'hydro': { // nhà máy thuỷ điện bên bờ (thân đập vẽ riêng theo bề rộng sông, render.js); mặt nước phía -z
+      pave(0xa8a49a);
+      g.box(0, 0.14, -2.5, 14, 8.5, 9, 0xd9d6cf, true); g.box(0, 8.64, -2.5, 14.6, 0.5, 9.6, 0x7d8890); // gian máy
+      for (let k = 0; k < 5; k++) g.box(-5.6 + k * 2.8, 2.4, 2.05, 1.6, 4.2, 0.1, 0x9cc4e4); // cửa kính dài
+      for (const x of [-4.5, 0, 4.5]) { g.box(x, -3, -7.4, 2.6, 3.4, 1.6, 0x55595e); g.box(x, -2.6, -8.25, 1.8, 2, 0.1, 0x1b1d20); } // cửa xả tua-bin ra sông
+      g.box(0, 8.6, -2.5, 3, 1.4, 3, 0xb5bcc2); // cầu trục
+      // trạm biến áp, cột điện
+      g.box(-3, 0.14, 6, 9, 0.2, 5, 0x9a968e);
+      for (const x of [-6, -3, 0]) { g.box(x, 0.34, 6, 1.8, 2.4, 1.6, 0x6f7a82); for (let k = 0; k < 3; k++) g.cyl(x - 0.5 + k * 0.5, 2.74, 6, 0.12, 0.12, 1.2, 0xe8e2d0, 6); }
+      for (const [x, z] of [[-7.4, 3.8], [-7.4, 8.2], [1.4, 3.8], [1.4, 8.2]]) g.box(x, 0.14, z, 0.12, 1.8, 0.12, 0x8a8f94);
+      g.box(6, 0.14, 6, 0.5, 13, 0.5, 0x7d8890); g.box(6, 10.5, 6, 6, 0.3, 0.3, 0x7d8890); g.box(6, 12.5, 6, 4, 0.3, 0.3, 0x7d8890);
+      g.box(5, 0.14, 0.5, 4, 3.5, 3.5, 0xe9e3d4, true); g.gable(5, 3.64, 0.5, 4.4, 1.2, 4, 0x9a4a36, true, 0xe9e3d4); // nhà điều hành
       break;
     }
     case 'port': { // cảng container (transport3d.js)

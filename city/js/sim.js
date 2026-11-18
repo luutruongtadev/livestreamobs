@@ -18,6 +18,7 @@ import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from 
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
+import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, cliffDrop, seasonFlow } from './hydro.js';
 import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
@@ -30,6 +31,7 @@ export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo,
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
+export { computeFlow, flowAt, flowName, planDam, damPower, cliffDrop, fallGeom, seasonFlow, DAM_MAX } from './hydro.js';
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
@@ -467,6 +469,20 @@ export function buyLand(c, t) {
   c.owned[t] = 1; c.money -= r.price;
   syncLand(c);
   return r;
+}
+
+/** Đập thuỷ điện: thân đập theo vị trí (đặt, dời, nạp lại), công suất theo dòng sông và mùa; ô bị đập chắn (tàu thuyền). */
+function hydroSync(c) {
+  let any = false;
+  for (const s of c.services) {
+    if (s.type !== 'hydro') continue;
+    any = true;
+    if (s.damAt !== `${s.x},${s.y},${s.dir}`) attachDam(c, s);
+    s.hp = damPower(c, s);
+  }
+  const had = !!c.damCell;
+  c.damCell = any ? damCells(c) : null;
+  if (any || had) c.dirty.water = true;
 }
 
 /** Đường ray đổi: tính lại ô có ray, ô quy hoạch, mạng lưới; báo cảnh 3D vẽ lại. */
@@ -1305,6 +1321,7 @@ export function buildLine(c, kind, a, b) {
  * Mỗi cụm liên thông có nguồn cung và nhu cầu riêng → cờ theo ô: 1 đủ, 2 thiếu, 0 không có.
  */
 export function computeNetworks(c) {
+  hydroSync(c);
   const eIds = [...c.edges.keys()], eIx = new Map(eIds.map((id, k) => [id, k]));
   const E = eIds.length, S = c.services.length, L = c.lines.length, total = E + S + L;
   const mkUF = () => { const p = new Int32Array(total); for (let k = 0; k < total; k++) p[k] = k; return p; };
@@ -1460,11 +1477,13 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
       if (c.occ[i]) return { ok: false, reason: 'Đang có công trình khác', fp };
       if (c.beach && c.beach[i]) return { ok: false, reason: 'Đang là bãi biển (xoá bãi trước)', fp };
       if (c.railCell && c.railCell[i]) return { ok: false, reason: 'Đang có đường ray', fp };
-      if (c.steep[i]) return { ok: false, reason: 'Đất quá dốc', fp };
+      if (c.steep[i] && !def.cliff) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.acc[i] === 1) nearRoad = true;
     } else if (c.water[i]) nearWater = true;
   }
   if (def.needWater && !nearWater) return { ok: false, reason: 'Phải đặt sát bờ nước', fp };
+  if (def.cliff && cliffDrop(c, fp.x, fp.y, fp.size) < def.cliff) return { ok: false, reason: `Thác nước cần sườn dốc: chênh cao trong lô từ ${def.cliff} m (đang ${cliffDrop(c, fp.x, fp.y, fp.size).toFixed(1)} m)`, fp };
+  if (type === 'hydro') { const p = planDam(c, fp.x, fp.y, fp.size, waterDir(c, fp, 1)); if (!p.ok) return { ok: false, reason: p.reason, fp }; }
   if (def.road && !nearRoad) return { ok: false, reason: 'Phải đặt sát đường', fp };
   if (move) return { ok: true, fp }; // dời công trình đã có: không xét mở khoá, phí trả riêng
   if (!isUnlocked(c, type)) return { ok: false, reason: `${def.name}: ${lockText(def)}`, fp };
@@ -1815,6 +1834,7 @@ export function recalc(c) {
   const lineUp = { power: 0, pipe: 0 };
   for (const ln of c.lines) lineUp[ln.kind] += Math.hypot(ln.bx - ln.ax, ln.bz - ln.az) * LINES[ln.kind].upkeep;
   const bonus = { happy: 0, pull: 0, comm: 0 }, secUp = {};
+  for (const sv of c.services) if (sv.type === 'hydro' && sv.dam) sv.hp = damPower(c, sv); // mùa nước lên xuống
   for (const sv of c.services) {
     const def = SERVICES[sv.type];
     if (sv.linked) { pCap += svcVal(sv, 'power'); wCap += svcVal(sv, 'water'); sCap += svcVal(sv, 'sewage'); } // chưa nối mạng thì chưa tính

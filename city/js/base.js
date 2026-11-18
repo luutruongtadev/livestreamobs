@@ -137,6 +137,8 @@ export const SERVICES = {
   train: { name: 'Ga tàu hoả', icon: '🚆', group: 'transit', cost: 40000, upkeep: 420, size: 3, road: true, outside: true, noise: 6, unlock: 1000, bonus: { pull: 0.06 }, desc: 'Tàu khách và tàu hàng liên tỉnh: thêm một cửa ngõ xuất nhập khẩu, người nơi khác tới ở dễ hơn' },
   airport: { name: 'Sân bay', icon: '✈️', group: 'transit', cost: 180000, upkeep: 1400, size: 5, road: true, outside: true, noise: 16, unlock: 6000, bonus: { pull: 0.1, comm: 0.06 }, desc: 'Sân bay nội địa: chuyến bay trong nước chở khách tới, dân bay đi chơi, công tác (thu phí mỗi khách); hút dân, thuế thương mại +6%; gắn module 🌏 Nhà ga quốc tế để thành sân bay quốc tế. Máy bay cất cánh ồn trên vùng rất rộng' },
   airportIntl: { name: 'Sân bay quốc tế', icon: '🛫', group: 'transit', hidden: true, cost: 180000, upkeep: 1500, size: 8, road: true, outside: true, noise: 22, unlock: 12000, bonus: { pull: 0.14, comm: 0.1 }, desc: 'Sân bay 8×8 ô: đường băng dài, rộng cho máy bay thân rộng, nhà ga lớn nhiều ống lồng, nhà xe nhiều tầng, khu hàng hoá; có khi gắn 🌏 Nhà ga quốc tế vào sân bay nội địa (sân bay tự mở rộng ra đất trống xung quanh)' },
+  hydro: { name: 'Đập thuỷ điện', icon: '🏞️', group: 'power', cost: 60000, upkeep: 320, size: 2, power: 400, needWater: true, faceWater: true, unlock: 2500, desc: 'Đặt sát bờ sông, mặt quay ra sông: thân đập tự chắn ngang tới bờ bên kia. Điện sạch, công suất = lưu lượng sông × cột nước (sông hẹp chảy xiết, bờ cao thì nhiều điện), mùa mưa nhiều điện hơn mùa khô. Trên đập thành hồ lặng, tàu thuyền không qua được đập' },
+  waterfall: { name: 'Thác nước', icon: '💦', group: 'tourism', cost: 16000, upkeep: 70, size: 2, attract: 5, cover: 'park', radius: 8, cliff: 4, unlock: 400, bonus: { happy: 1 }, desc: 'Đặt trên sườn dốc (chênh cao từ 4 m trong lô): nước đổ từ đỉnh xuống hồ dưới chân, bụi nước, cầu vồng; hút du khách, giá đất quanh đó tăng' },
   nuclear: { name: 'Nhà máy điện hạt nhân', icon: '☢️', group: 'power', cost: 150000, upkeep: 1500, size: 4, power: 1800, needWater: true, noise: 4, unlock: 6000, desc: 'Điện rất nhiều mà không có khói; phải đặt sát bờ nước để làm mát, giá xây và phí vận hành cao' },
   recycle: { name: 'Nhà máy tái chế', icon: '♻️', group: 'trash', cost: 18000, upkeep: 280, size: 2, trash: 1200, trucks: 3, cover: 'trash', radius: 30, recycle: 0.3, road: true, unlock: 1000, desc: 'Xe rác thu gom như bãi rác nhưng không làm bẩn đất; phế liệu phân loại bán được tiền' },
   hospital: { name: 'Bệnh viện', icon: '🏨', group: 'civic', cost: 40000, upkeep: 700, size: 3, cover: 'health', care: true, radius: 30, ambulances: 5, road: true, unlock: 1000, desc: 'Nhiều xe cứu thương, chữa được bệnh nặng: người ốm trong vùng ít tử vong hơn, người già sống lâu hơn' },
@@ -184,7 +186,7 @@ export const moduleUpkeep = (type, m) => Math.round(SERVICES[type].upkeep * MODU
 /** Chỉ số k của một công trình sau khi tính module. */
 const BUDGET_KEYS = { students: 1, ambulances: 1, cars: 1, trucks: 1, cells: 1 };
 export function svcVal(s, k) {
-  let v = SERVICES[s.type][k];
+  let v = k === 'power' && s.type === 'hydro' && Number.isFinite(s.hp) ? s.hp : SERVICES[s.type][k]; // đập thuỷ điện: công suất theo dòng sông (s.hp tính ở recalc)
   if (v == null) return 0;
   if (s.mods) for (const m of s.mods) { const md = MODULES[m]; if (md.mul && md.mul[k]) v *= md.mul[k]; if (md.add && md.add[k]) v += md.add[k]; }
   if (s.bud && s.bud !== 1) { // ngân sách ngành (gắn ở recalc): chi nhiều thì phục vụ rộng hơn, nhiều xe, nhiều chỗ học hơn

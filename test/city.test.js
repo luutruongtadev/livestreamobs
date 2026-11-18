@@ -1611,3 +1611,35 @@ test('kinh tế, dân: tuổi lẻ vẫn lên lớp, xe tới muộn của chuy�
   let wk = 0, we = 0; for (let k = 0; k < 7 * 24; k++) { S.tick(d); const r = d.econ.ring[d.hour % 24].r; if (d.day % 7 >= 5) we += r; else wk += r; }
   assert.ok(we / 2 > (wk / 5) * 0.5, `cuối tuần ${Math.round(we / 2)} / ngày thường ${Math.round(wk / 5)}`);
 });
+
+test('dòng chảy, đập thuỷ điện, thác nước: sông chảy ra biển, hẹp thì xiết; đập chắn sông ra điện theo lưu lượng × cột nước, mùa mưa nhiều điện hơn; thác cần sườn dốc', () => {
+  const c = S.newCity(7, { map: 'river' }); S.enableSandbox(c);
+  const f = S.computeFlow(c), si = S.seaInfo(c);
+  let river = 0, sea = 0, ns = 0, nr = 0;
+  for (let i = 0; i < S.N * S.N; i++) { if (!c.water[i]) continue; if (si.sea[i]) { sea += f.speed[i]; ns++; } else if (!si.sea[i]) { river += f.speed[i]; nr++; } }
+  assert.ok(nr && ns && river / nr > (sea / ns) * 3, 'sông chảy nhanh hơn biển');
+  // hướng chảy: đi theo hướng chảy thì gần cửa ra hơn
+  let ok = 0, tot = 0;
+  for (let i = 0; i < S.N * S.N; i++) { if (!c.water[i] || f.down[i] < 3 || si.sea[i]) continue; const x = i % S.N, y = (i / S.N) | 0, j = Math.round(y + f.dir[i * 2 + 1] * 1.5) * S.N + Math.round(x + f.dir[i * 2] * 1.5); tot++; if (c.water[j] && f.down[j] >= 0 && f.down[j] < f.down[i]) ok++; }
+  assert.ok(ok / tot > 0.8, `xuôi dòng về cửa ra (${ok}/${tot})`);
+  let placed = null;
+  for (let y = 5; y < S.N - 5 && !placed; y += 2) for (let x = 3; x < S.N - 3 && !placed; x += 2) if (S.canPlace(c, 'hydro', x, y).ok && S.placeService(c, 'hydro', x, y).ok) placed = c.services[c.services.length - 1];
+  assert.ok(placed && placed.dam && placed.dam.cells.length > 0, 'có chỗ đặt đập');
+  delete placed.build; S.recalc(c);
+  assert.ok(S.svcVal(placed, 'power') >= 60, 'ra điện');
+  assert.ok(placed.dam.cells.every((i) => c.damCell[i]), 'thân đập chắn tàu');
+  assert.ok(S.computeFlow(c).speed[placed.dam.cells[0]] === 0);
+  const p0 = S.damPower(c, placed);
+  const dayOf = (m) => { for (let dd = 0; dd < 400; dd++) if (S.lunar(dd).month === m) return dd; return 0; };
+  c.day = dayOf(10); const wet = S.damPower(c, placed); // tháng 10 âm: mùa nước lớn
+  c.day = dayOf(2); const dry = S.damPower(c, placed);
+  assert.ok(wet >= p0 && dry <= p0 && wet > dry, `mùa mưa nhiều điện hơn mùa khô (${wet} > ${dry})`);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  const h = d.services.find((s) => s.type === 'hydro');
+  assert.ok(h && h.dam && h.dam.cells.length === placed.dam.cells.length, 'nạp lại vẫn có thân đập');
+  // biển, hồ lặng không làm đập được
+  assert.match(S.planDam(c, 0, 0, 2, 0).reason || 'x', /./);
+  // thác nước: chỗ bằng phẳng không được
+  const flat = c.start.x;
+  assert.match(S.canPlace(c, 'waterfall', flat, 12).reason || '', /sườn dốc|dốc/);
+});

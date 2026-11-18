@@ -12,12 +12,13 @@ const OUT_EXTRA = 40; // ra khỏi mép bản đồ thêm chừng này đơn v�
 // ───────────────────────── tìm đường trên mặt nước ─────────────────────────
 
 /** Ô nước sâu: cả 8 ô quanh cũng là nước (ngoài bản đồ coi như nước). Tàu chạy giữa dòng, không sát bờ. */
+const sail = (c, j) => c.water[j] && !(c.damCell && c.damCell[j]); // thân đập thuỷ điện chắn tàu thuyền
 function deepMask(c) {
   const deep = new Uint8Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    if (!c.water[idx(x, y)]) continue;
+    if (!sail(c, idx(x, y))) continue;
     let ok = 1;
-    for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && !c.water[idx(x + dx, y + dy)]) { ok = 0; break; }
+    for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && !sail(c, idx(x + dx, y + dy))) { ok = 0; break; }
     deep[idx(x, y)] = ok;
   }
   return deep;
@@ -30,12 +31,14 @@ function nav(c) {
     const id = size.length, q = [start]; comp[start] = id; let n = 0;
     while (q.length) {
       const i = q.pop(), x = i % N, y = (i / N) | 0; n++;
-      for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue; const j = idx(nx, ny); if (c.water[j] && comp[j] < 0) { comp[j] = id; q.push(j); } }
+      for (const [dx, dy] of D4) { const nx = x + dx, ny = y + dy; if (!inMap(nx, ny)) continue; const j = idx(nx, ny); if (sail(c, j) && comp[j] < 0) { comp[j] = id; q.push(j); } }
     }
     size.push(n);
     return id;
   };
-  return { deep: deepMask(c), compOf, size };
+  const wet = new Uint8Array(N * N);
+  for (let i = 0; i < N * N; i++) wet[i] = sail(c, i) ? 1 : 0;
+  return { deep: deepMask(c), wet, compOf, size };
 }
 
 /** Vùng đất liền (4 hướng): comp[i] = số vùng (-1 là nước), main = vùng lớn nhất (đất liền), size[id]. */
@@ -65,7 +68,7 @@ export function islandAttract(c, li, id) {
 /** Ô nước để tàu cập bến công trình s: ưu tiên nước sâu trong 6 ô, không có thì nước nông trong 3 ô. */
 function dockOf(c, s, nv) {
   const sz = SERVICES[s.type].size, cx = s.x + sz / 2, cy = s.y + sz / 2;
-  for (const [W, reach, deep] of [[nv.deep, 6, true], [c.water, 3, false]]) {
+  for (const [W, reach, deep] of [[nv.deep, 6, true], [nv.wet, 3, false]]) {
     let best = -1, bd = 1e9;
     for (let y = s.y - reach; y < s.y + sz + reach; y++) for (let x = s.x - reach; x < s.x + sz + reach; x++) {
       if (!inMap(x, y) || !W[idx(x, y)]) continue;
@@ -109,7 +112,7 @@ function pull(W, cells) {
 }
 
 const backtrack = (prev, goal) => { const cells = []; for (let i = goal; i >= 0; i = prev[i]) cells.push(i); return cells.reverse(); };
-const masks = (c, nv, ...docks) => (docks.every((d) => d.deep) ? [nv.deep, c.water] : [c.water]);
+const masks = (c, nv, ...docks) => (docks.every((d) => d.deep) ? [nv.deep, nv.wet] : [nv.wet]);
 
 /** Đường thuỷ giữa hai bến (điểm thế giới) hoặc null. */
 function routeBetween(c, nv, A, B) {
@@ -306,7 +309,7 @@ export function stepFerries(c, dt) {
   const def = TRANSIT.ferry;
   // bến tàu vừa xây, dời hoặc phá: dựng lại tuyến ngay, không đợi tới giờ sau
   let sig = '';
-  for (const s of c.services) if (s.type === 'ferry') sig += s.uid + ':' + s.x + ',' + s.y + ';';
+  for (const s of c.services) if (s.type === 'ferry' || s.type === 'hydro') sig += s.uid + ':' + s.x + ',' + s.y + ';';
   if (sig !== c.ferrySig) { c.ferrySig = sig; syncFerries(c); }
   for (const line of c.ferries || []) {
     const total = line.len, last = line.pos.length - 1;

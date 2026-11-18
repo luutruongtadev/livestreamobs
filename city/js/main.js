@@ -16,14 +16,14 @@ const GROUPS = [
   { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:overpass3', 'road:tunnel', 'road:highway', 'roundabout', 'junction'] },
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:20', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:21', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
-  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'coal', 'nuclear', 'line:power'] },
+  { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'hydro', 'coal', 'nuclear', 'line:power'] },
   { id: 'water', icon: '💧', label: 'Nước', items: ['tower', 'pump', 'outlet', 'treat', 'line:pipe', 'floodpump', 'levee'] },
   { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'recycle', 'incinerator'] },
   { id: 'health', icon: '🏥', label: 'Y tế', items: ['clinic', 'hospital', 'cemetery', 'crematorium'] },
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
   { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'rail', 'port', 'airport'] },
   { id: 'park', icon: '🌳', label: 'Công viên', items: ['decor:tree', 'decor:grass', 'decor:path', 'decor:flower', 'decor:erase', 'park', 'plaza', 'stadium'] },
-  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'hotel', 'resort', 'pagoda', 'museum'] },
+  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'waterfall', 'hotel', 'resort', 'pagoda', 'museum'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
   { id: 'terra', icon: '⛰️', label: 'Địa hình', items: ['terra:dig', 'terra:raise', 'terra:level', 'terra:canal'] },
@@ -590,6 +590,7 @@ function showInfo(tile) {
     title = `${d.icon} ${d.name}`;
     add('Phí duy trì', `${fmt(up * S.RATE)} ₫/ngày`);
     if (d.power) add('Công suất điện', val('power'));
+    if (sv.type === 'hydro') add('Thân đập', sv.dam ? `dài ${sv.dam.cells.length} ô · cột nước ${sv.dam.head} m · lưu lượng ${sv.dam.q.toFixed(1)} · ${S.seasonFlow(c) > 1 ? 'mùa nước lớn ↑' : S.seasonFlow(c) < 1 ? 'mùa khô ↓' : 'nước bình thường'}` : '✖ không chắn được sông ở chỗ này');
     if (d.water) add('Công suất nước', val('water'));
     if (d.sewage) add('Nhận nước thải', val('sewage'));
     if (d.trash) add('Rác xử lý hôm nay', `${fmt(sv.processed || 0)} / ${val('trash')}`);
@@ -646,7 +647,7 @@ function showInfo(tile) {
     add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
     { const wl = S.bridgeLen(city, edge); if (wl >= 4) { const B = S.BRIDGES[S.bridgeOf(edge)]; add('Cầu', `${B.icon} ${B.name} · ${Math.round(wl)} m qua sông · phí ${fmt(Math.round(wl * B.upkeep * S.RATE))} ₫/ngày (đổi kiểu: công cụ Đường → 🌉 Đổi cầu)`); } }
     if (d.elevated) { const lv = S.roadLvl(edge.type); add('Tầng', lv < 0 ? 'Hầm chui: chìm dưới mặt đất, đường bên trên bắc qua' : lv > 1 ? 'Cầu tầng 2: bắc qua cả cầu tầng 1 lẫn đường dưới đất' : 'Trên cao: bắc qua đường dưới, không có nhà hai bên'); }
-  } else if (c.water[i]) { title = '🌊 Mặt nước'; add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); }
+  } else if (c.water[i]) { title = '🌊 Mặt nước'; add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
     const kind = S.bizKind(c, i);
