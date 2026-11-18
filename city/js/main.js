@@ -21,8 +21,8 @@ const GROUPS = [
   { id: 'trash', icon: '🗑️', label: 'Rác', items: ['landfill', 'recycle', 'incinerator'] },
   { id: 'health', icon: '🏥', label: 'Y tế', items: ['clinic', 'hospital', 'cemetery', 'crematorium'] },
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
-  { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'port', 'airport'] },
-  { id: 'park', icon: '🌳', label: 'Công viên', items: ['park', 'plaza', 'stadium'] },
+  { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'rail', 'port', 'airport'] },
+  { id: 'park', icon: '🌳', label: 'Công viên', items: ['decor:tree', 'decor:grass', 'decor:path', 'decor:flower', 'decor:erase', 'park', 'plaza', 'stadium'] },
   { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'hotel', 'resort', 'pagoda', 'museum'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
@@ -58,6 +58,12 @@ function toolInfo(id) {
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
   if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
+  if (id === 'rail') { const R = S.RAIL, lock = !city.sandbox && !S.isUnlocked(city, 'train'); return { kind: 'rail', icon: '🛤️', label: 'Đường ray', locked: lock, desc: `<b>Đường sắt</b> · ray ${fmt(R.ground * S.T)} ₫ / ô, cầu ${fmt(R.bridge * S.T)} ₫ / ô, hầm ${fmt(R.tunnel * S.T)} ₫ / ô · bấm vào <b>đầu ga tàu hoả</b> (hoặc cửa khẩu, đầu ray có sẵn), bấm thêm các điểm uốn, bấm vào <b>cửa khẩu</b> ở mép bản đồ để nối; chuột phải / Enter để dừng ở đó · ray tự giữ dốc thoải: gặp núi khoét hầm, gặp sông bắc cầu · ga thông ra cửa khẩu đón tàu liên vận (du khách, người tới định cư, tiền vé), hàng xuất qua biên giá +8%, hút dân hơn · san ủi để dỡ ray${lock ? ` · 🔒 ${S.lockText(S.SERVICES.train)}` : ''}` }; }
+  if (kind === 'decor') {
+    if (arg === 'erase') return { kind, erase: true, icon: '🧹', label: 'Xoá t.trí', desc: '<b>Xoá trang trí</b> · kéo để bỏ cây xanh, thảm cỏ, lối đi bộ, bồn hoa đã tô (miễn phí)' };
+    const d = S.DECOR[arg];
+    return { kind, decor: arg, erase: false, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost)} ₫ / ô, phí ${d.upkeep} ₫ / ô / ngày · kéo chuột tô trên đất trống (ô đã tô không mọc nhà) · ${d.desc} · tăng giá đất trong 3 ô quanh đó, dân cả thành phố vui hơn` };
+  }
   if (kind === 'beach') return arg === 'erase'
     ? { kind, erase: true, icon: '🧽', label: 'Xoá bãi', desc: '<b>Xoá bãi biển</b> · kéo để bỏ các ô bãi biển (địa hình giữ nguyên)' }
     : { kind, erase: false, icon: '🏖️', label: 'Bãi biển', desc: `<b>Bãi biển</b> · ${fmt(S.BEACH.cost)} ₫ / ô, phí ${S.BEACH.upkeep} ₫ / ô / ngày · kéo chuột tô vùng bãi tuỳ ý, chỉ trên đất trống cách <b>biển</b> tối đa ${S.BEACH.reach} ô (sông, hồ không được) · đất tự hạ thoải dần xuống mép nước, nước sát bờ thành nước nông · càng rộng càng hút du khách (tối đa +18 sức hút), dân cả thành phố vui hơn` };
@@ -194,13 +200,14 @@ function setTool(id) {
 function applyOverlay() {
   const t = toolInfo(tool), zoning = t.kind === 'zone', resZone = zoning && S.ZDEF[t.zone].raw ? t.zone : 0;
   const mode = resZone ? 'resource' : zoning ? 'zones' : t.line === 'pipe' || group === 'water' ? 'water' : t.line === 'power' || group === 'power' ? 'power' : t.kind === 'land' && !layer ? 'resource' : LAYERS[layer][0];
-  view.setOverlay(mode, zoning, tool !== 'info' && t.kind !== 'road' && t.kind !== 'line' && t.kind !== 'transit' && t.kind !== 'land', resZone);
+  view.setOverlay(mode, zoning, tool !== 'info' && t.kind !== 'road' && t.kind !== 'line' && t.kind !== 'transit' && t.kind !== 'rail' && t.kind !== 'land', resZone);
   view.setLandGrid(t.kind === 'land');
   view.setRoutesVisible(t.kind === 'transit' || group === 'transit' || mode === 'traffic');
 }
 
 function renderHint(text) {
   let base = toolInfo(tool).desc;
+  if (toolInfo(tool).kind === 'rail') base = draw ? `Đang vẽ ray · bấm thêm điểm uốn, bấm vào <b>cửa khẩu</b> / đầu ga / đầu ray để nối, <b>chuột phải</b> hoặc <b>Enter</b> để dừng ở điểm cuối, Esc để bỏ` : base;
   if (toolInfo(tool).kind === 'transit' && draw) base = `Đã đặt <b>${draw.stops.length} trạm</b> · bấm tiếp để thêm trạm, <b>chuột phải</b> hoặc <b>Enter</b> để chốt tuyến, Esc để bỏ`;
   if (toolInfo(tool).kind === 'road') base += roadMode === 'line' ? ' · <b>Thẳng</b>: bấm điểm đầu, bấm điểm cuối' : roadMode === 'curve' ? ' · <b>Cong</b>: bấm điểm đầu, điểm uốn, điểm cuối' : roadMode === 'bridge' ? ` · <b>Đổi cầu</b>: bấm vào cây cầu để đổi thành ${S.BRIDGES[bridgeStyle].full.toLowerCase()}` : ' · <b>Nâng cấp</b>: bấm vào đoạn đường để đổi sang loại này';
   if (toolInfo(tool).kind === 'road' && roadMode !== 'upgrade' && roadMode !== 'bridge' && !S.ROADS[toolInfo(tool).type].elevated) base += ` · cầu qua sông: <b>${S.BRIDGES[bridgeStyle].icon} ${S.BRIDGES[bridgeStyle].name}</b>`;
@@ -248,6 +255,25 @@ function finishTransit() {
   if (!r.ok) { toast(r.reason); return true; }
   toast(`Đã mở ${S.TRANSIT[t.mode].name.toLowerCase()} ${draw.stops.length} trạm · thêm xe, chỉnh giá vé ở bảng 👥`);
   draw = null; view.setRibbon(null); renderHint(); updateHud(true); renderCity(true);
+  return true;
+}
+
+/** Kế hoạch ray đang vẽ tới điểm con trỏ (hoặc điểm bắt dính b). */
+function railPlanTo(p, b) {
+  const pts = [...draw.pts, p.x, p.z];
+  return S.buildRail(city, pts, { a: draw.a, b, dry: true });
+}
+const railText = (pl) => `${(pl.len / 1000).toFixed(2).replace('.', ',')} km${pl.lenBridge > 1 ? ` · 🌉 cầu ${Math.round(pl.lenBridge)} m` : ''}${pl.lenTunnel > 1 ? ` · 🚇 hầm ${Math.round(pl.lenTunnel)} m` : ''} · ${money(pl.cost)}`;
+/** Chốt đường ray đang vẽ: b = điểm bắt dính ở cuối (null: dừng ở điểm cuối đã bấm). */
+function finishRail(b) {
+  if (!draw || !draw.rail) return false;
+  if (!b && draw.pts.length < 4) { cancelDraw(); renderHint(); return true; }
+  const pts = b ? [...draw.pts, b.x, b.z] : draw.pts;
+  const r = S.buildRail(city, pts, { a: draw.a, b });
+  if (!r.ok) { toast(r.reason); return true; }
+  const lk = S.railNet(city).stations.filter((x) => x.route);
+  toast(`🛤️ Đã làm ${railText(r)}${lk.length ? ` · 🚆 ga đã thông ra ${[...new Set(lk.map((x) => x.gate.name))].join(', ')}` : ' · chưa thông ra cửa khẩu'}`);
+  draw = null; view.setRibbon(null); view.setMarker(null); renderHint(); updateHud(true);
   return true;
 }
 
@@ -380,6 +406,16 @@ function updatePreview() {
     renderHint(`${S.LINES[t.line].name}: <b>${(plan.len / S.T).toFixed(1)} ô</b> · ${money(plan.cost)}${plan.ok ? '' : ` · <b>${plan.reason}</b>`}`);
     return;
   }
+  if (t.kind === 'rail') {
+    if (!hover) { view.setMarker(null); return; }
+    const sn = S.railSnap(city, hover.wx, hover.wz), p = sn || { x: hover.wx, z: hover.wz };
+    if (!draw) { view.setMarker(p, !!sn); view.setRibbon(null); renderHint(sn ? `Bắt vào <b>${sn.ref.type === 'st' ? 'đầu ga tàu hoả' : sn.ref.type === 'gate' ? S.railGates(city)[sn.ref.k].name : 'đầu đường ray'}</b> · bấm để bắt đầu vẽ ray` : '<b>Bấm vào đầu ga tàu hoả, cửa khẩu hoặc đầu đường ray có sẵn để bắt đầu</b>'); return; }
+    const b = sn && Math.hypot(sn.x - draw.a.x, sn.z - draw.a.z) > 10 ? sn : null, pl = railPlanTo(p, b);
+    view.setMarker(p, pl.ok);
+    view.setRibbon(pl.pts || new Float32Array([...draw.pts, p.x, p.z]), 1.8, pl.ok ? 0xffe680 : 0xff5b4a);
+    renderHint(`🛤️ ${pl.len ? railText(pl) : ''}${b ? ` · nối vào <b>${b.ref.type === 'gate' ? S.railGates(city)[b.ref.k].name : b.ref.type === 'st' ? 'ga' : 'đầu ray'}</b>` : ''}${pl.ok ? '' : ` · <b>${pl.reason}</b>`}`);
+    return;
+  }
   if (t.kind === 'transit') {
     const p = transitPoint(t.mode);
     if (!p) { view.setMarker(null); return; }
@@ -396,6 +432,12 @@ function updatePreview() {
   if (drag) drag.to = b;
   const tiles = rectTiles(a, b);
   if (t.kind === 'bulldoze') view.setPreview(tiles, 0xff5b4a);
+  else if (t.kind === 'decor') {
+    const ok = t.erase ? tiles.filter(([x, y]) => city.decor[y * S.N + x]) : tiles.filter(([x, y]) => S.decorOk(city, y * S.N + x) && city.decor[y * S.N + x] !== S.DECOR[t.decor].id);
+    view.setPreview(ok, t.erase ? 0xff5b4a : { tree: 0x3f8f3a, grass: 0x7fd35a, path: 0xd9cdb4, flower: 0xef6f9a }[t.decor]);
+    if (drag || hover) renderHint(ok.length ? `${t.label}: <b>${ok.length} ô</b>${t.erase ? '' : ` · ${money(ok.length * S.DECOR[t.decor].cost)}`}` : t.erase ? 'Không có ô trang trí nào ở đây' : '<b>Chỉ trang trí được trên đất trống</b> (không đường, nhà, công trình, nước, đất quá dốc)');
+    return;
+  }
   else if (t.kind === 'beach') {
     const ok = t.erase ? tiles.filter(([x, y]) => city.beach[y * S.N + x]) : tiles.filter(([x, y]) => S.beachOk(city, y * S.N + x));
     view.setPreview(ok, t.erase ? 0xff5b4a : 0xf2d98a);
@@ -446,6 +488,18 @@ function drawClick(fromDrag) {
     if (!r.ok) { if (!fromDrag || r.reason !== 'Đoạn quá ngắn') toast(r.reason); if (fromDrag) return; }
     else draw = { a: { x: sp.x, z: sp.z, node: r.endNode } }; // vẽ nối tiếp từ điểm cuối
     updatePreview(); updateHud(true);
+    return;
+  }
+  if (t.kind === 'rail') {
+    if (fromDrag || !hover) return;
+    if (t.locked) { toast(`Đường ray mở cùng ga tàu hoả: ${S.lockText(S.SERVICES.train)}`); return; }
+    const sn = S.railSnap(city, hover.wx, hover.wz);
+    if (!draw) { if (!sn) { toast('Bắt đầu từ đầu ga tàu hoả, cửa khẩu hoặc đầu một đường ray'); return; } draw = { rail: true, a: sn, pts: [sn.x, sn.z] }; updatePreview(); renderHint(); return; }
+    if (sn && Math.hypot(sn.x - draw.a.x, sn.z - draw.a.z) > 10) { finishRail(sn); return; }
+    const lx = draw.pts[draw.pts.length - 2], lz = draw.pts[draw.pts.length - 1];
+    if (Math.hypot(hover.wx - lx, hover.wz - lz) < 12) return;
+    draw.pts.push(hover.wx, hover.wz);
+    updatePreview();
     return;
   }
   if (t.kind === 'transit') {
@@ -513,7 +567,8 @@ function commitDrag() {
   if (!drag) return;
   const a = drag.from, b = drag.to || a, t = toolInfo(tool);
   drag = null;
-  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'beach' ? S.paintBeach(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'decor' ? S.paintDecor(city, a.x, a.y, b.x, b.y, t.decor, { erase: t.erase }) : t.kind === 'beach' ? S.paintBeach(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  if (r && r.ok && t.kind === 'decor') toast(t.erase ? `Đã xoá trang trí ${r.count} ô` : `${t.icon} ${t.label}: ${r.count} ô · ${money(r.cost)}`);
   if (r && r.ok && t.kind === 'beach') toast(t.erase ? `Đã xoá ${r.count} ô bãi biển` : `🏖️ Đã làm ${r.count} ô bãi biển · ${money(r.cost)}`);
   if (r && !r.ok && r.reason) toast(r.reason);
   renderHint(); updatePreview(); updateHud(true);
@@ -571,6 +626,11 @@ function showInfo(tile) {
       if (st === 'cruise' || st === 'pond') canal = { k: c.occ[i] - 1, plan: S.planSeaCanal(c, c.occ[i] - 1) };
     }
     if (d.outside) add('Cửa ngõ xuất nhập khẩu', sv.cell >= 0 ? '✔ xe tải ra vào được' : '✖ chưa sát đường');
+    if (sv.type === 'train') {
+      const st = S.railNet(c).stations.find((x) => x.s === sv), last = c.rail.last;
+      add('Đường ray ra cửa khẩu', st && st.route ? `✔ thông ra ${st.gate.name} (${(st.route.len / 1000).toFixed(2).replace('.', ',')} km)` : '✖ chưa có · dùng 🛤️ Đường ray vẽ từ đầu ga ra cửa khẩu ở mép bản đồ');
+      if (st && st.route) add('Tàu liên vận', `${S.TRAIN_HOURS.map((h) => `${h}h`).join(', ')} mỗi ngày${last ? ` · hôm qua ${last.trains} chuyến, ${fmt(last.tourists)} du khách, ${fmt(last.immig)} người tới ở, ${fmt(last.out)} người đi, vé ${money(last.fees)}` : ''}`);
+    }
     if (d.power || d.water || d.sewage) add('Nối mạng', sv.linked ? '✔ đã nối' : '✖ chưa, kéo dây / ống tới đường');
     mods = { k: c.occ[i] - 1, list: S.moduleList(c, sv) };
   } else if (edge) {
@@ -624,6 +684,8 @@ function showInfo(tile) {
     else if (c.steep[i]) add('Quy hoạch', 'Đất quá dốc, chỉ làm đường được');
     else if (!c.acc[i]) add('Quy hoạch', 'Phải nằm trong 2 ô cạnh đường');
     if (c.tree[i]) add('Cây xanh', 'Có');
+    if (c.railCell && c.railCell[i]) { title = '🛤️ Đường ray'; add('Đường sắt', 'Không quy hoạch, xây nhà trên ô có ray · san ủi để dỡ cả đoạn ray'); }
+    { const dd = S.decorById(c.decor[i]); if (dd) { title = `${dd.icon} ${dd.name}`; add('Trang trí', `${dd.desc} · phí ${dd.upkeep} ₫/ngày`); } }
   }
   const rs = Object.values(S.RAW).find((d) => d.id === c.res[i]);
   if (rs && !edge) add('Tài nguyên', `${rs.icon} ${rs.id === 5 ? 'Vùng nước có cá' : rs.id === 1 ? 'Đất màu mỡ' : rs.id === 2 ? 'Rừng' : rs.name}`);
@@ -1043,7 +1105,7 @@ function setSpeed(v) { speed = v; if (v) updateHud.lastSpeed = v; updateHud(true
 function bindInput() {
   const cv = view.canvas;
   let rot = null, grab = null, downAt = null;
-  const isDrawTool = () => { const k = toolInfo(tool).kind; return k === 'road' || k === 'line' || k === 'transit'; };
+  const isDrawTool = () => { const k = toolInfo(tool).kind; return k === 'road' || k === 'line' || k === 'transit' || k === 'rail'; };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('pointerdown', (e) => {
     cv.setPointerCapture(e.pointerId);
@@ -1101,7 +1163,7 @@ function bindInput() {
   cv.addEventListener('pointerup', (e) => {
     if (rot) {
       rot = null;
-      if (e.button === 2 && downAt && !downAt.moved) { if (moving) { cancelDraw(); renderHint(); } else if (draw && draw.stops && draw.stops.length >= 2) finishTransit(); else if (draw) { cancelDraw(); renderHint(); } else if (tool !== 'info') setTool('info'); }
+      if (e.button === 2 && downAt && !downAt.moved) { if (moving) { cancelDraw(); renderHint(); } else if (draw && draw.stops && draw.stops.length >= 2) finishTransit(); else if (draw && draw.rail) finishRail(null); else if (draw) { cancelDraw(); renderHint(); } else if (tool !== 'info') setTool('info'); }
     }
     if (grab) { grab = null; cv.style.cursor = 'grab'; if (downAt && !downAt.moved) { const t = view.pick(e.clientX, e.clientY); if (t) showInfo(t); } }
     if (stroke && e.button === 0) endStroke();
@@ -1121,7 +1183,7 @@ function bindInput() {
     if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : updateHud.lastSpeed || 1); }
     else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
     else if (k === 'escape') { if (drag) { drag = null; view.setPreview(null); renderHint(); } else if (draw || moving) { cancelDraw(); renderHint(); } else setTool('info'); $('modal').classList.remove('show'); }
-    else if (k === 'enter') finishTransit();
+    else if (k === 'enter') { if (!finishTransit()) finishRail(null); }
     else if (k === 'r') setTool(GROUPS[1].last || 'road:small');
     else if (k === 'b') setTool('bulldoze');
     else if (k === 'm') setTool('move');

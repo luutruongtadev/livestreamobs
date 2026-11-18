@@ -12,11 +12,13 @@ import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPe
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
-import { intlHour, intlDay, promoCost, flyHappy } from './intl.js';
+import { intlHour, intlDay, promoCost, flyHappy, intlOutlook } from './intl.js';
+import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
+import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
 const planCostQ = (q) => planCost(q, q.prog);
@@ -27,6 +29,8 @@ export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needO
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
+export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
+export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild } from './districts.js';
@@ -213,7 +217,7 @@ export function terraform(c, mode, x, y, { size = 1, target = 0, dry = false } =
     for (let dy = -1; dy <= 0; dy++) for (let dx = -1; dx <= 0; dx++) {
       const i = idx(gx + dx, gy + dy);
       if (!c.own[i]) mine = false;
-      if (c.road[i] || c.occ[i] || c.level[i]) free = false;
+      if (c.road[i] || c.occ[i] || c.level[i] || (c.railCell && c.railCell[i])) free = false;
     }
     if (!mine) { locked++; continue; }
     if (!free) { blocked++; continue; }
@@ -334,6 +338,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   initCouncil(c);
   initDistricts(c);
   initStreet(c);
+  initRail(c); c.railCell = railCells(c);
   applyStreet(c);
   computeMaps(c);
   return c;
@@ -464,6 +469,39 @@ export function buyLand(c, t) {
   return r;
 }
 
+/** Đường ray đổi: tính lại ô có ray, ô quy hoạch, mạng lưới; báo cảnh 3D vẽ lại. */
+function railChanged(c) {
+  c.railCell = railCells(c);
+  for (let i = 0; i < N * N; i++) if (c.railCell[i]) { if (c.level[i]) clearBuilding(c, i); c.zone[i] = 0; c.tree[i] = 0; clearDecor(c, i); }
+  c._railNet = null;
+  Object.assign(c.dirty, { rail: true, trees: true, zones: true, buildings: true });
+}
+
+/**
+ * Xây đường ray qua các điểm pts (phẳng [x, z, ...]); a, b: điểm bắt dính railSnap ở hai đầu (ga, cửa khẩu, đầu ray) hoặc null.
+ * dry: chỉ lập kế hoạch (giá, chiều dài cầu / hầm, lý do không xây được).
+ */
+export function buildRail(c, pts, { a = null, b = null, dry = false } = {}) {
+  const plan = planRail(c, pts, { a, b });
+  if (!plan.ok || dry) return plan;
+  const r = addRail(c, plan);
+  if (r.cut) { // xẻ đất hai bên ray
+    for (let q = 0; q < plan.cuts.length; q += 2) c.hv[plan.cuts[q]] = vertexH(c, plan.cuts[q]);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) cellTerrain(c, x, y);
+    c.terraWet = true; terraformDone(c);
+  }
+  railChanged(c); roadsChanged(c); computeNetworks(c); recalc(c);
+  return { ...plan, ...r };
+}
+export function demolishRail(c, id) { const r = removeRail(c, id); if (r.ok) { railChanged(c); roadsChanged(c); recalc(c); } return r; }
+
+/** Tô (hoặc xoá) trang trí — cây xanh, thảm cỏ, lối đi bộ, bồn hoa — trong hình chữ nhật, rồi tính lại giá đất. */
+export function paintDecor(c, x0, y0, x1, y1, kind, opts = {}) {
+  const r = decorRect(c, x0, y0, x1, y1, kind, opts);
+  if (r.ok && !opts.dry) { computeMaps(c); recalc(c); }
+  return r;
+}
+
 const LOCKED = 'Đất chưa mua: mở rộng bằng 🧭 Mua đất';
 const ownedAt = (c, wx, wz) => c.own[idx(clamp(cellOf(wx), 0, N - 1), clamp(cellOf(wz), 0, N - 1))] === 1;
 
@@ -471,7 +509,7 @@ const ownedAt = (c, wx, wz) => c.own[idx(clamp(cellOf(wx), 0, N - 1), clamp(cell
 function attach(c) {
   const mk = () => new Uint8Array(N * N), fl = () => new Float32Array(N * N);
   c.own = mk(); c.bonus = { happy: 0, pull: 0, comm: 0 };
-  c.road = mk(); c.alley = mk(); c.beach = c.beach && c.beach.length === N * N ? c.beach : mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
+  c.road = mk(); c.alley = mk(); c.beach = c.beach && c.beach.length === N * N ? c.beach : mk(); c.decor = c.decor && c.decor.length === N * N ? c.decor : mk(); c.decorFx = null; c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
   c.pOk = mk(); c.wOk = mk(); c.sOk = mk();
   c.age = new Uint16Array(N * N);
   c.occ = new Int16Array(N * N);
@@ -479,7 +517,7 @@ function attach(c) {
   c.pollution = fl(); c.air = fl(); c.ground = fl(); c.noise = fl(); c.waterPol = fl();
   c.cover = { park: fl(), police: fl(), fire: fl(), health: fl(), edu: fl(), trash: fl(), care: fl(), death: fl(), sci: fl(), watch: fl(), shelter: fl(), flood: fl(), levee: fl() };
   c.crime = fl(); c.gloom = fl();
-  c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, terrain: 0 };
+  c.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, decor: true, terrain: 0 };
   syncLand(c);
   c.events = [];
   c.research = c.research || 0; c.prisoners = c.prisoners || 0;
@@ -1013,11 +1051,12 @@ function rebuildRoadCells(c) {
   }
   for (let i = 0; i < N * N; i++) {
     const alley = !!(c.street && c.street.alley) && !c.road[i] && !c.water[i] && minD[i] >= 20.5 && minD[i] < 30.5; // hẻm: hàng thứ ba sau mặt đường
-    c.acc[i] = c.road[i] || c.water[i] ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 || alley ? 2 : 0;
+    c.acc[i] = c.road[i] || c.water[i] || (c.railCell && c.railCell[i]) ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 || alley ? 2 : 0;
     if (c.alley) c.alley[i] = alley ? 1 : 0;
     if (!c.acc[i] && !c.road[i]) c.cedge[i] = -1;
     if (c.road[i]) {
       if (c.beach) c.beach[i] = 0; // làm đường qua bãi
+      clearDecor(c, i);
       clearBuilding(c, i);
       c.zone[i] = 0; c.tree[i] = 0;
     } else if (!c.acc[i] && c.zone[i] && !c.level[i]) c.zone[i] = 0;
@@ -1350,7 +1389,7 @@ export function zoneRect(c, x0, y0, x1, y1, z) {
     if (!inMap(x, y)) continue;
     const i = idx(x, y);
     if (!c.own[i]) { locked++; continue; }
-    if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || c.zone[i] === z) continue;
+    if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || (c.decor && c.decor[i]) || c.zone[i] === z) continue;
     if (z !== 0 && (!c.acc[i] || c.steep[i])) continue;
     if (!hasResource(c, i, z)) { noRes++; continue; }
     if (c.level[i]) { if (z !== 0) continue; clearBuilding(c, i); } // chỉ "bỏ quy hoạch" mới dỡ nhà
@@ -1372,7 +1411,11 @@ export function bulldozeRect(c, x0, y0, x1, y1) {
     if (c.road[i] || c.water[i]) for (const e of c.edges.values()) if (nearestOnEdge(e, cellCenter(x), cellCenter(y)).d < ROADS[e.type].w / 2 + 4.4) roads.add(e.id);
     if (c.level[i]) { clearBuilding(c, i); n++; }
     if (c.tree[i]) { c.tree[i] = 0; n++; c.dirty.trees = true; }
+    if (c.decor && c.decor[i]) { clearDecor(c, i); n++; c.dirty.trees = true; }
   }
+  let railGone = false;
+  if (c.rail) for (const id of railsInRect(c, ax, ay, bx, by)) { removeRail(c, id); n++; railGone = true; }
+  if (railGone) railChanged(c);
   const wx0 = ax * T - HALF, wx1 = (bx + 1) * T - HALF, wz0 = ay * T - HALF, wz1 = (by + 1) * T - HALF;
   const before = c.lines.length;
   c.lines = c.lines.filter((ln) => {
@@ -1386,7 +1429,7 @@ export function bulldozeRect(c, x0, y0, x1, y1) {
     computeMaps(c);
   }
   for (const id of roads) { c.edges.delete(id); n++; }
-  if (roads.size) roadsChanged(c);
+  if (roads.size || railGone) roadsChanged(c);
   else if (n) { computeNetworks(c); recalc(c); }
   return { ok: n > 0, count: n };
 }
@@ -1413,6 +1456,7 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
       if (c.road[i]) return { ok: false, reason: 'Đang có đường', fp };
       if (c.occ[i]) return { ok: false, reason: 'Đang có công trình khác', fp };
       if (c.beach && c.beach[i]) return { ok: false, reason: 'Đang là bãi biển (xoá bãi trước)', fp };
+      if (c.railCell && c.railCell[i]) return { ok: false, reason: 'Đang có đường ray', fp };
       if (c.steep[i]) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.acc[i] === 1) nearRoad = true;
     } else if (c.water[i]) nearWater = true;
@@ -1488,7 +1532,7 @@ export function placeService(c, type, x, y) {
   for (let dy = 0; dy < fp.size; dy++) for (let dx = 0; dx < fp.size; dx++) {
     const i = idx(fp.x + dx, fp.y + dy);
     if (c.acc[i] === 1) votes[c.rdir[i]]++;
-    c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i);
+    c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i); clearDecor(c, i);
   }
   let dir = Math.max(...votes) ? votes.indexOf(Math.max(...votes)) : 1;
   if (SERVICES[type].faceWater) dir = waterDir(c, fp, dir); // bến tàu, cảng, bãi biển: quay cầu tàu / mép sóng ra phía nước
@@ -1664,19 +1708,20 @@ export function computeMaps(c) {
   // trạm bơm hút phải nước bẩn?
   c.dirtyWater = false;
   for (const s of c.services) if (s.type === 'pump') for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 2; dx++) { const a = s.x + dx, b = s.y + dy; if (inMap(a, b) && c.water[idx(a, b)] && c.waterPol[idx(a, b)] > 0.12) c.dirtyWater = true; }
+  const dfx = decorFx(c); // cây xanh, thảm cỏ, lối đi bộ, bồn hoa
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = idx(x, y);
     let green = 0, shore = 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && c.tree[idx(x + dx, y + dy)]) green++;
     const dg = distFx(c, i, 'green'); // chương trình cây xanh của quận
-    const filter = clamp(1 - green * 0.055 - c.cover.park[i] * 0.3 - dg * 0.08, 0.25, 1);
+    const filter = clamp(1 - green * 0.055 - c.cover.park[i] * 0.3 - dg * 0.08 - dfx.green[i] * 0.35, 0.25, 1);
     c.air[i] *= filter; c.noise[i] *= filter;
     c.pollution[i] = clamp(c.air[i] * 0.7 + c.ground[i] * 0.6 + c.noise[i] * 0.3 + (c.water[i] ? 0 : c.waterPol[i] * 0.3), 0, 1);
     let v = 26 + c.cover.park[i] * 20 + c.cover.police[i] * 10 + c.cover.fire[i] * 8 + c.cover.health[i] * 11 + c.cover.edu[i] * 13 - c.pollution[i] * 50;
     if (c.garbage && c.level[i] && c.garbage[i] > garbageLimit(c.zone[i], c.level[i])) v -= 10;
     v -= c.gloom[i] * 12 + c.crime[i] * 14;
     for (let d = 0; d < 4 && !shore; d++) for (let k = 1; k <= 3; k++) { const a = x + [1, 0, -1, 0][d] * k, b = y + [0, 1, 0, -1][d] * k; if (inMap(a, b) && c.water[idx(a, b)]) { shore = 1; break; } }
-    v += shore * (10 - c.waterPol[i] * 14) + dg * 3 + distFx(c, i, 'business') * 1;
+    v += shore * (10 - c.waterPol[i] * 14) + dg * 3 + distFx(c, i, 'business') * 1 + dfx.val[i] * 14;
     c.landValue[i] = clamp(v, 0, 100);
   }
 }
@@ -1738,6 +1783,8 @@ export function recalc(c) {
   for (const k in c.budget || {}) if (c.services.some((sv) => sectorOf(sv.type) === k)) bonus.happy += (c.budget[k] - 100) / 50; // dân thấy dịch vụ tốt lên / tệ đi
   if (c.fest) { bonus.happy += festHappy(c); bonus.comm += festMul(c, 'comm'); } // lễ hội
   { const nb = beachCount(c); if (nb) bonus.happy += Math.min(3, nb / 25); } // bãi biển: dân cả thành phố vui hơn
+  bonus.happy += decorHappy(c, c.pstats ? c.pstats.pop : 0); // cây xanh, lối đi bộ, bồn hoa
+  if (c.rail) { const rb = railBonus(c); bonus.pull += rb.pull; bonus.comm += rb.comm; c.railExport = rb.exportK; bonus.happy += railHappy(c); } // ga thông ra cửa khẩu
   if (c.street) { const sb = streetBonus(c); bonus.happy += sb.happy; bonus.comm += sb.comm; } // vỉa hè, bụi mịn, cấm xe
   bonus.happy += flyHappy(c); // dân được bay đi chơi, công tác
   if (c.council) { bonus.happy += councilMod(c, 'happy'); bonus.pull += councilMod(c, 'pull'); bonus.comm += councilMod(c, 'comm'); } // quyết định của thị trưởng, hợp đồng
@@ -1747,7 +1794,8 @@ export function recalc(c) {
   Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
   exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c) * kT;
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
-  exp.park += beachCount(c) * BEACH.upkeep; // giữ vệ sinh, cứu hộ bãi biển (theo ngày)
+  exp.transit += c.rail ? railUpkeep(c) : 0; // bảo trì đường ray (theo ngày)
+  exp.park += beachCount(c) * BEACH.upkeep + decorUpkeep(c); // giữ vệ sinh, cứu hộ bãi biển; chăm cây, cỏ, hoa (theo ngày)
   exp.transit += c.street ? streetBonus(c).cost : 0; // quản lý vỉa hè, cấm xe, làn buýt (theo ngày)
   exp.tourism += promoCost(c) + dealCost(c);
   exp.district = distCost(c); // chương trình các quận (đã tính theo ngày) // quảng bá du lịch quốc tế, trợ giá đường bay (đã tính theo ngày)
@@ -1886,7 +1934,7 @@ function growth(c) {
     const i = zoned[(rng() * zoned.length) | 0], z = c.zone[i], cat = ZDEF[z].cat;
     const dm = c.demand[cat] + (c.dfx ? (cat === 'r' ? distFx(c, i, 'housing') * 0.1 : cat === 'c' || cat === 'o' ? distFx(c, i, 'business') * 0.08 : 0) : 0); // chương trình quận
     if (c.alley && c.alley[i] && ZDEF[z].cat !== 'r') continue; // trong hẻm chỉ có nhà ở
-    if (c.beach && c.beach[i]) continue;
+    if ((c.beach && c.beach[i]) || (c.decor && c.decor[i])) continue;
     const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1 && !flooded(c, i);
     if (!c.level[i]) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
@@ -1923,7 +1971,8 @@ function hourTick(c) {
   }
   peopleHour(c);
   c.entryLinked = outsidePositions(c).length > 0;
-  const rooms = tourismHour(c, touristSpend) + intlHour(c, { spend: touristSpend, addCitizen }); // du khách: tiền phòng, phí hạ cánh / cập cảng của khách quốc tế
+  let rooms = tourismHour(c, touristSpend) + intlHour(c, { spend: touristSpend, addCitizen });
+  if (c.rail && c.rail.lines.length) { const o = intlOutlook(c); rooms += railHour(c, { spend: touristSpend, addCitizen, lure: o.lure, mood: o.mood }); } // tàu liên vận qua cửa khẩu: tiền vé // du khách: tiền phòng, phí hạ cánh / cập cảng của khách quốc tế
   incidentsHour(c);
   seasonHour(c); // bão, ngập, triều cường
   if (c.council) { const fresh = councilHour(c); if (fresh.length) (c.aiQueue || (c.aiQueue = [])).push(...fresh.map((f) => f.id)); } // hộp thư thị trưởng
@@ -1937,7 +1986,7 @@ function hourTick(c) {
   const tb = taxBreak(c); // nhà đầu tư được miễn một phần thuế thương mại, công nghiệp
   if (tb) { c.hourInc.c *= 1 - tb; c.hourInc.i *= 1 - tb; c.econ.ring[h].c = c.hourInc.c; c.econ.ring[h].i = c.hourInc.i; }
   c.money += c.hourInc.r + c.hourInc.c + c.hourInc.i + rooms - s.expense / 24;
-  if (h === 0) { marketDay(c); tourismDay(c); intlDay(c); if (c.street) streetDay(c); }
+  if (h === 0) { marketDay(c); tourismDay(c); intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); }
   c.hourInc.r = c.hourInc.c = c.hourInc.i = 0;
   for (const ln of c.loans) ln.left -= 1 / 24;
   if (c.loans.some((ln) => ln.left <= 0)) { c.loans = c.loans.filter((ln) => ln.left > 0); c.events.push({ type: 'loanPaid' }); recalc(c); }
@@ -1979,7 +2028,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), beach: packBeach(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2032,9 +2081,10 @@ function deserializeAt(o) {
   c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước tự nhiên sinh lại từ seed; phần đào đắp nạp từ bản lưu (makeTerrain dọn nhà, cây trên ô nước)
   c.terra = new Int16Array((N + 1) * (N + 1));
   if (Array.isArray(o.terra)) for (let p = 0; p + 1 < o.terra.length; p += 2) { const k = o.terra[p] | 0; if (k >= 0 && k < c.terra.length) c.terra[k] = clamp(o.terra[p + 1] | 0, -800, 800); }
-  unpackBeach(c, o.beach);
+  unpackBeach(c, o.beach); unpackDecor(c, o.decor);
   attach(c);
   initStreet(c, o.street || {}); // trước khi dựng ô quy hoạch: hẻm cần biết chính sách
+  initRail(c, o.rail || {}); c.railCell = railCells(c); // đường ray: ô có ray không quy hoạch
   for (const n of o.nodes || []) {
     const id = n[0] | 0, node = { id, x: num(n[1], 0), z: num(n[2], 0) };
     if (n[3]) node.ctl = clamp(n[3] | 0, 0, 2);

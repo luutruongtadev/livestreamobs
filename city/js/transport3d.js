@@ -129,6 +129,12 @@ export function metroGeometry() {
   return { body: body.build(), stripe: stripe.build() };
 }
 
+/** Các toa của một đoàn tàu đường dài (mũi về +z): khách = đầu máy + 4 toa khách; hàng = đầu máy + 6 toa container, bồn. */
+export function trainParts(freight = false) {
+  if (!freight) { const o = { body: 0x1f5f8b, stripe: 0xf2c14e }; return [{ geometry: carGeo('loco', 6.6, o), off: 0 }, ...[1, 2, 3, 4].map((k) => ({ geometry: carGeo('coach', 6.6, o), off: k * 6.9 }))]; }
+  return [{ geometry: carGeo('loco', 6.6, { body: 0xd8b93a, stripe: 0x2a2c30 }), off: 0 }, ...[1, 2, 3, 4, 5, 6].map((k) => ({ geometry: k % 3 === 2 ? carGeo('tank', 6.6, { tank: k % 2 ? 0x1f2326 : 0xd8d4cc }) : carGeo('flat', 6.6, { seed: k * 5 }), off: k * 6.9 }))];
+}
+
 // ───────────────────────── ga tàu hoả ─────────────────────────
 
 /** Ga tàu hoả 3×3 ô: nhà ga mặt đường (+z), sân ga có mái, cầu bộ hành, 3 đường ray, cột điện lưới; tàu khách vào ga, tàu hàng chạy qua. */

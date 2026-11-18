@@ -1411,3 +1411,66 @@ test('bãi biển tô theo ô: chỉ gần biển (không phải sông), đất 
   const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(S.beachCount(d), S.beachCount(c));
 });
+
+test('trang trí: cây xanh, thảm cỏ, lối đi bộ, bồn hoa tô theo ô; tăng giá đất, hài lòng; không mọc nhà; làm đường xoá trang trí; lưu / nạp', () => {
+  const c = S.newCity(5); S.enableSandbox(c);
+  const x = c.start.x + 6, y = 20, near = y * S.N + x + 5;
+  const v0 = c.landValue[near], h0 = c.bonus.happy;
+  const r = S.paintDecor(c, x, y, x + 3, y + 3, 'flower');
+  assert.ok(r.ok && r.count === 16 && r.cost === 16 * S.DECOR.flower.cost);
+  assert.ok(c.landValue[near] > v0 + 2, 'giá đất quanh bồn hoa tăng');
+  assert.ok(c.bonus.happy > h0, 'dân vui hơn');
+  assert.ok(c.stats.exp.park >= Math.round(16 * S.DECOR.flower.upkeep), 'phí chăm sóc');
+  assert.equal(S.zoneRect(c, x, y, x + 3, y + 3, 1).ok, false, 'ô trang trí không quy hoạch được');
+  assert.ok(S.paintDecor(c, x, y, x + 3, y, 'path').ok, 'đổi loại');
+  assert.equal(S.decorCount(c).path, 4);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.deepEqual(S.decorCount(d), S.decorCount(c));
+  road(c, x - 2, y + 1, x + 6, y + 1);
+  assert.ok(!c.decor[(y + 1) * S.N + x + 1], 'làm đường qua thì mất trang trí');
+  assert.ok(S.paintDecor(c, x, y, x + 3, y + 3, null, { erase: true }).ok);
+  assert.equal(S.decorCount(c).total, 0);
+});
+
+test('đường sắt: cửa khẩu ở mép bản đồ, ray từ ga ra cửa khẩu (hầm qua núi, cầu qua sông), ga thông ra cửa khẩu đón tàu liên vận; lưu / nạp; san ủi dỡ ray', () => {
+  const c = S.newCity(7, { map: 'valley' }); S.enableSandbox(c);
+  const gates = S.railGates(c);
+  assert.ok(gates.length >= 2 && gates.every((g) => Math.abs(g.x) === S.HALF || Math.abs(g.z) === S.HALF), 'cửa khẩu nằm trên mép bản đồ');
+  road(c, c.start.x, 7, c.start.x, 30);
+  let ok = false;
+  for (let y = 3; y < 30 && !ok; y++) for (let x = c.start.x - 4; x <= c.start.x + 4 && !ok; x++) ok = S.placeService(c, 'train', x, y).ok;
+  const st = c.services.find((s) => s.type === 'train'); delete st.build;
+  assert.equal(S.linkedStations(c).length, 0);
+  const route = (g, e) => { const a = S.railSnap(c, e.x, e.z), b = S.railSnap(c, g.x, g.z); return [[a.x, a.z, e.x + e.dir[0] * 90, e.z + e.dir[1] * 90, g.x + g.dir[0] * 90, g.z + g.dir[1] * 90, b.x, b.z], { a, b }]; };
+  let plan = null, args = null;
+  for (const g of gates) for (const e of S.stationEnds(c, st)) { if (plan) break; const [pts, ab] = route(g, e); const r = S.buildRail(c, pts, { ...ab, dry: true }); if (r.ok && r.lenTunnel > 0 && r.lenBridge > 0) { plan = r; args = [pts, ab]; } }
+  assert.ok(plan, 'có tuyến vừa hầm vừa cầu');
+  for (let k = 1; k < plan.n; k++) assert.ok(Math.abs(plan.ys[k] - plan.ys[k - 1]) <= S.RAIL.grade * S.RAIL.step * 1.2 + 0.01, 'độ dốc nhỏ');
+  const geo = S.railPath(plan.wp);
+  for (let k = 0; k < plan.n; k++) if (plan.kinds[k] === 't') assert.ok(S.heightAt(c, geo.pts[k * 2], geo.pts[k * 2 + 1]) > plan.ys[k], 'hầm nằm dưới đất');
+  const m0 = c.money;
+  const r = S.buildRail(c, ...args);
+  assert.ok(r.ok);
+  for (let k = 0; k < plan.n; k++) if (plan.kinds[k] === 'g') assert.ok(S.heightAt(c, geo.pts[k * 2], geo.pts[k * 2 + 1]) <= plan.ys[k] + 0.05, 'đoạn trên mặt đất: đất đã xẻ xuống dưới mặt ray');
+  assert.equal(S.linkedStations(c).length, 1, 'ga thông ra cửa khẩu');
+  const rb = S.railBonus(c);
+  assert.ok(rb.pull > 0 && rb.exportK > 0);
+  assert.ok(S.railUpkeep(c) > 0);
+  // tàu liên vận lúc 7 giờ
+  const m1 = c.money;
+  while (c.hour % 24 !== 8) S.advance(c, S.HOUR_SEC);
+  assert.ok(c.rail.day.trains >= 1 && c.rail.day.tourists > 0 && c.rail.day.fees > 0, 'tàu liên vận 7 giờ chở khách, thu tiền vé');
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(d.rail.lines.length, 1);
+  assert.equal(S.linkedStations(d).length, 1, 'nạp lại vẫn thông');
+  assert.ok(S.trainsAt(d, 50).length === 1);
+  // ô có ray không quy hoạch, không đặt công trình
+  const lg = S.lineGeo(d.rail.lines[0]);
+  const k = [...d.rail.lines[0].kinds].findIndex((ch, j) => ch === 'g' && j > 20);
+  const cx = Math.floor((lg.pts[k * 2] + S.HALF) / S.T), cy = Math.floor((lg.pts[k * 2 + 1] + S.HALF) / S.T);
+  assert.ok(d.railCell[cy * S.N + cx]);
+  assert.equal(d.acc[cy * S.N + cx], 0);
+  assert.ok(S.bulldozeRect(d, cx, cy, cx, cy).ok);
+  assert.equal(d.rail.lines.length, 0, 'san ủi dỡ ray');
+  assert.equal(S.linkedStations(d).length, 0);
+});

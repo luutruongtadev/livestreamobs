@@ -101,6 +101,22 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Tác dụng:** sức hút du lịch +0,3 mỗi ô (tối đa +18), dân cả thành phố vui hơn (tối đa +3), du khách khen bãi biển đẹp.
    - Không xây nhà, công trình trên bãi; làm đường qua thì bỏ phần bãi dưới đường. 🧽 *Xoá bãi* để bỏ ô bãi (địa hình giữ nguyên).
    - Bãi biển kiểu cũ (khối 3 × 3) trong bản lưu cũ vẫn giữ nguyên.
+13g. **🌳 Trang trí thành phố** (nhóm 🌳 Công viên): kéo chuột tô theo ô, như quy hoạch. Code: `js/decor.js`.
+   - 🌳 **Cây xanh** (90 ₫ / ô): một cây bóng mát mỗi ô (phượng, dừa, cây tán), bụi cây dưới gốc; lọc bụi, giảm ồn mạnh nhất.
+   - 🟩 **Thảm cỏ** (30 ₫ / ô): bãi cỏ xanh, rẻ nhất.
+   - 🚶 **Lối đi bộ** (70 ₫ / ô): đường lát gạch, ô kề nhau tự nối thành lối, nối cả ra đường; ghế đá, đèn, thùng rác. Dân ra đi dạo, ban đêm vắng hơn.
+   - 🌷 **Bồn hoa** (80 ₫ / ô): bồn hoa nhiều màu, viền gạch, bụi cây bốn góc; tăng giá đất nhiều nhất.
+   - **Chỉ trên đất trống** (không đường, nhà, công trình, nước, bãi biển, đất quá dốc). Ô đã trang trí không quy hoạch, không mọc nhà. Tô loại khác lên thì đổi loại.
+   - **Tác dụng:** giá đất trong 3 ô quanh đó tăng, cây lọc bụi và tiếng ồn, dân cả thành phố vui hơn (tối đa +2, cần nhiều ô hơn khi thành phố đông).
+   - **Phí chăm sóc** mỗi ô mỗi ngày (0,4–1,2 ₫), cộng vào mục chi 🌳 Công viên. 🧹 *Xoá t.trí* để bỏ, làm đường hay đặt công trình lên thì tự bỏ.
+13h. **🛤️ Đường sắt ra cửa khẩu** (nhóm 🚌 Vận tải, sau 🚆 Ga tàu hoả). Code: `js/rail.js`.
+   - **Cửa khẩu:** mỗi cạnh bản đồ có đất liền một cửa khẩu (cổng hai tháp, trạm kiểm soát, barie) ở chỗ thấp gần giữa cạnh; cạnh bắc chừa lối cao tốc.
+   - **Vẽ ray:** bấm vào đầu ga tàu hoả (hai đầu ray giữa của ga), bấm thêm các điểm uốn, bấm vào cửa khẩu để nối (hoặc vào đầu ga khác, đầu một đường ray có sẵn). Chuột phải / Enter để dừng ở điểm cuối, vẽ tiếp sau. Góc được bo tròn; góc gắt quá thì báo.
+   - **Độ dốc tối đa 3,5%:** ray giữ thấp. Gặp núi, đồi cao hơn mặt ray quá 4 m thì khoét hầm (cửa hầm bê tông); đồi thấp thì xẻ đất hai bên ray; qua sông, hồ thì bắc cầu cao 5,5 m cho tàu thuyền qua, có giàn thép; thung lũng thì cầu cạn nhiều trụ hoặc đắp nền. Cửa khẩu nằm trong núi thì ray chui hầm qua biên.
+   - **Giá:** 90 ₫ / ô trên mặt đất, 340 ₫ / ô cầu, 520 ₫ / ô hầm, cộng tiền xẻ đất. Phí bảo trì theo mét, cầu và hầm đắt hơn (mục chi 🚌).
+   - **Ga thông ra cửa khẩu** (bấm vào ga để xem): tàu liên vận vào ga lúc 7, 11, 15, 19 giờ. Mỗi chuyến chở du khách (theo sức hút du lịch), người tới định cư (khi thành phố hút dân), dân lên tàu đi chơi; thu 6 ₫ vé mỗi khách. Bão thì huỷ chuyến.
+   - **Thưởng:** mỗi ga thông ra cửa khẩu (tối đa 2) hút dân +4%, thuế thương mại +2%; hàng xuất khẩu bán được giá thêm 8%; dân được đi tàu vui hơn một chút.
+   - Tàu khách xanh và tàu hàng vàng thay nhau chạy từ cửa khẩu vào ga, dừng ở sân ga rồi chạy ra. Ô có ray không quy hoạch, không xây được; 🚜 san ủi lên ray để dỡ cả đoạn. Ga chưa có ray vẫn là cửa ngõ xuất nhập khẩu như cũ.
 13f. **🏙️ Quận và chủ tịch quận** (nút 🏙️ góc trái dưới, trên 🎎; mở từ 400 dân, chế độ Open thì mở ngay). Code: `js/districts.js`.
    - **Chia quận:** chọn số quận (2 tới 8, nhiều hơn khi đông dân) rồi bấm *Chia quận*. Game tự chia theo nơi dân ở và việc làm; Quận 1 ở trung tâm. Mỗi ô thuộc quận có trụ sở gần nhất. Trụ sở là toà 🏛️ UBND quận (nhà vàng, sảnh cột, cột cờ) tự xây trên đất trống gần trung tâm quận, không phá nhà dân. *📍 Dời trụ sở* rồi bấm lên bản đồ (hoặc ✋ Di chuyển toà UBND) để chỉnh ranh giới; phá toà UBND thì quận xây lại, giải thể quận thì dỡ hết. Lớp xem 🏙️ *Quận* tô màu từng quận, viền đậm là ranh giới. Bấm vào nhà để xem nó thuộc quận nào.
    - **Chủ tịch quận:** mỗi quận một người, có tên, năng lực (hiệu quả 75–120%) và tính cách: gần dân, mát tay kinh tế, kỷ cương, xanh – sạch, tiết kiệm (chỉ tiêu khoảng 60% ngân sách), chạy thành tích. *🔄 Thay chủ tịch* được 5 ngày một lần.
@@ -159,6 +175,8 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/decor.js` | Trang trí tô theo ô: cây xanh, thảm cỏ, lối đi bộ, bồn hoa; ảnh hưởng giá đất, bụi, hài lòng |
+| `js/rail.js` | Đường sắt: cửa khẩu, vẽ ray bo góc, cao độ giới hạn dốc (hầm, cầu, xẻ đất), mạng ga – cửa khẩu, tàu liên vận |
 | `js/beach.js` | Bãi biển tô theo ô: nhận diện biển, kiểm tra ô, san địa hình thoải xuống biển |
 | `js/street.js` | Vỉa hè, hẻm, xe máy / ô tô, cấm xe máy nội đô, phí ô tô, làn buýt, bụi mịn AQI |
 | `js/council.js` | Hộp thư thị trưởng: tình huống khó xử, đàm phán hợp đồng, đánh giá du khách (game tính số; lời dự phòng) |

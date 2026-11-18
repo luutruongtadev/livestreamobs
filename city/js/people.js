@@ -211,7 +211,7 @@ export function onArrive(c, cb, v) {
       return undefined;
     }
     case 'export': {
-      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0)) * mkt(c, cb.kind), 'i');
+      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0) + (c.railExport || 0)) * mkt(c, cb.kind), 'i');
       c.econ.day.exportValue = (c.econ.day.exportValue || 0) + cb.qty * priceOf(cb.kind) * mkt(c, cb.kind);
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;

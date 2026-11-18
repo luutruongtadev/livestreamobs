@@ -3,15 +3,15 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt } from './sim.js';
-import { metroGeometry, planeGeometry } from './transport3d.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt } from './sim.js';
+import { metroGeometry, planeGeometry, trainParts, bar } from './transport3d.js';
 import { GB, growable, growableVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
 const WATER_Y = -0.9;
 const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520, MAX_ANIMALS = 16, DOG_COUNT = 10, MAX_BEAMS = 900;
-const TREE_CAP = [5000, 3500, 3000, 4500, 5000, 900], MAX_ROCKS = 2500; // cây tán tròn, tán xoè, dừa, thông, bụi, phượng
+const TREE_CAP = [5000, 3500, 3000, 4500, 5000, 900], MAX_ROCKS = 2500, MAX_STROLL = 400; // cây tán tròn, tán xoè, dừa, thông, bụi, phượng
 const SITE_H = {}; // chiều cao mô hình công trình (để dựng giàn giáo)
 const GLASS = 0x2f3b45;
 const sstep = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -439,6 +439,7 @@ export class View {
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {};
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
+    this.strollMesh = this._inst(pedGeometry(), this.pedMesh.material, MAX_STROLL, true); this.strollMesh.count = 0; // người đi dạo trên lối đi bộ
     this.busMesh = this._inst(busGeometry(), vehMat, MAX_BUS, true);
     this.tramMesh = this._inst(tramGeometry(), vehMat, MAX_BUS, true);
     { const mg = metroGeometry(); this.metroMesh = this._inst(mg.body, vehMat, MAX_BUS, true); this.metroStripe = this._inst(mg.stripe, vehMat, MAX_BUS, false); } // tàu metro 3 toa, vạch màu tuyến
@@ -596,7 +597,7 @@ export class View {
     this.city = city;
     this._gate(city);
     this._rebuildTerrain();
-    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, flood: true, beach: true, terrain: 0 };
+    city.dirty = { roads: true, buildings: true, trees: true, zones: true, services: true, lines: true, transit: true, fx: true, land: true, flood: true, beach: true, decor: true, rail: true, terrain: 0 };
     this.puffs.length = 0; this.fireCells = [];
     this.cam.x = cellCenter(city.start.x); this.cam.z = cellCenter(city.start.y + 6);
     this.cam.y = heightAt(city, this.cam.x, this.cam.z);
@@ -1299,6 +1300,231 @@ export class View {
     return true;
   }
 
+  /**
+   * Trang trí tô theo ô: nền cỏ (thảm cỏ, quanh gốc cây, bồn hoa) và lối đi lát gạch phủ sát mặt đất; bồn hoa, ghế đá, đèn,
+   * thùng rác dựng 3D. Lối đi bộ nối sang ô lối đi bên cạnh và ra đường. Dựng luôn lộ trình cho người đi dạo.
+   */
+  _decor() {
+    const c = this.city;
+    for (const k of ['decorFlat', 'decorMesh']) if (this[k]) { this.scene.remove(this[k]); this[k].geometry.dispose(); this[k] = null; }
+    this.strollers = [];
+    if (!c.decor || !c.decor.some((v) => v)) return;
+    const t = new Tris(true), g = new GB(), col = new THREE.Color(), V = N + 1;
+    const D = (x, y) => (x >= 0 && y >= 0 && x < N && y < N ? c.decor[y * N + x] : 0);
+    const roadAt = (x, y) => x >= 0 && y >= 0 && x < N && y < N && c.road[y * N + x];
+    const H = (wx, wz) => heightAt(c, wx, wz) + 0.07;
+    // ô phủ cả ô: chia 2×2 cho bám mặt đất, dùng đúng đường chéo của lưới địa hình
+    const quad = (x0, z0, x1, z1, rgb, lift = 0) => {
+      const S = 2, vs = [];
+      for (let b = 0; b <= S; b++) for (let a = 0; a <= S; a++) { const wx = x0 + ((x1 - x0) * a) / S, wz = z0 + ((z1 - z0) * b) / S; vs.push(t.v(wx, H(wx, wz) + lift, wz, rgb[0], rgb[1], rgb[2])); }
+      for (let b = 0; b < S; b++) for (let a = 0; a < S; a++) { const p = vs[b * (S + 1) + a], q = p + 1, r = p + S + 1, u = r + 1; t.tri(p, r, q, true); t.tri(q, r, u, true); }
+    };
+    const shade = (base, x, y, salt, amt = 0.08) => { col.set(base); const k = 1 + (hash2(x, y, salt) - 0.5) * amt * 2; return [col.r * k, col.g * k, col.b * k]; };
+    const PAVE = 0xd8ccb0, EDGE = 0x9b8f7a, LAMP = 0x3a3d42;
+    for (let i = 0; i < N * N; i++) {
+      const dv = c.decor[i];
+      if (!dv) continue;
+      const x = i % N, y = (i / N) | 0, x0 = x * T - HALF, z0 = y * T - HALF, cx = x0 + T / 2, cz = z0 + T / 2;
+      if (dv === 2 || dv === 1) quad(x0, z0, x0 + T, z0 + T, shade(dv === 2 ? 0x6fbf4a : 0x5aa83f, x, y, 301, 0.06)); // thảm cỏ / cỏ dưới gốc cây
+      else if (dv === 4) { // bồn hoa: nền cỏ, bồn đất giữa, hoa nhiều màu, viền gạch
+        quad(x0, z0, x0 + T, z0 + T, shade(0x67b548, x, y, 303, 0.05));
+        quad(cx - 3.6, cz - 3.6, cx + 3.6, cz + 3.6, [0.42, 0.3, 0.2], 0.08);
+        const hy = H(cx, cz), FL = [0xe8414f, 0xf2c14e, 0xf28bb5, 0x9a6be0, 0xffffff, 0xff8a3d];
+        for (const s of [-1, 1]) { g.box(cx, hy - 0.05, cz + s * 3.7, 7.6, 0.4, 0.3, 0xc9c1b0); g.box(cx + s * 3.7, hy - 0.05, cz, 0.3, 0.4, 7.6, 0xc9c1b0); }
+        for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) {
+          const fx = cx - 2.8 + a * 1.4, fz = cz - 2.8 + b * 1.4, ring = Math.max(Math.abs(a - 2), Math.abs(b - 2));
+          const fc = FL[(ring + ((hash2(x, y, 305) * 6) | 0)) % FL.length];
+          g.box(fx, H(fx, fz), fz, 0.9, 0.45 + (2 - ring) * 0.12, 0.9, 0x3f7d33); g.box(fx, H(fx, fz) + 0.45 + (2 - ring) * 0.12, fz, 0.8, 0.22, 0.8, fc);
+        }
+      } else if (dv === 3) { // lối đi bộ: tâm ô + nhánh nối sang ô lối đi / đường kề bên
+        const W = 1.9, arms = [];
+        quad(x0, z0, x0 + T, z0 + T, shade(0x6fbf4a, x, y, 315, 0.05)); // cỏ nền
+        quad(cx - W - 0.25, cz - W - 0.25, cx + W + 0.25, cz + W + 0.25, shade(EDGE, x, y, 307, 0.04), 0.06);
+        quad(cx - W, cz - W, cx + W, cz + W, shade(PAVE, x, y, 309, 0.05), 0.12);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          if (D(x + dx, y + dy) !== 3 && !roadAt(x + dx, y + dy)) continue;
+          arms.push([dx, dy]);
+          const ax0 = dx > 0 ? cx + W : dx < 0 ? x0 : cx - W, ax1 = dx > 0 ? x0 + T : dx < 0 ? cx - W : cx + W;
+          const az0 = dy > 0 ? cz + W : dy < 0 ? z0 : cz - W, az1 = dy > 0 ? z0 + T : dy < 0 ? cz - W : cz + W;
+          quad(dx ? ax0 : ax0 - 0.25, dy ? az0 : az0 - 0.25, dx ? ax1 : ax1 + 0.25, dy ? az1 : az1 + 0.25, shade(EDGE, x, y, 311, 0.04), 0.06);
+          quad(ax0, az0, ax1, az1, shade(PAVE, x + dx, y + dy, 313, 0.05), 0.12);
+        }
+        // ghế đá, đèn, thùng rác ở góc không vướng lối
+        const r = hash2(x, y, 321), side = arms.some(([dx]) => dx) && !arms.some(([, dy]) => dy) ? [0, 1] : [1, 0], hy = H(cx, cz);
+        if (r < 0.45) { const bx = cx + side[0] * (W + 0.9), bz = cz + side[1] * (W + 0.9); g.box(bx, hy, bz, side[0] ? 0.6 : 1.8, 0.45, side[0] ? 1.8 : 0.6, 0x8d8a82); g.box(bx + side[0] * 0.25, hy + 0.45, bz + side[1] * 0.25, side[0] ? 0.12 : 1.8, 0.5, side[0] ? 1.8 : 0.12, 0x8d8a82); }
+        if (r > 0.3 && r < 0.75) { const lx = cx - side[0] * (W + 0.7) + side[1] * 1.6, lz = cz - side[1] * (W + 0.7) + side[0] * 1.6; g.cyl(lx, H(lx, lz), lz, 0.09, 0.07, 3.6, LAMP, 6); g.box(lx, H(lx, lz) + 3.6, lz, 0.5, 0.35, 0.5, 0xfff1c4); }
+        if (r > 0.85) g.cyl(cx + side[0] * (W + 0.7) - side[1] * 1.8, hy, cz + side[1] * (W + 0.7) - side[0] * 1.8, 0.3, 0.25, 0.8, 0x3d8a5a, 8);
+      }
+    }
+    if (t.i.length) {
+      this.decorFlat = new THREE.Mesh(t.build(), this.decorMat || (this.decorMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+      this.decorFlat.receiveShadow = true; this.decorFlat.frustumCulled = false;
+      this.scene.add(this.decorFlat);
+    }
+    if (g.build) { const geo = g.build(); if (geo.attributes.position && geo.attributes.position.count) { this.decorMesh = new THREE.Mesh(geo, this.matBuilding); this.decorMesh.castShadow = true; this.decorMesh.receiveShadow = true; this.scene.add(this.decorMesh); } else geo.dispose(); }
+    // người đi dạo: mỗi ~3 ô lối đi một người, đi qua lại trên chuỗi ô lối đi liền nhau
+    const seen = new Uint8Array(N * N);
+    let budget = MAX_STROLL;
+    for (let i = 0; i < N * N && budget > 0; i++) {
+      if (c.decor[i] !== 3 || seen[i]) continue;
+      const comp = [i]; seen[i] = 1;
+      for (let h = 0; h < comp.length; h++) { const x = comp[h] % N, y = (comp[h] / N) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (D(x + dx, y + dy) === 3 && !seen[(y + dy) * N + x + dx]) { seen[(y + dy) * N + x + dx] = 1; comp.push((y + dy) * N + x + dx); } }
+      if (comp.length < 2) continue;
+      const n = Math.min(budget, Math.max(1, Math.round(comp.length / 3)));
+      for (let k = 0; k < n; k++) {
+        const rr = mulberry32(i * 31 + k), route = [comp[(rr() * comp.length) | 0]];
+        for (let s2 = 0; s2 < 14; s2++) { // đi ngẫu nhiên, tránh quay đầu ngay
+          const cur = route[route.length - 1], x = cur % N, y = (cur / N) | 0, prev = route[route.length - 2];
+          const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => (D(x + dx, y + dy) === 3 ? (y + dy) * N + x + dx : -1)).filter((j) => j >= 0 && j !== prev);
+          if (!nb.length) break;
+          route.push(nb[(rr() * nb.length) | 0]);
+        }
+        if (route.length < 2) continue;
+        const pts = [];
+        for (const j of route) pts.push(cellX(j) + (rr() - 0.5) * 1.6, cellZ(j) + (rr() - 0.5) * 1.6);
+        const cum = [0];
+        for (let q = 1; q < pts.length / 2; q++) cum.push(cum[q - 1] + Math.hypot(pts[q * 2] - pts[q * 2 - 2], pts[q * 2 + 1] - pts[q * 2 - 1]));
+        this.strollers.push({ pts, cum, s: rr() * cum[cum.length - 1], dir: 1, sp: 1.1 + rr() * 0.7, hue: rr() });
+        budget--;
+      }
+    }
+  }
+
+  _svcSig() { return this.city.services.filter((s) => s.type === 'train').map((s) => `${s.uid}:${s.x},${s.y},${s.dir}`).join('|'); }
+
+  /**
+   * Đường ray: nền đá, tà vẹt, hai ray; đắp nền khi ray cao hơn đất, cầu cạn có trụ, qua sông thêm giàn thép;
+   * cửa hầm ở chỗ ray chui vào núi; cột điện lưới dọc tuyến; cổng cửa khẩu ở mép bản đồ.
+   */
+  _rail() {
+    const c = this.city;
+    this._railSvcSig = this._svcSig();
+    if (this.railMesh) { this.scene.remove(this.railMesh); this.railMesh.geometry.dispose(); this.railMesh = null; }
+    if (!c.rail) return;
+    const show = c.rail.lines.length || c.services.some((s) => s.type === 'train');
+    if (!show) return;
+    const g = new GB(), BAL = 0x8a8278, SLP = 0x6b5a48, RL = 0x9aa3aa, CONC = 0xb4b0a6, STEEL = 0x6f7f8c, EARTH = 0x86945a;
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), v3 = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1);
+    const ground = (x, z) => heightAt(c, x, z), wet = (x, z) => { const a = Math.floor((x + HALF) / T), b = Math.floor((z + HALF) / T); return a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a]; };
+    const track = (x0, z0, y0, x1, z1, y1) => { // nền đá + tà vẹt + ray giữa hai điểm (y = mặt ray)
+      const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+      bar(g, [x0, y0 - 0.55, z0], [x1, y1 - 0.55, z1], 3.6, 0.5, BAL);
+      for (const f of [0.15, 0.48, 0.81]) { const x = x0 + dx * f, z = z0 + dz * f, y = y0 + (y1 - y0) * f - 0.22; bar(g, [x - nx * 1.3, y, z - nz * 1.3], [x + nx * 1.3, y, z + nz * 1.3], 0.32, 0.12, SLP); }
+      for (const o of [-0.72, 0.72]) bar(g, [x0 + nx * o, y0 - 0.08, z0 + nz * o], [x1 + nx * o, y1 - 0.08, z1 + nz * o], 0.12, 0.15, RL);
+      return [nx, nz];
+    };
+    const portal = (x, z, y, tx, tz) => { // cửa hầm bê tông, lòng hầm tối
+      g.at(m4.clone().compose(v3.set(x, y - 0.8, z), q.setFromEuler(e3.set(0, Math.atan2(tx, tz), 0)), one));
+      g.box(0, 0, 0, 8.4, 7.8, 1.6, CONC); g.box(0, 7.8, 0, 9, 0.6, 2, 0x9a968e);
+      g.box(0, 0, -0.85, 5, 6, 0.2, 0x111316); g.box(0, 0, 0.85, 5, 6, 0.2, 0x111316);
+      for (const sx of [-1, 1]) g.box(sx * 5.6, 0, 0.6, 3, 4.5, 0.8, CONC); // tường cánh
+      g.at(null);
+    };
+    for (const l of c.rail.lines) {
+      const geo = lineGeo(l), n = geo.n, P = geo.pts, Y = l.ys, K = l.kinds;
+      for (let k = 1; k < n; k++) {
+        const x0 = P[k * 2 - 2], z0 = P[k * 2 - 1], x1 = P[k * 2], z1 = P[k * 2 + 1], y0 = Y[k - 1], y1 = Y[k];
+        const tun = K[k] === 't' && K[k - 1] === 't', br = K[k] === 'b' || K[k - 1] === 'b';
+        if (K[k] === 't' && K[k - 1] !== 't') portal(x0, z0, y0, x1 - x0, z1 - z0);
+        if (K[k] !== 't' && K[k - 1] === 't') portal(x1, z1, y1, x0 - x1, z0 - z1);
+        if (tun) continue;
+        const [nx, nz] = track(x0, z0, y0, x1, z1, y1);
+        const gm = Math.min(ground(x0, z0), ground(x1, z1)), top = Math.min(y0, y1) - 0.8;
+        if (br) {
+          bar(g, [x0, (y0 - 0.8) - 0.75, z0], [x1, (y1 - 0.8) - 0.75, z1], 4.4, 1.5, CONC); // dầm cầu
+          for (const o of [-2.15, 2.15]) bar(g, [x0 + nx * o, y0 + 0.35, z0 + nz * o], [x1 + nx * o, y1 + 0.35, z1 + nz * o], 0.12, 0.9, 0x8d8a82); // lan can
+          const w = wet(x0, z0) || wet(x1, z1);
+          if (k % 5 === 0) { const bed = wet(x0, z0) ? -3.4 : ground(x0, z0) - 0.3; g.box(x0, bed, z0, 2, y0 - 2.3 - bed, 2, CONC); g.box(x0, y0 - 2.6, z0, 5, 0.5, 2.4, CONC); } // trụ cầu
+          if (w) { // giàn thép trên đoạn qua nước
+            for (const o of [-2.3, 2.3]) {
+              bar(g, [x0 + nx * o, y0 + 4.6, z0 + nz * o], [x1 + nx * o, y1 + 4.6, z1 + nz * o], 0.35, 0.35, STEEL);
+              bar(g, [x0 + nx * o, y0 - 0.6, z0 + nz * o], [x0 + nx * o, y0 + 4.6, z0 + nz * o], 0.3, 0.3, STEEL);
+              if (k % 2) bar(g, [x0 + nx * o, y0 - 0.6, z0 + nz * o], [x1 + nx * o, y1 + 4.6, z1 + nz * o], 0.22, 0.22, STEEL); else bar(g, [x0 + nx * o, y0 + 4.6, z0 + nz * o], [x1 + nx * o, y1 - 0.6, z1 + nz * o], 0.22, 0.22, STEEL);
+            }
+            if (k % 2 === 0) bar(g, [x0 - nx * 2.3, y0 + 4.6, z0 - nz * 2.3], [x0 + nx * 2.3, y0 + 4.6, z0 + nz * 2.3], 0.25, 0.25, STEEL);
+          }
+        } else if (top - gm > 0.3) { // đắp nền
+          const h = top - gm + 0.6;
+          bar(g, [x0, top - h / 2 + 0.1, z0], [x1, top - h / 2 + 0.1, z1], 5.2 + Math.min(4, h * 0.8), h, EARTH);
+        }
+        if (k % 10 === 5) { // cột điện lưới
+          const px = x0 + nx * 2.9, pz = z0 + nz * 2.9, by = br ? y0 - 0.8 : Math.min(ground(px, pz), y0 - 0.6);
+          g.box(px, by, pz, 0.32, y0 + 6.4 - by, 0.32, 0x7d8890);
+          bar(g, [px, y0 + 6, pz], [x0 - nx * 0.6, y0 + 6, z0 - nz * 0.6], 0.16, 0.16, 0x7d8890);
+        }
+      }
+      // dây tiếp xúc
+      for (let k = 1; k < n; k++) if (!(l.kinds[k] === 't' && l.kinds[k - 1] === 't')) bar(g, [P[k * 2 - 2], Y[k - 1] + 5.6, P[k * 2 - 1]], [P[k * 2], Y[k] + 5.6, P[k * 2 + 1]], 0.05, 0.05, 0x2a2c30);
+    }
+    // cửa khẩu: cổng hai tháp, mái, trạm kiểm soát, barie; ray kéo dài ra ngoài mép bản đồ nếu có tuyến tới
+    const used = railNet(c).gatesUsed;
+    const ends = c.rail.lines.flatMap((l) => { const geo = lineGeo(l), n = geo.n; return [[geo.pts[0], geo.pts[1], l.ys[0]], [geo.pts[(n - 1) * 2], geo.pts[(n - 1) * 2 + 1], l.ys[n - 1]]]; });
+    for (const gt of railGates(c)) {
+      const yaw = Math.atan2(gt.dir[0], gt.dir[1]), conn = ends.find((e) => Math.hypot(e[0] - gt.x, e[1] - gt.z) < 4), y = conn ? conn[2] - 0.62 : heightAt(c, gt.x + gt.dir[0] * 3, gt.z + gt.dir[1] * 3);
+      if (conn) for (let k = 0; k < 10; k++) track(gt.x - gt.dir[0] * k * 6, gt.z - gt.dir[1] * k * 6, conn[2], gt.x - gt.dir[0] * (k + 1) * 6, gt.z - gt.dir[1] * (k + 1) * 6, conn[2]);
+      g.at(m4.clone().compose(v3.set(gt.x + gt.dir[0] * 4, y - 0.6, gt.z + gt.dir[1] * 4), q.setFromEuler(e3.set(0, yaw, 0)), one));
+      const col = used.has(gt.k) ? 0xd0342c : 0x9a968e;
+      for (const sx of [-1, 1]) { g.box(sx * 7, -3, 0, 3.6, 14.5, 4.2, 0xe8dcc0); g.box(sx * 7, 11.5, 0, 4.2, 0.6, 4.8, 0x7d4a3c); g.gable(sx * 7, 12.1, 0, 4.4, 2.2, 5, 0x9a4a36, false, 0xe8dcc0); }
+      g.box(0, 8.4, 0, 10.4, 2.8, 4, 0xf1e6cc); g.box(0, 9.2, 2.05, 6, 1.2, 0.1, col); // dầm cổng, băng rôn
+      g.box(0, 11.2, 0, 11, 0.4, 4.6, 0x7d4a3c);
+      for (const sx of [-1, 1]) { g.cyl(sx * 3.2, 11.6, 1.5, 0.06, 0.06, 3.2, 0xdddddd, 4); g.box(sx * 3.2 + 0.55, 13.6, 1.5, 1.1, 0.7, 0.04, col); } // cột cờ
+      g.box(11.5, -0.2, 3, 4.5, 3.2, 3.5, 0xf4efe6); g.gable(11.5, 3, 3, 5, 1.2, 4, 0x2c5aa0, true, 0xf4efe6); g.box(11.5, 1, 4.8, 3, 1, 0.08, 0x2f3b45); // trạm kiểm soát
+      g.box(9.2, -0.2, 6, 0.4, 1.3, 0.4, 0x3a3d42); g.box(4.6, 0.9, 6, 9, 0.18, 0.18, 0xd0342c); // barie
+      g.at(null);
+    }
+    const geo = g.build();
+    if (!geo.attributes.position.count) { geo.dispose(); return; }
+    this.railMesh = new THREE.Mesh(geo, this.matBuilding);
+    this.railMesh.castShadow = true; this.railMesh.receiveShadow = true;
+    this.scene.add(this.railMesh);
+  }
+
+  /** Tàu liên vận chạy trên các tuyến cửa khẩu → ga (theo giờ mô phỏng, dừng khi tạm dừng game). */
+  _railTrains() {
+    const c = this.city;
+    if (!this.trainPool) this.trainPool = { pass: [], freight: [] };
+    for (const k of ['pass', 'freight']) for (const set of this.trainPool[k]) for (const m of set) m.visible = false;
+    if (!c.rail || !c.rail.lines.length) return;
+    const list = trainsAt(c, simTime(c)), used = { pass: 0, freight: 0 };
+    for (const tr of list) {
+      const key = tr.freight ? 'freight' : 'pass', pool = this.trainPool[key];
+      if (!pool[used[key]]) { const set = trainParts(tr.freight).map((pt) => { const m = new THREE.Mesh(pt.geometry, this.matBuilding); m.castShadow = true; m.userData.off = pt.off; this.scene.add(m); return m; }); pool.push(set); }
+      const set = pool[used[key]++], R = tr.route;
+      for (const m of set) {
+        const s = tr.dir > 0 ? tr.s - m.userData.off - 3.3 : tr.s + m.userData.off + 3.3;
+        if (s < 0 || s > R.len) continue; // chưa qua cổng cửa khẩu
+        let k = 1; while (k < R.cum.length - 1 && R.cum[k] < s) k++;
+        const l = R.cum[k] - R.cum[k - 1] || 1, f = clamp((s - R.cum[k - 1]) / l, 0, 1);
+        const x0 = R.pts[k * 2 - 2], z0 = R.pts[k * 2 - 1], x1 = R.pts[k * 2], z1 = R.pts[k * 2 + 1];
+        const x = x0 + (x1 - x0) * f, z = z0 + (z1 - z0) * f, y = R.ys[k - 1] + (R.ys[k] - R.ys[k - 1]) * f;
+        const tx = (x1 - x0) * tr.dir, tz = (z1 - z0) * tr.dir, slope = ((R.ys[k] - R.ys[k - 1]) * tr.dir) / l;
+        m.position.set(x, y - 0.07, z);
+        m.rotation.set(-Math.atan(slope), Math.atan2(tx, tz), 0, 'YXZ');
+        m.visible = true;
+      }
+    }
+  }
+
+  /** Người đi dạo trên lối đi bộ: đi tới cuối chuỗi thì quay lại; ban đêm vắng hơn. */
+  _strollers(dt) {
+    const list = this.strollers || [], mesh = this.strollMesh;
+    if (!list.length) { if (mesh.count) { mesh.count = 0; mesh.instanceMatrix.needsUpdate = true; } return; }
+    const h = this.city.hour % 24, night = h < 5 || h >= 22, m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1.25, 1.25, 1.25), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    let n = 0;
+    for (let k = 0; k < list.length; k++) {
+      const w = list[k], L = w.cum[w.cum.length - 1];
+      w.s += w.dir * w.sp * dt;
+      if (w.s > L) { w.s = L; w.dir = -1; } else if (w.s < 0) { w.s = 0; w.dir = 1; }
+      if (night && k % 4) continue;
+      const pt = pointAt(w.pts, w.cum, w.s);
+      p.set(pt[0], heightAt(this.city, pt[0], pt[1]) + 0.12, pt[1]);
+      q.setFromAxisAngle(up, Math.atan2(pt[2] * w.dir, pt[3] * w.dir));
+      m.compose(p, q, sc);
+      mesh.setMatrixAt(n, m); mesh.setColorAt(n++, col.setHSL(w.hue, 0.5, 0.55));
+    }
+    mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }
+
   /** Đồ trên bãi biển tô theo ô: dù, ghế nằm, khăn, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa, phao bơi. */
   _beachProps() {
     const c = this.city;
@@ -1790,10 +2016,21 @@ export class View {
       for (let k = 0; k < 2; k++) if (hash2(x + k, y, 27) < 0.7) // bụi cây dưới tán
         put(4, cellCenter(x) + (hash2(x, y + k, 28) - 0.5) * T * 0.9, cellCenter(y) + (hash2(x + k, y, 29) - 0.5) * T * 0.9, 0.8 + hash2(x, y, 30 + k) * 0.9, 1, hash2(y, x, k) * 6.28, hash2(x, k, 31), hash2(k, y, 32));
     }
+    // cây xanh trồng theo ô trang trí: một cây lớn giữa ô (so le theo ô) và bụi cây thấp; bồn hoa có cây bụi viền
+    if (c.decor) for (let i = 0; i < N * N; i++) {
+      const dv = c.decor[i];
+      if (dv !== 1 && dv !== 4) continue;
+      const x = i % N, y = (i / N) | 0, r = hash2(x, y, 211);
+      if (dv === 1) {
+        const kind = vn ? (r < 0.4 ? 0 : r < 0.62 ? 5 : r < 0.85 ? 1 : 2) : r < 0.5 ? 0 : r < 0.8 ? 1 : 3;
+        put(kind, cellCenter(x) + (hash2(x, y, 212) - 0.5) * 2.5, cellCenter(y) + (hash2(x, y, 213) - 0.5) * 2.5, 1.05 + hash2(x, y, 214) * 0.35, 1, r * 6.28, hash2(x, y, 215), hash2(x, y, 216));
+        if (hash2(x, y, 217) < 0.6) put(4, cellCenter(x) + (hash2(x, y, 218) - 0.5) * 7, cellCenter(y) + (hash2(x, y, 219) - 0.5) * 7, 0.7 + r * 0.5, 1, r * 3, 0.4, 0.5);
+      } else for (let k = 0; k < 4; k++) put(4, cellCenter(x) + [-3.4, 3.4, -3.4, 3.4][k], cellCenter(y) + [-3.4, -3.4, 3.4, 3.4][k], 0.55, 0.8, k, 0.5, 0.4);
+    }
     // đá: sườn dốc, bãi khoáng sản, đôi chỗ ven bờ
     let nr = 0;
     for (let i = 0; i < N * N && nr < MAX_ROCKS; i++) {
-      if (c.water[i] || c.road[i] || c.level[i] || c.occ[i] || (c.beach && c.beach[i])) continue; // bãi biển: không đá
+      if (c.water[i] || c.road[i] || c.level[i] || c.occ[i] || (c.beach && c.beach[i]) || (c.decor && c.decor[i])) continue; // bãi biển, ô trang trí: không đá
       const x = i % N, y = (i / N) | 0, hv = hash2(x, y, 37);
       if (!(c.steep[i] ? hv < 0.6 : c.res[i] === 3 ? hv < 0.3 && !c.acc[i] : hv < 0.05 && !c.acc[i] && shore(x, y))) continue;
       const wx = cellCenter(x) + (hash2(x, y, 38) - 0.5) * T * 0.8, wz = cellCenter(y) + (hash2(x, y, 39) - 0.5) * T * 0.8, sc = 0.7 + hash2(x, y, 40) * 1.6;
@@ -2314,6 +2551,8 @@ export class View {
     if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i] || c.inc.wild[i]) this.fireCells.push(i); d.fx = false; }
     if (d.zones) { this._zones(); d.zones = false; }
     if (d.beach || d.terrain === 2) { this._beachProps(); d.beach = false; }
+    if (d.decor || d.terrain === 2) { this._decor(); d.decor = false; }
+    if (d.rail || d.terrain === 2 || this._railSvcSig !== this._svcSig()) { this._rail(); d.rail = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
     this._vehicles(dt);
     this._animals(simDt);
@@ -2327,6 +2566,8 @@ export class View {
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._movers(simDt);
+    this._strollers(simDt);
+    this._railTrains();
     if (this.siteAnims && this.siteAnims.length) { // công trường: máy xúc xoay gầu, xe chạy qua lại, cần cẩu quay
       const t = (this.siteT = (this.siteT || 0) + simDt);
       for (const a of this.siteAnims) {
