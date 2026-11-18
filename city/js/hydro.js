@@ -186,3 +186,45 @@ export function fallGeom(c, s) {
   }
   return { top, bot };
 }
+
+// ───────────────────────── hồ chứa sau đập ─────────────────────────
+
+export const WATER_Y = -0.9; // mặt nước sông, biển (như render.js)
+
+/** Mực nước hồ chứa của đập (cao hơn mặt sông phía dưới): theo cột nước, tối đa ~5,5 m. */
+export const reservoirLevel = (s) => WATER_Y + clamp((s.dam ? s.dam.head : 8) * 0.32, 2.5, 5.5);
+
+/**
+ * Lòng hồ phía thượng nguồn đập: các ô (nước hoặc đất trũng) liền nhau từ mặt thượng lưu của thân đập, có đỉnh lưới thấp hơn
+ * mực hồ, không lan sang phía hạ lưu. Trả về { level, cells (mọi ô có mặt hồ phủ), land (ô đất ngập hẳn) }.
+ */
+export function reservoirOf(c, s) {
+  if (!s.dam || !s.dam.cells.length) return null;
+  const flow = computeFlow(c), level = reservoirLevel(s), V = N + 1, down = flow.down;
+  const d0 = Math.min(...s.dam.cells.map((i) => (down[i] >= 0 ? down[i] : 1e9)));
+  if (d0 >= 1e9) return null;
+  const dam = new Set(s.dam.cells), lowV = (i) => { const x = i % N, y = (i / N) | 0, k = y * V + x; return Math.min(c.hv[k], c.hv[k + 1], c.hv[k + V], c.hv[k + V + 1]); };
+  const highV = (i) => { const x = i % N, y = (i / N) | 0, k = y * V + x; return Math.max(c.hv[k], c.hv[k + 1], c.hv[k + V], c.hv[k + V + 1]); };
+  const downstream = (i) => { // gần nước phía hạ lưu (hoặc ngang thân đập) thì không ngập
+    const x = i % N, y = (i / N) | 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] >= 0 && down[j] <= d0) return true; }
+    return false;
+  };
+  const seen = new Uint8Array(N * N), q = [], cells = [], land = [];
+  for (const i of s.dam.cells) { const x = i % N, y = (i / N) | 0; for (const [dx, dy] of D4) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (c.water[j] && !dam.has(j) && down[j] > d0 && !seen[j]) { seen[j] = 1; q.push([j, 0]); } } }
+  for (let h = 0; h < q.length; h++) {
+    const [i, dist] = q[h];
+    cells.push(i);
+    if (!c.water[i] && highV(i) < level - 0.3) land.push(i);
+    if (dist >= 60) continue;
+    const x = i % N, y = (i / N) | 0;
+    for (const [dx, dy] of D4) {
+      const a = x + dx, b = y + dy; if (!inMap(a, b)) continue;
+      const j = idx(a, b);
+      if (seen[j] || dam.has(j)) continue;
+      if (c.water[j] ? !(down[j] > d0 || down[j] < 0) : lowV(j) >= level - 0.05 || downstream(j)) continue;
+      seen[j] = 1; q.push([j, dist + 1]);
+    }
+  }
+  return { level, cells, land };
+}

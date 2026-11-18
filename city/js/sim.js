@@ -18,7 +18,7 @@ import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from 
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
-import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, cliffDrop, seasonFlow } from './hydro.js';
+import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, cliffDrop, seasonFlow, reservoirOf } from './hydro.js';
 import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
 import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
@@ -31,7 +31,7 @@ export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo,
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
-export { computeFlow, flowAt, flowName, planDam, damPower, cliffDrop, fallGeom, seasonFlow, DAM_MAX } from './hydro.js';
+export { computeFlow, flowAt, flowName, planDam, damPower, cliffDrop, fallGeom, seasonFlow, DAM_MAX, reservoirOf, reservoirLevel } from './hydro.js';
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
@@ -473,16 +473,25 @@ export function buyLand(c, t) {
 
 /** Đập thuỷ điện: thân đập theo vị trí (đặt, dời, nạp lại), công suất theo dòng sông và mùa; ô bị đập chắn (tàu thuyền). */
 function hydroSync(c) {
-  let any = false;
+  let any = false, fresh = false;
   for (const s of c.services) {
     if (s.type !== 'hydro') continue;
     any = true;
-    if (s.damAt !== `${s.x},${s.y},${s.dir}`) attachDam(c, s);
+    if (s.damAt !== `${s.x},${s.y},${s.dir}`) { attachDam(c, s); fresh = true; }
     s.hp = damPower(c, s);
   }
-  const had = !!c.damCell;
+  const had = !!c.damCell, sig = c.services.filter((s) => s.type === 'hydro').map((s) => s.damAt + (s.dam ? s.dam.cells.length : 0)).join('|');
   c.damCell = any ? damCells(c) : null;
-  if (any || had) c.dirty.water = true;
+  if (sig !== c._hydroSig || fresh) { // hồ chứa: mặt nước dâng sau đập, đất trũng trong lòng hồ ngập (dỡ nhà, không quy hoạch)
+    c._hydroSig = sig;
+    c.resvCell = any ? new Uint8Array(N * N) : null;
+    for (const s of c.services) {
+      if (s.type !== 'hydro') continue;
+      s.res = reservoirOf(c, s);
+      if (s.res) for (const i of s.res.land) { c.resvCell[i] = 1; if (c.level[i]) clearBuilding(c, i); c.zone[i] = 0; c.tree[i] = 0; clearDecor(c, i); }
+    }
+    if (any || had) Object.assign(c.dirty, { water: true, buildings: true, trees: true, zones: true });
+  }
 }
 
 /** Đường ray đổi: tính lại ô có ray, ô quy hoạch, mạng lưới; báo cảnh 3D vẽ lại. */
@@ -1070,7 +1079,7 @@ function rebuildRoadCells(c) {
   }
   for (let i = 0; i < N * N; i++) {
     const alley = !!(c.street && c.street.alley) && !c.road[i] && !c.water[i] && minD[i] >= 20.5 && minD[i] < 30.5; // hẻm: hàng thứ ba sau mặt đường
-    c.acc[i] = c.road[i] || c.water[i] || (c.railCell && c.railCell[i]) ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 || alley ? 2 : 0;
+    c.acc[i] = c.road[i] || c.water[i] || (c.railCell && c.railCell[i]) || (c.resvCell && c.resvCell[i]) ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 || alley ? 2 : 0;
     if (c.alley) c.alley[i] = alley ? 1 : 0;
     if (!c.acc[i] && !c.road[i]) c.cedge[i] = -1;
     if (c.road[i]) {
@@ -1409,7 +1418,7 @@ export function zoneRect(c, x0, y0, x1, y1, z) {
     if (!inMap(x, y)) continue;
     const i = idx(x, y);
     if (!c.own[i]) { locked++; continue; }
-    if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || (c.decor && c.decor[i]) || c.zone[i] === z) continue;
+    if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || (c.decor && c.decor[i]) || (c.resvCell && c.resvCell[i]) || c.zone[i] === z) continue;
     if (z !== 0 && (!c.acc[i] || c.steep[i])) continue;
     if (!hasResource(c, i, z)) { noRes++; continue; }
     if (c.level[i]) { if (z !== 0) continue; clearBuilding(c, i); } // chỉ "bỏ quy hoạch" mới dỡ nhà
@@ -1477,6 +1486,7 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
       if (c.occ[i]) return { ok: false, reason: 'Đang có công trình khác', fp };
       if (c.beach && c.beach[i]) return { ok: false, reason: 'Đang là bãi biển (xoá bãi trước)', fp };
       if (c.railCell && c.railCell[i]) return { ok: false, reason: 'Đang có đường ray', fp };
+      if (c.resvCell && c.resvCell[i]) return { ok: false, reason: 'Trong lòng hồ thuỷ điện (ngập nước)', fp };
       if (c.steep[i] && !def.cliff) return { ok: false, reason: 'Đất quá dốc', fp };
       if (c.acc[i] === 1) nearRoad = true;
     } else if (c.water[i]) nearWater = true;
