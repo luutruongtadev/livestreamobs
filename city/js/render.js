@@ -713,7 +713,7 @@ export class View {
     return m;
   }
 
-  /** Viền phần đất đã mua (luôn hiện) và lưới ô đất còn lại (chỉ hiện khi cầm công cụ mua đất). */
+  /** Viền phần đất của thành phố (nay là cả bản đồ: chỉ còn viền mép bản đồ). */
   _land() {
     const c = this.city, V = N + 1, edge = new Tris(false), grid = new Tris(false);
     const y = (gx, gy) => Math.max(c.hv[gy * V + gx], WATER_Y) + 0.4;
@@ -728,6 +728,7 @@ export class View {
         if (horiz ? tx >= LT : ty >= LT) continue;
         const a = own(tx, ty), b = horiz ? own(tx, ty - 1) : own(tx - 1, ty), t = a !== b ? edge : grid, w = a !== b ? 0.9 : 0.35;
         for (let k = 0; k < LAND; k++) {
+          if ((horiz ? tx * LAND + k + 1 : ty * LAND + k + 1) > N || (horiz ? ty : tx) * LAND > N) break; // bản đồ không chia hết cho ô đất: bỏ phần thừa
           if (horiz) seg(t, tx * LAND + k, ty * LAND, tx * LAND + k + 1, ty * LAND, w);
           else seg(t, tx * LAND, ty * LAND + k, tx * LAND, ty * LAND + k + 1, w);
         }

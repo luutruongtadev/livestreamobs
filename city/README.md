@@ -3,7 +3,7 @@
 Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối TikTok / livestream, không thuộc `games/`.
 
 - Địa chỉ: `https://<PLAY_DOMAIN>/city` (gateway phục vụ thư mục này ở `/city`). Chạy thử trên máy: `node gateway/index.js` rồi mở `http://localhost:8787/city`.
-- Bản lưu nằm trong `localStorage` của trình duyệt: tự lưu 20 giây một lần, 3 ô lưu tay, xuất / nhập file `.json`. Server không giữ gì. Bản lưu đời trước vẫn mở được: bản chưa có người dân thì đường và nhà giữ nguyên, dân tự dọn về lại; bản chưa có mua đất thì cả bản đồ coi như đã mua, địa hình giữ kiểu cũ (không có núi), điểm phát triển tính bù theo mốc dân số đã đạt.
+- Bản lưu nằm trong `localStorage` của trình duyệt: tự lưu 20 giây một lần, 3 ô lưu tay, xuất / nhập file `.json`. Server không giữ gì. Bản lưu đời trước vẫn mở được: bản chưa có người dân thì đường và nhà giữ nguyên, dân tự dọn về lại; bản đồ 96 × 96 của các bản lưu cũ vẫn mở đúng cỡ, kiểu Sông và biển; bản chưa có núi thì địa hình giữ kiểu cũ (không có núi), điểm phát triển tính bù theo mốc dân số đã đạt.
 
 ## Cách chơi
 
@@ -41,8 +41,12 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 11. **Tiền**: thuế riêng cho dân cư / thương mại / công nghiệp thu theo lương và doanh thu thật, tiền vé, phí bảo trì mỗi ngày, vay tối đa 3 khoản. Nợ quá 30.000 ₫ hoặc âm tiền 4 ngày liền thì phá sản.
 12. **Địa hình và tài nguyên**: ngoài sông, hồ, biển và đồi thoải, bản đồ mới có dãy núi ở xa điểm xuất phát (ô quá dốc chỉ làm đường được). Mỗi vùng có tài nguyên riêng: đất màu mỡ ven nước, rừng, khoáng sản trên núi, dầu, vùng nước có cá. Lớp xem 🗺️ *tài nguyên* chỉ ra chỗ nào có gì.
 13. **Khu chuyên biệt** (nhóm ⛏️): nông trại, lâm trường, mỏ, giếng dầu, bến cá. Mỗi khu chỉ mọc trên ô có đúng loại tài nguyên, bán nguyên liệu cho nhà máy cùng ngành trong thành phố, thừa thì xuất khẩu. Mỏ và giếng dầu gây ô nhiễm; nông trại, bến cá gần như không.
-14. **Mua đất** (🧭): lúc đầu thành phố chỉ có 9 ô đất 12 × 12 quanh đường dẫn vào (nới thêm nếu chưa chạm bờ nước). Đường, quy hoạch, công trình chỉ đặt được trên đất đã mua. Mua thêm ô kề bên; càng có nhiều đất, ô sau càng đắt, ô nhiều nước thì rẻ hơn.
-15. **Điểm phát triển và cây công nghệ** (🔬): bắt đầu có 3 điểm, mỗi mốc dân số thưởng thêm. Tiêu điểm để mở khu chuyên biệt, module, công trình biểu tượng và ba chính sách (mua đất rẻ hơn, khai thác nhanh hơn, xuất khẩu được giá). Tổng điểm không đủ mở hết.
+14. **Bản đồ** (🗺️ Chọn bản đồ ở màn chào, hoặc khi chơi mới): cả bản đồ thuộc thành phố từ đầu, không còn mua đất.
+   - **7 kiểu:** 🏞️ Sông và biển, 🌾 Đồng bằng châu thổ (sông chia nhánh, đất phẳng màu mỡ), 🏝️ Vịnh và đảo (bờ biển dài, vịnh, đảo ngoài khơi), ⛰️ Cao nguyên (núi, hồ thuỷ điện, không biển), 💧 Hồ lớn (đảo giữa hồ, sông thoát ra biển), 🌊 Đảo (biển bao quanh, lối nối phía bắc), 🏔️ Thung lũng (sông giữa hai dãy núi).
+   - **3 cỡ:** Vừa 96 × 96, Lớn 128 × 128, Rất lớn 160 × 160.
+   - Mỗi kiểu có ảnh xem trước theo mã bản đồ (🎲 đổi mã để sinh bản đồ khác); chọn chế độ Thường hoặc 🎨 Open.
+   - Đổi cỡ bản đồ thì trang tự tải lại để dựng cảnh theo cỡ mới (thành phố không mất).
+15. **Điểm phát triển và cây công nghệ** (🔬): bắt đầu có 3 điểm, mỗi mốc dân số thưởng thêm. Tiêu điểm để mở khu chuyên biệt, module, công trình biểu tượng và ba chính sách (xúc tiến du lịch: quảng bá quốc tế rẻ hơn 30%, khai thác nhanh hơn, xuất khẩu được giá). Tổng điểm không đủ mở hết.
 16. **Module**: bấm vào một công trình đã xây để gắn thêm module (tổ máy phụ, bộ lọc khói, bể chứa, dãy phòng học, khoa nội trú, chốt trực, tầng đỗ xe, vườn hoa…). Module tăng công suất, số xe hoặc bán kính, giá và phí bằng một phần công trình gốc.
 17. **Công trình biểu tượng** (🗽): tượng đài, chợ trung tâm, nhà hát lớn, tháp truyền hình, Tháp Phố Mới. Mỗi thành phố xây một cái mỗi loại; chúng cộng hài lòng, thuế thương mại hoặc sức hút dân cho cả thành phố.
 18. **Y tế, tang lễ**: trạm y tế, bệnh viện (người ốm trong vùng ít tử vong, người già sống lâu hơn). Từ 400 dân, người mất phải được xe tang đưa về nghĩa trang (đầy thì thôi nhận) hoặc đài hoá thân (30 người / ngày); chờ lâu thì cả nhà buồn.

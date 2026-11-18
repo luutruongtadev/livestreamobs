@@ -26,7 +26,6 @@ const GROUPS = [
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
   { id: 'terra', icon: '⛰️', label: 'Địa hình', items: ['terra:dig', 'terra:raise', 'terra:level', 'terra:canal'] },
-  { id: 'land', icon: '🧭', label: 'Mua đất', tool: 'land' },
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['upgrade', '⬆️', 'Nâng cấp'], ['raise', '⏫', 'Nâng tầng'], ['lower', '⏬', 'Hạ tầng'], ['bridge', '🌉', 'Đổi cầu']];
@@ -599,7 +598,6 @@ function showInfo(tile) {
       if (jb && c.staff[i] < jb * 0.5) needs = [...needs, 'Thiếu người làm'];
       if (c.fire[i]) needs = ['🔥 Đang cháy!', ...needs];
     } else if (z) add('Tình trạng', !c.acc[i] ? 'Không còn cạnh đường' : c.pOk[i] !== 1 ? 'Chờ có điện' : c.wOk[i] !== 1 ? 'Chờ có nước' : c.sOk[i] !== 1 ? 'Chờ có chỗ xả nước thải' : 'Chờ có nhu cầu');
-    else if (!c.own[i]) add('Quy hoạch', 'Mua ô đất này bằng 🧭 Mua đất trước');
     else if (c.steep[i]) add('Quy hoạch', 'Đất quá dốc, chỉ làm đường được');
     else if (!c.acc[i]) add('Quy hoạch', 'Phải nằm trong 2 ô cạnh đường');
     if (c.tree[i]) add('Cây xanh', 'Có');
@@ -1151,12 +1149,13 @@ function bindUi() {
   buildLayers(); bindMinimap();
   $('bHelp').addEventListener('click', () => $('modal').classList.add('show'));
   $('mStart').addEventListener('click', () => { $('modal').classList.remove('show'); try { localStorage.setItem(KEY + 'seen', '1'); } catch { /* bỏ qua */ } });
-  const fresh = () => { startCity(S.newCity()); autosave(); $('over').classList.remove('show'); };
-  $('bNew').addEventListener('click', () => { if (confirm('Bỏ thành phố hiện tại và bắt đầu vùng đất mới? (Các ô lưu vẫn giữ nguyên)')) fresh(); });
-  $('oNew').addEventListener('click', fresh);
-  const freshOpen = () => { startCity(S.newSandbox()); autosave(); $('over').classList.remove('show'); toast('🎨 Chế độ Open: mọi thứ đã mở, tiền không giới hạn, không phá sản'); };
-  $('mOpen').addEventListener('click', () => { $('modal').classList.remove('show'); try { localStorage.setItem(KEY + 'seen', '1'); } catch { /* bỏ qua */ } if (!city.edges.size || city.edges.size <= 1 || confirm('Bắt đầu thành phố mới ở chế độ Open? (thành phố hiện tại vẫn ở ô lưu tự động cho tới khi bị ghi đè)')) freshOpen(); });
-  $('bNewOpen').addEventListener('click', () => { if (confirm('Bỏ thành phố hiện tại và bắt đầu vùng đất mới ở chế độ Open? (Các ô lưu vẫn giữ nguyên)')) freshOpen(); });
+  const seenModal = () => { $('modal').classList.remove('show'); try { localStorage.setItem(KEY + 'seen', '1'); } catch { /* bỏ qua */ } };
+  $('bNew').addEventListener('click', () => openMaps('normal'));
+  $('oNew').addEventListener('click', () => openMaps('normal'));
+  $('mMaps').addEventListener('click', () => { seenModal(); openMaps('normal'); });
+  $('mOpen').addEventListener('click', () => { seenModal(); openMaps('open'); });
+  $('bNewOpen').addEventListener('click', () => openMaps('open'));
+  bindMaps();
   $('bOpen').addEventListener('click', () => {
     if (city.sandbox) { toast('Thành phố này đã ở chế độ Open'); return; }
     if (!confirm('Bật chế độ Open cho thành phố này? Mọi thứ mở khoá, có cả bản đồ, tiền không giới hạn, không phá sản. Không tắt lại được.')) return;
@@ -1183,7 +1182,54 @@ function bindUi() {
   window.addEventListener('pagehide', () => autosave());
 }
 
+// ───────────────────────── chọn bản đồ ─────────────────────────
+
+const mapPick = { kind: 'river', size: 128, seed: 0, mode: 'normal' };
+function openMaps(mode) {
+  mapPick.mode = mode; mapPick.seed = (Math.random() * 1e9) | 0;
+  for (const r of document.querySelectorAll('[name=mapMode]')) r.checked = r.value === mode;
+  $('maps').classList.add('show'); renderMaps(true);
+}
+function renderMaps(previews) {
+  $('mapSeed').value = mapPick.seed;
+  const grid = $('mapGrid');
+  if (previews || !grid.childElementCount) {
+    grid.textContent = '';
+    for (const [k, m] of Object.entries(S.MAPS)) {
+      const card = el('button', 'mapcard' + (k === mapPick.kind ? ' on' : '')), cv = el('canvas');
+      const pv = S.mapPreview(mapPick.seed, k, mapPick.size);
+      cv.width = cv.height = pv.n; cv.getContext('2d').putImageData(new ImageData(pv.px, pv.n, pv.n), 0, 0);
+      card.append(cv, el('b', null, `${m.icon} ${m.name}`)); card.title = m.desc; card.dataset.kind = k;
+      card.onclick = () => { mapPick.kind = k; renderMaps(false); };
+      grid.append(card);
+    }
+  }
+  for (const card of grid.children) card.classList.toggle('on', card.dataset.kind === mapPick.kind);
+  const sz = $('mapSizes'); sz.textContent = '';
+  for (const [n, d] of Object.entries(S.MAP_SIZES)) { const b = el('button', 'mini' + (+n === mapPick.size ? ' acc' : ''), d.name); b.title = d.desc; b.onclick = () => { mapPick.size = +n; renderMaps(true); }; sz.append(b); }
+  const m = S.MAPS[mapPick.kind];
+  $('mapDesc').innerHTML = `<b>${m.icon} ${m.name}</b> · ${S.MAP_SIZES[mapPick.size].desc}<br>${m.desc}`;
+}
+function bindMaps() {
+  $('mapReroll').addEventListener('click', () => { mapPick.seed = (Math.random() * 1e9) | 0; renderMaps(true); });
+  $('mapSeed').addEventListener('change', (e) => { mapPick.seed = Math.max(0, +e.target.value | 0); renderMaps(true); });
+  for (const r of document.querySelectorAll('[name=mapMode]')) r.addEventListener('change', () => { mapPick.mode = r.value; });
+  $('mapCancel').addEventListener('click', () => $('maps').classList.remove('show'));
+  $('mapGo').addEventListener('click', () => {
+    if (city && city.edges.size > 1 && !confirm('Bỏ thành phố hiện tại và bắt đầu vùng đất mới? (Các ô lưu vẫn giữ nguyên)')) return;
+    const opts = { size: mapPick.size, map: mapPick.kind }, c = mapPick.mode === 'open' ? S.newSandbox(mapPick.seed, opts) : S.newCity(mapPick.seed, opts);
+    $('maps').classList.remove('show'); $('over').classList.remove('show');
+    if (startCity(c)) { autosave(); if (mapPick.mode === 'open') toast('🎨 Chế độ Open: mọi thứ đã mở, tiền không giới hạn, không phá sản'); }
+  });
+}
+
+/** Đổi sang thành phố c. Cảnh 3D dựng theo cỡ bản đồ: khác cỡ thì cất thành phố vào phiên rồi tải lại trang (trả về false). */
 function startCity(c) {
+  if (view.mapN !== S.N) {
+    try { sessionStorage.setItem(KEY + 'pending', JSON.stringify(S.serialize(c))); } catch { city = c; writeSlot('auto'); }
+    location.reload();
+    return false;
+  }
   city = c; window.__city = c;
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
@@ -1193,6 +1239,7 @@ function startCity(c) {
   buildToolbar(); setTool('info'); updateHud(true); renderDev();
   $('over').classList.toggle('show', !!c.over);
   layout();
+  return true;
 }
 
 function frame(now) {
@@ -1247,13 +1294,23 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// thành phố lúc mở trang: thành phố vừa chọn (đổi cỡ bản đồ phải tải lại trang) hoặc ô tự lưu; nạp trước để biết cỡ bản đồ rồi mới dựng cảnh 3D
+let first = null, bootErr = null;
+try {
+  const pend = sessionStorage.getItem(KEY + 'pending');
+  if (pend) { sessionStorage.removeItem(KEY + 'pending'); first = S.deserialize(JSON.parse(pend)); }
+} catch (e) { bootErr = e; }
+if (!first) { const d = readSlot('auto'); if (d) try { first = S.deserialize(d.city); } catch (e) { bootErr = e; } }
+if (!first) first = S.newCity(undefined, { size: 128 });
 view = new View($('view'));
+view.mapN = S.N;
 window.__view = view;
 try { view.dayNight = localStorage.getItem(KEY + 'night') !== '0'; } catch { /* bỏ qua */ }
 $('bNight').classList.toggle('on', view.dayNight);
-window.__newCity = (seed) => startCity(S.newCity(seed)); // tiện thử nghiệm: bản đồ theo seed cố định
+window.__newCity = (seed, opts) => startCity(S.newCity(seed, opts || { size: view.mapN })); // tiện thử nghiệm: bản đồ theo seed cố định
 bindUi();
-if (!loadSlot('auto')) startCity(S.newCity());
+startCity(first);
+if (bootErr) toast('Không đọc được bản lưu: ' + bootErr.message);
 bindInput();
 let seen = false;
 try { seen = !!localStorage.getItem(KEY + 'seen'); } catch { /* bỏ qua */ }

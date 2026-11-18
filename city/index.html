@@ -129,6 +129,16 @@
 
   .modal { position: fixed; inset: 0; background: rgba(8, 13, 20, .6); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .modal.show { display: flex; }
+  .modal .panel.wide { max-width: 900px; width: min(900px, 96vw); }
+  .mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
+  .mapcard { background: rgba(255, 255, 255, .06); border: 2px solid transparent; border-radius: 12px; padding: 8px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+  .mapcard:hover { background: rgba(255, 255, 255, .12); }
+  .mapcard.on { border-color: var(--acc); background: rgba(255, 255, 255, .14); }
+  .mapcard canvas { width: 100%; aspect-ratio: 1; border-radius: 8px; display: block; image-rendering: pixelated; }
+  .mapcard b { display: block; margin-top: 6px; font-size: 14px; }
+  .maprow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  .maprow > b { min-width: 110px; }
+  .mapdesc { margin: 10px 0; opacity: .85; min-height: 2.6em; }
   .modal .panel { max-width: 640px; padding: 22px 26px; max-height: 92vh; overflow: auto; }
   .modal h2 { margin: 0 0 6px; font-size: 24px; }
   .modal h2 em { font-style: normal; color: var(--acc); }
@@ -269,6 +279,19 @@
   <div class="panel bar" id="tools"></div>
 </div>
 
+<div class="modal" id="maps">
+  <div class="panel wide">
+    <h2>🗺️ Chọn vùng đất mới</h2>
+    <div id="mapGrid" class="mapgrid"></div>
+    <div class="maprow"><b>Cỡ bản đồ</b><span id="mapSizes"></span></div>
+    <div class="maprow"><b>Mã bản đồ</b><span><input id="mapSeed" type="number" min="0" style="width:130px"> <button class="mini" id="mapReroll" title="Sinh bản đồ ngẫu nhiên khác">🎲 Ngẫu nhiên</button></span></div>
+    <div class="maprow"><b>Chế độ</b><span><label><input type="radio" name="mapMode" value="normal" checked> Thường (có tiền, có mốc mở khoá)</label> <label><input type="radio" name="mapMode" value="open"> 🎨 Open (mở hết, không phá sản)</label></span></div>
+    <div id="mapDesc" class="mapdesc"></div>
+    <button class="cta" id="mapGo">Bắt đầu trên bản đồ này</button>
+    <button class="cta ghost" id="mapCancel">Huỷ</button>
+  </div>
+</div>
+
 <div class="modal" id="modal">
   <div class="panel">
     <h2>Chào thị trưởng của <em>Phố Mới</em></h2>
@@ -280,7 +303,7 @@
       <li><b>💧 Nước</b>: tháp nước cấp nước sạch, cống xả thải (đặt sát bờ nước) nhận nước thải. Ở xa đường thì nối bằng ống nước.</li>
       <li>Bấm ▶: người dân dọn tới, đi làm, đi chợ bằng xe thật trên đường. Thêm 🏬 cửa hàng, 🏭 công nghiệp để có việc; hàng hoá do xe tải chở giữa nhà máy, cửa hàng và đường cao tốc.</li>
       <li>Về sau: bãi rác, y tế, cứu hoả (xe phải chạy tới nơi), trường học để có lao động trình độ, xe buýt / metro khi kẹt xe. Xem 👥 để biết thành phố đang thiếu gì.</li>
-      <li><b>🧭 Mua đất</b>: lúc đầu chỉ có một góc bản đồ (phần sáng). Mua thêm ô đất kề bên để vươn tới rừng, núi, mỏ dầu, vùng nước có cá.</li>
+      <li><b>🗺️ Bản đồ</b>: chọn 1 trong 7 kiểu địa hình (sông biển, châu thổ, vịnh đảo, cao nguyên, hồ lớn, đảo, thung lũng) và 3 cỡ. Cả bản đồ thuộc về bạn từ đầu: xây đâu tuỳ thích.</li>
       <li><b>⛰️ Địa hình</b>: giữ chuột để <b>đào</b>, <b>đắp</b>, <b>san phẳng</b>; <b>🌊 dẫn nước</b> đào kênh đưa nước vào sâu trong đất (đất hai bên kênh thành đất màu mỡ, đặt được trạm bơm, cống xả). Đào sâu quá mực nước thì thành ao hồ, đắp lên lòng sông thì có thêm đất.</li>
       <li><b>📊 Kinh tế</b>: chỉnh mức chi từng ngành (giáo dục, y tế, an ninh, giao thông), xem giá thị trường xuất nhập khẩu lên xuống theo ngày; xây 🧳 chùa, bảo tàng, khách sạn để đón du khách; quy hoạch 🧺 chợ truyền thống, 🏚️ xưởng chế biến kiểu Việt Nam.</li>
       <li><b>🔬 Phát triển</b>: mỗi mốc dân số thưởng điểm; tiêu điểm để mở <b>⛏️ khu tài nguyên</b> (nông sản, gỗ, khoáng sản, dầu, cá nuôi nhà máy và xuất khẩu), module nâng cấp công trình (bấm vào công trình để gắn) và <b>🗽 công trình biểu tượng</b>.</li>
@@ -291,6 +314,7 @@
       Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
+    <button class="cta ghost" id="mMaps">🗺️ Chọn bản đồ khác</button>
     <button class="cta ghost" id="mOpen" title="Mở khoá mọi công trình, có cả bản đồ, tiền không giới hạn, không bao giờ phá sản">🎨 Chế độ Open: sáng tạo tự do</button>
   </div>
 </div>

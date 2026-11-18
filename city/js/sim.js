@@ -3,9 +3,9 @@
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  MAP_SIZES, ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
-  mulberry32, hash2, vnoise, makeField, distSeg, nearestOnEdge, TRANSIT,
+  mulberry32, hash2, vnoise, makeField, MAPS, setMapSize, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
 import { initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen } from './people.js';
@@ -36,23 +36,26 @@ const STEEP = 6; // ô chênh cao quá mức này giữa các đỉnh thì khôn
  * Đáy nước -3.2, mép bờ 0, đất liền theo đồi thoải; bản đồ đời mới (tgen ≥ 2) có thêm dãy núi ở xa điểm xuất phát.
  */
 export function heightFn(c) {
-  const seed = c.seed, f = makeField(seed), sx = c.start.x, sy = c.start.y, mountains = c.tgen >= 2;
+  const seed = c.seed, kind = MAPS[c.map] ? c.map : 'river', M = MAPS[kind], f = makeField(seed, kind), sx = c.start.x, sy = c.start.y, mountains = c.tgen >= 2;
   const nat = c.water0 || c.water; // mặt nước tự nhiên (trước khi đào đắp): cao độ nền tính theo mặt nước này
   const isWater = (tx, ty) => (inMap(tx, ty) ? c.water[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
   const isWater0 = (tx, ty) => (inMap(tx, ty) ? nat[idx(tx, ty)] === 1 : f(tx + 0.5, ty + 0.5) < 0.15);
+  const ctx = { N, sx, sy, seed }, hills = M.hills ?? 1;
   const mount = (gx, gy) => {
-    if (!mountains) return 0;
-    const far = clamp((Math.hypot(gx - sx, gy - sy) - 40) / 18, 0, 1);
+    if (!mountains || !M.mount) return 0;
+    let far;
+    if (M.mask) far = M.mask(gx, gy, ctx);
+    else { far = clamp((Math.hypot(gx - sx, gy - sy) - 40) / 18, 0, 1); far = far * far * (3 - 2 * far); }
     if (!far) return 0;
-    const r = clamp((vnoise(gx * 0.045, gy * 0.045, seed + 51) - 0.5) / 0.3, 0, 1);
-    return 38 * r * r * (3 - 2 * r) * far * far * (3 - 2 * far) * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
+    const r = clamp((vnoise(gx * 0.045, gy * 0.045, seed + 51) - 0.5 + (M.cover || 0)) / 0.3, 0, 1);
+    return 38 * M.mount * r * r * (3 - 2 * r) * far * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
   };
   const height = (gx, gy) => {
     const wn = isWater0(gx - 1, gy - 1) + isWater0(gx, gy - 1) + isWater0(gx - 1, gy) + isWater0(gx, gy);
     if (wn === 4) return -3.2;
     if (wn > 0) return 0;
     const n = vnoise(gx * 0.034, gy * 0.034, seed + 41) * 0.75 + vnoise(gx * 0.09, gy * 0.09, seed + 43) * 0.25;
-    return (15 * Math.pow(n, 1.5) + mount(gx, gy)) * clamp((f(gx, gy) - 1.6) / 9, 0, 1);
+    return (15 * hills * Math.pow(n, 1.5) + mount(gx, gy)) * clamp((f(gx, gy) - 1.6) / 9, 0, 1);
   };
   return { f, isWater, mount, height };
 }
@@ -263,9 +266,14 @@ export function terraformDone(c) {
 
 // ───────────────────────── tạo thành phố ─────────────────────────
 
-export function newCity(seed = (Math.random() * 1e9) | 0) {
+/**
+ * Thành phố mới. opts.size: cỡ bản đồ (MAP_SIZES, mặc định 96), opts.map: kiểu bản đồ (MAPS, mặc định 'river').
+ * Đổi cỡ bản đồ cho mọi module, nên cảnh 3D phải dựng lại nếu cỡ khác cỡ đang vẽ.
+ */
+export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
+  setMapSize(opts.size || 96);
   const c = {
-    v: 4, tgen: 2, seed, name: 'Phố Mới', style: 'vn',
+    v: 4, tgen: 2, seed, name: 'Phố Mới', style: 'vn', map: MAPS[opts.map] ? opts.map : 'river',
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
     zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N),
     nodes: new Map(), edges: new Map(), nextId: 1, lines: [], rings: [],
@@ -273,24 +281,57 @@ export function newCity(seed = (Math.random() * 1e9) | 0) {
     tech: new Set(), points: START_POINTS, owned: new Uint8Array(LT * LT), terra: new Int16Array((N + 1) * (N + 1)),
   };
   genLand(c);
-  // đường cao tốc dẫn vào thành phố từ mép bắc (cũng là cửa ngõ xuất nhập khẩu), chọn cột toàn đất liền
-  let sx = (N * 0.55) | 0;
-  for (let k = 0; k < N; k++) {
-    const x = ((N * 0.55) | 0) + (k % 2 ? -1 : 1) * ((k + 1) >> 1);
-    if (x < 6 || x >= N - 6) continue;
-    let ok = true;
-    for (let y = 0; y < 14; y++) for (let d = -4; d <= 4; d++) if (c.water[idx(x + d, y)]) ok = false;
-    if (ok) { sx = x; break; }
-  }
-  c.start = { x: sx, y: 7 };
-  startLand(c);
+  c.start = { x: pickStart(c), y: 7 };
+  c.owned.fill(1); // không còn mua đất: cả bản đồ thuộc thành phố từ đầu
   attach(c);
-  const a = addNode(c, cellCenter(sx), -HALF + 1), b = addNode(c, cellCenter(sx), cellCenter(7));
+  const a = addNode(c, cellCenter(c.start.x), -HALF + 1), b = addNode(c, cellCenter(c.start.x), cellCenter(7));
   addEdge(c, a, b, 'small');
   roadsChanged(c);
   initEcon(c);
   computeMaps(c);
   return c;
+}
+
+/** Đường cao tốc dẫn vào thành phố từ mép bắc (cũng là cửa ngõ xuất nhập khẩu): chọn cột toàn đất liền gần 0,55·N. */
+function pickStart(c) {
+  for (let k = 0; k < N; k++) {
+    const x = ((N * 0.55) | 0) + (k % 2 ? -1 : 1) * ((k + 1) >> 1);
+    if (x < 6 || x >= N - 6) continue;
+    let ok = true;
+    for (let y = 0; y < 14; y++) for (let d = -4; d <= 4; d++) if (c.water[idx(x + d, y)]) ok = false;
+    if (ok) return x;
+  }
+  return (N * 0.55) | 0;
+}
+
+/**
+ * Ảnh xem trước một bản đồ (chưa tạo thành phố): RGBA n × n, nước xanh theo độ sâu, đất theo cao độ, có lối vào phía bắc.
+ * Đổi tạm cỡ bản đồ rồi trả lại như cũ, nên gọi lúc nào cũng được.
+ */
+export function mapPreview(seed, kind, size) {
+  const prev = N;
+  setMapSize(size);
+  try {
+    const c = { seed, map: MAPS[kind] ? kind : 'river', tgen: 2, water: new Uint8Array(N * N) };
+    const f = makeField(seed, c.map);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (f(x + 0.5, y + 0.5) < 0.15) c.water[idx(x, y)] = 1;
+    c.start = { x: pickStart(c), y: 7 };
+    const hf = heightFn(c), px = new Uint8ClampedArray(N * N * 4);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = idx(x, y), o = i * 4;
+      let r, g, b;
+      if (c.water[i]) { const d = clamp(-f(x + 0.5, y + 0.5) / 6, 0, 1); r = 40 - d * 20; g = 120 - d * 50; b = 190 - d * 40; }
+      else {
+        const h = hf.height(x + 0.5, y + 0.5), sh = clamp(h / 40, 0, 1);
+        if (h > 26) { r = g = b = 150 + sh * 90; }
+        else { r = 96 + sh * 90; g = 150 - sh * 30; b = 70 + sh * 40; }
+        if (f(x + 0.5, y + 0.5) < 1.3) { r = 214; g = 200; b = 150; } // bãi cát ven nước
+      }
+      if (Math.abs(x - c.start.x) < 1 && y < 8) { r = 240; g = 200; b = 60; } // lối vào
+      px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+    }
+    return { n: N, px, start: c.start };
+  } finally { setMapSize(prev); }
 }
 
 // ───────────────────────── chế độ Open (sáng tạo tự do) ─────────────────────────
@@ -306,10 +347,10 @@ export function enableSandbox(c) {
   recalc(c);
   return c;
 }
-export const newSandbox = (seed) => enableSandbox(newCity(seed));
+export const newSandbox = (seed, opts) => enableSandbox(newCity(seed, opts));
 
 function genLand(c) {
-  const f = makeField(c.seed), seed = c.seed;
+  const f = makeField(c.seed, MAPS[c.map] ? c.map : 'river'), seed = c.seed;
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = idx(x, y);
     if (f(x + 0.5, y + 0.5) < 0.15) { c.water[i] = 1; continue; }
@@ -1757,7 +1798,7 @@ export function serialize(c) {
   const pack = (k) => b64(c[k]), pp = packPeople(c), terra = [];
   for (let k = 0; k < c.terra.length; k++) if (c.terra[k]) terra.push(k, c.terra[k]);
   return {
-    v: 4, n: N, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
+    v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
     tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
@@ -1777,8 +1818,15 @@ export function serialize(c) {
   };
 }
 
+/** Nạp bản lưu. Đổi cỡ bản đồ theo bản lưu; nạp hỏng thì trả cỡ cũ để thành phố đang chơi không bị ảnh hưởng. */
 export function deserialize(o) {
-  if (!o || ![2, 3, 4].includes(o.v) || o.n !== N) throw new Error('Bản lưu không hợp lệ hoặc thuộc phiên bản cũ');
+  const prev = N;
+  try { return deserializeAt(o); } catch (e) { setMapSize(prev); throw e; }
+}
+
+function deserializeAt(o) {
+  if (!o || ![2, 3, 4].includes(o.v) || !MAP_SIZES[o.n]) throw new Error('Bản lưu không hợp lệ hoặc thuộc phiên bản cũ');
+  setMapSize(o.n);
   const num = (v, d) => (Number.isFinite(+v) ? +v : d);
   const old = o.v === 2; // bản lưu trước khi có người dân: giữ nguyên đường và nhà, dân sẽ tự dọn về
   const open = o.v < 4; // bản lưu trước khi có mua đất / cây công nghệ: đất mở sẵn cả bản đồ, địa hình giữ kiểu cũ, điểm tính bù theo mốc đã đạt
@@ -1788,7 +1836,7 @@ export function deserialize(o) {
     v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2), style: o.style === 'vn' ? 'vn' : 'classic', // bản lưu cũ giữ kiểu nhà cũ
     tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
     points: open ? START_POINTS + MILESTONES.slice(0, ms).reduce((n, m) => n + m.points, 0) : clamp(o.points | 0, 0, 999),
-    owned: open ? new Uint8Array(LT * LT).fill(1) : unb64(o.owned, LT * LT).map((v) => (v ? 1 : 0)),
+    owned: new Uint8Array(LT * LT).fill(1), map: MAPS[o.map] ? o.map : 'river', // bỏ mua đất: bản lưu cũ cũng mở cả bản đồ
     seed: o.seed | 0, name: String(o.name || 'Phố Mới').slice(0, 24), money: num(o.money, 0), hour: Math.max(0, (old ? o.day : o.hour) | 0), milestone: clamp(o.milestone | 0, 0, MILESTONES.length),
     tax: { r: clamp(num(o.tax?.r, 9), 1, 20), c: clamp(num(o.tax?.c, 9), 1, 20), i: clamp(num(o.tax?.i, 9), 1, 20) },
     start: { x: clamp(o.start?.x | 0, 0, N - 1), y: clamp(o.start?.y | 0, 0, N - 1) },

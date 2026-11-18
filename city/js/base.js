@@ -1,9 +1,18 @@
 // Phố Mới — hằng số, bảng định nghĩa và hàm thuần dùng chung cho mọi module mô phỏng.
-export const N = 96; // bản đồ N x N ô
 export const T = 10; // cạnh một ô (đơn vị thế giới)
-export const HALF = (N * T) / 2;
-export const LAND = 12; // cạnh một ô đất mua được (tính theo ô lưới)
-export const LT = N / LAND; // bản đồ có LT x LT ô đất
+export const LAND = 12; // cạnh một ô đất (lưới quản lý đất cũ, tính theo ô lưới)
+/** Cỡ bản đồ chọn được khi chơi mới (số ô mỗi cạnh). 96 là cỡ của các bản lưu cũ. */
+export const MAP_SIZES = { 96: { name: 'Vừa', desc: '96 × 96 ô, gọn, máy yếu chạy mượt' }, 128: { name: 'Lớn', desc: '128 × 128 ô, gần gấp đôi diện tích' }, 160: { name: 'Rất lớn', desc: '160 × 160 ô, gần gấp ba, cần máy khoẻ' } };
+// cỡ bản đồ hiện tại: biến "sống" (live binding), đổi bằng setMapSize trước khi tạo / nạp thành phố và trước khi dựng cảnh 3D
+export let N = 96; // bản đồ N x N ô
+export let HALF = (N * T) / 2;
+export let LT = Math.ceil(N / LAND); // bản đồ có LT x LT ô đất
+/** Đổi cỡ bản đồ cho mọi module (giá trị N, HALF, LT nhập ở module khác tự cập nhật theo). */
+export function setMapSize(n) {
+  n = MAP_SIZES[n] ? +n : 96;
+  N = n; HALF = (N * T) / 2; LT = Math.ceil(N / LAND);
+  return N;
+}
 export const HOUR_SEC = 5; // một giờ trong game dài bao nhiêu giây ở tốc độ 1 (một ngày = 2 phút)
 export const RATE = 6; // hệ số quy phí / thuế "mỗi kỳ" cũ sang "mỗi ngày"
 
@@ -200,7 +209,7 @@ export const TECH = {
   lm3: { name: 'Nhà hát lớn', icon: '🎭', branch: 'lm', cost: 3, req: 'lm2', rank: 3, desc: 'Hài lòng +3 điểm' },
   lm4: { name: 'Tháp truyền hình', icon: '📡', branch: 'lm', cost: 4, req: 'lm3', rank: 4, desc: 'Người tới ở đông hơn' },
   lm5: { name: 'Tháp Phố Mới', icon: '🌆', branch: 'lm', cost: 5, req: 'lm4', rank: 5, desc: 'Công trình lớn nhất vùng' },
-  landdeal: { name: 'Thương lượng đất', icon: '🧭', branch: 'policy', cost: 2, desc: 'Giá mua ô đất giảm 25%' },
+  landdeal: { name: 'Xúc tiến du lịch', icon: '📣', branch: 'policy', cost: 2, desc: 'Chi phí quảng bá du lịch quốc tế giảm 30%' }, // id cũ giữ để bản lưu không mất điểm đã nâng
   survey: { name: 'Khảo sát địa chất', icon: '🔎', branch: 'policy', cost: 2, desc: 'Khu chuyên biệt khai thác nhanh hơn 20%' },
   customs: { name: 'Hải quan nhanh', icon: '🚢', branch: 'policy', cost: 2, desc: 'Hàng xuất khẩu bán được giá hơn 15%' },
 };
@@ -279,17 +288,117 @@ export function vnoise(x, y, s) {
 }
 
 /** Trường địa hình liên tục theo toạ độ ô: dương = đất liền (xấp xỉ số ô cách bờ), âm = nước. */
-export function makeField(seed) {
-  const ph = hash2(1, 2, seed) * 6.283;
-  const rx = N * (0.24 + hash2(3, 4, seed) * 0.1);
-  const lx = N * (0.62 + hash2(5, 6, seed) * 0.2), ly = N * (0.3 + hash2(7, 8, seed) * 0.25), lr = 4.5 + hash2(9, 10, seed) * 3;
-  return (x, y) => {
-    const cx = rx + Math.sin(y * 0.065 + ph) * 8 + (vnoise(3.3, y * 0.05, seed) - 0.5) * 10;
-    const river = Math.abs(x - cx) - (2.2 + vnoise(x * 0.1, y * 0.1, seed + 7) * 1.6);
-    const coast = N - 12 + (vnoise(x * 0.06, 1.7, seed + 3) - 0.5) * 12 - y;
-    const lake = Math.hypot(x - lx, y - ly) - lr * (0.75 + vnoise(x * 0.15, y * 0.15, seed + 5) * 0.5);
-    return Math.min(river, coast, lake);
-  };
+/**
+ * Các kiểu bản đồ. hills: độ cao đồi thoải (×), mount: độ cao núi (×); mask(gx, gy, ctx) = vùng có núi 0..1
+ * (mặc định: xa điểm xuất phát). ctx = { N, sx, sy, seed }.
+ */
+const valleyX = (y, seed) => N * 0.5 + Math.sin(y * 0.045 + hash2(11, 12, seed) * 6.283) * N * 0.06 + (vnoise(1.1, y * 0.04, seed + 21) - 0.5) * 8;
+export const MAPS = {
+  river: { name: 'Sông và biển', icon: '🏞️', desc: 'Một con sông uốn khúc ra biển phía nam, một hồ nhỏ, núi ở xa. Cân bằng, dễ chơi', hills: 1, mount: 1 },
+  delta: { name: 'Đồng bằng châu thổ', icon: '🌾', desc: 'Sông lớn chia nhiều nhánh đổ ra biển, đất phẳng màu mỡ: nhiều cầu, nông nghiệp, cảng cá', hills: 0.35, mount: 0 },
+  bay: { name: 'Vịnh và đảo', icon: '🏝️', desc: 'Bờ biển dài phía đông, vịnh sâu, nhiều đảo nhỏ ngoài khơi: du lịch biển, cảng, cầu ra đảo', hills: 1, mount: 0.8 },
+  highland: { name: 'Cao nguyên', icon: '⛰️', desc: 'Đồi núi trập trùng, hồ thuỷ điện, suối nhỏ, không có biển: đất dốc khó xây, khoáng sản, rừng', hills: 1.6, mount: 1.5, cover: 0.2, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.sx, gy - k.sy) - k.N * 0.22) / 24, 0, 1) },
+  lakes: { name: 'Hồ lớn', icon: '💧', desc: 'Một hồ lớn có đảo giữa hồ, sông thoát ra biển ở góc nam: thành phố quanh hồ, bến tàu du ngoạn', hills: 0.9, mount: 0.8 },
+  island: { name: 'Đảo', icon: '🌊', desc: 'Một hòn đảo lớn giữa biển, nối đất liền bằng đường dẫn phía bắc: đất có hạn, biển bao quanh', hills: 1.1, mount: 0.9, cover: 0.15, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.N * 0.52, gy - k.N * 0.58) < k.N * 0.2 ? 1 : 0) * clamp((Math.hypot(gx - k.sx, gy - k.sy) - 28) / 14, 0, 1), 0, 1) },
+  valley: { name: 'Thung lũng', icon: '🏔️', desc: 'Sông chảy giữa thung lũng hẹp, hai bên là dãy núi cao: đất bằng ít, phải mở đường đèo, đào đắp', hills: 0.8, mount: 1.7, cover: 0.35, mask: (gx, gy, k) => { const d = Math.abs(gx - valleyX(gy, k.seed)) - k.N * 0.16; return clamp(d / (k.N * 0.08), 0, 1); } },
+};
+
+/**
+ * Trường "khoảng cách tới nước" của bản đồ (đơn vị ô): < 0,15 là nước. Mọi kiểu đều chừa lối đất liền ở mép bắc
+ * quanh cột 0,55·N (đường cao tốc dẫn vào thành phố).
+ */
+export function makeField(seed, kind = 'river') {
+  const ph = hash2(1, 2, seed) * 6.283, nz = (x, y, a, s) => vnoise(x * a, y * a, seed + s);
+  const entry = (x, y, v) => (y < 18 && Math.abs(x - N * 0.55) < 7 ? Math.max(v, 3 + (18 - y) * 0.2) : v);
+  const islands = (cnt, x0, x1, y0, y1, r0, r1, salt) => Array.from({ length: cnt }, (_, k) => ({ x: x0 + hash2(k, salt, seed) * (x1 - x0), y: y0 + hash2(salt, k, seed) * (y1 - y0), r: r0 + hash2(k + 7, salt + 3, seed) * (r1 - r0) }));
+  const islandD = (list, x, y, s) => { let d = Infinity; for (const p of list) d = Math.min(d, Math.hypot(x - p.x, y - p.y) - p.r * (0.75 + nz(x, y, 0.18, s) * 0.5)); return d; };
+  let fn;
+  switch (kind) {
+    case 'delta': { // sông chính từ tây bắc, chia 4 nhánh toả ra biển phía nam
+      const K = 4, sea = (x, y) => N - 13 + (nz(x, 1.7, 0.06, 3) - 0.5) * 10 - y;
+      fn = (x, y) => {
+        const cx = N * 0.32 + Math.sin(y * 0.05 + ph) * 5 + (nz(3.3, y, 0.05, 0) - 0.5) * 6;
+        const t = clamp((y - N * 0.38) / (N * 0.55), 0, 1);
+        let r = Math.abs(x - cx) - (3 + nz(x, y, 0.1, 7) * 1.4);
+        for (let k = 0; k < K; k++) {
+          const off = (k - (K - 1) / 2) * N * 0.24 * Math.pow(t, 1.25) + Math.sin(y * 0.09 + k * 2.1) * 3 * t;
+          if (t > 0) r = Math.min(r, Math.abs(x - cx - off - N * 0.12 * t) - (1.6 + nz(x, y, 0.12, 9 + k) * 1.1));
+        }
+        const canal = Math.abs(y - N * 0.58 - Math.sin(x * 0.07) * 3) - 0.9; // kênh đào ngang nối các nhánh
+        return Math.min(r, sea(x, y), x > cx && x < cx + N * 0.42 ? canal : 99);
+      };
+      break;
+    }
+    case 'bay': { // biển phía đông và nam, vịnh khoét sâu, đảo ngoài khơi
+      const isl = islands(10, N * 0.72, N * 0.98, N * 0.15, N * 0.95, 1.6, 4.5, 41);
+      const by = N * (0.45 + hash2(5, 6, seed) * 0.15);
+      fn = (x, y) => {
+        let coast = N * 0.7 + (nz(1.9, y, 0.05, 3) - 0.5) * 14 - x;
+        coast = Math.min(coast, N - 10 + (nz(x, 2.2, 0.05, 4) - 0.5) * 8 - y);
+        const bay = Math.hypot((x - N * 0.66) * 0.8, (y - by) * 1.3) - N * 0.13 * (0.8 + nz(x, y, 0.08, 5) * 0.4);
+        const sea = Math.min(coast, bay);
+        const river = Math.abs(x - (N * 0.28 + Math.sin(y * 0.06 + ph) * 7)) - (1.8 + nz(x, y, 0.1, 7) * 1.2);
+        if (sea >= 0) return Math.min(sea, river);
+        const d = islandD(isl, x, y, 43);
+        return d < 0 ? -d : sea;
+      };
+      break;
+    }
+    case 'highland': { // hồ thuỷ điện và suối, không biển
+      const lakes = islands(3, N * 0.15, N * 0.85, N * 0.35, N * 0.85, 4, 8, 51);
+      fn = (x, y) => {
+        const creek = Math.abs(x - (N * 0.3 + Math.sin(y * 0.08 + ph) * 9 + (nz(2.1, y, 0.06, 0) - 0.5) * 8)) - (1 + nz(x, y, 0.1, 7) * 0.8);
+        return Math.min(creek, islandD(lakes, x, y, 53));
+      };
+      break;
+    }
+    case 'lakes': { // hồ lớn có đảo, sông thoát ra biển góc đông nam
+      const lx = N * (0.42 + hash2(5, 6, seed) * 0.1), ly = N * (0.5 + hash2(7, 8, seed) * 0.08), lr = N * 0.17;
+      fn = (x, y) => {
+        const lake = Math.hypot(x - lx, (y - ly) * 1.1) - lr * (0.8 + nz(x, y, 0.06, 5) * 0.4);
+        const isle = Math.hypot(x - lx - lr * 0.15, y - ly + lr * 0.1) - lr * 0.28 * (0.8 + nz(x, y, 0.2, 9) * 0.4);
+        const outX = lx + (y - ly) * 0.9 + Math.sin(y * 0.08 + ph) * 4;
+        const outlet = y > ly ? Math.abs(x - outX) - (2 + nz(x, y, 0.1, 7)) : 99;
+        const sea = Math.min(N - 9 + (nz(x, 1.7, 0.06, 3) - 0.5) * 8 - y, N - 9 - x + (nz(1.3, y, 0.06, 4) - 0.5) * 8) + (x + y < N * 1.55 ? 99 : 0);
+        const water = Math.min(lake, outlet, sea);
+        return isle < 0 ? Math.max(-isle, 0.2) : water;
+      };
+      break;
+    }
+    case 'island': { // đảo lớn, biển bao quanh, lối nối phía bắc
+      const cx = N * 0.52, cy = N * 0.56, R = N * 0.43, isl = islands(6, 0, N, 0, N, 1.5, 3.5, 61);
+      fn = (x, y) => {
+        const a = Math.atan2(y - cy, x - cx), r = R * (0.82 + nz(Math.cos(a) * 3 + 5, Math.sin(a) * 3 + 5, 1, 3) * 0.32);
+        const land = r - Math.hypot(x - cx, y - cy);
+        const creek = Math.abs(x - (cx - R * 0.25 + Math.sin(y * 0.09 + ph) * 5)) - 1.3 + (y > cy - R * 0.2 ? 0 : 99);
+        if (land > 0) return Math.min(land, creek);
+        const d = islandD(isl, x, y, 63);
+        return d < 0 && Math.hypot(x - cx, y - cy) > R * 1.05 ? -d : land;
+      };
+      break;
+    }
+    case 'valley': { // sông giữa thung lũng
+      fn = (x, y) => {
+        const river = Math.abs(x - valleyX(y, seed)) - (2.4 + nz(x, y, 0.1, 7) * 1.3);
+        const pond = Math.hypot(x - valleyX(N * 0.7, seed) - N * 0.1, y - N * 0.7) - 3.5;
+        return Math.min(river, pond);
+      };
+      break;
+    }
+    default: { // sông và biển (kiểu gốc)
+      const rx = N * (0.24 + hash2(3, 4, seed) * 0.1);
+      const lx = N * (0.62 + hash2(5, 6, seed) * 0.2), ly = N * (0.3 + hash2(7, 8, seed) * 0.25), lr = 4.5 + hash2(9, 10, seed) * 3;
+      fn = (x, y) => {
+        const cx = rx + Math.sin(y * 0.065 + ph) * 8 + (vnoise(3.3, y * 0.05, seed) - 0.5) * 10;
+        const river = Math.abs(x - cx) - (2.2 + vnoise(x * 0.1, y * 0.1, seed + 7) * 1.6);
+        const coast = N - 12 + (vnoise(x * 0.06, 1.7, seed + 3) - 0.5) * 12 - y;
+        const lake = Math.hypot(x - lx, y - ly) - lr * (0.75 + vnoise(x * 0.15, y * 0.15, seed + 5) * 0.5);
+        return Math.min(river, coast, lake);
+      };
+      return fn; // kiểu gốc giữ nguyên để bản lưu cũ sinh lại đúng địa hình
+    }
+  }
+  return (x, y) => entry(x, y, fn(x, y));
 }
 
 /** Điểm + tiếp tuyến tại quãng đường s dọc một polyline đã đo (pts phẳng [x, z, ...], cum). */

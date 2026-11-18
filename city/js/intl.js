@@ -36,7 +36,7 @@ export function initIntl(c, o = {}) {
 export const packIntl = (c) => ({ visa: c.intl.visa, promo: c.intl.promo, fee: c.intl.fee, last: c.intl.last });
 
 /** Chi phí quảng bá mỗi ngày (cộng vào khoản chi du lịch). */
-export const promoCost = (c) => (c.intl ? PROMO[c.intl.promo].cost : 0);
+export const promoCost = (c) => (c.intl ? Math.round(PROMO[c.intl.promo].cost * (c.tech && c.tech.has('landdeal') ? 0.7 : 1)) : 0);
 
 const ready = (s) => !(s.build > 0);
 /** Ước lượng: số chuyến bay / tàu mỗi ngày, khách mỗi chuyến, và các yếu tố ảnh hưởng (cho bảng ngân sách). */

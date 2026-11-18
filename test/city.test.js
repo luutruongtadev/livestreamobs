@@ -367,30 +367,49 @@ test('city: module nâng công suất công trình; công trình biểu tượng
   assert.deepEqual([[...c2.tech].sort(), c2.points, c2.services[tower].mods, c2.stats.waterCap, c2.bonus.happy], [['lm1', 'm_water'], 0, ['tank'], cap + 125, 2]);
 });
 
-test('city: đất khoá lúc đầu, mua ô kề bên để mở rộng; bản đồ mới có núi; bản lưu cũ mở sẵn cả bản đồ', () => {
-  const c = newCity(12345), sx = c.start.x, owned = () => c.owned.reduce((n, v) => n + v, 0);
-  assert.equal(owned(), 9);
+test('city: không còn mua đất — cả bản đồ mở từ đầu; bản đồ mới có núi; bản lưu cũ cũng mở cả bản đồ', () => {
+  const c = newCity(12345), sx = c.start.x;
+  assert.ok(c.owned.every((v) => v === 1) && c.own.every((v) => v === 1), 'đất mở hết');
   assert.ok(c.steep.some((v) => v) && Math.max(...c.hv) > 25, 'có núi dốc');
   for (const d of Object.values(S.RAW)) assert.ok(c.res.includes(d.id), `bản đồ có ${d.name}`);
   assert.ok(road(c, sx, 7, sx, 30).ok);
-  assert.match(road(c, sx, 30, sx, 40).reason, /chưa mua/);
-  assert.match(S.canPlace(c, 'wind', 3, 80).reason, /chưa mua/);
-  assert.equal(S.zoneRect(c, 0, 0, S.N - 1, S.N - 1, S.ZONE.R).count, S.zoneRect(c, 0, 0, S.N - 1, S.N - 1, 0).count, 'quy hoạch không lọt ra ngoài đất của mình');
-  const below = S.landOf(sx, 40), far = S.landOf(3, 90), money = c.money, price = S.landPrice(c, below), farPrice = S.landPrice(c, far);
-  assert.match(S.buyLand(c, far).reason, /kề/);
-  assert.ok(S.buyLand(c, below).ok);
-  assert.deepEqual([owned(), c.money], [10, money - price]);
-  assert.ok(S.landPrice(c, far) > farPrice, 'càng có nhiều đất càng đắt');
-  assert.ok(road(c, sx, 30, sx, 40).ok);
+  assert.ok(road(c, sx, 30, sx, 60).ok, 'xây xa được ngay');
   const o = JSON.parse(JSON.stringify(S.serialize(c)));
-  assert.equal(S.deserialize(o).owned.reduce((n, v) => n + v, 0), 10);
-  // bản lưu v3: chưa có mua đất, cây công nghệ, núi
+  o.owned = ''; // bản lưu có phần đất đã mua: vẫn mở cả bản đồ
+  assert.ok(S.deserialize(o).owned.every((v) => v === 1));
+  // bản lưu v3: chưa có cây công nghệ, núi
   const v3 = { ...o, v: 3, milestone: 2 };
   for (const k of ['owned', 'tech', 'points', 'tgen']) delete v3[k];
   const c3 = S.deserialize(v3);
   assert.ok(c3.owned.every((v) => v === 1) && c3.own.every((v) => v === 1));
   assert.deepEqual([c3.tgen, c3.steep.some((v) => v), c3.points], [1, false, S.START_POINTS + 7]);
   assert.equal(c3.edges.size, c.edges.size);
+});
+
+test('bản đồ: 7 kiểu, 3 cỡ; mỗi kiểu có lối vào phía bắc, đúng đặc trưng; lưu / nạp giữ cỡ và kiểu, bản lưu cũ là 96', () => {
+  assert.deepEqual(Object.keys(S.MAP_SIZES).map(Number), [96, 128, 160]);
+  const stat = {};
+  for (const map of Object.keys(S.MAPS)) {
+    const c = newCity(77, { size: 128, map });
+    assert.equal(S.N, 128); assert.equal(c.map, map);
+    assert.equal(c.water.length, 128 * 128);
+    let w = 0; for (const v of c.water) w += v;
+    stat[map] = { water: w / c.water.length, hmax: Math.max(...c.hv), edge: [0, 1, 2, 3].some((k) => { for (let t = 0; t < 128; t++) { const [x, y] = [[t, 0], [t, 127], [0, t], [127, t]][k]; if (c.water[y * 128 + x]) return true; } return false; }) };
+    for (let y = 0; y < 10; y++) assert.equal(c.water[y * 128 + c.start.x], 0, `${map}: lối vào phía bắc là đất`);
+    assert.ok(c.edges.size === 1 && road(c, c.start.x, 7, c.start.x, 12).ok, `${map}: xây đường từ lối vào`);
+    const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(d.map, map); assert.equal(S.N, 128); assert.deepEqual(d.water, c.water);
+  }
+  assert.ok(stat.island.water > 0.3 && stat.bay.water > 0.3, 'đảo, vịnh nhiều biển');
+  assert.ok(stat.highland.water < 0.08 && stat.highland.hmax > 30, 'cao nguyên ít nước, núi cao');
+  assert.ok(stat.valley.hmax > 30, 'thung lũng có núi hai bên');
+  assert.ok(stat.delta.hmax < stat.highland.hmax, 'châu thổ phẳng hơn cao nguyên');
+  // bản lưu cũ không có n mới / map: mở thành cỡ 96, kiểu sông và biển
+  const old = JSON.parse(JSON.stringify(S.serialize(newCity(5))));
+  delete old.map;
+  const c = S.deserialize(old);
+  assert.equal(S.N, 96); assert.equal(c.map, 'river');
+  assert.throws(() => S.deserialize({ ...old, n: 100 }));
 });
 
 /** Đặt công trình t vào chỗ hợp lệ đầu tiên quanh trung tâm thị trấn. */
