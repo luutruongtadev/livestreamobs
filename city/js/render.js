@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { fishBoatGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -1694,7 +1694,15 @@ export class View {
         const P = (x, y, z) => { const v = new THREE.Vector3(x, y, z).applyMatrix4(M); return [v.x, v.y, v.z]; };
         g.at(M);
         g.box(0, bed, 0, 5, top - bed, L, CONC); // thân đập
-        for (let k = 0; k < 4; k++) g.box(side * (3 + k * 1.6), bed, 0, 1.7, (lvl - low) * (1 - k * 0.24) + (low - bed), L - 2, k % 2 ? 0xbcb8ad : 0xc4c0b5); // mặt hạ lưu bậc thoải
+        // mặt hạ lưu đập bê tông trọng lực: vát cong trơn từ đỉnh xuống chân (như đập thật), không bậc
+        const KF = 0.72, faceX = (y) => side * (2.5 + KF * Math.max(0, top - y) * (0.85 + 0.15 * Math.max(0, top - y) / Math.max(1, top - bed)));
+        { const NP = 8; for (let j = 0; j < NP; j++) { const y0 = top - ((top - bed) * j) / NP, y1 = top - ((top - bed) * (j + 1)) / NP, x0 = faceX(y0), x1 = faceX(y1), sh = j % 2 ? 0xc4c0b5 : 0xcbc7bc;
+          g.poly([[x0, y0, -L / 2 + 0.4], [x0, y0, L / 2 - 0.4], [x1, y1, L / 2 - 0.4], [x1, y1, -L / 2 + 0.4]], null, sh);
+          for (const zz of [-L / 2 + 0.4, L / 2 - 0.4]) g.poly([[0, y0, zz], [x0, y0, zz], [x1, y1, zz], [0, y1, zz]], [0, 0, Math.sign(zz)], 0xbcb8ad); }
+          for (let k = 1; k * 7 < L - 4; k++) { const zz = -L / 2 + k * 7; g.poly([[faceX(top - 0.5) + side * 0.05, top - 0.5, zz], [faceX(low) + side * 0.05, low, zz], [faceX(low) + side * 0.05, low, zz + 0.25], [faceX(top - 0.5) + side * 0.05, top - 0.5, zz + 0.25]], null, 0xa9a598); } // khe co giãn giữa các khối đổ bê tông
+        }
+        { const hx = faceX(low) + side * 5, hz = L / 2 - 7; // nhà điều hành mái xanh ở vai đập
+          g.box(hx, low, hz, 9, 5.5, 9, 0xd8d4cc); g.box(hx, low + 5.5, hz, 9.6, 0.6, 9.6, 0x4f86b8); for (let k = 0; k < 3; k++) g.box(hx - side * 4.55, low + 2.2, hz - 3 + k * 3, 0.06, 1.2, 1.8, 0x2b3a46); }
         g.box(-side * 2.6, bed, 0, 0.4, lvl - bed - 0.2, L, 0x9a968e); // mặt thượng lưu (đường mực nước)
         g.box(0, top, 0, 5.6, 0.3, L + 0.4, 0x6a6e73); // mặt đường trên đập
         for (const o of [-2.7, 2.7]) g.box(o, top + 0.3, 0, 0.2, 0.9, L, 0xe0dcd2); // lan can
@@ -1706,15 +1714,23 @@ export class View {
         for (let k = 0; k < nG; k++) {
           const z = off + (k - (nG - 1) / 2) * (GW + 1), w = GW;
           g.box(0, top + 0.6, z, 0.25, 2, w - 0.3, 0x3d4a52); // cửa van kéo lên
-          // nước tràn qua ngưỡng: mặt hồ → mép tràn → đổ theo đường cong xuống chân đập → bọt loang ra dòng sông
-          const lipX = side * 2.6, crest = lvl - 0.05, fall = crest - low;
-          quad(P(-side * 2.6, lvl + 0.02, z - w / 2), P(-side * 2.6, lvl + 0.02, z + w / 2), P(lipX, crest, z + w / 2), P(lipX, crest, z - w / 2), 0, 1, 0, 0.4);
-          const SEG = 8, arc = (t) => [lipX + side * (1.2 * Math.sqrt(t) * Math.sqrt(fall) + t * 3.2), crest - fall * t * t];
+          g.box(0, top + 3.1, z, 3.2, 2, w - 0.8, 0xb8b3a6); g.box(0, top + 5.1, z, 3.6, 0.3, w - 0.4, 0x6a6e73); // nhà tời trên cửa
+          // máng xả tràn: nước qua ngưỡng chảy ôm theo mặt đập trong máng có tường hai bên, tới chân đập gặp mũi hắt bật lên rồi đổ xuống sông
+          const crest = lvl - 0.05, fall = crest - low, lipX = faceX(crest);
+          quad(P(-side * 2.6, lvl + 0.02, z - w / 2), P(-side * 2.6, lvl + 0.02, z + w / 2), P(lipX, crest + 0.1, z + w / 2), P(lipX, crest + 0.1, z - w / 2), 0, 1, 0, 0.4);
+          const SEG = 8, at = (t) => { const y = crest - (crest - low - 0.6) * t; return [faceX(y) + side * 0.3, y + 0.3]; };
           for (let j = 0; j < SEG; j++) {
-            const t0 = j / SEG, t1 = (j + 1) / SEG, a = arc(t0), b = arc(t1), w0 = w * (1 + t0 * 0.15), w1 = w * (1 + t1 * 0.15);
-            quad(P(a[0], a[1], z - w0 / 2), P(a[0], a[1], z + w0 / 2), P(b[0], b[1], z + w1 / 2), P(b[0], b[1], z - w1 / 2), 0, 1, 0.4 + t0 * 2.4, 0.4 + t1 * 2.4);
+            const a = at(j / SEG), b = at((j + 1) / SEG);
+            quad(P(a[0], a[1], z - w / 2), P(a[0], a[1], z + w / 2), P(b[0], b[1], z + w / 2), P(b[0], b[1], z - w / 2), 0, 1, 0.4 + (j / SEG) * 2.4, 0.4 + ((j + 1) / SEG) * 2.4);
+            for (const sz of [-1, 1]) { const wz = z + sz * (w / 2 + 0.25); // tường máng
+              for (const nz of [-1, 1]) g.poly([[a[0] - side * 0.3, a[1] - 0.3, wz], [b[0] - side * 0.3, b[1] - 0.3, wz], [b[0], b[1] + 1.5, wz], [a[0], a[1] + 1.5, wz]], [0, 0, nz], 0xb5b0a4); }
           }
-          const foot = arc(1)[0], fw = w * 1.15;
+          const toe = at(1), bx1 = toe[0] + side * 3.5, by1 = low + 1.6; // mũi hắt
+          g.poly([[toe[0] - side * 0.3, toe[1] - 0.4, z - w / 2 - 0.5], [toe[0] - side * 0.3, toe[1] - 0.4, z + w / 2 + 0.5], [bx1, by1 - 0.4, z + w / 2 + 0.5], [bx1, by1 - 0.4, z - w / 2 - 0.5]], null, 0xb5b0a4);
+          quad(P(toe[0], toe[1], z - w / 2), P(toe[0], toe[1], z + w / 2), P(bx1, by1, z + w / 2), P(bx1, by1, z - w / 2), 0, 1, 2.8, 3.1);
+          const arcJ = [[bx1, by1], [bx1 + side * 2.5, by1 + 0.6], [bx1 + side * 5, low + 0.6], [bx1 + side * 6.5, low + 0.1]];
+          for (let j = 0; j + 1 < arcJ.length; j++) { const a = arcJ[j], b = arcJ[j + 1], w0 = w * (1 + j * 0.12), w1 = w * (1 + (j + 1) * 0.12); quad(P(a[0], a[1], z - w0 / 2), P(a[0], a[1], z + w0 / 2), P(b[0], b[1], z + w1 / 2), P(b[0], b[1], z - w1 / 2), 0, 1, 3.1 + j * 0.3, 3.4 + j * 0.3); }
+          const foot = bx1 + side * 6.5, fw = w * 1.4;
           for (let j = 0; j < 4; j++) { // bọt loang, mờ dần ra xa hoà vào dòng sông
             const r0 = foot + side * j * 4.5, r1 = foot + side * (j + 1) * 4.5, w0 = fw + j * 1.8, w1 = fw + (j + 1) * 1.8;
             foamQ(P(r0, low + 0.12, z - w0 / 2), P(r0, low + 0.12, z + w0 / 2), P(r1, low + 0.1, z + w1 / 2), P(r1, low + 0.1, z - w1 / 2), j / 4, (j + 1) / 4);
@@ -2426,19 +2442,37 @@ export class View {
     let animating = false;
     const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0);
     for (const k in this.growMeshes) counts[k] = 0;
+    // ruộng chia thửa 4 × 4 ô: mỗi thửa một loại cây, một nhà kho ở ô sát đường (ưu tiên), đường đất dọc mép thửa
+    const farmHouse = new Map();
+    for (let i = 0; i < N * N; i++) {
+      if (c.zone[i] !== 8 || !c.level[i]) continue;
+      const pid = ((((i / N) | 0) / 4) | 0) * 1000 + (((i % N) / 4) | 0), cur = farmHouse.get(pid);
+      if (cur == null || (c.acc[i] === 1 && c.acc[cur] !== 1)) farmHouse.set(pid, i);
+    }
     for (let i = 0; i < N * N; i++) {
       const L = c.level[i];
       if (!L) continue;
-      const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '', key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
+      let key, make, farm = false;
+      const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '';
+      if (c.zone[i] === 8) {
+        const x = i % N, y = (i / N) | 0, pid = ((y / 4) | 0) * 1000 + ((x / 4) | 0), crop = (hash2((x / 4) | 0, (y / 4) | 0, 83) * 4) | 0;
+        const house = farmHouse.get(pid) === i, nb = (j) => j >= 0 && j < N * N && c.zone[j] === 8 && c.level[j];
+        const tx = !house && x % 4 === 3 && x + 1 < N && nb(i + 1) ? 1 : 0, tz = !house && y % 4 === 3 && nb(i + N) ? 1 : 0; // đường đất giữa hai thửa
+        key = `farm${crop}-${house ? L : 0}-${tx}${tz}`; farm = !house;
+        make = () => farmGeometry(crop, house, tx, tz, L);
+      } else {
+        key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
+        make = () => (vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3);
+      }
       let mesh = this.growMeshes[key];
-      if (!mesh) { mesh = this.growMeshes[key] = this._inst((vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; mesh.visible = !this.hideBld; }
+      if (!mesh) { mesh = this.growMeshes[key] = this._inst(make(), this.matBuilding, 256, true); counts[key] = 0; mesh.visible = !this.hideBld; }
       if (counts[key] >= mesh.userData.cap) mesh = this._grow(this.growMeshes, key);
       const x = i % N, y = (i / N) | 0;
       // mọc lên từ từ trong ~1,2 giây
       const t = Math.min(1, (this.time - (this.bornAt?.[i] ?? -9)) / 1.2);
       if (t < 1) animating = true;
       const e = 1 - (1 - t) * (1 - t);
-      q.setFromAxisAngle(up, ROT[c.dir[i] & 3]);
+      q.setFromAxisAngle(up, farm ? 0 : ROT[c.dir[i] & 3]); // ruộng không xoay: luống, đường đất thẳng hàng cả cánh đồng
       p.set(cellCenter(x), c.cellH[i] + 0.02, cellCenter(y)); s.set(1, Math.max(0.02, e), 1);
       m.compose(p, q, s);
       mesh.setMatrixAt(counts[key], m);

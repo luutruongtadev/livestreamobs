@@ -209,6 +209,20 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 
 Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản lưu cũ giữ kiểu cũ). Khu nhà ở thấp, nhà phố, liền kề, ký túc xá, hỗn hợp, cửa hàng và ăn uống mọc thành dãy nhà ống nhiều màu: ban công có lan can và chậu cây, cửa cuốn hoặc cửa hàng có biển hiệu chữ và mái bạt, trên mái có bồn nước inox, máy nước nóng, tum mái tôn, cờ đỏ sao vàng ở ban công. Đường có cột điện bê tông với dây điện chằng chịt thay cho đèn đường, xe đẩy bán hàng có ô che trên vỉa hè, cây dừa ven sông biển, và gần như ai cũng đi xe máy.
 
+## Ruộng chia thửa, đập bê tông
+
+- **Ruộng chia thửa** (khu 🌾 Nông nghiệp):
+  - Các ô nông nghiệp gom thành thửa ruộng 4 × 4 ô, kiểu cánh đồng của Cities: Skylines 2.
+  - Mỗi thửa trồng một loại cây: lúa non, lúa chín vàng, rau bắp cải, hoặc vườn cây ăn quả.
+  - Đường đất chạy dọc mép giữa các thửa.
+  - Mỗi thửa chỉ một nhà kho mái đỏ (thêm silo, máy kéo, nhà kính khi nâng cấp), đặt ở ô sát đường. Các ô còn lại là ruộng.
+  - Luống cây, đường đất thẳng hàng trên cả cánh đồng.
+- **Đập thuỷ điện bê tông:**
+  - Mặt hạ lưu vát cong trơn, có khe co giãn giữa các khối đổ.
+  - Máng xả tràn có tường hai bên: nước chảy ôm mặt đập, tới mũi hắt ở chân đập thì bật lên rồi đổ xuống sông.
+  - Trên mỗi cửa xả có nhà tời.
+  - Nhà điều hành mái xanh ở vai đập.
+
 ## Mã nguồn
 
 | File | Việc |

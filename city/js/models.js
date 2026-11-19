@@ -545,6 +545,47 @@ function resource(g, r, zone, level, variant) {
 }
 
 /** Nhà tự mọc theo khu (1..12), cấp 1..5, biến thể 0..2. */
+/**
+ * Ruộng chia thửa (khu Nông nghiệp, kiểu cánh đồng của Cities: Skylines 2): mỗi thửa 4 × 4 ô trồng một loại cây —
+ * 0 lúa non, 1 lúa chín, 2 rau bắp cải, 3 vườn cây ăn quả; đường đất chạy dọc mép thửa (tx: mép +x, tz: mép +z).
+ * house: ô có nhà kho, silo của thửa (một nhà mỗi thửa, quay ra đường), còn lại là ruộng.
+ */
+export const FARM_CROPS = ['Lúa non', 'Lúa chín', 'Rau bắp cải', 'Vườn cây ăn quả'];
+export function farmGeometry(crop, house, tx, tz, level) {
+  const g = new GB();
+  g.box(0, -6, 0, 9.98, 6, 9.98, 0x6e5a36);
+  const soil = [0x6f8a38, 0xb39a48, 0x7a6438, 0x6a8a3e][crop];
+  g.box(0, 0, 0, 10.0, 0.1, 10.0, soil);
+  const TR = 1.3, x1 = tx ? 5 - TR : 5, z1 = tz ? 5 - TR : 5; // phần ruộng (trừ đường đất)
+  if (tx) g.box(5 - TR / 2, 0, 0, TR, 0.14, 10.0, 0xb59a68);
+  if (tz) g.box(0, 0, 5 - TR / 2, 10.0, 0.14, TR, 0xb59a68);
+  const zEnd = house ? -0.6 : -5; // ô có nhà: ruộng chỉ ở nửa sau
+  const r = mulberry32(crop * 97 + (house ? 7 : 1) + tx * 3 + tz * 5);
+  if (crop <= 1) { // luống lúa: các dải chạy dọc z
+    const col = crop ? 0xd9bd4e : 0x8cc24a, hh = crop ? 0.42 : 0.32;
+    for (let x = -4.4; x < x1 - 0.4; x += 1.1) g.box(x, 0.1, (z1 + zEnd) / 2, 0.62, hh, z1 - zEnd - 0.6, col);
+  } else if (crop === 2) { // bắp cải: lưới cây tròn thấp
+    for (let x = -4.3; x < x1 - 0.5; x += 1.25) for (let z = zEnd + 0.6; z < z1 - 0.5; z += 1.25) g.cyl(x + (r() - 0.5) * 0.15, 0.1, z, 0.42, 0.3, 0.36, r() < 0.5 ? 0x5f9a78 : 0x6fae84, 7);
+  } else { // vườn cây ăn quả: hàng cây tán tròn, có quả
+    for (let x = -3.6; x < x1 - 1; x += 2.5) for (let z = zEnd + 1.4; z < z1 - 1; z += 2.4) {
+      g.cyl(x, 0.1, z, 0.12, 0.09, 1, 0x6b4a2f, 5);
+      g.blob(x, 1.7, z, 1.05, 0.9, 1.05, 0x4f8a3a, Math.round(x * 7 + z * 13), 1);
+      if (r() < 0.6) g.box(x + 0.5, 1.6, z - 0.4, 0.22, 0.22, 0.22, 0xe0622a);
+    }
+  }
+  if (house) { // sân, nhà kho mái đỏ, silo, máy kéo
+    g.box(0, 0.1, -3, 10, 0.06, 4.6, 0xa69a7a);
+    const bw = 3.4 + level * 0.25;
+    g.box(-2.2, 0.16, -3, bw, 2.4, 2.8, 0xb5483a); g.gable(-2.2, 2.56, -3, bw + 0.4, 1.3, 3.2, 0x6a4a3c, true, 0xb5483a);
+    g.box(-2.2, 0.16, -1.58, 1.3, 1.8, 0.06, 0xe9e4da);
+    g.box(1.6, 0.16, -3.6, 2.2, 1.5, 1.8, 0xe9e4da); g.gable(1.6, 1.66, -3.6, 2.5, 0.8, 2.1, 0x8e4a3c, true, 0xe9e4da); // nhà ở
+    if (level >= 2) { g.cyl(3.9, 0.16, -1.6, 0.8, 0.8, 2.8 + level * 0.5, 0xd8d4cc, 9); g.cyl(3.9, 2.96 + level * 0.5, -1.6, 0.8, 0.1, 0.6, 0xa8adb2, 9); }
+    g.box(1.2, 0.16, -1.2, 1.1, 0.7, 0.7, 0x2f8f3a); g.cyl(0.9, 0.16, -1.2, 0.32, 0.32, 0.1, 0x222222, 6); // máy kéo
+    if (level >= 4) g.box(-2.2, 0.16, -0.2, 2.2, 1.3, 1.2, 0xbfe3e8, false, 0xe8f4f6); // nhà kính
+  }
+  return g.build();
+}
+
 export function growable(zone, level, variant) {
   const r = mulberry32(zone * 1000 + level * 100 + variant * 7 + 5);
   const g = new GB();
