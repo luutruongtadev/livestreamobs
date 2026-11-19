@@ -34,7 +34,7 @@ export function fallsInfo(c) {
     if (!c.falls[i]) continue;
     const x = i % N, y = (i / N) | 0, h = cellMid(c, i);
     let best = -1, bh = h - 0.05;
-    for (const [dx, dy] of D8) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (!c.falls[j]) continue; const hj = cellMid(c, j); if (hj < bh) { bh = hj; best = j; } }
+    for (const [dx, dy] of D8.slice(0, 4)) { const a = x + dx, b = y + dy; if (!inMap(a, b)) continue; const j = idx(a, b); if (!c.falls[j]) continue; const hj = cellMid(c, j); if (hj < bh) { bh = hj; best = j; } } // 4 hướng: các dòng song song nhập thành một dòng rộng, không bắt chéo
     to[i] = best;
   }
   for (let s = 0; s < N * N; s++) {

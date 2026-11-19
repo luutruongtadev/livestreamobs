@@ -1534,6 +1534,18 @@ export class View {
     return this.fallMat;
   }
 
+  /** Suối chảy thoải: nước xanh trong, gợn sáng nhỏ trôi theo dòng, mép mờ. */
+  _brookMat() {
+    if (this.brookMat) return this.brookMat;
+    const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const g = cv.getContext('2d'), r = mulberry32(21);
+    for (let x = 0; x < S; x++) { const e = Math.min(1, Math.min(x, S - 1 - x) / 10); g.fillStyle = `rgba(60,150,190,${(0.75 * e).toFixed(3)})`; g.fillRect(x, 0, 1, S); }
+    for (let k = 0; k < 70; k++) { const x = r() * S, e = Math.min(1, Math.min(x, S - x) / 10); g.fillStyle = `rgba(220,245,255,${((0.25 + r() * 0.4) * e).toFixed(3)})`; g.fillRect(x, r() * S, 2 + r() * 5, 1 + r() * 2); }
+    this.brookTex = new THREE.CanvasTexture(cv); this.brookTex.wrapS = THREE.ClampToEdgeWrapping; this.brookTex.wrapT = THREE.RepeatWrapping;
+    this.brookMat = new THREE.MeshBasicMaterial({ map: this.brookTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    return this.brookMat;
+  }
+
   /** Lớp vệt sáng chồng lên nước đổ: trôi nhanh hơn lớp nền, cộng sáng, tạo cảm giác nước tung bọt khi rơi. */
   _fallMat2() {
     if (this.fallMat2) return this.fallMat2;
@@ -1566,7 +1578,7 @@ export class View {
     this.fallsGroup = null; this.fallsSys = null;
     if (!c.falls || !c.falls.some((v) => v)) return;
     const grp = this.fallsGroup = new THREE.Group(); this.scene.add(grp);
-    const info = fallsInfo(c), to = info.to, stream = new Tris(false), foam = new Tris(false), g = new GB(), sprays = [], V = N + 1;
+    const info = fallsInfo(c), to = info.to, stream = new Tris(false), brook = new Tris(false), foam = new Tris(false), g = new GB(), sprays = [], V = N + 1;
     const mid = (i) => cellMid(c, i), cx = (i) => cellX(i), cz = (i) => cellZ(i);
     const ribbon = (pts, w, v0, tris) => { // dải nước theo các điểm [x, y, z], v tăng theo chiều chảy
       let prev = null, v = v0;
@@ -1584,16 +1596,16 @@ export class View {
       for (const i of f.cells) {
         const j = to[i];
         if (j < 0) continue;
-        const hi = mid(i), hj = mid(j), drop = hi - hj, x0 = cx(i), z0 = cz(i), x1 = cx(j), z1 = cz(j), dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz), W = 4.4;
-        if (drop <= 1.5) { // suối: bám mặt đất
+        const hi = mid(i), hj = mid(j), drop = hi - hj, x0 = cx(i), z0 = cz(i), x1 = cx(j), z1 = cz(j), dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz), W = T * 0.92; // rộng gần cả ô: dải cạnh nhau liền thành một dòng
+        if (drop <= 1.5) { // suối: bám mặt đất, nước xanh trong
           const pts = [];
           for (let k = 0; k <= 4; k++) { const t = k / 4, x = x0 + dx * t, z = z0 + dz * t; pts.push([x, Math.max(heightAt(c, x, z), hj) + 0.22, z]); }
-          ribbon(pts, W, rr() * 3, stream);
+          ribbon(pts, W, rr() * 3, brook);
           continue;
         }
         // thác: mép đổ ở rìa ô trên, nước vọt ra rồi rơi theo đường cong xuống ô dưới
         const ux = dx / l, uz = dz / l, lip = [x0 + ux * l * 0.45, hi + 0.25, z0 + uz * l * 0.45], foot = [x1, hj + 0.2, z1];
-        ribbon([[x0, hi + 0.22, z0], lip], W, 0, stream); // mặt nước tới mép thác
+        ribbon([[x0, hi + 0.22, z0], lip], W, 0, brook); // mặt nước tới mép thác
         const pts = [], ws = [], SEG = 10, out = Math.min(l * 0.5, 2 + Math.sqrt(drop) * 0.9);
         for (let k = 0; k <= SEG; k++) { const t = k / SEG; pts.push([lip[0] + ux * out * Math.sqrt(t) + (foot[0] - lip[0] - ux * out) * t * t, lip[1] + (foot[1] - lip[1]) * t * t, lip[2] + uz * out * Math.sqrt(t) + (foot[2] - lip[2] - uz * out) * t * t]); ws.push(W * (1 + t * 0.35)); }
         ribbon(pts, ws, 0, stream);
@@ -1629,6 +1641,7 @@ export class View {
       }
     }
     if (stream.i.length) { const geo = stream.build(); const m = new THREE.Mesh(geo, this._fallMat()); m.renderOrder = 3; m.frustumCulled = false; grp.add(m); const m2 = new THREE.Mesh(geo, this._fallMat2()); m2.renderOrder = 4; m2.frustumCulled = false; grp.add(m2); }
+    if (brook.i.length) { const m = new THREE.Mesh(brook.build(), this._brookMat()); m.renderOrder = 2; m.frustumCulled = false; grp.add(m); }
     if (foam.i.length) { const m = new THREE.Mesh(foam.build(), this._foamMat()); m.renderOrder = 3; m.frustumCulled = false; grp.add(m); }
     const rg = g.build(); if (rg.attributes.position.count) { const m = new THREE.Mesh(rg, this.matBuilding); m.castShadow = m.receiveShadow = true; grp.add(m); } else rg.dispose();
     if (sprays.length) this.fallsSys = this._sprayMake(sprays, grp, 90);
@@ -2914,6 +2927,7 @@ export class View {
     if (this.fallTex) this.fallTex.offset.y -= dt * 1.6; // nước đổ
     if (this.fallTex2) { this.fallTex2.offset.y -= dt * 2.7; this.fallTex2.offset.x = Math.sin(this.time * 0.7) * 0.02; }
     if (this.foamTex) this.foamTex.offset.x += dt * 0.15;
+    if (this.brookTex) this.brookTex.offset.y -= dt * 0.5;
     this._spray(Math.min(dt, 0.05));
     if (d.rail || d.terrain === 2 || this._railSvcSig !== this._svcSig()) { this._rail(); d.rail = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
