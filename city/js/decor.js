@@ -11,6 +11,7 @@ export const DECOR = {
   flower: { id: 4, name: 'Bồn hoa', icon: '🌷', cost: 80, upkeep: 1.2, val: 1.2, green: 0.4, desc: 'Bồn hoa nhiều màu viền cây bụi: đẹp nhất, tăng giá đất nhiều nhất' },
 };
 export const DECOR_KEYS = Object.keys(DECOR);
+const FALLS_FX = { val: 1.5, green: 0.4 };
 export const decorById = (id) => DECOR[DECOR_KEYS[id - 1]] || null;
 const REACH = 3; // ô trang trí ảnh hưởng tới các ô cách nó tối đa chừng này ô
 
@@ -18,7 +19,7 @@ export function initDecor(c) { if (!c.decor || c.decor.length !== N * N) c.decor
 
 /** Ô i có trang trí được không (đất trống). */
 export function decorOk(c, i) {
-  return !c.water[i] && !c.road[i] && !c.occ[i] && !c.level[i] && !(c.beach && c.beach[i]) && !c.steep[i];
+  return !c.water[i] && !c.road[i] && !c.occ[i] && !c.level[i] && !(c.beach && c.beach[i]) && !(c.falls && c.falls[i]) && !c.steep[i];
 }
 
 /** Đếm số ô từng loại: { tree, grass, path, flower, total }. */
@@ -69,7 +70,7 @@ export function decorFx(c) {
   if (c.decorFx && c.decorFx.val.length === N * N) return c.decorFx;
   const val = new Float32Array(N * N), green = new Float32Array(N * N);
   if (c.decor) for (let i = 0; i < N * N; i++) {
-    const d = decorById(c.decor[i]);
+    const d = c.falls && c.falls[i] ? FALLS_FX : decorById(c.decor[i]); // ô thác nước: tăng giá đất mạnh như bồn hoa
     if (!d) continue;
     const x = i % N, y = (i / N) | 0;
     for (let dy = -REACH; dy <= REACH; dy++) for (let dx = -REACH; dx <= REACH; dx++) {

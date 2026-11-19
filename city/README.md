@@ -118,6 +118,12 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Ga thông ra cửa khẩu** (bấm vào ga để xem): tàu liên vận vào ga lúc 7, 11, 15, 19 giờ. Mỗi chuyến chở du khách (theo sức hút du lịch), người tới định cư (khi thành phố hút dân), dân lên tàu đi chơi; thu 6 ₫ vé mỗi khách. Bão thì huỷ chuyến.
    - **Thưởng:** mỗi ga thông ra cửa khẩu (tối đa 2) hút dân +4%, thuế thương mại +2%; hàng xuất khẩu bán được giá thêm 8%; dân được đi tàu vui hơn một chút.
    - Tàu khách xanh và tàu hàng vàng thay nhau chạy từ cửa khẩu vào ga, dừng ở sân ga rồi chạy ra. Ô có ray không quy hoạch, không xây được; 🚜 san ủi lên ray để dỡ cả đoạn. Ga chưa có ray vẫn là cửa ngõ xuất nhập khẩu như cũ.
+13k. **💦 Thác nước tô theo ô** (nhóm 🧳 Du lịch, từ 400 dân; code `js/falls.js`). Kéo chuột tô một dải ô **từ đỉnh dốc xuống chân dốc**, như tô bãi biển:
+   - Vùng tô phải chênh cao ít nhất 3 m (chỗ phẳng báo "Thác cần sườn dốc"). Tô nối thêm vào thác có sẵn được; 🧽 *Xoá thác* để bỏ.
+   - Nước chảy từ ô cao nhất xuống ô kề thấp nhất trong vùng tô: đoạn thoải thành suối bám mặt đất; chỗ hụt độ cao trên 1,5 m thành **bậc thác**: nước vọt ra khỏi mép đá rồi rơi theo đường cong, loe rộng dần; ô thấp nhất thành **hồ chân thác** (mặt nước thật).
+   - Hiệu ứng: màn nước hai lớp (nền trong xanh viền mờ + vệt sáng trôi nhanh), bọt trắng loang ở chân thác, tia nước li ti bắn lên rồi rơi, bụi nước phập phồng, cầu vồng mờ trong bụi nước ở thác cao từ 5 m (ban ngày), đá chắn mép thác, vách đá dọc dòng, đá quanh hồ.
+   - 220 ₫ / ô, phí 2 ₫ / ô / ngày. Sức hút du lịch theo độ cao, số bậc, cỡ thác (tối đa +16); giá đất quanh thác tăng như bồn hoa. Làm đường, đặt công trình lên thì bỏ phần thác ở đó.
+   - Màn nước xả của đập thuỷ điện cũng dùng hiệu ứng hai lớp mới. Thác kiểu cũ (khối 2 × 2) trong bản lưu cũ vẫn giữ.
 13j. **💧 Mực nước theo vùng trũng** (code: `js/water.js`). Nước không còn chung một mực cố định:
    - **Chảy từ cao xuống thấp, lấp đầy chỗ trũng:** mỗi chỗ trũng có "miệng" (yên ngựa thấp nhất trên đường ra). Nước mưa trên lưu vực (các ô đổ dốc về nó) đọng lại theo **thể tích**: ít nước thì chỉ đọng dưới đáy, đủ nước thì đầy tới miệng. Mùa mưa ao hồ đầy, mùa khô cạn bớt; bão mưa nhiều hơn.
    - **Đầy thì tràn:** nước dư chảy qua miệng xuống dốc thành dòng suối tới chỗ trũng thấp hơn (cũng được đổ thêm nước) hoặc ra sông, biển, mép bản đồ. Dòng tràn hiện trên bản đồ, chỗ dốc thành thác.
@@ -194,6 +200,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/falls.js` | Thác nước tô theo ô: kiểm tra ô, độ dốc, dòng chảy trong vùng thác, hồ chân thác, sức hút du lịch |
 | `js/water.js` | Mực nước theo vùng trũng: lấp trũng từ cửa thoát, thể tích nước mưa theo lưu vực và mùa, đầy thì tràn xuống vùng thấp |
 | `js/hydro.js` | Dòng chảy (hướng, tốc độ, mùa nước), đập thuỷ điện (thân đập, công suất), thác nước |
 | `js/decor.js` | Trang trí tô theo ô: cây xanh, thảm cỏ, lối đi bộ, bồn hoa; ảnh hưởng giá đất, bụi, hài lòng |

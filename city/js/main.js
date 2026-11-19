@@ -23,7 +23,7 @@ const GROUPS = [
   { id: 'civic', icon: '🏛️', label: 'Dịch vụ', items: ['school', 'highschool', 'university', 'research', 'police', 'prison', 'fire'] },
   { id: 'transit', icon: '🚌', label: 'Vận tải', items: ['transit:bus', 'transit:tram', 'transit:metro', 'depot', 'parking', 'ferry', 'train', 'rail', 'port', 'airport'] },
   { id: 'park', icon: '🌳', label: 'Công viên', items: ['decor:tree', 'decor:grass', 'decor:path', 'decor:flower', 'decor:erase', 'park', 'plaza', 'stadium'] },
-  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'waterfall', 'hotel', 'resort', 'pagoda', 'museum'] },
+  { id: 'tour', icon: '🧳', label: 'Du lịch', items: ['beach:paint', 'beach:erase', 'falls:paint', 'falls:erase', 'hotel', 'resort', 'pagoda', 'museum'] },
   { id: 'landmark', icon: '🗽', label: 'Biểu tượng', items: ['monument', 'market', 'theater', 'tvtower', 'skytower'] },
   { id: 'safety', icon: '🚨', label: 'Khẩn cấp', items: ['roadmaint', 'firewatch', 'shelter', 'ews'] },
   { id: 'terra', icon: '⛰️', label: 'Địa hình', items: ['terra:dig', 'terra:raise', 'terra:level', 'terra:canal'] },
@@ -64,6 +64,9 @@ function toolInfo(id) {
     const d = S.DECOR[arg];
     return { kind, decor: arg, erase: false, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost)} ₫ / ô, phí ${d.upkeep} ₫ / ô / ngày · kéo chuột tô trên đất trống (ô đã tô không mọc nhà) · ${d.desc} · tăng giá đất trong 3 ô quanh đó, dân cả thành phố vui hơn` };
   }
+  if (kind === 'falls') return arg === 'erase'
+    ? { kind, erase: true, icon: '🧽', label: 'Xoá thác', desc: '<b>Xoá thác nước</b> · kéo để bỏ các ô thác (địa hình giữ nguyên)' }
+    : { kind, erase: false, icon: '💦', label: 'Thác nước', locked: !city.sandbox && !S.MILESTONES.some((m, k) => k < city.milestone && m.pop >= S.FALLS.unlock), desc: `<b>Thác nước</b> · ${fmt(S.FALLS.cost)} ₫ / ô, phí ${S.FALLS.upkeep} ₫ / ô / ngày · kéo chuột tô một dải ô <b>từ đỉnh dốc xuống chân dốc</b> (vùng tô chênh cao từ ${S.FALLS.minDrop} m) · nước chảy từ ô cao nhất xuống ô thấp hơn trong vùng tô: chỗ thoải thành suối, chỗ hụt độ cao thành thác đổ trắng xoá, ô thấp nhất thành hồ dưới chân · thác càng cao, càng nhiều bậc càng hút du khách (tối đa +16), giá đất quanh đó tăng · tô nối thêm vào thác có sẵn được${!city.sandbox && !S.MILESTONES.some((m, k) => k < city.milestone && m.pop >= S.FALLS.unlock) ? ` · 🔒 mở khi đạt ${S.FALLS.unlock} dân` : ''}` };
   if (kind === 'beach') return arg === 'erase'
     ? { kind, erase: true, icon: '🧽', label: 'Xoá bãi', desc: '<b>Xoá bãi biển</b> · kéo để bỏ các ô bãi biển (địa hình giữ nguyên)' }
     : { kind, erase: false, icon: '🏖️', label: 'Bãi biển', desc: `<b>Bãi biển</b> · ${fmt(S.BEACH.cost)} ₫ / ô, phí ${S.BEACH.upkeep} ₫ / ô / ngày · kéo chuột tô vùng bãi tuỳ ý, chỉ trên đất trống cách <b>biển</b> tối đa ${S.BEACH.reach} ô (sông, hồ không được) · đất tự hạ thoải dần xuống mép nước, nước sát bờ thành nước nông · càng rộng càng hút du khách (tối đa +18 sức hút), dân cả thành phố vui hơn` };
@@ -438,6 +441,15 @@ function updatePreview() {
     if (drag || hover) renderHint(ok.length ? `${t.label}: <b>${ok.length} ô</b>${t.erase ? '' : ` · ${money(ok.length * S.DECOR[t.decor].cost)}`}` : t.erase ? 'Không có ô trang trí nào ở đây' : '<b>Chỉ trang trí được trên đất trống</b> (không đường, nhà, công trình, nước, đất quá dốc)');
     return;
   }
+  else if (t.kind === 'falls') {
+    const ok = t.erase ? tiles.filter(([x, y]) => city.falls[y * S.N + x]) : tiles.filter(([x, y]) => S.fallsOk(city, y * S.N + x) && !city.falls[y * S.N + x]);
+    view.setPreview(ok, t.erase ? 0xff5b4a : 0x7fd0f0);
+    if (drag || hover) {
+      const r = !t.erase && drag && ok.length ? S.paintFalls(city, drag.from.x, drag.from.y, (drag.to || hover).x, (drag.to || hover).y, { dry: true }) : null;
+      renderHint(ok.length ? `${t.label}: <b>${ok.length} ô</b>${t.erase ? '' : ` · ${money(ok.length * S.FALLS.cost)}${r && r.drop != null ? ` · chênh cao ${r.drop.toFixed(1)} m` : ''}${r && !r.ok ? ` · <b>${r.reason}</b>` : ''}`}` : t.erase ? 'Không có ô thác nào ở đây' : '<b>Tô thác trên đất trống từ đỉnh dốc xuống chân dốc</b>');
+    }
+    return;
+  }
   else if (t.kind === 'beach') {
     const ok = t.erase ? tiles.filter(([x, y]) => city.beach[y * S.N + x]) : tiles.filter(([x, y]) => S.beachOk(city, y * S.N + x));
     view.setPreview(ok, t.erase ? 0xff5b4a : 0xf2d98a);
@@ -567,7 +579,8 @@ function commitDrag() {
   if (!drag) return;
   const a = drag.from, b = drag.to || a, t = toolInfo(tool);
   drag = null;
-  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'decor' ? S.paintDecor(city, a.x, a.y, b.x, b.y, t.decor, { erase: t.erase }) : t.kind === 'beach' ? S.paintBeach(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  const r = t.kind === 'bulldoze' ? S.bulldozeRect(city, a.x, a.y, b.x, b.y) : t.kind === 'decor' ? S.paintDecor(city, a.x, a.y, b.x, b.y, t.decor, { erase: t.erase }) : t.kind === 'falls' ? S.paintFalls(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : t.kind === 'beach' ? S.paintBeach(city, a.x, a.y, b.x, b.y, { erase: t.erase }) : S.zoneRect(city, a.x, a.y, b.x, b.y, t.zone);
+  if (r && r.ok && t.kind === 'falls') toast(t.erase ? `Đã xoá ${r.count} ô thác` : `💦 Thác nước ${r.count} ô · chênh cao ${r.drop.toFixed(1)} m · ${money(r.cost)}`);
   if (r && r.ok && t.kind === 'decor') toast(t.erase ? `Đã xoá trang trí ${r.count} ô` : `${t.icon} ${t.label}: ${r.count} ô · ${money(r.cost)}`);
   if (r && r.ok && t.kind === 'beach') toast(t.erase ? `Đã xoá ${r.count} ô bãi biển` : `🏖️ Đã làm ${r.count} ô bãi biển · ${money(r.cost)}`);
   if (r && !r.ok && r.reason) toast(r.reason);
@@ -686,6 +699,7 @@ function showInfo(tile) {
     else if (!c.acc[i]) add('Quy hoạch', 'Phải nằm trong 2 ô cạnh đường');
     if (c.tree[i]) add('Cây xanh', 'Có');
     if (c.railCell && c.railCell[i]) { title = '🛤️ Đường ray'; add('Đường sắt', 'Không quy hoạch, xây nhà trên ô có ray · san ủi để dỡ cả đoạn ray'); }
+    if (c.falls && c.falls[i]) { const fi = S.fallsInfo(c), f = fi.list[fi.comp[i]]; title = '💦 Thác nước'; if (f) add('Thác', `${f.cells.length} ô · cao ${f.drop.toFixed(1)} m · ${f.steps} bậc thác đổ · ${fi.to[i] < 0 ? 'hồ dưới chân' : 'nước chảy xuống ô thấp hơn'}`); add('Sức hút du lịch (mọi thác)', `+${S.fallsAttract(c).toFixed(1)}`); }
     { const dd = S.decorById(c.decor[i]); if (dd) { title = `${dd.icon} ${dd.name}`; add('Trang trí', `${dd.desc} · phí ${dd.upkeep} ₫/ngày`); } }
   }
   const rs = Object.values(S.RAW).find((d) => d.id === c.res[i]);

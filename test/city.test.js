@@ -1707,3 +1707,33 @@ test('đập thuỷ điện dâng hồ thật: mặt hồ cao hơn hạ lưu, ng
   c.tunnelCell = new Uint8Array(S.N * S.N); const tc = cell(c.start.x + 10, 30); c.tunnelCell[tc] = 1;
   assert.equal(S.terraform(c, 'dig', c.start.x + 10, 30).ok, false);
 });
+
+test('thác nước tô theo ô: chỉ trên sườn đủ dốc, nước chảy từ ô cao xuống ô thấp, có hồ chân thác, bậc thác; hút du khách, tăng giá đất; lưu / nạp; làm đường qua thì mất', () => {
+  const c = S.newCity(7, { map: 'highland' }); S.enableSandbox(c);
+  // tìm dải 2 × 6 ô trên sườn dốc
+  let at = null;
+  for (let y = 6; y < S.N - 12 && !at; y++) for (let x = 6; x < S.N - 8 && !at; x++) {
+    let ok = true, hi = -1e9, lo = 1e9;
+    for (let dy = 0; dy < 6 && ok; dy++) for (let dx = 0; dx < 2; dx++) { const i = cell(x + dx, y + dy); if (!S.fallsOk(c, i)) { ok = false; break; } const h = S.cellMid(c, i); hi = Math.max(hi, h); lo = Math.min(lo, h); }
+    if (ok && hi - lo > 8) at = [x, y];
+  }
+  assert.ok(at, 'có sườn dốc');
+  const [x, y] = at;
+  // vùng phẳng: không được
+  let flat = null;
+  for (let yy = 6; yy < S.N - 6 && !flat; yy++) for (let xx = 6; xx < S.N - 6 && !flat; xx++) { const i = cell(xx, yy), j = cell(xx + 1, yy); if (S.fallsOk(c, i) && S.fallsOk(c, j) && Math.abs(S.cellMid(c, i) - S.cellMid(c, j)) < 0.3 && S.cellMid(c, i) > 0.5) flat = [xx, yy]; }
+  assert.equal(S.paintFalls(c, flat[0], flat[1], flat[0] + 1, flat[1]).ok, false, 'chỗ phẳng không làm thác được');
+  const a0 = S.tourismScore(c).attract, near = cell(x + 4, y + 3), v0 = c.landValue[near], m0 = c.money;
+  const r = S.paintFalls(c, x, y, x + 1, y + 5);
+  assert.ok(r.ok && r.count === 12 && r.drop > 8, r.reason);
+  const info = S.fallsInfo(c), f = info.list[0];
+  assert.ok(f && f.pool.length >= 1 && f.steps >= 1, 'có hồ chân thác và bậc thác');
+  for (const i of f.cells) if (info.to[i] >= 0) assert.ok(S.cellMid(c, info.to[i]) < S.cellMid(c, i), 'nước chảy xuống ô thấp hơn');
+  assert.ok(S.fallsAttract(c) > 0 && S.tourismScore(c).attract > a0, 'hút du khách');
+  assert.ok(c.landValue[near] > v0, 'giá đất quanh thác tăng');
+  assert.ok(c.stats.exp.park >= 12 * S.FALLS.upkeep);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(S.fallsCount(d), 12);
+  road(c, x - 3, y + 2, x + 5, y + 2);
+  assert.ok(S.fallsCount(c) < 12, 'làm đường qua thì bỏ phần thác dưới đường');
+});

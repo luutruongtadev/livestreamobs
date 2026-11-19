@@ -5,6 +5,7 @@ import { festMul } from './seasons.js';
 import { councilMod } from './council.js';
 import { streetBonus } from './street.js';
 import { beachCount } from './beach.js';
+import { fallsAttract } from './falls.js';
 
 // ───────────────────────── ngân sách theo ngành ─────────────────────────
 
@@ -77,6 +78,7 @@ export function tourismScore(c) {
     for (const l of c.ferries || []) for (const x of l.isles || []) if (!seen.has(x.id)) { seen.add(x.id); isl += x.att; }
     if (isl) { attract += isl; parts.island = Math.round(isl * 10) / 10; }
   }
+  { const fa = fallsAttract(c); if (fa) { attract += fa; parts.falls = Math.round(fa * 10) / 10; } } // thác nước tô theo ô
   const nb = beachCount(c); // bãi biển tô theo ô
   if (nb) { const a = Math.min(18, nb * 0.3); attract += a; parts.beachZone = Math.round(a * 10) / 10; }
   // cửa ngõ đón khách: đường vào thành phố, ga, sân bay, tàu khách ra biển
