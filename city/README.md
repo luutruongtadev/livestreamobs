@@ -11,6 +11,7 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - Đồ hoạ: cầu (trên cao hoặc qua nước) có dầm, lan can, trụ và xà mũ; đường dưới đất qua sông vồng lên khỏi mặt nước 3,5–7 m (nhịp càng dài càng cao) với dốc dẫn hai đầu, nhịp từ 4 ô trở lên có thêm vòm thép hai bên, giằng ngang và dây treo; ngã tư có cột đèn tín hiệu với đèn đỏ / vàng / xanh xếp dọc, biển dừng có cột; đường dưới đất có đèn đường dọc vỉa hè và vạch qua đường ở ngã ba, ngã tư.
    - **Vẽ đường kiểu Cities: Skylines:**
      - *Ẩn nhà* (🏚️, phím `H`, bật sẵn): cầm công cụ đường thì nhà và công trình tạm ẩn. Mặt đất hiện lưới ô xây nhà: ô mặt tiền trống màu trắng, ô đã có nhà tô màu khu nhạt, ô công trình màu xám. Ô **hồng** là dải đất hẹp (≤ 4 ô) kẹp giữa các dãy mặt tiền, sông, dốc: hẹp quá không chen được đường nên bị bỏ sót.
+     - *Vòng nút:* cầm công cụ đường thì mỗi nút hiện vòng xanh (đầu cụt màu vàng) để thấy chỗ bắt, chỗ nối.
      - *Xem trước khi kéo:* ô **xanh** là đất sẽ có mặt tiền, ô **đỏ** là nhà / trang trí sẽ bị giải toả. Gợi ý dưới đáy ghi số ô của từng loại.
      - *Bắt góc:* từ điểm đầu, lệch dưới ~6° thì tự kéo vào đúng hướng 📐 *nối thẳng* đường cũ, *vuông góc* / *song song* với đường đang bám, *thẳng trục* hoặc *chéo 45°*. Độ dài tròn theo ô khi bật bám lưới. Bắt nút, thân đường rộng hơn theo bề rộng đường.
      - *Nối gọn:* lỡ kéo quá đường kia vài mét thì tự cắt bỏ đoạn cụt và dừng ở nút giao. Chỗ cắt nằm sát nút có sẵn (dưới 11 m) thì nhập vào nút đó, không tạo hai ngã tư dính nhau.

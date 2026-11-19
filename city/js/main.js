@@ -220,6 +220,7 @@ function applyOverlay() {
   const roadDraw = t.kind === 'road';
   view.setOverlay(roadDraw ? 'roadgrid' : mode, zoning, roadDraw || (tool !== 'info' && t.kind !== 'line' && t.kind !== 'transit' && t.kind !== 'rail' && t.kind !== 'land'), resZone);
   view.setBuildingsHidden(roadDraw && hideBld);
+  view.setNodeMarks(roadDraw);
   view.setLandGrid(t.kind === 'land');
   view.setRoutesVisible(t.kind === 'transit' || group === 'transit' || mode === 'traffic');
 }

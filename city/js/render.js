@@ -2680,6 +2680,29 @@ export class View {
     if (cur) { const cg = this.curtain.geometry; cg.setAttribute('position', new THREE.BufferAttribute(cur, 3)); cg.setIndex(idx); this.curtain.material.color.set(color); }
   }
 
+  /** Vòng tròn xanh ở mọi nút đường khi cầm công cụ đường (như Cities: Skylines): thấy rõ chỗ bắt / nối, đầu cụt màu vàng. */
+  setNodeMarks(on) { this.showNodes = on; if (on) this._nodeMarks(); else if (this.nodeRings) this.nodeRings.visible = false; }
+
+  _nodeMarks() {
+    const c = this.city;
+    if (!this.nodeRings) {
+      this.nodeRings = new THREE.InstancedMesh(new THREE.RingGeometry(3.2, 4.2, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.75, depthTest: false, depthWrite: false, side: THREE.DoubleSide }), 4096);
+      this.nodeRings.frustumCulled = false; this.nodeRings.renderOrder = 5; this.scene.add(this.nodeRings);
+    }
+    const m = new THREE.Matrix4(), col = new THREE.Color();
+    let k = 0;
+    for (const [nid, list] of c.adj) {
+      const n = c.nodes.get(nid);
+      if (!n || k >= 4096) continue;
+      m.makeTranslation(n.x, Math.max(heightAt(c, n.x, n.z), WATER_Y) + 0.25 + nodeH(c, nid) + 0.6, n.z);
+      this.nodeRings.setMatrixAt(k, m);
+      this.nodeRings.setColorAt(k++, col.set(list.length === 1 ? 0xffd24a : 0x5cc8ff));
+    }
+    this.nodeRings.count = k; this.nodeRings.instanceMatrix.needsUpdate = true;
+    if (this.nodeRings.instanceColor) this.nodeRings.instanceColor.needsUpdate = true;
+    this.nodeRings.visible = true;
+  }
+
   /** Ẩn nhà và công trình (khi vẽ đường): còn đường, cây, mặt đất và lớp lưới quy hoạch. */
   setBuildingsHidden(on) {
     if (this.hideBld === on) return;
@@ -3032,7 +3055,7 @@ export class View {
       for (let i = 0; i < N * N; i++) if (c.level[i] !== this.bornKey[i]) { if (c.level[i]) this.bornAt[i] = this.time; this.bornKey[i] = c.level[i]; }
     }
     if (d.land) { this._land(); d.land = false; }
-    if (d.roads) { this._roads(); d.roads = false; }
+    if (d.roads) { this._roads(); d.roads = false; if (this.showNodes) this._nodeMarks(); }
     if (d.lines) { this._lines(); d.lines = false; }
     if (d.buildings || this._animating) { this._animating = this._buildings(); d.buildings = false; d.zones = true; }
     if (d.trees) { this._trees(); d.trees = false; }
