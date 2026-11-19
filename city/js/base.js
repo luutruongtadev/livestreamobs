@@ -222,6 +222,32 @@ export const TECH = {
 };
 export const START_POINTS = 3;
 
+/**
+ * Cây công trình (kiểu Development Tree của Cities: Skylines 2): mỗi nhóm dịch vụ một cây, mỗi nút mở một công trình bằng
+ * điểm phát triển; nút sau cần nút trước (req), và vẫn phải đạt mốc dân số của công trình đó. Công trình gốc (mở từ đầu) không có nút.
+ * Chỉ áp dụng cho thành phố mới (c.devTree); bản lưu cũ giữ cách mở khoá theo dân số.
+ */
+export const SVC_BRANCH = [['t_power', '⚡ Điện'], ['t_water', '💧 Nước'], ['t_trash', '🗑️ Rác'], ['t_health', '🏥 Y tế'], ['t_edu', '🎓 Giáo dục'], ['t_safety', '🚨 An ninh'], ['t_transit', '🚌 Vận tải'], ['t_park', '🌳 Công viên'], ['t_tour', '🧳 Du lịch'], ['t_emerg', '🛡️ Khẩn cấp']];
+const SVC_NODES = {
+  t_power: [['solar', 1], ['coal', 1, 'solar'], ['hydro', 2, 'solar'], ['nuclear', 3, 'coal']],
+  t_water: [['levee', 1], ['floodpump', 1, 'levee'], ['treat', 1]],
+  t_trash: [['landfill', 1], ['recycle', 1, 'landfill'], ['incinerator', 1, 'landfill']],
+  t_health: [['clinic', 1], ['hospital', 2, 'clinic'], ['cemetery', 1], ['crematorium', 1, 'cemetery']],
+  t_edu: [['school', 1], ['highschool', 1, 'school'], ['university', 2, 'highschool'], ['research', 2, 'university']],
+  t_safety: [['police', 1], ['prison', 1, 'police'], ['fire', 1]],
+  t_transit: [['depot', 1], ['parking', 1], ['ferry', 1, 'depot'], ['train', 2, 'depot'], ['port', 2, 'ferry'], ['airport', 3, 'train']],
+  t_park: [['plaza', 1], ['stadium', 2, 'plaza']],
+  t_tour: [['hotel', 1], ['resort', 2, 'hotel'], ['pagoda', 1], ['museum', 1, 'pagoda']],
+  t_emerg: [['roadmaint', 1], ['firewatch', 1], ['shelter', 1, 'firewatch'], ['ews', 2, 'shelter']],
+};
+for (const [branch, list] of Object.entries(SVC_NODES)) for (const [svc, cost, req] of list) {
+  const d = SERVICES[svc]; if (!d) continue;
+  const rk = d.unlock ? [120, 400, 1000, 2500, 6000, 12000].findIndex((p) => p >= d.unlock) + 1 : 0;
+  TECH[`s_${svc}`] = { name: d.name, icon: d.icon, branch, cost, req: req ? `s_${req}` : undefined, rank: rk || undefined, svc, tree: true, desc: d.desc || '' };
+  d.tree = `s_${svc}`;
+}
+
+
 export const MILESTONES = [
   { pop: 120, name: 'Xóm nhỏ', reward: 5000, points: 3 },
   { pop: 400, name: 'Thị trấn', reward: 10000, points: 4 },

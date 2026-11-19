@@ -1905,3 +1905,25 @@ test('cầu vượt độ cao tuỳ chỉnh từng nhịp (kiểu Cities: Skylin
   assert.ok(Math.abs(S.liftAt(c2, f0, f0.len / 3) - S.liftAt(c, e0, e0.len / 3)) < 0.05);
   assert.equal(S.planLevel(c, e0.id, 1).ok, false);
 });
+
+test('cây công trình (kiểu Cities: Skylines 2): thành phố mới mở công trình dịch vụ bằng điểm, nút sau cần nút trước, bản lưu cũ không bị khoá', () => {
+  const c = newCity(12345, { devTree: true }); c.owned.fill(1); c.own.fill(1); c.money = 1e6;
+  assert.equal(c.points, S.START_POINTS + S.DEV_TREE_BONUS);
+  c.milestone = 4;
+  assert.equal(S.isUnlocked(c, 'clinic'), false, 'chưa mở nút thì chưa xây được dù đủ dân');
+  assert.equal(S.isUnlocked(c, 'wind'), true, 'công trình gốc có sẵn');
+  assert.match(S.lockText(S.SERVICES.clinic, c), /cây công trình/);
+  assert.equal(S.techState(c, 's_hospital'), 'req');
+  assert.ok(S.unlockTech(c, 's_clinic').ok);
+  assert.equal(S.isUnlocked(c, 'clinic'), true);
+  assert.equal(S.techState(c, 's_hospital'), 'ok');
+  assert.equal(S.techState(c, 's_nuclear'), 'req');
+  c.milestone = 1; assert.equal(S.techState(c, 's_coal'), 'req');
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(c2.devTree, 1); assert.ok(c2.tech.has('s_clinic'));
+  // thành phố không bật cây (bản lưu cũ, thử nghiệm): mở theo dân số như trước
+  const o = newCity(12345); o.milestone = 4;
+  assert.equal(S.isUnlocked(o, 'clinic'), true);
+  // chế độ Open mở hết
+  assert.equal(S.isUnlocked(S.newSandbox(5, { devTree: true }), 'nuclear'), true);
+});

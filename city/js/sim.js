@@ -377,6 +377,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
     services: [], money: 70000, hour: 6, day: 0, tax: { r: 9, c: 9, i: 9 }, milestone: 0, loans: [], debtHours: 0, over: false,
     tech: new Set(), points: START_POINTS, owned: new Uint8Array(LT * LT), terra: new Int16Array((N + 1) * (N + 1)),
   };
+  if (opts.devTree) { c.devTree = 1; c.points += DEV_TREE_BONUS; } // cây công trình: công trình dịch vụ mở bằng điểm
   genLand(c);
   c.start = { x: pickStart(c), y: 7 };
   c.owned.fill(1); // không còn mua đất: cả bản đồ thuộc thành phố từ đầu
@@ -439,6 +440,8 @@ export function mapPreview(seed, kind, size) {
 
 // ───────────────────────── chế độ Open (sáng tạo tự do) ─────────────────────────
 
+/** Điểm thưởng thêm lúc bắt đầu và mỗi mốc dân số khi chơi với cây công trình (để đủ mở các công trình thiết yếu). */
+export const DEV_TREE_BONUS = 3;
 export const OPEN_MONEY = 999999999;
 /** Bật chế độ Open: mở khoá mọi thứ, có cả bản đồ, tiền không giới hạn, không bao giờ phá sản. Không tắt lại được. */
 export function enableSandbox(c) {
@@ -1690,11 +1693,11 @@ function clearBuilding(c, i) {
   onBuildingCleared(c, i);
 }
 
-const unlockedAt = (c, d) => c.sandbox || (!d.unlock || MILESTONES.some((m, k) => k < c.milestone && m.pop >= d.unlock)) && (!d.tech || c.tech.has(d.tech));
+const unlockedAt = (c, d) => c.sandbox || (!d.unlock || MILESTONES.some((m, k) => k < c.milestone && m.pop >= d.unlock)) && (!d.tech || c.tech.has(d.tech)) && (!d.tree || !c.devTree || c.tech.has(d.tree));
 export const zoneUnlocked = (c, z) => unlockedAt(c, ZDEF[z]);
 export const isUnlocked = (c, type) => unlockedAt(c, SERVICES[type]);
 /** Câu giải thích vì sao một khu / công trình còn khoá. */
-export const lockText = (d) => (d.tech ? `mở trong 🔬 Phát triển (${TECH[d.tech].name})` : `mở khi đạt ${d.unlock} dân`);
+export const lockText = (d, c = null) => (d.tech ? `mở trong 🔬 Phát triển (${TECH[d.tech].name})` : c && c.devTree && d.tree && !c.tech.has(d.tree) ? `mở trong 🔬 Phát triển · cây công trình (${TECH[d.tree].cost} điểm${d.unlock ? `, từ ${d.unlock} dân` : ''})` : `mở khi đạt ${d.unlock} dân`);
 
 /** Tô quy hoạch: chỉ ô quy hoạch tự sinh cạnh đường (acc > 0) mới nhận. z = 0 là bỏ quy hoạch. */
 export function zoneRect(c, x0, y0, x1, y1, z) {
@@ -1791,7 +1794,7 @@ export function canPlace(c, type, x, y, { move = false } = {}) {
   if (type === 'hydro') { const p = planDam(c, fp.x, fp.y, fp.size, waterDir(c, fp, 1)); if (!p.ok) return { ok: false, reason: p.reason, fp }; }
   if (def.road && !nearRoad) return { ok: false, reason: 'Phải đặt sát đường', fp };
   if (move) return { ok: true, fp }; // dời công trình đã có: không xét mở khoá, phí trả riêng
-  if (!isUnlocked(c, type)) return { ok: false, reason: `${def.name}: ${lockText(def)}`, fp };
+  if (!isUnlocked(c, type)) return { ok: false, reason: `${def.name}: ${lockText(def, c)}`, fp };
   if (def.unique && c.services.some((s) => s.type === type)) return { ok: false, reason: 'Mỗi thành phố chỉ có một công trình biểu tượng này', fp };
   if (def.cost > c.money) return { ok: false, reason: 'Không đủ tiền', fp };
   return { ok: true, fp };
@@ -1996,7 +1999,7 @@ export function moveHall(c, d, x, y) {
 export function distBuildPlan(c, d, type) {
   const def = SERVICES[type];
   if (!def || !c.dist || !c.dist.on || !c.dist.list[d]) return { need: 0, reason: 'Không có quận này' };
-  if (!isUnlocked(c, type)) return { need: 0, reason: `${def.name}: ${lockText(def)}` };
+  if (!isUnlocked(c, type)) return { need: 0, reason: `${def.name}: ${lockText(def, c)}` };
   const cv = def.cover, map = c.cover[cv], pts = [], q = c.dist.list[d];
   let need = 0;
   for (let i = 0; i < N * N; i++) {
@@ -2389,7 +2392,7 @@ function hourTick(c) {
   if (!c.sandbox && c.money < BANKRUPT_AT || c.debtHours > BANKRUPT_DAYS * 24) { c.over = true; c.events.push({ type: 'bankrupt' }); }
   while (c.milestone < MILESTONES.length && s.pop >= MILESTONES[c.milestone].pop) {
     const m = MILESTONES[c.milestone++];
-    c.money += m.reward; c.points += m.points;
+    c.money += m.reward; c.points += m.points + (c.devTree ? DEV_TREE_BONUS : 0);
     const fresh = (d) => d.unlock && d.unlock <= m.pop && !MILESTONES.some((o, k) => k < c.milestone - 1 && o.pop >= d.unlock);
     const unlocked = [...Object.values(SERVICES), ...ZDEF.slice(1)].filter(fresh).map((d) => d.name);
     c.events.push({ type: 'milestone', name: m.name, reward: m.reward, points: m.points, unlocked });
@@ -2433,7 +2436,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2489,7 +2492,7 @@ function deserializeAt(o) {
   const mods = (s) => (Array.isArray(s.mods) ? [...new Set(s.mods)].filter((m) => MODULES[m] && MODULES[m].for.includes(s.type)) : []);
   const c = {
     v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2), style: o.style === 'vn' ? 'vn' : 'classic', // bản lưu cũ giữ kiểu nhà cũ
-    tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
+    devTree: o.devTree ? 1 : 0, tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
     points: open ? START_POINTS + MILESTONES.slice(0, ms).reduce((n, m) => n + m.points, 0) : clamp(o.points | 0, 0, 999),
     owned: new Uint8Array(LT * LT).fill(1), map: MAPS[o.map] ? o.map : 'river', // bỏ mua đất: bản lưu cũ cũng mở cả bản đồ
     seed: o.seed | 0, name: String(o.name || 'Phố Mới').slice(0, 24), money: num(o.money, 0), hour: Math.max(0, (old ? o.day : o.hour) | 0), milestone: clamp(o.milestone | 0, 0, MILESTONES.length),

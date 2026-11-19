@@ -60,7 +60,7 @@ function toolInfo(id) {
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
   if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
-  if (id === 'rail') { const R = S.RAIL, lock = !city.sandbox && !S.isUnlocked(city, 'train'); return { kind: 'rail', icon: '🛤️', label: 'Đường ray', locked: lock, desc: `<b>Đường sắt</b> · ray ${fmt(R.ground * S.T)} ₫ / ô, cầu ${fmt(R.bridge * S.T)} ₫ / ô, hầm ${fmt(R.tunnel * S.T)} ₫ / ô · bấm vào <b>đầu ga tàu hoả</b> (hoặc cửa khẩu, đầu ray có sẵn), bấm thêm các điểm uốn, bấm vào <b>cửa khẩu</b> ở mép bản đồ để nối; chuột phải / Enter để dừng ở đó · ray tự giữ dốc thoải: gặp núi khoét hầm, gặp sông bắc cầu · ga thông ra cửa khẩu đón tàu liên vận (du khách, người tới định cư, tiền vé), hàng xuất qua biên giá +8%, hút dân hơn · san ủi để dỡ ray${lock ? ` · 🔒 ${S.lockText(S.SERVICES.train)}` : ''}` }; }
+  if (id === 'rail') { const R = S.RAIL, lock = !city.sandbox && !S.isUnlocked(city, 'train'); return { kind: 'rail', icon: '🛤️', label: 'Đường ray', locked: lock, desc: `<b>Đường sắt</b> · ray ${fmt(R.ground * S.T)} ₫ / ô, cầu ${fmt(R.bridge * S.T)} ₫ / ô, hầm ${fmt(R.tunnel * S.T)} ₫ / ô · bấm vào <b>đầu ga tàu hoả</b> (hoặc cửa khẩu, đầu ray có sẵn), bấm thêm các điểm uốn, bấm vào <b>cửa khẩu</b> ở mép bản đồ để nối; chuột phải / Enter để dừng ở đó · ray tự giữ dốc thoải: gặp núi khoét hầm, gặp sông bắc cầu · ga thông ra cửa khẩu đón tàu liên vận (du khách, người tới định cư, tiền vé), hàng xuất qua biên giá +8%, hút dân hơn · san ủi để dỡ ray${lock ? ` · 🔒 ${S.lockText(S.SERVICES.train, city)}` : ''}` }; }
   if (kind === 'decor') {
     if (arg === 'erase') return { kind, erase: true, icon: '🧹', label: 'Xoá t.trí', desc: '<b>Xoá trang trí</b> · kéo để bỏ cây xanh, thảm cỏ, lối đi bộ, bồn hoa đã tô (miễn phí)' };
     const d = S.DECOR[arg];
@@ -75,7 +75,7 @@ function toolInfo(id) {
   if (kind === 'line') { const d = S.LINES[arg]; return { kind, line: arg, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> · ${fmt(d.cost * S.T)} ₫ / ô · bấm điểm đầu rồi điểm cuối · ${d.desc}` }; }
   const d = S.SERVICES[id];
   const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.hearses && `${d.hearses} xe tang`, d.graves && `${d.graves} phần mộ`, d.cremate && `${d.cremate} người / ngày`, d.cells && `${d.cells} chỗ giam`, d.depot && `+${d.depot} xe buýt / tàu điện`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
-  const lock = S.isUnlocked(city, id) ? '' : ` · 🔒 ${S.lockText(d)}`;
+  const lock = S.isUnlocked(city, id) ? '' : ` · 🔒 ${S.lockText(d, city)}`;
   return { kind: 'svc', svc: id, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> (${d.size}×${d.size}) · ${money(d.cost)} · phí ${fmt(d.upkeep * S.RATE)} ₫/ngày${extra ? ' · ' + extra : ''} · ${d.desc}${d.unique ? ' · chỉ xây một cái' : ''}${lock}` };
 }
 
@@ -583,7 +583,7 @@ function drawClick(fromDrag) {
   }
   if (t.kind === 'rail') {
     if (fromDrag || !hover) return;
-    if (t.locked) { toast(`Đường ray mở cùng ga tàu hoả: ${S.lockText(S.SERVICES.train)}`); return; }
+    if (t.locked) { toast(`Đường ray mở cùng ga tàu hoả: ${S.lockText(S.SERVICES.train, city)}`); return; }
     const sn = S.railSnap(city, hover.wx, hover.wz);
     if (!draw) { if (!sn) { toast('Bắt đầu từ đầu ga tàu hoả, cửa khẩu hoặc đầu một đường ray'); return; } draw = { rail: true, a: sn, pts: [sn.x, sn.z] }; updatePreview(); renderHint(); return; }
     if (sn && Math.hypot(sn.x - draw.a.x, sn.z - draw.a.z) > 10) { finishRail(sn); return; }
@@ -844,6 +844,30 @@ function renderDev() {
   box.textContent = '';
   const head = el('div', 'row'); head.append(el('span', null, 'Điểm phát triển còn lại'), el('b', null, String(c.points)));
   box.append(head, el('small', 'note', 'Mỗi mốc dân số thưởng thêm điểm. Điểm không đủ để mở hết: hãy chọn hướng đi cho thành phố.'));
+  if (c.devTree) { // cây công trình kiểu Cities: Skylines 2: mỗi nhóm dịch vụ một cây, nút nối nhau, nút sau cần nút trước
+    box.append(el('h4', null, '🏗️ Cây công trình'), el('small', 'note', 'Công trình dịch vụ mở bằng điểm phát triển. Nút xanh lá: đã mở · xanh dương: mở được · xám: chưa đủ điểm, chưa tới mốc dân số hoặc cần mở nút trước.'));
+    for (const [bid, bname] of S.SVC_BRANCH) {
+      const nodes = Object.entries(S.TECH).filter(([, t]) => t.branch === bid), wrap = el('div', 'tree');
+      wrap.append(el('div', 'treeH', bname));
+      const walk = (pid, depth) => {
+        for (const [id, t] of nodes.filter(([, x]) => (x.req || null) === pid)) {
+          const st = S.techState(c, id), n = el('div', `tnode ${st}`);
+          n.style.marginLeft = `${depth * 22}px`;
+          const why = st === 'req' ? `cần ${S.TECH[t.req].name}` : st === 'rank' ? `từ mốc ${S.MILESTONES[t.rank - 1].name}` : st === 'poor' ? 'thiếu điểm' : st === 'done' ? 'đã mở' : 'bấm để mở';
+          n.title = `${t.name}: ${t.desc}`;
+          const inf = el('div', 'tinfo'); inf.append(el('span', 'tname', t.name), el('small', null, why));
+          n.append(el('span', 'tdot', t.icon), inf);
+          const b = el('button', st === 'ok' ? 'mini acc' : 'mini', st === 'done' ? '✔' : `${t.cost} ⬢`);
+          b.disabled = st !== 'ok';
+          b.addEventListener('click', () => { const r = S.unlockTech(city, id); toast(r.ok ? `🏗️ Đã mở: ${t.name}` : r.reason); renderDev(); buildSub(); updateHud(true); });
+          n.append(b); wrap.append(n);
+          walk(id, depth + 1);
+        }
+      };
+      walk(null, 0);
+      box.append(wrap);
+    }
+  }
   for (const [bid, bname] of S.TECH_BRANCH) {
     box.append(el('h4', null, bname));
     for (const [id, t] of Object.entries(S.TECH)) {
@@ -1136,7 +1160,7 @@ function updateHud(force) {
   for (let i = 0; i < S.N * S.N; i++) { if (c.zone[i]) { zoned++; if (S.ZDEF[c.zone[i]].res && !c.level[i] && c.acc[i]) free++; } if (c.level[i] && c.garbage[i] > S.garbageLimit(c.zone[i], c.level[i])) dirty++; if (c.fire[i]) burning++; }
   if (c.edges.size <= 1 && !zoned) al.push(['Chọn 🛣️ Đường, bấm vào cuối đoạn đường có sẵn rồi bấm điểm tiếp theo để mở phố']);
   else if (!zoned) al.push(['Chọn 🎨 Quy hoạch rồi tô khu 🏠 nhà ở lên các ô hai bên đường']);
-  if (zoned && c.points && Object.keys(S.TECH).some((id) => S.techState(c, id) === 'ok')) al.push([`🔬 Còn ${c.points} điểm phát triển chưa dùng: mở khu tài nguyên, module, công trình biểu tượng`]);
+  if (zoned && c.points && Object.keys(S.TECH).some((id) => S.techState(c, id) === 'ok')) al.push([`🔬 Còn ${c.points} điểm phát triển chưa dùng: ${c.devTree ? "mở công trình dịch vụ (cây công trình), " : ""}khu tài nguyên, module, công trình biểu tượng`]);
   if (burning) al.push([`🔥 ${burning} toà nhà đang cháy`, 1]);
   if (none.p) al.push(['⚡ Khu đã quy hoạch chưa có điện: đặt tua-bin gió gần đường', 1]);
   else if (tight.p) al.push(['⚡ Hết điện dư: nhà ngừng mọc, xây thêm nguồn điện', 1]);
@@ -1837,7 +1861,7 @@ function bindMaps() {
   $('mapCancel').addEventListener('click', () => $('maps').classList.remove('show'));
   $('mapGo').addEventListener('click', () => {
     if (city && city.edges.size > 1 && !confirm('Bỏ thành phố hiện tại và bắt đầu vùng đất mới? (Các ô lưu vẫn giữ nguyên)')) return;
-    const opts = { size: mapPick.size, map: mapPick.kind }, c = mapPick.mode === 'open' ? S.newSandbox(mapPick.seed, opts) : S.newCity(mapPick.seed, opts);
+    const opts = { size: mapPick.size, map: mapPick.kind }, c = mapPick.mode === 'open' ? S.newSandbox(mapPick.seed, opts) : S.newCity(mapPick.seed, { ...opts, devTree: true });
     $('maps').classList.remove('show'); $('over').classList.remove('show');
     if (startCity(c)) { autosave(); if (mapPick.mode === 'open') toast('🎨 Chế độ Open: mọi thứ đã mở, tiền không giới hạn, không phá sản'); }
   });
@@ -1924,7 +1948,7 @@ try {
   if (pend) { sessionStorage.removeItem(KEY + 'pending'); first = S.deserialize(JSON.parse(pend)); }
 } catch (e) { bootErr = e; }
 if (!first) { const d = readSlot('auto'); if (d) try { first = S.deserialize(d.city); } catch (e) { bootErr = e; } }
-if (!first) first = S.newCity(undefined, { size: 128 });
+if (!first) first = S.newCity(undefined, { size: 128, devTree: true });
 view = new View($('view'));
 view.mapN = S.N;
 window.__view = view;
