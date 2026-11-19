@@ -395,7 +395,7 @@ function updatePreview() {
     const plan = S.planRoad(city, { a: draw.a, b: sp, ctrl: draw.ctrl, type: t.type, bridge: bridgeStyle });
     draw.plan = plan; draw.b = sp;
     view.setRibbon(plan.pts, S.ROADS[t.type].w / 2, plan.ok ? 0xffffff : 0xff5b4a);
-    renderHint(`${S.ROADS[t.type].name}: <b>${(plan.len / S.T).toFixed(1)} ô</b> · ${money(plan.cost)}${plan.ok ? '' : ` · <b>${plan.reason}</b>`}`);
+    renderHint(`${S.ROADS[t.type].name}: <b>${(plan.len / S.T).toFixed(1)} ô</b> · ${money(plan.cost)}${plan.ok && plan.fix ? ` · tự ${plan.fix.fill ? `đắp cửa hầm ${plan.fix.fill} ô ven sông` : ''}${plan.fix.fill && plan.fix.dredge ? ', ' : ''}${plan.fix.dredge ? 'nạo vét lòng sông' : ''}` : ''}${plan.ok ? '' : ` · <b>${plan.reason}</b>`}`);
     return;
   }
   if (t.kind === 'line') {
@@ -497,6 +497,7 @@ function drawClick(fromDrag) {
     if (!draw) { if (!fromDrag) draw = { a: sp }; updatePreview(); return; }
     if (needCtrl) { if (!fromDrag) draw.ctrl = { x: sp.x, z: sp.z }; updatePreview(); return; }
     const r = S.buildRoad(city, { a: draw.a, b: sp, ctrl: draw.ctrl, type: t.type, bridge: bridgeStyle });
+    if (r.ok && r.fix) toast(`🕳️ Hầm qua sông: ${r.fix.fill ? `đắp cửa hầm ${r.fix.fill} ô ven sông` : ''}${r.fix.fill && r.fix.dredge ? ', ' : ''}${r.fix.dredge ? 'nạo vét lòng sông cho đủ sâu' : ''}`);
     if (!r.ok) { if (!fromDrag || r.reason !== 'Đoạn quá ngắn') toast(r.reason); if (fromDrag) return; }
     else draw = { a: { x: sp.x, z: sp.z, node: r.endNode } }; // vẽ nối tiếp từ điểm cuối
     updatePreview(); updateHud(true);

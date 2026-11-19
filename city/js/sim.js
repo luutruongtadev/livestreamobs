@@ -224,6 +224,35 @@ function tunnelWetCheck(c, type, pts, cum, hAt) {
   return null;
 }
 
+/**
+ * Tự xử lý hầm chui qua sông (như sân bay quốc tế tự giải toả): chỗ dốc hầm còn gần nước thì đắp đất cửa hầm (lấn bờ
+ * quanh dốc hầm cho khô), đoạn hầm kín chạy dưới sông thì nạo vét lòng sông cho đủ sâu (đáy ít nhất -3,2 m) để hầm
+ * nằm dưới đáy. Sông phải còn lòng nước ở giữa (không lấp kín sông). Trả về { ok, verts: Map(đỉnh → cao độ mới), cost,
+ * fill (ô đắp), dredge (đỉnh nạo vét) } hoặc { ok: false, reason }.
+ */
+function tunnelFix(c, type, pts, cum, hAt) {
+  const n = pts.length / 2 - 1, r = tunnelWetR(type), H = lvlH(roadLvl(type)), V = N + 1, verts = new Map(), fillCells = new Set();
+  const cellsNear = (wx, wz, rad, fn) => { for (let y = Math.max(0, cellOf(wz - rad)); y <= Math.min(N - 1, cellOf(wz + rad)); y++) for (let x = Math.max(0, cellOf(wx - rad)); x <= Math.min(N - 1, cellOf(wx + rad)); x++) { const dx = Math.max(0, Math.abs(wx - cellCenter(x)) - T / 2), dz = Math.max(0, Math.abs(wz - cellCenter(y)) - T / 2); if (dx * dx + dz * dz < rad * rad) fn(idx(x, y), x, y); } };
+  const setV = (k, h, up) => { const cur = verts.has(k) ? verts.get(k) : c.hv[k]; verts.set(k, up ? Math.max(cur, h) : Math.min(cur, h)); };
+  let deepWater = 0;
+  for (let k = 0; k <= n; k++) {
+    const wx = pts[k * 2], wz = pts[k * 2 + 1], ramp = hAt(cum[k]) > H + 0.5;
+    if (ramp) cellsNear(wx, wz, r + 1, (i, x, y) => { if (c.water[i]) { if (c.occ[i]) return; fillCells.add(i); for (const kk of [y * V + x, y * V + x + 1, (y + 1) * V + x, (y + 1) * V + x + 1]) setV(kk, 0.6, true); } }); // đắp cửa hầm
+    else cellsNear(wx, wz, ROADS[type].w / 2 + 2, (i, x, y) => { if (!c.water[i]) return; deepWater++; for (const kk of [y * V + x, y * V + x + 1, (y + 1) * V + x, (y + 1) * V + x + 1]) if (c.hv[kk] > -3.2) setV(kk, -3.2, false); }); // nạo vét
+  }
+  // đỉnh vừa bị đắp vừa bị nạo vét: ưu tiên đắp (cửa hầm phải khô)
+  let left = 0;
+  for (let k = 0; k <= n; k++) { if (hAt(cum[k]) > H + 0.5) continue; cellsNear(pts[k * 2], pts[k * 2 + 1], ROADS[type].w / 2 + 2, (i) => { if (c.water[i] && !fillCells.has(i)) left++; }); }
+  if (deepWater && left < 2) return { ok: false, reason: 'Sông quá hẹp: đắp cửa hầm sẽ lấp kín lòng sông — bắt đầu hầm xa bờ hơn' };
+  for (const [k, h] of verts) { // đỉnh chạm đường, nhà, công trình thì không đụng tới
+    const gx = k % V, gy = (k / V) | 0;
+    for (let dy = -1; dy <= 0; dy++) for (let dx = -1; dx <= 0; dx++) { const a = gx + dx, b = gy + dy; if (inMap(a, b) && (c.road[idx(a, b)] || c.occ[idx(a, b)] || c.level[idx(a, b)])) { verts.delete(k); break; } }
+  }
+  let cost = 0, dredge = 0;
+  for (const [k, h] of verts) { cost += Math.abs(h - c.hv[k]) * TERRA_COST; if (h < c.hv[k]) dredge++; }
+  return { ok: true, verts, cost: Math.ceil(cost), fill: fillCells.size, dredge };
+}
+
 // ───────────────────────── đào đắp địa hình ─────────────────────────
 
 /**
@@ -830,7 +859,11 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     if (stack.narrow) return { ...out, reason: `Cầu vượt chạy dọc phía trên đường chỉ làm được trên ${ROADS.large.name.toLowerCase()} (trụ cầu ở dải phân cách, hai bên vẫn có làn xe): hãy nâng cấp đường bên dưới trước` };
   }
   const wet = tunnelWetCheck(c, type, pts, cum, myH);
-  if (wet) return { ...out, reason: wet };
+  if (wet) { // hầm qua sông: tự đắp cửa hầm, nạo vét lòng sông thay vì từ chối
+    const fix = tunnelFix(c, type, pts, cum, myH);
+    if (!fix.ok) return { ...out, reason: fix.reason };
+    out.fix = fix; out.cost += fix.cost;
+  }
   let blocked = false;
   cellsUnder(pts, def.w / 2, (i) => { if (c.occ[i]) blocked = true; });
   if (blocked) return { ...out, reason: 'Vướng công trình, hãy san ủi trước' };
@@ -911,6 +944,12 @@ function splitEdge(c, e, ts) {
 export function buildRoad(c, spec) {
   const plan = planRoad(c, spec);
   if (!plan.ok) return plan;
+  if (plan.fix && plan.fix.verts.size) { // hầm qua sông: đắp cửa hầm, nạo vét lòng sông trước khi làm đường
+    for (const [k, h] of plan.fix.verts) { c.terra[k] = clamp(Math.round((h - c.hv0[k]) * 10), -800, 800); c.hv[k] = vertexH(c, k); }
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) cellTerrain(c, x, y);
+    c.terraWet = true; waterSync(c); makeResources(c, heightFn(c)); c.terraWet = false;
+    Object.assign(c.dirty, { terrain: 2, trees: true, zones: true, land: true });
+  }
   const { stops, A, B, cx, cz, type, bridge } = plan;
   const byEdge = new Map();
   for (const s of stops) if (s.node == null && s.edge != null) { if (!byEdge.has(s.edge)) byEdge.set(s.edge, []); byEdge.get(s.edge).push(s); }
