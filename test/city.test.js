@@ -1758,3 +1758,23 @@ test('ngư nghiệp trên biển: tô lên mặt nước có cá thành ngư tr�
   S.zoneRect(c, fx - 3, fy - 3, fx + 3, fy + 3, 0);
   assert.equal(S.fisheryCount(c), 0, 'bỏ quy hoạch thì xoá ngư trường');
 });
+
+test('sân bay quốc tế: không đủ đất trống thì tự giải toả nhà, dỡ đường trong lô mở rộng, vẫn còn đường sát lô', () => {
+  const c = S.newCity(5); S.enableSandbox(c);
+  const x = c.start.x;
+  road(c, x, 7, x, 60);
+  let ok = false;
+  for (let y = 25; y < 50 && !ok; y++) ok = S.placeService(c, 'airport', x + 3, y).ok;
+  const k = c.services.findIndex((s) => s.type === 'airport'), sv = c.services[k];
+  delete sv.build;
+  // vây quanh sân bay bằng đường ở mọi phía, cách 1 ô: không còn lô 8×8 trống
+  const x0 = sv.x - 2, y0 = sv.y - 2, x1 = sv.x + 6, y1 = sv.y + 6;
+  road(c, x0, y0, x1, y0); road(c, x1, y0, x1, y1); road(c, x1, y1, x0, y1);
+  const e0 = c.edges.size;
+  const r = S.addModule(c, k, 'intl');
+  assert.ok(r.ok && r.expanded, r.reason);
+  assert.equal(sv.type, 'airportIntl');
+  assert.ok(r.roads > 0 && c.edges.size < e0, 'dỡ đường trong lô');
+  for (let dy = 0; dy < 8; dy++) for (let dx = 0; dx < 8; dx++) assert.equal(c.road[(sv.y + dy) * S.N + sv.x + dx], 0, 'không còn đường trong lô sân bay');
+  assert.ok(sv.cell >= 0, 'vẫn còn đường sát sân bay');
+});

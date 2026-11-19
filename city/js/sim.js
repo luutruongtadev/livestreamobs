@@ -1559,23 +1559,33 @@ export function moduleList(c, s) {
  */
 export function airportExpand(c, s) {
   const big = SERVICES.airportIntl.size, sz = SERVICES[s.type].size, k = c.services.indexOf(s) + 1;
-  let best = null, why = 'Không đủ đất trống quanh sân bay để mở rộng thành 8×8 ô (đường băng dài hơn): dọn đất, dời đường hoặc dời sân bay';
+  let best = null, why = 'Không đủ chỗ quanh sân bay để mở rộng thành 8×8 ô: vướng sông nước, công trình khác, đất quá dốc hoặc mép bản đồ — dời sân bay ra chỗ rộng hơn';
+  const near = (e, x, y) => nearestOnEdge(e, cellCenter(x), cellCenter(y)).d < ROADS[e.type].w / 2 + 4.4;
   for (let oy = sz - big; oy <= 0; oy++) for (let ox = sz - big; ox <= 0; ox++) {
     const x0 = s.x + ox, y0 = s.y + oy;
-    let ok = true, houses = 0, road = 0;
+    let ok = true, houses = 0, roadCells = 0;
+    const roads = new Set();
     for (let dy = 0; dy < big && ok; dy++) for (let dx = 0; dx < big; dx++) {
       const a = x0 + dx, b = y0 + dy;
       if (!inMap(a, b)) { ok = false; break; }
       const i = idx(a, b);
-      if (c.occ[i] === k) { if (c.acc[i] === 1) road++; continue; }
-      if (c.water[i] || c.road[i] || c.occ[i] || c.steep[i] || (c.railCell && c.railCell[i]) || (c.beach && c.beach[i])) { ok = false; break; }
+      if (c.occ[i] === k) continue;
+      if (c.water[i] || c.occ[i] || c.steep[i]) { ok = false; break; } // không lấp sông, không phá công trình khác
       if (c.level[i]) houses++;
-      if (c.acc[i] === 1) road++;
+      if (c.road[i]) { roadCells++; for (const e of c.edges.values()) if (near(e, a, b)) roads.add(e.id); } // đường trong lô: giải toả
     }
     if (!ok) continue;
-    if (!road) { why = 'Lô mở rộng phải còn sát đường'; continue; }
-    const score = houses * 3 - road;
-    if (!best || score < best.score) best = { x: x0, y: y0, houses, score };
+    // còn đường sát lô (sau khi giải toả) để xe ra vào
+    let link = 0;
+    for (let dy = -1; dy <= big; dy++) for (let dx = -1; dx <= big; dx++) {
+      if (dx >= 0 && dy >= 0 && dx < big && dy < big) continue;
+      const a = x0 + dx, b = y0 + dy;
+      if (!inMap(a, b) || !c.road[idx(a, b)]) continue;
+      for (const e of c.edges.values()) if (!roads.has(e.id) && near(e, a, b)) { link++; break; }
+    }
+    if (!link) { why = 'Mở rộng xong sân bay sẽ không còn đường nào sát lô: làm thêm một con đường quanh sân bay rồi thử lại'; continue; }
+    const score = houses * 3 + roadCells * 2 + roads.size * 4 - Math.min(link, 6);
+    if (!best || score < best.score) best = { x: x0, y: y0, houses, roads, roadCells, score };
   }
   return best ? { ok: true, ...best } : { ok: false, reason: why };
 }
@@ -1589,15 +1599,20 @@ export function addModule(c, k, id) {
     const ex = airportExpand(c, s);
     if (!ex.ok) return ex;
     const big = SERVICES.airportIntl.size;
-    for (let dy = 0; dy < big; dy++) for (let dx = 0; dx < big; dx++) { const i = idx(ex.x + dx, ex.y + dy); c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i); clearDecor(c, i); }
+    for (let dy = 0; dy < big; dy++) for (let dx = 0; dx < big; dx++) { const i = idx(ex.x + dx, ex.y + dy); c.zone[i] = 0; c.tree[i] = 0; clearBuilding(c, i); clearDecor(c, i); clearFalls(c, i); if (c.beach) c.beach[i] = 0; }
+    // giải toả: đường, đường ray, dây điện, ống nước chạy qua lô mở rộng
+    for (const id of ex.roads) c.edges.delete(id);
+    if (c.rail) { let gone = false; for (const id of railsInRect(c, ex.x, ex.y, ex.x + big - 1, ex.y + big - 1)) { removeRail(c, id); gone = true; } if (gone) railChanged(c); }
+    { const wx0 = ex.x * T - HALF, wx1 = (ex.x + big) * T - HALF, wz0 = ex.y * T - HALF, wz1 = (ex.y + big) * T - HALF, n0 = c.lines.length; c.lines = c.lines.filter((ln) => { for (let q = 0; q <= 24; q++) { const x = ln.ax + ((ln.bx - ln.ax) * q) / 24, z = ln.az + ((ln.bz - ln.az) * q) / 24; if (x >= wx0 && x <= wx1 && z >= wz0 && z <= wz1) return false; } return true; }); if (c.lines.length !== n0) c.dirty.lines = true; }
     { const votes = [0, 0, 0, 0]; for (let dy = 0; dy < big; dy++) for (let dx = 0; dx < big; dx++) { const i = idx(ex.x + dx, ex.y + dy); if (c.acc[i] === 1) votes[c.rdir[i]]++; } if (Math.max(...votes)) s.dir = votes.indexOf(Math.max(...votes)); } // mặt nhà ga quay ra đường
     s.type = 'airportIntl'; s.x = ex.x; s.y = ex.y;
     (s.mods || (s.mods = [])).push(id);
     c.money -= m.cost;
     rebuildOcc(c);
     Object.assign(c.dirty, { services: true, zones: true, trees: true, buildings: true });
+    if (ex.roads.size) roadsChanged(c);
     computeMaps(c); computeNetworks(c); recalc(c);
-    return { ok: true, cost: m.cost, expanded: true, houses: ex.houses };
+    return { ok: true, cost: m.cost, expanded: true, houses: ex.houses, roads: ex.roads.size };
   }
   (s.mods || (s.mods = [])).push(id);
   c.money -= m.cost;

@@ -751,7 +751,7 @@ function showInfo(tile) {
       const d = S.MODULES[m.id], row = el('div', 'slot'), info = el('div'), b = el('button', m.state === 'ok' ? 'mini acc' : 'mini', m.state === 'done' ? '✔' : m.state === 'lock' ? '🔒' : fmt(m.cost));
       info.append(el('b', null, `${d.icon} ${d.name}`), el('small', null, m.state === 'lock' ? `${d.desc} · ${S.lockText(d)}` : d.desc));
       b.disabled = m.state !== 'ok';
-      b.addEventListener('click', () => { const r = S.addModule(city, mods.k, m.id); toast(r.ok ? r.expanded ? `🛫 Đã mở rộng thành sân bay quốc tế 8×8 · ${money(r.cost)}${r.houses ? ` · giải toả ${r.houses} nhà` : ''}` : `Đã gắn ${d.name.toLowerCase()} · ${money(r.cost)}` : r.reason); showInfo(tile); updateHud(true); });
+      b.addEventListener('click', () => { const r = S.addModule(city, mods.k, m.id); toast(r.ok ? r.expanded ? `🛫 Đã mở rộng thành sân bay quốc tế 8×8 · ${money(r.cost)}${r.houses ? ` · giải toả ${r.houses} nhà` : ''}${r.roads ? ` · dỡ ${r.roads} đoạn đường` : ''}` : `Đã gắn ${d.name.toLowerCase()} · ${money(r.cost)}` : r.reason); showInfo(tile); updateHud(true); });
       row.append(info, b); $('iBody').append(row);
     }
   }

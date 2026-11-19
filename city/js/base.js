@@ -178,7 +178,7 @@ export const MODULES = {
   wing: { name: 'Dãy phòng học mới', icon: '🏫', for: ['school', 'highschool', 'university'], costK: 0.45, mul: { students: 1.6 }, tech: 'm_edu', desc: 'Chỗ học +60%' },
   ward: { name: 'Khoa nội trú', icon: '🛏️', for: ['clinic', 'hospital'], costK: 0.5, add: { radius: 6, ambulances: 2 }, tech: 'm_health', desc: 'Bán kính +6 ô, thêm 2 xe cứu thương' },
   post: { name: 'Chốt trực', icon: '🚨', for: ['police', 'fire'], costK: 0.45, add: { radius: 6, trucks: 2, cars: 2 }, tech: 'm_safety', desc: 'Bán kính +6 ô; trạm cứu hoả thêm 2 xe' },
-  intl: { name: 'Nhà ga quốc tế', icon: '🌏', for: ['airport', 'airportIntl'], costK: 0.8, unlock: 12000, desc: 'Mở rộng thành sân bay quốc tế 8×8 ô (cần đất trống quanh sân bay: đường băng dài hơn, nhà ga lớn): đón chuyến bay quốc tế (du khách, người nhập cư), dân bay ra nước ngoài' },
+  intl: { name: 'Nhà ga quốc tế', icon: '🌏', for: ['airport', 'airportIntl'], costK: 0.8, unlock: 12000, desc: 'Mở rộng thành sân bay quốc tế 8×8 ô (tự giải toả nhà, đường, đường ray quanh sân bay; không lấp sông, không phá công trình khác): đón chuyến bay quốc tế (du khách, người nhập cư), dân bay ra nước ngoài' },
   garden: { name: 'Vườn hoa mở rộng', icon: '🌷', for: ['park', 'plaza', 'stadium'], costK: 0.6, add: { radius: 3 }, tech: 'm_leisure', desc: 'Vùng tăng giá đất rộng thêm 3 ô' },
 };
 export const moduleCost = (type, m) => Math.round((SERVICES[type].cost * MODULES[m].costK) / 100) * 100;
