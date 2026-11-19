@@ -1537,8 +1537,12 @@ export class View {
         const cells = s.dam.cells, span = damSpan(c, s), A = span[0], B = span[span.length - 1]; // cả vai đập tựa vào bờ
         const ax = cellX(A), az = cellZ(A), bx = cellX(B), bz = cellZ(B), L0 = Math.hypot(bx - ax, bz - az);
         const ux = L0 ? (bx - ax) / L0 : 1, uz = L0 ? (bz - az) / L0 : 0, L = L0 + T; // dọc thân đập + vai đập
-        let fx = 0, fz = 0; for (const i of cells) { fx += flow.dir[i * 2]; fz += flow.dir[i * 2 + 1]; }
-        if (Math.abs(fx) + Math.abs(fz) < 1e-3) { fx = -uz; fz = ux; }
+        // phía hạ lưu = phía mặt nước thấp hơn (thân đập là tường nên không có hướng chảy tại chỗ): dò hai bên thân đập
+        let fx = -uz, fz = ux;
+        { const side = (sg) => { let sum = 0, n = 0; for (const i of cells) for (let k = 1; k <= 3; k++) { const x = (i % N) + Math.round(-uz * sg * k), y = ((i / N) | 0) + Math.round(ux * sg * k); if (x < 0 || y < 0 || x >= N || y >= N) continue; const w = c.wl ? c.wl[y * N + x] : NaN; if (!Number.isNaN(w)) { sum += w; n++; break; } } return n ? sum / n : NaN; };
+          const p = side(1), m = side(-1);
+          if (!Number.isNaN(p) && !Number.isNaN(m)) { if (m < p) { fx = uz; fz = -ux; } }
+          else { let ax = 0, az = 0; for (const i of cells) { ax += flow.dir[i * 2]; az += flow.dir[i * 2 + 1]; } if (ax * fx + az * fz < 0) { fx = -fx; fz = -fz; } } }
         const mx = (ax + bx) / 2, mz = (az + bz) / 2, yaw = Math.atan2(ux, uz);
         const lvl = reservoirLevel(s), top = lvl + 2.2, bed = -3.6, low = WATER_Y;
         const M = new THREE.Matrix4().compose(new THREE.Vector3(mx, 0, mz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0)), new THREE.Vector3(1, 1, 1));
