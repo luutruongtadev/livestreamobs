@@ -1855,3 +1855,53 @@ test('vẽ đường: dải đất hẹp kẹp giữa hai dãy mặt tiền (kh�
   assert.equal(row(sy + 1), 0, 'ô mặt tiền không tính');
   assert.equal(row(sy + 13), 0, 'dải rộng còn làm đường được: không tô');
 });
+
+test('cầu vượt độ cao tuỳ chỉnh từng nhịp (kiểu Cities: Skylines): xoắn ốc liền mạch, vòng trên bắc qua vòng dưới, bắt điểm theo độ cao, lưu / nạp', () => {
+  const c = openCity(12345); c.money = 1e8; c.pop = 9000; c.milestone = 6; c.sandbox = 1;
+  const cx = W(c.start.x), cz = W(c.start.y + 20), R = 45;
+  let r = S.buildRoad(c, { a: S.snapPoint(c, cx + R, cz - 110, { grid: false }), b: S.snapPoint(c, cx + R, cz - 50, { grid: false }), type: 'small' });
+  assert.ok(r.ok, r.reason);
+  let node = r.endNode, h = 0;
+  for (let q = 0; q <= 5; q++) {
+    const ang = (q * Math.PI) / 2, n = c.nodes.get(node), hb = h + (q ? 5 : 2.5);
+    const A = { x: n.x, z: n.z, node };
+    const tgt = q ? { x: cx + Math.cos(ang) * R, z: cz + Math.sin(ang) * R } : { x: cx + R, z: cz };
+    const B = S.snapPoint(c, tgt.x, tgt.z, { grid: false, h: hb }); // vòng sau đi qua đúng chỗ vòng trước: không bắt nhầm nút bên dưới
+    assert.ok(B.node == null, `nhịp ${q} không bắt vào nút vòng dưới`);
+    const ctrl = S.smoothCtrl(c, A, B);
+    r = S.buildRoad(c, { a: A, b: B, ctrl: ctrl && !ctrl.reason ? ctrl : null, type: 'small', elev: { a: h, b: hb } });
+    assert.ok(r.ok, `nhịp ${q}: ${r.reason}`);
+    assert.equal(r.type, S.elevType(hb));
+    node = r.endNode; h = hb;
+  }
+  assert.equal(S.nodeH(c, node), 27.5);
+  // liền mạch: hai nhịp kề nhau cùng độ cao và cùng độ dốc ở nút chung, cùng hướng (không gãy góc)
+  let joints = 0;
+  for (const [nid, list] of c.adj) {
+    if (list.length !== 2) continue;
+    const [e1, e2] = list.map((id) => c.edges.get(id));
+    if (!e1.ch || !e2.ch) continue;
+    joints++;
+    const at = (e) => (e.a === nid ? 0 : e.len), inw = (e, d) => (e.a === nid ? d : e.len - d);
+    assert.ok(Math.abs(S.liftAt(c, e1, at(e1)) - S.liftAt(c, e2, at(e2))) < 1e-6);
+    const g1 = S.liftAt(c, e1, inw(e1, 0.5)) - S.liftAt(c, e1, at(e1)), g2 = S.liftAt(c, e2, inw(e2, 0.5)) - S.liftAt(c, e2, at(e2));
+    assert.ok(Math.abs(g1 + g2) < 0.01, 'độ dốc liên tục');
+    const d1 = S.pointAt(e1.pts, e1.cum, inw(e1, 0.01)), d2 = S.pointAt(e2.pts, e2.cum, inw(e2, 0.01));
+    assert.ok(d1[2] * d2[2] + d1[3] * d2[3] > 0.995, 'cùng hướng tiếp tuyến');
+  }
+  assert.equal(joints, 5);
+  // không có nút giao giữa các vòng chồng nhau
+  for (const l of c.adj.values()) assert.ok(l.length <= 2);
+  // nhịp quá dốc / giao lưng chừng bị chặn
+  const n = c.nodes.get(node), d = S.exitDir(c, node);
+  const steep = S.planRoad(c, { a: { x: n.x, z: n.z, node }, b: { x: n.x + d[0] * 60, z: n.z + d[1] * 60 }, type: 'small', elev: { a: 27.5, b: 0 } });
+  assert.ok(!steep.ok && /Dốc/.test(steep.reason));
+  // đường đất cắt ngang dưới các vòng (chỗ thấp nhất 7,5 m) đi qua được
+  r = S.buildRoad(c, { a: S.snapPoint(c, cx, cz - 130, { grid: false }), b: S.snapPoint(c, cx, cz + 130, { grid: false }), type: 'small' });
+  assert.ok(r.ok, r.reason);
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal([...c2.edges.values()].filter((e) => e.ch).length, [...c.edges.values()].filter((e) => e.ch).length);
+  const e0 = [...c.edges.values()].find((e) => e.ch && S.nodeH(c, e.b) === 17.5), f0 = c2.edges.get(e0.id);
+  assert.ok(Math.abs(S.liftAt(c2, f0, f0.len / 3) - S.liftAt(c, e0, e0.len / 3)) < 0.05);
+  assert.equal(S.planLevel(c, e0.id, 1).ok, false);
+});

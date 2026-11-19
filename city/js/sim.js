@@ -699,10 +699,11 @@ export function edgeAt(c, x, z, slack = 1) {
  * (nối thẳng tiếp đường cũ, vuông góc, song song, trục bản đồ, 45°), rồi lưới ô.
  * from: điểm đầu đang vẽ (kết quả snapPoint trước) để bắt góc. Trả về { x, z, node?, edge?, t?, guide?, len? }.
  */
-export function snapPoint(c, x, z, { grid = true, type = 'small', from = null } = {}) {
-  const myW = (ROADS[type] || ROADS.small).w;
+export function snapPoint(c, x, z, { grid = true, type = 'small', from = null, h = null } = {}) {
+  // h: độ cao đang vẽ (độ cao tuỳ chỉnh) — chỉ bắt vào nút / đường ở gần độ cao đó (vòng xoắn ốc không bắt nhầm vòng dưới)
+  const myW = (ROADS[type] || ROADS.small).w, far = (v) => h != null && Math.abs(v - h) >= ELEV.clear;
   let bn = null, bd = Math.max(11, myW * 0.55 + 6);
-  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd && !(from && from.node === n.id)) { bd = d; bn = n; } }
+  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd && !(from && from.node === n.id) && !far(nodeH(c, n.id))) { bd = d; bn = n; } }
   if (bn) return { x: bn.x, z: bn.z, node: bn.id };
   // cổng ra ngoài thành phố ở mép bản đồ: bám vào để nối lại đường cao tốc khi đã lỡ phá
   if (c.entry && Math.hypot(c.entry.x - x, c.entry.z - z) < 16) return { x: c.entry.x, z: c.entry.z, entry: true };
@@ -710,13 +711,13 @@ export function snapPoint(c, x, z, { grid = true, type = 'small', from = null } 
   for (const e of c.edges.values()) {
     if (from && from.edge === e.id) continue;
     const r = nearestOnEdge(e, x, z);
-    if (r.d < (ROADS[e.type].w + myW) / 2 + 1.5 && (!br || r.d < br.d)) { br = r; be = e; }
+    if (r.d < (ROADS[e.type].w + myW) / 2 + 1.5 && (!br || r.d < br.d) && !(h != null && far(ROADS[e.type].elevated ? liftAt(c, e, r.along) : 0))) { br = r; be = e; }
   }
   if (be) {
     // gần đầu mút thì dùng luôn nút ở đầu đó (tránh đoạn đường cụt vài mét)
     const near = Math.max(10, myW * 0.6);
-    if (br.t * be.len < near) { const n = c.nodes.get(be.a); return { x: n.x, z: n.z, node: n.id }; }
-    if ((1 - br.t) * be.len < near) { const n = c.nodes.get(be.b); return { x: n.x, z: n.z, node: n.id }; }
+    if (br.t * be.len < near && !far(nodeH(c, be.a))) { const n = c.nodes.get(be.a); return { x: n.x, z: n.z, node: n.id }; }
+    if ((1 - br.t) * be.len < near && !far(nodeH(c, be.b))) { const n = c.nodes.get(be.b); return { x: n.x, z: n.z, node: n.id }; }
     return { x: br.x, z: br.z, edge: be.id, t: br.t };
   }
   const lim = HALF - 2;
@@ -799,7 +800,13 @@ function pathCost(c, pts, perUnit, mult = 1) {
  * Tính trước một đoạn đường sắp vẽ: a, b là kết quả snapPoint; ctrl = điểm điều khiển (đường cong) hoặc null.
  * Tự tìm chỗ cắt đường khác để tạo nút giao. Trả về { ok, reason, cost, pts, len, stops, ... }.
  */
-export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto' }) {
+export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto', elev = null }) {
+  // elev = { a, b }: vẽ với độ cao tuỳ chỉnh (m so với mặt đất) cho đầu tự do; đầu bắt vào nút / đường có sẵn lấy độ cao của chỗ đó
+  let hA = 0, hB = 0, custom = false;
+  if (elev && LEVEL_CHAIN.includes(type) && type !== 'tunnel') {
+    hA = snapHeight(c, a) ?? (+elev.a || 0); hB = snapHeight(c, b) ?? (+elev.b || 0);
+    if (Math.max(hA, hB) > 0.05 && Math.min(hA, hB) >= -0.05) { custom = true; type = elevType(Math.max(hA, hB)); }
+  }
   const def = ROADS[type];
   if (!BRIDGES[bridge] || (def && def.elevated)) bridge = 'auto';
   if (!def) return { ok: false, reason: 'Không có loại đường này' };
@@ -812,8 +819,10 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
   const A = fix(a), B = fix(b);
   const cx = ctrl ? ctrl.x : (A.x + B.x) / 2, cz = ctrl ? ctrl.z : (A.z + B.z) / 2;
   const pts = sampleCurve(A.x, A.z, cx, cz, B.x, B.z, 2.5), n = pts.length / 2 - 1, cum = measure(pts), len = cum[n];
-  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz, bridge };
+  const out = { ok: false, pts, len, type, cost: 0, A, B, cx, cz, bridge, custom, hA, hB };
   if (len < 8 || (A.node != null && A.node === B.node)) return { ...out, reason: 'Đoạn quá ngắn' };
+  if (custom && Math.max(hA, hB) > ELEV.max + 0.01) return { ...out, reason: `Cao nhất ${ELEV.max} m` };
+  if (custom && Math.abs(hB - hA) / len > ELEV.grade + 1e-6) return { ...out, reason: `Dốc ${Math.round((Math.abs(hB - hA) / len) * 100)}%, tối đa ${Math.round(ELEV.grade * 100)}%: kéo nhịp dài thêm (≥ ${Math.ceil(Math.abs(hB - hA) / ELEV.grade)} m) hoặc đổi độ cao ít hơn` };
   for (let k = 0; k <= n; k++) if (Math.abs(pts[k * 2]) > HALF - 1 || Math.abs(pts[k * 2 + 1]) > HALF - 1) return { ...out, reason: 'Ra ngoài bản đồ' };
   for (let k = 0; k <= n; k++) if (!ownedAt(c, pts[k * 2], pts[k * 2 + 1])) return { ...out, reason: LOCKED };
   out.cost = pathCost(c, pts, def.cost, BRIDGES[bridge].mult);
@@ -830,13 +839,48 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     if (lv.includes(0)) return 0;
     return lvlH(lv.reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a)));
   };
-  const hA = endH(A), hB = endH(B), myH = (s) => {
+  // độ dốc ở hai đầu đoạn tuỳ chỉnh: nối thẳng vào một đoạn tuỳ chỉnh khác thì khớp dốc (liền mạch), nút đường thường thì phẳng
+  const endSlope = (S, atA) => {
+    const chord = (hB - hA) / len;
+    if (S.node == null) return S.edge != null ? 0 : chord;
+    const list = c.adj.get(S.node) || [];
+    if (list.length !== 1) return 0;
+    const o = c.edges.get(list[0]);
+    if (!o.ch) return 0;
+    const far = nodeH(c, o.a === S.node ? o.b : o.a), L = len + o.len;
+    return atA ? (hB - far) / L : (far - hA) / L;
+  };
+  const mA = custom ? endSlope(A, true) : 0, mB = custom ? endSlope(B, false) : 0;
+  const rA = endH(A), rB = endH(B), myH = (s) => {
+    if (custom) return clamp(hermite(hA, hB, mA, mB, len, clamp(s / len, 0, 1)), Math.min(hA, hB) - 0.5, Math.max(hA, hB) + 0.5);
     if (!H) return 0;
-    const va = hA + (H - hA) * rampAt(s, H - hA), vb = hB + (H - hB) * rampAt(len - s, H - hB);
+    const va = rA + (H - rA) * rampAt(s, H - rA), vb = rB + (H - rB) * rampAt(len - s, H - rB);
     return Math.abs(va - H) >= Math.abs(vb - H) ? va : vb;
   };
-  if (H) { out.lift = new Float32Array(n + 1); for (let k = 0; k <= n; k++) out.lift[k] = myH(cum[k]); } // độ cao mặt đường dọc tuyến (xem trước cầu / hầm)
+  if (H || custom) { out.lift = new Float32Array(n + 1); for (let k = 0; k <= n; k++) out.lift[k] = myH(cum[k]); } // độ cao mặt đường dọc tuyến (xem trước cầu / hầm)
   for (const e of c.edges.values()) {
+    if (custom || e.ch) {
+      // độ cao tuỳ chỉnh: so độ cao thật ở chỗ giao — cách đủ xa thì bắc qua nhau, bằng nhau thì thành nút giao, lưng chừng thì không làm được
+      const q = e.pts, m = q.length / 2 - 1, Na = c.nodes.get(e.a), Nb = c.nodes.get(e.b), found = [];
+      for (let k = 0; k < n; k++) for (let j = 0; j < m; j++) {
+        const r = segInt(pts[k * 2], pts[k * 2 + 1], pts[k * 2 + 2], pts[k * 2 + 3], q[j * 2], q[j * 2 + 1], q[j * 2 + 2], q[j * 2 + 3]);
+        if (!r) continue;
+        const ux = pts[k * 2 + 2] - pts[k * 2], uz = pts[k * 2 + 3] - pts[k * 2 + 1], wx = q[j * 2 + 2] - q[j * 2], wz = q[j * 2 + 3] - q[j * 2 + 1];
+        if (Math.abs(ux * wz - uz * wx) < 0.42 * Math.hypot(ux, uz) * Math.hypot(wx, wz)) continue;
+        const x = pts[k * 2] + ux * r.t, z = pts[k * 2 + 1] + uz * r.t, te = (j + r.u) / m;
+        if ((Math.hypot(x - A.x, z - A.z) < 9 && touches(A, e)) || (Math.hypot(x - B.x, z - B.z) < 9 && touches(B, e))) continue;
+        if (found.some((o) => Math.abs(o - te) * e.len < 6)) continue;
+        found.push(te);
+        const h1 = myH(cum[k] + (cum[k + 1] - cum[k]) * r.t), h2 = liftAt(c, e, e.cum[j] + (e.cum[j + 1] - e.cum[j]) * r.u), dh = Math.abs(h1 - h2);
+        if (dh >= ELEV.clear) continue; // bắc qua / chui dưới
+        if (dh > ELEV.join || roadLvl(e.type) < 0) return { ...out, reason: `Chỗ giao với ${ROADS[e.type].name.toLowerCase()} lệch ${dh.toFixed(1)} m: cao / thấp hơn ít nhất ${ELEV.clear} m để bắc qua, hoặc cùng độ cao để nối` };
+        const tn = (k + r.t) / n;
+        if (Math.hypot(x - Na.x, z - Na.z) < 11) stops.push({ t: tn, x: Na.x, z: Na.z, node: e.a, h: h2 });
+        else if (Math.hypot(x - Nb.x, z - Nb.z) < 11) stops.push({ t: tn, x: Nb.x, z: Nb.z, node: e.b, h: h2 });
+        else stops.push({ t: tn, x, z, edge: e.id, te, h: h2 });
+      }
+      continue;
+    }
     if (!sameLevel(type, e.type)) {
       // khác tầng thì đi qua nhau, trừ khi chỗ gặp nằm trên đoạn dốc lên / xuống (hai mặt đường còn sát nhau)
       if (H || roadLvl(e.type)) {
@@ -892,17 +936,17 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     for (const s of uniq) near = Math.min(near, Math.hypot(s.x - x, s.z - z));
     if (near < 14) continue;
     // tim đường gần như trùng nhau, hoặc ở xa chỗ giao mà hai mặt đường vẫn đè lên nhau
-    for (const e of c.edges.values()) { if (!sameLevel(type, e.type)) continue; const d = nearestOnEdge(e, x, z).d; if (d < 4 || (near > 40 && d < (ROADS[e.type].w + def.w) / 2 - 1)) { over += cum[k] - cum[k - 1]; break; } }
+    for (const e of c.edges.values()) { const ne = nearestOnEdge(e, x, z); if (custom || e.ch) { if (Math.abs(myH(cum[k]) - liftAt(c, e, ne.along)) >= ELEV.clear) continue; } else if (!sameLevel(type, e.type)) continue; const d = ne.d; if (d < 4 || (near > 40 && d < (ROADS[e.type].w + def.w) / 2 - 1)) { over += cum[k] - cum[k - 1]; break; } }
   }
   if (over > 7) return { ...out, reason: 'Trùng hoặc quá sát đường khác' };
   // chạy dọc chồng lên đường khác tầng (cầu vượt giữa đại lộ): chỉ được khi bên dưới là đại lộ đủ rộng, trụ cầu đứng ở dải phân cách
-  const stack = stackedOver(c, type, pts, cum);
+  const stack = stackedOver(c, type, pts, cum, custom ? myH : null);
   if (stack.len > 6) {
     if (roadLvl(type) < 0) return { ...out, reason: 'Hầm chui chưa chạy dọc dưới lòng đường được: cho hầm cắt ngang đường, hoặc làm cầu vượt giữa đại lộ' };
     if (stack.upper) return { ...out, reason: 'Hai cầu khác tầng không chạy chồng dọc lên nhau được: cho chúng cắt chéo nhau' };
     if (stack.narrow) return { ...out, reason: `Cầu vượt chạy dọc phía trên đường chỉ làm được trên ${ROADS.large.name.toLowerCase()} (trụ cầu ở dải phân cách, hai bên vẫn có làn xe): hãy nâng cấp đường bên dưới trước` };
   }
-  const wet = tunnelWetCheck(c, type, pts, cum, myH);
+  const wet = !custom && tunnelWetCheck(c, type, pts, cum, myH);
   if (wet) { // hầm qua sông: tự đắp cửa hầm, nạo vét lòng sông thay vì từ chối
     const fix = tunnelFix(c, type, pts, cum, myH);
     if (!fix.ok) return { ...out, reason: fix.reason };
@@ -966,7 +1010,7 @@ export function roadPreview(c, plan) {
  * Phần đoạn mới (đường khác tầng) chạy dọc chồng lên đường có sẵn: { len, narrow (đường bên dưới hẹp hơn đại lộ), upper (chồng lên đường trên cao / hầm khác) }.
  * Chồng = điểm mẫu nằm trong lòng đường kia và hướng gần song song (lệch dưới 25°).
  */
-function stackedOver(c, type, pts, cum) {
+function stackedOver(c, type, pts, cum, hFn = null) {
   const L = roadLvl(type), res = { len: 0, narrow: false, upper: false };
   if (!L) return res;
   const n = pts.length / 2 - 1;
@@ -975,8 +1019,9 @@ function stackedOver(c, type, pts, cum) {
     const tx = (pts[k * 2 + 2] - pts[k * 2]) / l, tz = (pts[k * 2 + 3] - pts[k * 2 + 1]) / l;
     for (const e of c.edges.values()) {
       const le = roadLvl(e.type);
-      if (le === L) continue;
+      if (le === L && !hFn && !e.ch) continue;
       const r = nearestOnEdge(e, x, z);
+      if ((hFn || e.ch) && le !== 0) { const h1 = hFn ? hFn((cum[k] + cum[k + 1]) / 2) : lvlH(L); const dh = Math.abs(h1 - liftAt(c, e, r.along)); if (dh >= ELEV.clear || dh < 1.5) continue; } // vòng xoắn ốc chồng lên vòng dưới: cách đủ cao thì được
       if (r.d > Math.min(ROADS[e.type].w, ROADS[type].w) / 2 - 1) continue;
       const pe = pointAt(e.pts, e.cum, r.along);
       if (Math.abs(tx * pe[3] - tz * pe[2]) > 0.42) continue; // cắt ngang, không phải chạy dọc
@@ -1018,6 +1063,7 @@ function splitEdge(c, e, ts) {
     if ((1 - o.t) * e.len < 5) { res[o.k] = e.b; continue; }
     if (last.t > 0 && (o.t - last.t) * e.len < 5) { res[o.k] = last.node; continue; }
     const p = bez(A.x, A.z, e.cx, e.cz, B.x, B.z, o.t), id = addNode(c, p[0], p[1]);
+    if (e.ch) c.nodes.get(id).h = Math.round(liftAt(c, e, nearestOnEdge(e, p[0], p[1]).along) * 100) / 100; // đoạn độ cao tuỳ chỉnh: giữ đúng độ cao chỗ cắt
     chain.push({ t: o.t, node: id }); res[o.k] = id;
   }
   chain.push({ t: 1, node: e.b });
@@ -1027,6 +1073,7 @@ function splitEdge(c, e, ts) {
       const m = subCtrl(A.x, A.z, e.cx, e.cz, B.x, B.z, chain[k].t, chain[k + 1].t);
       const part = addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1]);
       if (e.br) part.br = e.br;
+      if (e.ch) part.ch = 1;
     }
   }
   return res;
@@ -1056,9 +1103,15 @@ export function buildRoad(c, spec) {
     const m = subCtrl(A.x, A.z, cx, cz, B.x, B.z, p.t, q.t);
     const e = addEdge(c, p.node, q.node, type, m[0], m[1]);
     if (bridge !== 'auto') e.br = bridge;
+    if (plan.custom) e.ch = 1;
     made++;
   }
   if (!made) return { ...plan, ok: false, reason: 'Đã có đường ở đây' };
+  if (plan.custom) { // ghim độ cao các nút của đoạn tuỳ chỉnh (nút có sẵn giữ nguyên độ cao đang thấy)
+    stops[0].h = plan.hA; stops[stops.length - 1].h = plan.hB;
+    rebuildAdj(c);
+    for (const s of stops) { const nd = c.nodes.get(s.node); if (nd && s.h != null && nd.h == null && Math.abs(nodeH(c, s.node) - s.h) > 0.05) nd.h = Math.round(s.h * 100) / 100; }
+  }
   c.money -= plan.cost;
   roadsChanged(c);
   return { ...plan, endNode: stops[stops.length - 1].node };
@@ -1078,6 +1131,7 @@ export const LEVEL_CHAIN = ['tunnel', 'small', 'overpass', 'overpass2', 'overpas
 export function planLevel(c, edgeId, dir) {
   const e = c.edges.get(edgeId);
   if (!e) return { ok: false, reason: 'Không có đường ở đây' };
+  if (e.ch) return { ok: false, reason: 'Đoạn này có độ cao tuỳ chỉnh: vẽ lại với PageUp / PageDown để đổi độ cao từng nhịp' };
   const k = LEVEL_CHAIN.indexOf(e.type);
   if (k < 0) return { ok: false, reason: `${ROADS[e.type].name} chưa đổi tầng được: chỉ đường 2 làn, cầu vượt, hầm chui (đại lộ, cao tốc thì vẽ cầu mới)` };
   const type = LEVEL_CHAIN[k + dir];
@@ -1273,6 +1327,8 @@ export function nodeAt(c, x, z, r = 12) {
  * mọi nhánh khác tầng mặt đất thì nằm ở tầng gần mặt đất nhất trong số đó (cầu tầng 2 nối vào cầu tầng 1 thì dốc từ tầng 1).
  */
 export function nodeH(c, nid) {
+  const nd = c.nodes.get(nid);
+  if (nd && nd.h != null) return nd.h; // nút có độ cao tuỳ chỉnh (vẽ bằng PageUp / PageDown)
   const l = c.adj.get(nid);
   if (!l || l.length < 2) return 0;
   let best = null;
@@ -1293,11 +1349,80 @@ export function rampAt(d, dh, start = 3) {
  * lên (hoặc xuống) độ cao tầng của nó. startA / startB: chỗ bắt đầu dốc tính từ mỗi đầu (phần nút giao chiếm chỗ).
  */
 export function liftAt(c, e, s, startA = 3, startB = 3) {
+  if (e.ch) return customLift(c, e, s);
   const H = lvlH(roadLvl(e.type));
   if (!H) return 0;
   const hA = nodeH(c, e.a), hB = nodeH(c, e.b);
   const va = hA + (H - hA) * rampAt(s, H - hA, startA), vb = hB + (H - hB) * rampAt(e.len - s, H - hB, startB);
   return Math.abs(va - H) >= Math.abs(vb - H) ? va : vb;
+}
+
+// ───────────────────────── độ cao tuỳ chỉnh từng nhịp (kiểu Cities: Skylines) ─────────────────────────
+
+/** step: mỗi lần PageUp / PageDown; max: cao nhất; clear: hai mặt đường cách nhau từng này mét thì đi qua nhau; grade: dốc tối đa. */
+export const ELEV = { step: 2.5, max: 30, clear: 5, grade: 0.12, join: 1.2 };
+
+/** Loại cầu vượt 2 làn theo độ cao tuỳ chỉnh cao nhất của đoạn (giá, lúc mở khoá): ≤ 9 m tầng 1, ≤ 16 m tầng 2, cao hơn tầng 3. */
+export const elevType = (h) => (h <= 0.05 ? 'small' : h <= 9 ? 'overpass' : h <= 16 ? 'overpass2' : 'overpass3');
+
+const hermite = (hA, hB, mA, mB, L, t) => {
+  const t2 = t * t, t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * hA + (t3 - 2 * t2 + t) * L * mA + (-2 * t3 + 3 * t2) * hB + (t3 - t2) * L * mB;
+};
+
+/**
+ * Độ dốc (m / m, theo chiều a → b của e) của mặt đường tại nút đầu (atA) của đoạn độ cao tuỳ chỉnh e:
+ * nối thẳng với đúng một đoạn tuỳ chỉnh khác thì lấy dốc trung bình hai nhịp (mặt cầu liền mạch, không gãy khúc);
+ * nút có đường thường / nút giao nhiều nhánh thì phẳng (xe vào nút êm); đầu cụt thì theo dốc của chính nhịp.
+ */
+function nodeSlope(c, e, atA) {
+  const nid = atA ? e.a : e.b, list = c.adj.get(nid) || [], hA = nodeH(c, e.a), hB = nodeH(c, e.b);
+  if (list.length <= 1) return (hB - hA) / (e.len || 1);
+  if (list.length > 2) return 0;
+  const o = c.edges.get(list[0] === e.id ? list[1] : list[0]);
+  if (!o || !o.ch) return 0;
+  const far = nodeH(c, o.a === nid ? o.b : o.a), L = (e.len || 1) + (o.len || 1);
+  return atA ? (hB - far) / L : (far - hA) / L;
+}
+
+/** Độ cao mặt đường của đoạn tuỳ chỉnh e tại quãng đường s: nội suy Hermite giữa độ cao hai nút, khớp dốc ở nút chung. */
+function customLift(c, e, s) {
+  const hA = nodeH(c, e.a), hB = nodeH(c, e.b), L = e.len || 1, t = clamp(s / L, 0, 1);
+  const v = hermite(hA, hB, nodeSlope(c, e, true), nodeSlope(c, e, false), L, t);
+  return clamp(v, Math.min(hA, hB) - 0.5, Math.max(hA, hB) + 0.5);
+}
+
+/** Độ cao (so với mặt đất) tại điểm bắt s của snapPoint: nút, thân đường có sẵn; null nếu là điểm tự do. */
+export function snapHeight(c, s) {
+  if (!s) return null;
+  if (s.node != null && c.nodes.has(s.node)) return nodeH(c, s.node);
+  if (s.edge != null && c.edges.has(s.edge)) { const e = c.edges.get(s.edge); return ROADS[e.type].elevated ? liftAt(c, e, nearestOnEdge(e, s.x, s.z).along) : 0; }
+  return null;
+}
+
+/**
+ * Điểm điều khiển cho đoạn cong nối liền (chế độ 🌀 Cong liền): tiếp tuyến ở đầu A trùng hướng đi ra của đường đang có ở nút A
+ * (không lệch góc), Bezier đối xứng gần với cung tròn. Trả về { x, z } hoặc { reason } nếu cong gắt quá / không có hướng để nối.
+ */
+export function smoothCtrl(c, A, B) {
+  const dir = A && A.node != null ? exitDir(c, A.node) : A && A.dir ? A.dir : null;
+  if (!dir) return null;
+  const abx = B.x - A.x, abz = B.z - A.z, L = Math.hypot(abx, abz);
+  if (L < 1) return null;
+  const cs = (dir[0] * abx + dir[1] * abz) / L;
+  if (cs > 0.9998) return null; // thẳng hàng: đường thẳng
+  if (cs < 0.5) return { reason: 'Cong gắt quá: mỗi nhịp chỉ ngoặt tối đa 120°, hãy bấm điểm cuối gần hơn theo hướng đang đi' };
+  const k = L / (2 * cs);
+  return { x: A.x + dir[0] * k, z: A.z + dir[1] * k };
+}
+
+/** Hướng đi tiếp (đơn vị) ra khỏi nút nid: nối thẳng đoạn đường duy nhất đang vào nút đó. */
+export function exitDir(c, nid) {
+  const list = c.adj.get(nid) || [];
+  if (list.length !== 1) return null;
+  const e = c.edges.get(list[0]), p = e.pts, m = p.length / 2 - 1, atA = e.a === nid;
+  const tx = atA ? p[0] - p[2] : p[m * 2] - p[m * 2 - 2], tz = atA ? p[1] - p[3] : p[m * 2 + 1] - p[m * 2 - 1], l = Math.hypot(tx, tz) || 1;
+  return [tx / l, tz / l];
 }
 
 /** Tham số t (0..1) trên đường cong của đoạn e ứng với quãng đường s tính từ đầu a. */
@@ -2309,11 +2434,12 @@ export function serialize(c) {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
     apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
-    nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
+    nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
-      if (e.wear > 0.05 || e.br) a.push(e.wear > 0.05 ? Math.round(e.wear * 100) / 100 : 0);
-      if (e.br) a.push(e.br); // kiểu cầu
+      if (e.wear > 0.05 || e.br || e.ch) a.push(e.wear > 0.05 ? Math.round(e.wear * 100) / 100 : 0);
+      if (e.br || e.ch) a.push(e.br || 0); // kiểu cầu
+      if (e.ch) a.push(1); // độ cao tuỳ chỉnh theo nút
       return a;
     }),
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
@@ -2391,6 +2517,7 @@ function deserializeAt(o) {
     const id = n[0] | 0, node = { id, x: num(n[1], 0), z: num(n[2], 0) };
     if (n[3]) node.ctl = clamp(n[3] | 0, 0, 2);
     if (n[4]) node.rb = 1;
+    if (n[5] != null && Number.isFinite(+n[5])) node.h = clamp(+n[5], -10, 40);
     c.nodes.set(id, node); c.nextId = Math.max(c.nextId, id + 1);
   }
   for (const e of o.edges || []) {
@@ -2400,6 +2527,7 @@ function deserializeAt(o) {
     const made = addEdge(c, e[1], e[2], e[3], num(e[4], null), num(e[5], null));
     if (e[6]) made.wear = clamp(num(e[6], 0), 0, 1);
     if (BRIDGES[e[7]] && e[7] !== 'auto') made.br = e[7];
+    if (e[8] === 1) made.ch = 1;
     c.nextId = Math.max(keep, id + 1);
   }
   for (let i = 0; i < N * N; i++) if (c.level[i]) c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0;

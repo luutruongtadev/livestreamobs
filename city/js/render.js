@@ -902,6 +902,8 @@ export class View {
     for (const m of [...this.roadGroup.children]) { m.geometry.dispose(); this.roadGroup.remove(m); }
     const tris = {}; for (const t of Object.keys(ROADS)) tris[t] = new Tris(false);
     const jt = new Tris(true), cA = new THREE.Color(ASPHALT), cW = new THREE.Color(WALK);
+    // nút chỉ nối hai nhịp độ cao tuỳ chỉnh (cầu xoắn ốc, cầu nhiều nhịp): mặt cầu chạy liền qua nút, không lùi, không mặt nút giao
+    const smooth = (nid) => { const l = c.adj.get(nid); return !!l && l.length === 2 && l.every((id) => c.edges.get(id).ch); };
     // 1) độ lùi của từng đầu đường tại nút giao + cao độ nút
     const trim = new Map(), nodeY = new Map();
     for (const e of c.edges.values()) trim.set(e.id, [0, 0]);
@@ -918,7 +920,7 @@ export class View {
         return { e, atA, ox: dx / l, oz: dz / l, ang: Math.atan2(dz, dx), half: ROADS[e.type].w / 2 };
       }).sort((p, q) => p.ang - q.ang);
       ends.set(nid, arr);
-      if (arr.length < 2) continue;
+      if (arr.length < 2 || smooth(nid)) continue;
       arr.forEach((en, i) => {
         let r = 0.5;
         for (const o of [arr[(i + 1) % arr.length], arr[(i + arr.length - 1) % arr.length]]) {
@@ -1001,11 +1003,12 @@ export class View {
         const rx = -p.tz, rz = p.tx;
         const lift = high ? this.edgeLift(e, p.s) : 0, wl = high ? 0 : this.waterLift(e, p.s); // cầu qua sông vồng lên khỏi mặt nước
         let y = this._crossY(p.x, p.z, rx, rz, half) + lift + wl;
-        const da = p.s - ra, db = e.len - rb - p.s; // hoà dần vào cao độ nút giao
-        if (c.adj.get(e.a).length > 1 && da < 14) y = ya + (y - ya) * (da / 14);
-        if (c.adj.get(e.b).length > 1 && db < 14) y = yb + (y - yb) * Math.max(0, db / 14);
-        if (i === 0 && c.adj.get(e.a).length > 1) y = ya;
-        if (i === last && c.adj.get(e.b).length > 1) y = yb;
+        const da = p.s - ra, db = e.len - rb - p.s; // hoà dần vào cao độ nút giao (nút nối liền hai nhịp độ cao tuỳ chỉnh thì giữ nguyên dốc, không làm phẳng)
+        const jA = c.adj.get(e.a).length > 1 && !smooth(e.a), jB = c.adj.get(e.b).length > 1 && !smooth(e.b);
+        if (jA && da < 14) y = ya + (y - ya) * (da / 14);
+        if (jB && db < 14) y = yb + (y - yb) * Math.max(0, db / 14);
+        if (i === 0 && jA) y = ya;
+        if (i === last && jB) y = yb;
         return { ...p, rx, rz, y, lift, wl };
       });
       let prev = null;
@@ -1029,7 +1032,7 @@ export class View {
     }
     // 3) nút giao: đa giác vỉa hè + đa giác mặt nhựa
     for (const [nid, arr] of ends) {
-      if (arr.length < 2) continue;
+      if (arr.length < 2 || smooth(nid)) continue;
       const y = nodeY.get(nid), outer = [], inner = [];
       for (const en of arr) {
         const r = cross.get(en.e.id)[en.atA ? 0 : 1], sg = en.atA ? 1 : -1, half = en.half, ah = ROADS[en.e.type].asphalt / 2;
@@ -1236,16 +1239,18 @@ export class View {
       const deg = (c.adj.get(n.id) || []).length;
       if (deg >= 3 && Math.hypot(n.x - x, n.z - z) < 14 + reach) return true; // nút giao
     }
-    const mine = roadLvl(e.type);
+    const mine = roadLvl(e.type), myH = e.ch ? liftAt(c, e, nearestOnEdge(e, x, z).along) : 0;
     for (const o of c.edges.values()) {
       const lo = roadLvl(o.type);
-      if (o === e || lo >= mine) continue; // chỉ xét đường tầng thấp hơn: mặt đất, hầm, cầu tầng dưới
+      if (o === e || (!e.ch && !o.ch && lo >= mine)) continue; // chỉ xét đường tầng thấp hơn: mặt đất, hầm, cầu tầng dưới
       const r = nearestOnEdge(o, x, z), hw = ROADS[o.type].w / 2 + (lo < 0 ? 0.6 : 0); // hầm: tính cả tường chắn
       if (r.d > hw + reach) continue;
-      if (lo > 0 && liftAt(c, o, r.along) < 1) continue; // chân dốc cầu tầng dưới đã sát đất: trụ không vướng
+      const oh = lo === 0 ? 0 : liftAt(c, o, r.along);
+      if ((e.ch || o.ch) && oh >= (e.ch ? myH : liftAt(c, e, nearestOnEdge(e, x, z).along)) - 2) continue; // độ cao tuỳ chỉnh: chỉ xét mặt đường thấp hơn hẳn
+      if (lo > 0 && oh < 1) continue; // chân dốc cầu tầng dưới đã sát đất: trụ không vướng
       const po = pointAt(o.pts, o.cum, r.along);
       if (lo === 0 && ROADS[o.type].lanes >= 2 && r.d < 1.5 && Math.abs(pe[2] * po[3] - pe[3] * po[2]) < 0.42) continue; // dải phân cách giữa đại lộ
-      return true;
+      return lo > 0 && oh > 1.5 ? 'deck' : true; // 'deck': bên dưới là mặt cầu khác (vòng xoắn ốc dưới)
     }
     return false;
   }
@@ -2300,7 +2305,16 @@ export class View {
         if (b.s >= nextPillar && !spans.some((r) => r.free && b.s > r.s0 - 2 && b.s < r.s1 + 2)) { // nhịp vòm / dây văng / treo: không trụ giữa sông
           nextPillar = b.s + (half > 7 ? 18 : 22);
           const gy = Math.max(heightAt(c, b.x, b.z), -3.2), top = b.y - 1.2, below = this._groundRoadAt(b.x, b.z, half > 7 ? half - 3 : 1.4, e);
-          if (below) nextPillar = b.s + 2; // trụ không đứng giữa lòng đường / nút giao bên dưới: dời tới chỗ trống kế tiếp
+          let side = 0;
+          if (below === 'deck' && half <= 7) { // vòng cầu bên dưới che chỗ đặt trụ: dựng trụ lệch ra mép ngoài, xà công-xôn đỡ mặt cầu
+            for (const sd of [1, -1]) { const px = b.x + b.rx * sd * (half + 2.2), pz = b.z + b.rz * sd * (half + 2.2); if (!this._groundRoadAt(px, pz, 1.2, e)) { side = sd; break; } }
+          }
+          if (side) {
+            const px = b.x + b.rx * side * (half + 2.2), pz = b.z + b.rz * side * (half + 2.2), py = Math.max(heightAt(c, px, pz), -3.2);
+            st.cyl(px, py - 0.5, pz, 1.05, 0.95, top + 0.45 - py + 0.5, 0x9a968e, 8);
+            st.at(m4.compose(v3.set(b.x + b.rx * side * (half + 2.2) / 2, top - 0.45, b.z + b.rz * side * (half + 2.2) / 2), q.setFromEuler(e3.set(0, Math.atan2(b.rx, b.rz), 0)), one)).box(0, 0, 0, 1.6, 0.9, half + 2.2 + 2, 0x8d887e).at(null);
+            nextPillar = b.s + 22;
+          } else if (below) nextPillar = b.s + 2; // trụ không đứng giữa lòng đường / nút giao bên dưới: dời tới chỗ trống kế tiếp
           else if (top - gy > 1.2) {
             if (half > 7) for (const sd of [-1, 1]) st.cyl(b.x + b.rx * sd * (half - 3), gy - 0.5, b.z + b.rz * sd * (half - 3), 1.05, 0.95, top - gy + 0.5, 0x9a968e, 8);
             else st.cyl(b.x, gy - 0.5, b.z, 1.15, 1, top - gy + 0.5, 0x9a968e, 8);
@@ -2677,9 +2691,9 @@ export class View {
   }
 
   /** Dấu tròn tại điểm bắt (vàng khi bám vào đường / nút có sẵn). */
-  setMarker(pt, snapped) {
+  setMarker(pt, snapped, lift = 0) { // lift: độ cao điểm bắt so với mặt đất (đang vẽ cầu)
     if (!pt) { this.marker.visible = false; return; }
-    this.marker.position.set(pt.x, this.roadY(pt.x, pt.z) + 0.7, pt.z);
+    this.marker.position.set(pt.x, (lift ? Math.max(heightAt(this.city, pt.x, pt.z), WATER_Y) + 0.25 + lift : this.roadY(pt.x, pt.z)) + 0.7, pt.z);
     this.marker.material.color.set(snapped ? 0xffc24a : 0xffffff);
     this.marker.visible = true;
   }

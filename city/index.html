@@ -46,6 +46,11 @@
   .bar { pointer-events: auto; display: flex; gap: 4px; padding: 6px; overflow-x: auto; max-width: 100%; border-radius: 18px; }
   #sub { background: rgba(22, 32, 46, .9); }
   #sub:empty { display: none; }
+  #elev { background: rgba(22, 32, 46, .9); padding: 4px; border-radius: 14px; }
+  #elev:empty { display: none; }
+  #elev .tool { width: auto; min-width: 54px; height: 44px; padding: 0 8px; flex-direction: row; gap: 6px; }
+  #elev .tool span { font-size: 18px; }
+  #elev .tool small { font-size: 12px; max-width: none; }
   .bar .sep { width: 1px; background: var(--line); margin: 6px 4px; flex: none; }
   .tool { flex: none; width: 62px; height: 60px; border-radius: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; transition: background .12s, transform .12s, box-shadow .12s; }
   .tool span { font-size: 24px; line-height: 1.1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
@@ -353,6 +358,7 @@
 
 <div id="bottom">
   <div class="panel" id="hint"></div>
+  <div class="panel bar" id="elev"></div>
   <div class="panel bar" id="sub"></div>
   <div class="panel bar" id="tools"></div>
 </div>
