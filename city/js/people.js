@@ -29,7 +29,7 @@ export function initPeople(c) {
   const U16 = () => new Uint16Array(N * N), F32 = () => new Float32Array(N * N);
   c.resCount = U16(); c.staff = U16(); c.present = U16(); c.parked = U16(); c.garbage = F32(); c.fire = new Uint8Array(N * N); c.fireTruck = new Uint8Array(N * N);
   c.dead = new Uint8Array(N * N); c.hearseTo = new Uint8Array(N * N); // người mất chờ xe tang ở từng nhà; nhà đã có xe tang đang tới
-  c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N) };
+  c.biz = { money: F32(), sin: F32(), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N), rev: F32() }; // rev: doanh thu cộng dồn (không lưu)
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
   c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
   c.carSample = 1; c.gbusy = new Set();
@@ -86,7 +86,7 @@ export function onBuildingCleared(c, i) {
     if (pp.home[id] === i) { pp.home[id] = -1; if (pp.loc[id] === i && pp.state[id] === ST.HOME) pp.loc[id] = -1; }
   }
   c.resCount[i] = 0; c.staff[i] = 0; c.present[i] = 0; c.parked[i] = 0; c.garbage[i] = 0; c.fire[i] = 0; c.fireTruck[i] = 0; c.dead[i] = 0;
-  const b = c.biz; b.money[i] = 0; b.sin[i] = 0; b.sout[i] = 0; b.eff[i] = 0.5; b.incoming[i] = 0;
+  const b = c.biz; b.money[i] = 0; if (b.rev) b.rev[i] = 0; b.sin[i] = 0; b.sout[i] = 0; b.eff[i] = 0.5; b.incoming[i] = 0;
 }
 
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
@@ -300,6 +300,7 @@ export function touristSpend(c, n, per = 8) {
 function saleIncome(c, i, amount, cat) {
   const rate = c.tax[cat] / 100;
   c.biz.money[i] += amount * (1 - rate);
+  if (c.biz.rev) c.biz.rev[i] += amount;
   c.hourInc[cat] += amount * (c.tax[cat] / 9) * (cat === 'c' ? 1.2 * (1 + c.bonus.comm) : 1.35);
 }
 

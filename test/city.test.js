@@ -478,7 +478,7 @@ test('city: khu mới — nhà phố, liền kề, dưỡng lão, ký túc xá, 
   assert.ok(c.services.find((s) => s.type === 'cemetery').fill > 0, 'xe tang đã đưa người mất về nghĩa trang');
   assert.ok(c.points > 3 || c.research > 0, 'viện nghiên cứu làm ra điểm phát triển');
   let fun = 0;
-  for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && c.zone[i] === 17) fun += c.biz.money[i];
+  for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && c.zone[i] === 17) fun += c.biz.rev[i]; // doanh thu cộng dồn: tiền trong két có lúc vừa trả lương xong
   assert.ok(fun > 0, 'quán ăn, chỗ vui chơi có khách');
   const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(c2.services.find((s) => s.type === 'cemetery').fill, c.services.find((s) => s.type === 'cemetery').fill);
