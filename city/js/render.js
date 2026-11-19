@@ -3,9 +3,9 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { fishBoatGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -830,11 +830,13 @@ export class View {
         if (z) {
           [r, g, b] = ZCOL[z]; a = c.level[i] ? (this.ovStrong ? 70 : 0) : this.ovStrong ? 150 : 95;
           if (c.level[i] && (c.pOk[i] !== 1 || c.wOk[i] !== 1 || c.sOk[i] !== 1)) { r = 235; g = 50; b = 40; a = 130; } // nhà đang thiếu điện nước
-        } else if (this.ovStrong && c.acc[i] && !c.occ[i] && !c.steep[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
+        } else if (c.fishery && c.fishery[i]) { [r, g, b] = ZCOL[12]; a = this.ovStrong ? 150 : 90; } // ngư trường trên mặt nước
+        else if (this.ovStrong && c.acc[i] && !c.occ[i] && !c.steep[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
       } else if (mode === 'resource') {
         // tài nguyên: đang cầm khu chuyên biệt thì ô cạnh đường đặt được sáng hẳn lên
         const z = c.zone[i], rs = c.res[i];
         if (z && !c.water[i]) { [r, g, b] = ZCOL[z]; a = c.level[i] ? 90 : 170; }
+        else if (c.fishery && c.fishery[i]) { [r, g, b] = ZCOL[12]; a = 170; }
         else if (this.ovZone && c.acc[i] && !c.occ[i] && !c.steep[i] && hasResource(c, i, this.ovZone)) { r = g = b = 255; a = 150; }
         else if (rs) { [r, g, b] = RESCOL[rs]; a = rs === 5 ? 95 : 135; }
       } else if (mode === 'district') {
@@ -1758,6 +1760,80 @@ export class View {
       const sg = new THREE.SphereGeometry(1, 10, 8);
       for (const m of this.mists) for (let k = 0; k < 3; k++) { const o = new THREE.Mesh(sg, this.mistMat); o.position.set(m.x + (k - 1) * 1.8, m.y + k * 0.6, m.z); o.userData.mist = { r: m.r * (0.7 + k * 0.2), ph: k * 2.1 }; this.hydroGroup.add(o); }
     }
+  }
+
+  /**
+   * Ngư trường: phao cam đánh dấu ranh giới, tàu cá. Số tàu theo cỡ ngư trường và có bến cá gần hay không. Tàu chạy tới
+   * chỗ ngẫu nhiên gần đó trong ngư trường, dừng thả lưới, rồi đi tiếp; thỉnh thoảng chạy về cập bến cá rồi ra lại.
+   */
+  _fishing() {
+    const c = this.city;
+    this._fishAt = this.time;
+    if (!this.boatMesh) {
+      const geo = fishBoatGeometry();
+      this.boatMesh = this._inst(geo.body, this.matBuilding, 160, false); this.boatMesh.castShadow = true;
+      this.boatLamp = this._inst(geo.lamps, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), 160, false);
+      this.buoyMesh = this._inst(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.5 }), 600, false);
+      this.boatMesh.count = this.boatLamp.count = this.buoyMesh.count = 0;
+    }
+    const areas = fisheryAreas(c), prev = this.boats || [], boats = [];
+    const wy = (i) => (c.wl && !Number.isNaN(c.wl[i]) ? c.wl[i] : WATER_Y);
+    let nb = 0;
+    const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+    areas.forEach((A, ai) => {
+      const want = clamp(Math.round((A.cells.length / 7) * (A.harbors ? 1 : 0.35)), 1, 14);
+      for (let k = 0; k < want; k++) {
+        const old = prev.find((b) => b.ai === ai && b.k === k && A.cells.includes(b.cell));
+        if (old) { old.area = A; boats.push(old); continue; }
+        const cell = A.cells[(hash2(ai, k, 5) * A.cells.length) | 0];
+        boats.push({ ai, k, area: A, cell, x: cellX(cell), z: cellZ(cell), tx: cellX(cell), tz: cellZ(cell), dwell: hash2(k, ai, 7) * 6, yaw: hash2(ai, k, 9) * 6.28, sp: 3.5 + hash2(k, ai, 11) * 2, home: false });
+      }
+      // phao: mỗi ô biên của ngư trường (kề ô nước không phải ngư trường) đặt một phao, cách quãng
+      for (const i of A.cells) {
+        const x = i % N, y = (i / N) | 0;
+        const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => { const a = x + dx, b = y + dy; return a >= 0 && b >= 0 && a < N && b < N && c.water[b * N + a] && !c.fishery[b * N + a]; });
+        if (!edge || (x + y) % 2 || nb >= 600) continue;
+        p.set(cellX(i) + (hash2(x, y, 3) - 0.5) * 4, wy(i) + 0.15, cellZ(i) + (hash2(x, y, 4) - 0.5) * 4);
+        m.compose(p, q.identity(), one); this.buoyMesh.setMatrixAt(nb++, m);
+      }
+    });
+    this.buoyMesh.count = nb; this.buoyMesh.instanceMatrix.needsUpdate = true;
+    this.boats = boats;
+  }
+
+  _fishBoats(dt) {
+    const boats = this.boats;
+    if (!boats || !this.boatMesh) return;
+    const c = this.city, m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1);
+    const h = c.hour % 24, night = h < 5 || h >= 18;
+    let n = 0;
+    for (const b of boats) {
+      const A = b.area;
+      if (dt > 0) {
+        if (b.dwell > 0) b.dwell -= dt;
+        else {
+          const dx = b.tx - b.x, dz = b.tz - b.z, d = Math.hypot(dx, dz);
+          if (d < 1.5) { // tới nơi: thả lưới một lúc, rồi chọn chỗ mới gần đó (hoặc về bến cá)
+            b.dwell = b.home ? 6 + Math.random() * 6 : 3 + Math.random() * 8;
+            const goHome = !b.home && A.docks.length && Math.random() < 0.15;
+            const pick = goHome ? A.docks[(Math.random() * A.docks.length) | 0] : (() => { const near = A.cells.filter((i) => Math.abs(cellX(i) - b.x) < 80 && Math.abs(cellZ(i) - b.z) < 80); const list = near.length ? near : A.cells; return list[(Math.random() * list.length) | 0]; })();
+            b.home = goHome; b.cell = pick; b.tx = cellX(pick) + (Math.random() - 0.5) * 6; b.tz = cellZ(pick) + (Math.random() - 0.5) * 6;
+          } else {
+            const want = Math.atan2(dx, dz); let dy = want - b.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+            b.yaw += clamp(dy, -dt * 1.2, dt * 1.2);
+            const sp = b.sp * (Math.abs(dy) > 1 ? 0.4 : 1);
+            b.x += Math.sin(b.yaw) * sp * dt; b.z += Math.cos(b.yaw) * sp * dt;
+          }
+        }
+      }
+      const ci = clamp(Math.floor((b.z + HALF) / T), 0, N - 1) * N + clamp(Math.floor((b.x + HALF) / T), 0, N - 1);
+      const y = (c.wl && !Number.isNaN(c.wl[ci]) ? c.wl[ci] : WATER_Y) + Math.sin(this.time * 1.3 + b.k) * 0.12 - 0.05;
+      e.set(Math.sin(this.time * 0.9 + b.k * 2) * 0.04, b.yaw, Math.sin(this.time * 1.1 + b.k) * 0.06, 'YXZ');
+      p.set(b.x, y, b.z); m.compose(p, q.setFromEuler(e), one);
+      this.boatMesh.setMatrixAt(n, m); this.boatLamp.setMatrixAt(n, m); n++;
+    }
+    this.boatMesh.count = n; this.boatLamp.count = night ? n : 0;
+    this.boatMesh.instanceMatrix.needsUpdate = true; this.boatLamp.instanceMatrix.needsUpdate = true;
   }
 
   _svcSig() { return this.city.services.filter((s) => s.type === 'train').map((s) => `${s.uid}:${s.x},${s.y},${s.dir}`).join('|'); }
@@ -2923,6 +2999,8 @@ export class View {
     if (d.beach || d.terrain === 2) { this._beachProps(); d.beach = false; }
     if (d.decor || d.terrain === 2) { this._decor(); d.decor = false; }
     if (d.falls || d.terrain === 2) { this._falls(); d.falls = false; }
+    if (d.fishery || d.water || d.terrain === 2 || !this._fishAt || this.time - this._fishAt > 20) { this._fishing(); d.fishery = false; }
+    this._fishBoats(simDt);
     if (d.water || d.terrain || !this._flowFor || this._flowFor !== c) { this._flowSync(); d.water = false; }
     if (this.fallTex) this.fallTex.offset.y -= dt * 1.6; // nước đổ
     if (this.fallTex2) { this.fallTex2.offset.y -= dt * 2.7; this.fallTex2.offset.x = Math.sin(this.time * 0.7) * 0.02; }

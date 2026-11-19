@@ -20,6 +20,7 @@ import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './s
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
 import { computeFlow, flowAt, flowName, planDam, attachDam, damPower, damCells, damSpan, cliffDrop, seasonFlow, reservoirLevel } from './hydro.js';
 import { solveWater, rainK } from './water.js';
+import { fisheryOk, cleanFishery, packFishery, unpackFishery } from './fishery.js';
 import { FALLS, fallsRect, clearFalls, fallsCount, packFalls, unpackFalls } from './falls.js';
 import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
 import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
@@ -35,6 +36,7 @@ export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
 export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
 export { computeFlow, flowAt, flowName, planDam, damPower, damSpan, cliffDrop, fallGeom, seasonFlow, DAM_MAX, reservoirLevel } from './hydro.js';
 export { solveWater, rainK } from './water.js';
+export { FISHERY, fisheryOk, fisheryMul, fisheryCount, fisheryAreas } from './fishery.js';
 export { FALLS, fallsOk, fallsInfo, fallsAttract, fallsCount, cellMid } from './falls.js';
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
@@ -132,6 +134,7 @@ export function waterSync(c, { quiet = false } = {}) {
     if (w && !quiet) { c.zone[i] = 0; c.tree[i] = 0; if (c.level[i]) clearBuilding(c, i); clearDecor(c, i); if (c.beach) c.beach[i] = 0; }
   }
   c.wl = r.wl; c.wsolve = r;
+  if (changed && c.fishery && c.res) { const before = c.fishery.reduce((a, b) => a + b, 0); cleanFishery(c); if (c.dirty && c.fishery.reduce((a, b) => a + b, 0) !== before) c.dirty.fishery = true; } // lấn biển: bỏ ngư trường trên đất mới
   if (changed || moved) {
     c.waterVer = (c.waterVer || 0) + 1;
     if (c.dirty) Object.assign(c.dirty, { water: true, terrain: changed ? 2 : Math.max(c.dirty.terrain | 0, 0), zones: true, trees: true, buildings: true });
@@ -563,7 +566,7 @@ const ownedAt = (c, wx, wz) => c.own[idx(clamp(cellOf(wx), 0, N - 1), clamp(cell
 function attach(c) {
   const mk = () => new Uint8Array(N * N), fl = () => new Float32Array(N * N);
   c.own = mk(); c.bonus = { happy: 0, pull: 0, comm: 0 };
-  c.road = mk(); c.alley = mk(); c.beach = c.beach && c.beach.length === N * N ? c.beach : mk(); c.decor = c.decor && c.decor.length === N * N ? c.decor : mk(); c.decorFx = null; c.falls = c.falls && c.falls.length === N * N ? c.falls : mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
+  c.road = mk(); c.alley = mk(); c.beach = c.beach && c.beach.length === N * N ? c.beach : mk(); c.decor = c.decor && c.decor.length === N * N ? c.decor : mk(); c.decorFx = null; c.falls = c.falls && c.falls.length === N * N ? c.falls : mk(); c.fishery = c.fishery && c.fishery.length === N * N ? c.fishery : mk(); c.acc = mk(); c.rdir = mk(); c.cedge = new Int32Array(N * N).fill(-1);
   c.pOk = mk(); c.wOk = mk(); c.sOk = mk();
   c.age = new Uint16Array(N * N);
   c.occ = new Int16Array(N * N);
@@ -1442,18 +1445,25 @@ export const lockText = (d) => (d.tech ? `mở trong 🔬 Phát triển (${TECH[
 export function zoneRect(c, x0, y0, x1, y1, z) {
   if (!ZDEF[z]) return { ok: false, reason: 'Không có loại khu này' };
   if (!zoneUnlocked(c, z)) return { ok: false, reason: `${ZDEF[z].name}: ${lockText(ZDEF[z])}` };
-  let n = 0, locked = 0, noRes = 0;
+  let n = 0, locked = 0, noRes = 0, sea = 0;
   for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
     if (!inMap(x, y)) continue;
     const i = idx(x, y);
     if (!c.own[i]) { locked++; continue; }
+    if (c.water[i]) { // ngư nghiệp tô lên mặt nước có cá: ngư trường; bỏ quy hoạch thì xoá ngư trường
+      if (z === 12 && !c.fishery[i] && fisheryOk(c, i)) { c.fishery[i] = 1; n++; sea++; }
+      else if (z === 0 && c.fishery[i]) { c.fishery[i] = 0; n++; sea++; }
+      continue;
+    }
     if (c.water[i] || c.road[i] || c.occ[i] || c.beach[i] || (c.decor && c.decor[i]) || (c.falls && c.falls[i]) || (c.resvCell && c.resvCell[i]) || c.zone[i] === z) continue;
     if (z !== 0 && (!c.acc[i] || c.steep[i])) continue;
     if (!hasResource(c, i, z)) { noRes++; continue; }
     if (c.level[i]) { if (z !== 0) continue; clearBuilding(c, i); } // chỉ "bỏ quy hoạch" mới dỡ nhà
     c.zone[i] = z; n++;
   }
+  if (sea) { c._fishMul = null; c.dirty.fishery = true; }
   if (n) { c.dirty.zones = true; computeNetworks(c); recalc(c); }
+  if (z === 12 && !n) return { ok: false, count: 0, reason: 'Ngư nghiệp: tô lên mặt nước có cá (ngư trường, xem lớp 🗺️ tài nguyên: màu lam) hoặc ô đất cạnh đường sát vùng nước có cá (bến cá)' };
   const why = noRes ? `${ZDEF[z].name} chỉ đặt được trên ô có ${RAW[ZDEF[z].raw].name.toLowerCase()} (xem lớp 🗺️ tài nguyên)` : locked ? LOCKED : 'Chỉ quy hoạch được ô nằm cạnh đường (tối đa 2 ô), không quá dốc';
   return { ok: n > 0, count: n, reason: n ? '' : why };
 }
@@ -2153,7 +2163,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, tech: [...c.tech], points: c.points, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2228,7 +2238,7 @@ function deserializeAt(o) {
   c.tree = new Uint8Array(N * N); genLand(c); c.tree = keepTree; // nước tự nhiên sinh lại từ seed; phần đào đắp nạp từ bản lưu (makeTerrain dọn nhà, cây trên ô nước)
   c.terra = new Int16Array((N + 1) * (N + 1));
   if (Array.isArray(o.terra)) for (let p = 0; p + 1 < o.terra.length; p += 2) { const k = o.terra[p] | 0; if (k >= 0 && k < c.terra.length) c.terra[k] = clamp(o.terra[p + 1] | 0, -800, 800); }
-  unpackBeach(c, o.beach); unpackDecor(c, o.decor); unpackFalls(c, o.falls);
+  unpackBeach(c, o.beach); unpackDecor(c, o.decor); unpackFalls(c, o.falls); unpackFishery(c, o.fishery);
   attach(c);
   initStreet(c, o.street || {}); // trước khi dựng ô quy hoạch: hẻm cần biết chính sách
   initRail(c, o.rail || {}); c.railCell = railCells(c); c.tunnelCell = tunnelCells(c); // đường ray: ô có ray không quy hoạch

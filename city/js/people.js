@@ -11,6 +11,7 @@ import { ferryDay } from './ships.js';
 import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
 import { distFx } from './districts.js';
+import { fisheryMul } from './fishery.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
 const DEMAND_PER_HEAD = 0.025; // hàng hoá mỗi người mua mỗi giờ
@@ -431,7 +432,7 @@ function bizHour(c, companies, shops, h) {
     let active = pres > 0;
     if (kind === 'raw') {
       const rk = ZDEF[c.zone[i]].raw;
-      b.sout[i] = Math.min(48, b.sout[i] + pres * RAW[rk].rate * prod * boost);
+      b.sout[i] = Math.min(48, b.sout[i] + pres * RAW[rk].rate * prod * boost * (rk === 'fish' ? fisheryMul(c, i) : 1)); // bến cá: tàu ra ngư trường gần bến
       if (b.sout[i] >= PRICE.load) supRaw[rk].push(i);
     } else if (kind === 'factory') {
       const use = Math.min(b.sin[i], pres * FACT_RATE * prod, 48 - b.sout[i]);

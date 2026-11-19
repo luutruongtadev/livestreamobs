@@ -118,6 +118,11 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
    - **Ga thông ra cửa khẩu** (bấm vào ga để xem): tàu liên vận vào ga lúc 7, 11, 15, 19 giờ. Mỗi chuyến chở du khách (theo sức hút du lịch), người tới định cư (khi thành phố hút dân), dân lên tàu đi chơi; thu 6 ₫ vé mỗi khách. Bão thì huỷ chuyến.
    - **Thưởng:** mỗi ga thông ra cửa khẩu (tối đa 2) hút dân +4%, thuế thương mại +2%; hàng xuất khẩu bán được giá thêm 8%; dân được đi tàu vui hơn một chút.
    - Tàu khách xanh và tàu hàng vàng thay nhau chạy từ cửa khẩu vào ga, dừng ở sân ga rồi chạy ra. Ô có ray không quy hoạch, không xây được; 🚜 san ủi lên ray để dỡ cả đoạn. Ga chưa có ray vẫn là cửa ngõ xuất nhập khẩu như cũ.
+13l. **🎣 Ngư nghiệp trên biển** (quy hoạch 🐟 Ngư nghiệp, nhóm ⛏️ Tài nguyên; code `js/fishery.js`):
+   - **Tô lên mặt nước có cá** (biển, sông, hồ; lớp xem 🗺️ tài nguyên màu lam) thì thành **ngư trường**: phao cam đánh dấu ranh giới, tàu cá kiểu Việt Nam (thân xanh viền đỏ, mắt thuyền, ca-bin, cột, lưới) chạy tới chỗ này chỗ kia trong ngư trường, dừng thả lưới, thỉnh thoảng về cập bến cá; ban đêm thắp dàn đèn câu mực sáng rực.
+   - **Tô lên ô đất cạnh đường sát vùng nước có cá** thì vẫn là **bến cá** như cũ (ngư dân làm việc, cá cập bến, xe chở cá đi bán).
+   - Bến cá có ngư trường trong 16 ô quanh nó thì ra nhiều cá hơn (tối đa ×2,6, mỗi ô ngư trường +5%); nước ở ngư trường bị ô nhiễm thì cá ít đi. Ngư trường càng rộng, có bến cá gần thì càng nhiều tàu (tối đa 14 tàu mỗi vùng).
+   - Bấm vào bến cá để xem hệ số sản lượng, bấm vào ngư trường để xem thông tin. 🧽 Bỏ quy hoạch tô lên ngư trường thì xoá; lấn biển thành đất thì ngư trường ở đó mất.
 13k. **💦 Thác nước tô theo ô** (nhóm 🧳 Du lịch, từ 400 dân; code `js/falls.js`). Kéo chuột tô một dải ô **từ đỉnh dốc xuống chân dốc**, như tô bãi biển:
    - Vùng tô phải chênh cao ít nhất 3 m (chỗ phẳng báo "Thác cần sườn dốc"). Tô nối thêm vào thác có sẵn được; 🧽 *Xoá thác* để bỏ.
    - Nước chảy từ ô cao nhất xuống ô kề thấp nhất trong vùng tô: đoạn thoải thành suối bám mặt đất; chỗ hụt độ cao trên 1,5 m thành **bậc thác**: nước vọt ra khỏi mép đá rồi rơi theo đường cong, loe rộng dần; ô thấp nhất thành **hồ chân thác** (mặt nước thật).
@@ -200,6 +205,7 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
 | `js/transit.js` | Tuyến xe buýt, tàu điện và metro, khách chờ ở trạm, chọn tuyến, giới hạn xe theo bến |
 | `js/incidents.js` | Thời tiết, mặt đường mòn, tai nạn giao thông, cướp giật, cháy rừng, bão đá, lốc xoáy và xe ứng cứu |
 | `js/models.js` | Mô hình 3D dựng bằng code (nhà 12 khu × 5 cấp, công trình, công trình biểu tượng, khối module, xe, trạm) |
+| `js/fishery.js` | Ngư trường trên mặt nước: ô hợp lệ, hệ số sản lượng của bến cá gần đó, các vùng ngư trường cho tàu cá |
 | `js/falls.js` | Thác nước tô theo ô: kiểm tra ô, độ dốc, dòng chảy trong vùng thác, hồ chân thác, sức hút du lịch |
 | `js/water.js` | Mực nước theo vùng trũng: lấp trũng từ cửa thoát, thể tích nước mưa theo lưu vực và mùa, đầy thì tràn xuống vùng thấp |
 | `js/hydro.js` | Dòng chảy (hướng, tốc độ, mùa nước), đập thuỷ điện (thân đập, công suất), thác nước |

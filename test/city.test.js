@@ -1737,3 +1737,24 @@ test('thác nước tô theo ô: chỉ trên sườn đủ dốc, nước chảy
   road(c, x - 3, y + 2, x + 5, y + 2);
   assert.ok(S.fallsCount(c) < 12, 'làm đường qua thì bỏ phần thác dưới đường');
 });
+
+test('ngư nghiệp trên biển: tô lên mặt nước có cá thành ngư trường, bến cá gần đó ra nhiều cá hơn; bỏ quy hoạch thì xoá; lưu / nạp', () => {
+  const c = S.newCity(7, { map: 'river' }); S.enableSandbox(c);
+  let fish = -1;
+  for (let i = 0; i < S.N * S.N && fish < 0; i++) if (S.fisheryOk(c, i)) fish = i;
+  assert.ok(fish >= 0, 'có vùng nước có cá');
+  const fx = fish % S.N, fy = (fish / S.N) | 0;
+  // một ô đất cạnh bến (giả lập bến cá) trong tầm
+  let shore = -1;
+  for (let r = 1; r < 10 && shore < 0; r++) for (let dy = -r; dy <= r && shore < 0; dy++) for (let dx = -r; dx <= r; dx++) { const x = fx + dx, y = fy + dy; if (S.inMap(x, y) && !c.water[cell(x, y)]) { shore = cell(x, y); break; } }
+  assert.equal(S.fisheryMul(c, shore), 1, 'chưa có ngư trường: sản lượng thường');
+  const r = S.zoneRect(c, fx - 3, fy - 3, fx + 3, fy + 3, 12);
+  assert.ok(r.ok && S.fisheryCount(c) > 0, r.reason);
+  for (let i = 0; i < S.N * S.N; i++) if (c.fishery[i]) assert.ok(c.water[i] && c.res[i] === 5, 'ngư trường chỉ trên nước có cá');
+  assert.ok(S.fisheryMul(c, shore) > 1, 'bến cá gần ngư trường ra nhiều cá hơn');
+  assert.ok(S.fisheryAreas(c).length >= 1);
+  const d = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(S.fisheryCount(d), S.fisheryCount(c));
+  S.zoneRect(c, fx - 3, fy - 3, fx + 3, fy + 3, 0);
+  assert.equal(S.fisheryCount(c), 0, 'bỏ quy hoạch thì xoá ngư trường');
+});

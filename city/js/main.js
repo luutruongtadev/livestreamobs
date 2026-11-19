@@ -456,7 +456,7 @@ function updatePreview() {
     if (drag || hover) renderHint(ok.length ? `${t.label}: <b>${ok.length} ô</b>${t.erase ? '' : ` · ${money(ok.length * S.BEACH.cost)}`}` : t.erase ? 'Không có ô bãi biển nào ở đây' : `<b>Chỉ tô được trên đất trống cách biển tối đa ${S.BEACH.reach} ô</b> (sông, hồ không được)`);
     return;
   }
-  else view.setPreview(t.zone ? tiles.filter(([x, y]) => city.acc[y * S.N + x] && city.own[y * S.N + x] && S.hasResource(city, y * S.N + x, t.zone)) : tiles, S.ZDEF[t.zone].color);
+  else view.setPreview(t.zone ? tiles.filter(([x, y]) => (city.acc[y * S.N + x] && city.own[y * S.N + x] && S.hasResource(city, y * S.N + x, t.zone)) || (t.zone === 12 && S.fisheryOk(city, y * S.N + x))) : tiles, S.ZDEF[t.zone].color); // ngư nghiệp: cả mặt nước có cá
   if (drag) renderHint(`${t.label}: <b>${Math.abs(a.x - b.x) + 1} × ${Math.abs(a.y - b.y) + 1} ô</b>`);
 }
 
@@ -660,7 +660,7 @@ function showInfo(tile) {
     add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
     { const wl = S.bridgeLen(city, edge); if (wl >= 4) { const B = S.BRIDGES[S.bridgeOf(edge)]; add('Cầu', `${B.icon} ${B.name} · ${Math.round(wl)} m qua sông · phí ${fmt(Math.round(wl * B.upkeep * S.RATE))} ₫/ngày (đổi kiểu: công cụ Đường → 🌉 Đổi cầu)`); } }
     if (d.elevated) { const lv = S.roadLvl(edge.type); add('Tầng', lv < 0 ? 'Hầm chui: chìm dưới mặt đất, đường bên trên bắc qua' : lv > 1 ? 'Cầu tầng 2: bắc qua cả cầu tầng 1 lẫn đường dưới đất' : 'Trên cao: bắc qua đường dưới, không có nhà hai bên'); }
-  } else if (c.water[i]) { title = '🌊 Mặt nước'; add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
+  } else if (c.water[i]) { title = c.fishery && c.fishery[i] ? '🎣 Ngư trường' : '🌊 Mặt nước'; if (c.fishery && c.fishery[i]) add('Ngư trường', 'Tàu cá của các bến cá trong ' + S.FISHERY.reach + ' ô ra đây đánh bắt; nước càng sạch càng nhiều cá'); add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
     const kind = S.bizKind(c, i);
@@ -689,6 +689,7 @@ function showInfo(tile) {
         add('Hiệu quả', `${Math.round(b.eff[i] * 100)}%`);
         add('Chỗ đỗ xe', `${c.parked[i]} xe`);
       }
+      if (z === 12) add('Ngư trường quanh bến', `sản lượng ×${S.fisheryMul(c, i).toFixed(2)}${S.fisheryMul(c, i) <= 1 ? ' · tô Ngư nghiệp lên mặt nước có cá gần bến để tàu ra đánh bắt' : ''}`);
       const hint = S.levelHint(c, i);
       if (hint) add('Lên cấp cần', hint);
       needs = h.needs;

@@ -1389,6 +1389,29 @@ function glassBand(g, x, y, z, w, h, d, color = 0x22303a) {
 }
 
 /** Tàu thuỷ, mũi hướng +z, mặt nước ở y = 0. kind 0 = tàu khách hai tầng, 1 = tàu hàng chở container. */
+/**
+ * Tàu cá kiểu Việt Nam (mũi về +z, mớn nước y = 0): thân xanh lam viền đỏ, mắt vẽ ở mũi, ca-bin trắng mái xanh ở lái,
+ * cột buồm, cần cẩu lưới, đống lưới xanh, phao. lamps: dàn bóng đèn câu mực hai bên mạn (vẽ riêng để sáng về đêm).
+ */
+export function fishBoatGeometry() {
+  const g = new GB(), L = 9, B = 3, bow = 3;
+  hullBand(g, L, B, bow, -0.7, -0.15, 0.6, 0.9, 0x8a2a24, 0.3); // đáy đỏ sẫm dưới nước
+  hullBand(g, L, B, bow, -0.15, 0.85, 0.9, 1, 0x1f6fb0, 0.5); // mạn xanh
+  hullBand(g, L, B, bow, 0.85, 1.1, 1, 1.02, 0xc9302c, 0.3); // viền đỏ
+  hullDeck(g, L, B, bow, 1.1, 0xa5794d);
+  for (const s of [-1, 1]) { g.box(s * 0.62, 0.45, 2.9, 0.06, 0.32, 0.5, 0xffffff); g.box(s * 0.64, 0.5, 2.95, 0.06, 0.16, 0.2, 0x111111); } // mắt thuyền
+  g.box(0, 1.1, -2.4, 2.1, 1.5, 2.2, 0xf2f2ee); g.box(0, 2.6, -2.4, 2.4, 0.18, 2.5, 0x2f8fd0); // ca-bin, mái
+  for (const s of [-1, 1]) g.box(s * 1.06, 1.7, -2.4, 0.04, 0.5, 1.4, 0x22303a); g.box(0, 1.7, -1.29, 1.5, 0.5, 0.04, 0x22303a); // cửa sổ
+  g.cyl(0, 1.1, 0.8, 0.07, 0.06, 5, 0x6b4a2f, 5); g.box(0, 5.6, 0.8, 0.12, 0.12, 0.12, 0xd0342c); // cột
+  g.at(new THREE.Matrix4().makeTranslation(0, 4.2, 0.8).multiply(new THREE.Matrix4().makeRotationX(-0.9))).box(0, 0, 1.6, 0.08, 0.08, 3.4, 0x6b4a2f).at(null); // cần lưới
+  g.blob(0.2, 1.1, 2.2, 0.8, 0.4, 0.7, 0x3d7a4a, 3, 1, 0.5); // đống lưới
+  g.box(-0.9, 1.1, 0.2, 0.5, 0.4, 0.5, 0x3d4f5f); g.cyl(0.9, 1.1, -0.5, 0.25, 0.25, 0.35, 0xe8894a, 8); // thùng, phao
+  g.box(0, 2.78, -2.4, 0.1, 0.9, 0.1, 0xdddddd); g.box(0.2, 3.5, -2.4, 0.5, 0.3, 0.02, 0xd0342c); // cột cờ
+  const lamps = new GB();
+  for (const s of [-1, 1]) { lamps.box(s * 1.5, 3.2, 0.4, 0.06, 0.06, 4.6, 0x8d8a82); for (let k = 0; k < 6; k++) lamps.box(s * 1.5, 2.95, -1.6 + k * 0.8, 0.28, 0.28, 0.28, 0xfff3c0); }
+  return { body: g.build(), lamps: lamps.build() };
+}
+
 export function shipGeometry(kind) {
   const g = new GB();
   if (kind === 1) { // tàu container
