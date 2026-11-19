@@ -1850,6 +1850,7 @@ window.__view = view;
 try { view.dayNight = localStorage.getItem(KEY + 'night') !== '0'; } catch { /* bỏ qua */ }
 $('bNight').classList.toggle('on', view.dayNight);
 window.__newCity = (seed, opts) => startCity(S.newCity(seed, opts || { size: view.mapN })); // tiện thử nghiệm: bản đồ theo seed cố định
+window.__loadCity = (o) => startCity(S.deserialize(o)); // tiện thử nghiệm: nạp bản lưu (JSON)
 bindUi();
 startCity(first);
 if (bootErr) toast('Không đọc được bản lưu: ' + bootErr.message);
