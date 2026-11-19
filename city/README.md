@@ -209,6 +209,20 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 
 Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản lưu cũ giữ kiểu cũ). Khu nhà ở thấp, nhà phố, liền kề, ký túc xá, hỗn hợp, cửa hàng và ăn uống mọc thành dãy nhà ống nhiều màu: ban công có lan can và chậu cây, cửa cuốn hoặc cửa hàng có biển hiệu chữ và mái bạt, trên mái có bồn nước inox, máy nước nóng, tum mái tôn, cờ đỏ sao vàng ở ban công. Đường có cột điện bê tông với dây điện chằng chịt thay cho đèn đường, xe đẩy bán hàng có ô che trên vỉa hè, cây dừa ven sông biển, và gần như ai cũng đi xe máy.
 
+## Cây công trình (kiểu Development Tree của Cities: Skylines 2)
+
+- **Áp dụng cho thành phố mới** (bản lưu cũ và chế độ Open giữ cách cũ): công trình dịch vụ không tự mở theo dân số nữa mà phải tiêu **điểm phát triển** ở bảng 🔬.
+- **Mười cây:** ⚡ Điện, 💧 Nước, 🗑️ Rác, 🏥 Y tế, 🎓 Giáo dục, 🚨 An ninh, 🚌 Vận tải, 🌳 Công viên, 🧳 Du lịch, 🛡️ Khẩn cấp.
+- **Mỗi nút là một công trình,** tốn 1–3 điểm. Nút sau cần nút trước, ví dụ:
+  - mặt trời → nhiệt điện → hạt nhân; mặt trời → thuỷ điện;
+  - trạm y tế → bệnh viện;
+  - tiểu học → trung học → đại học → viện nghiên cứu;
+  - bến xe → ga tàu hoả → sân bay.
+- **Mốc dân số vẫn giữ:** nút chỉ mở được khi đã đạt mốc dân số của công trình đó.
+- **Màu nút:** xanh lá là đã mở, xanh dương là mở được, xám là thiếu điểm / chưa tới mốc / cần nút trước.
+- **Công trình gốc có sẵn từ đầu:** tua-bin gió, tháp nước, trạm bơm, cống xả, công viên nhỏ.
+- **Điểm thêm:** thành phố dùng cây được thêm 3 điểm lúc bắt đầu và 3 điểm mỗi mốc dân số.
+
 ## Ruộng chia thửa, đập bê tông
 
 - **Ruộng chia thửa** (khu 🌾 Nông nghiệp):
