@@ -695,32 +695,71 @@ export function edgeAt(c, x, z, slack = 1) {
 }
 
 /**
- * Bắt điểm khi vẽ đường: ưu tiên nút giao gần đó, rồi tới thân đường khác, rồi lưới ô.
- * Trả về { x, z, node?, edge?, t? }.
+ * Bắt điểm khi vẽ đường (kiểu Cities: Skylines): ưu tiên nút giao gần đó, rồi thân đường khác, rồi hướng dẫn góc từ điểm đầu
+ * (nối thẳng tiếp đường cũ, vuông góc, song song, trục bản đồ, 45°), rồi lưới ô.
+ * from: điểm đầu đang vẽ (kết quả snapPoint trước) để bắt góc. Trả về { x, z, node?, edge?, t?, guide?, len? }.
  */
-export function snapPoint(c, x, z, { grid = true, type = 'small' } = {}) {
-  let bn = null, bd = 9;
-  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; bn = n; } }
+export function snapPoint(c, x, z, { grid = true, type = 'small', from = null } = {}) {
+  const myW = (ROADS[type] || ROADS.small).w;
+  let bn = null, bd = Math.max(11, myW * 0.55 + 6);
+  for (const n of c.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd && !(from && from.node === n.id)) { bd = d; bn = n; } }
   if (bn) return { x: bn.x, z: bn.z, node: bn.id };
   // cổng ra ngoài thành phố ở mép bản đồ: bám vào để nối lại đường cao tốc khi đã lỡ phá
   if (c.entry && Math.hypot(c.entry.x - x, c.entry.z - z) < 16) return { x: c.entry.x, z: c.entry.z, entry: true };
   let be = null, br = null;
   for (const e of c.edges.values()) {
+    if (from && from.edge === e.id) continue;
     const r = nearestOnEdge(e, x, z);
-    if (r.d < ROADS[e.type].w / 2 + 3 && (!br || r.d < br.d)) { br = r; be = e; }
+    if (r.d < (ROADS[e.type].w + myW) / 2 + 1.5 && (!br || r.d < br.d)) { br = r; be = e; }
   }
   if (be) {
-    // gần đầu mút thì dùng luôn nút ở đầu đó
-    if (br.t * be.len < 9) { const n = c.nodes.get(be.a); return { x: n.x, z: n.z, node: n.id }; }
-    if ((1 - br.t) * be.len < 9) { const n = c.nodes.get(be.b); return { x: n.x, z: n.z, node: n.id }; }
+    // gần đầu mút thì dùng luôn nút ở đầu đó (tránh đoạn đường cụt vài mét)
+    const near = Math.max(10, myW * 0.6);
+    if (br.t * be.len < near) { const n = c.nodes.get(be.a); return { x: n.x, z: n.z, node: n.id }; }
+    if ((1 - br.t) * be.len < near) { const n = c.nodes.get(be.b); return { x: n.x, z: n.z, node: n.id }; }
     return { x: br.x, z: br.z, edge: be.id, t: br.t };
   }
   const lim = HALF - 2;
+  const g = from ? guideSnap(c, from, x, z, grid) : null;
+  if (g) return { x: clamp(g.x, -lim, lim), z: clamp(g.z, -lim, lim), guide: g.guide, len: g.len };
   if (grid) {
-    if (ROADS[type].w > T) { x = Math.round((x + HALF) / T) * T - HALF; z = Math.round((z + HALF) / T) * T - HALF; } // đại lộ bám mép ô
+    if (myW > T) { x = Math.round((x + HALF) / T) * T - HALF; z = Math.round((z + HALF) / T) * T - HALF; } // đại lộ bám mép ô
     else { x = cellCenter(cellOf(x)); z = cellCenter(cellOf(z)); }
   }
   return { x: clamp(x, -lim, lim), z: clamp(z, -lim, lim) };
+}
+
+export const GUIDE_NAMES = { cont: 'nối thẳng', perp: 'vuông góc', par: 'song song', axis: 'thẳng trục', d45: 'chéo 45°' };
+
+/**
+ * Hướng dẫn góc từ điểm đầu `from`: lệch dưới ~6° so với một hướng gợi ý thì kéo con trỏ vào đúng hướng đó
+ * (bám lưới thì độ dài làm tròn theo bội số 1 ô). Trả về { x, z, guide, len } hoặc null.
+ */
+export function guideSnap(c, from, x, z, grid = true) {
+  const dx = x - from.x, dz = z - from.z, L = Math.hypot(dx, dz);
+  if (L < 12) return null;
+  const dirs = []; // [ux, uz, kiểu]
+  const push = (ux, uz, kind) => { const l = Math.hypot(ux, uz); if (l > 1e-6) dirs.push([ux / l, uz / l, kind]); };
+  if (from.node != null && c.nodes.has(from.node)) {
+    for (const id of c.adj.get(from.node) || []) {
+      const e = c.edges.get(id); if (!e) continue;
+      const p = e.pts, m = p.length / 2 - 1, atA = e.a === from.node;
+      const tx = atA ? p[2] - p[0] : p[m * 2 - 2] - p[m * 2], tz = atA ? p[3] - p[1] : p[m * 2 - 1] - p[m * 2 + 1]; // hướng đi vào đường cũ
+      push(-tx, -tz, 'cont'); push(-tz, tx, 'perp'); push(tz, -tx, 'perp');
+    }
+  } else if (from.edge != null && c.edges.has(from.edge)) {
+    const e = c.edges.get(from.edge), r = nearestOnEdge(e, from.x, from.z), pe = pointAt(e.pts, e.cum, r.along);
+    push(-pe[3], pe[2], 'perp'); push(pe[3], -pe[2], 'perp'); push(pe[2], pe[3], 'par'); push(-pe[2], -pe[3], 'par');
+  }
+  for (let k = 0; k < 8; k++) { const a = (k * Math.PI) / 4; push(Math.cos(a), Math.sin(a), k % 2 ? 'd45' : 'axis'); }
+  const ux = dx / L, uz = dz / L, tol = Math.cos((6 * Math.PI) / 180);
+  let best = null, bc = tol;
+  let bs = -1; // hướng theo đường cũ (nối thẳng, vuông góc, song song) được ưu tiên hơn trục bản đồ khi cùng khớp
+  for (const d of dirs) { const cs = ux * d[0] + uz * d[1]; if (cs < tol) continue; const sc = cs + (d[2] === 'axis' || d[2] === 'd45' ? 0 : 0.004); if (sc > bs) { bs = sc; bc = cs; best = d; } }
+  if (!best) return null;
+  let len = L * bc;
+  if (grid) len = Math.max(T, Math.round(len / T) * T);
+  return { x: from.x + best[0] * len, z: from.z + best[1] * len, guide: best[2], len };
 }
 
 function segInt(ax, az, bx, bz, cx, cz, dx, dz) {
@@ -796,6 +835,7 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
     const va = hA + (H - hA) * rampAt(s, H - hA), vb = hB + (H - hB) * rampAt(len - s, H - hB);
     return Math.abs(va - H) >= Math.abs(vb - H) ? va : vb;
   };
+  if (H) { out.lift = new Float32Array(n + 1); for (let k = 0; k <= n; k++) out.lift[k] = myH(cum[k]); } // độ cao mặt đường dọc tuyến (xem trước cầu / hầm)
   for (const e of c.edges.values()) {
     if (!sameLevel(type, e.type)) {
       // khác tầng thì đi qua nhau, trừ khi chỗ gặp nằm trên đoạn dốc lên / xuống (hai mặt đường còn sát nhau)
@@ -828,8 +868,8 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
       if (found.some((o) => Math.abs(o.te - te) * e.len < 6)) continue;
       found.push({ te });
       const tn = (k + r.t) / n;
-      if (Math.hypot(x - Na.x, z - Na.z) < 9) stops.push({ t: tn, x: Na.x, z: Na.z, node: e.a });
-      else if (Math.hypot(x - Nb.x, z - Nb.z) < 9) stops.push({ t: tn, x: Nb.x, z: Nb.z, node: e.b });
+      if (Math.hypot(x - Na.x, z - Na.z) < 11) stops.push({ t: tn, x: Na.x, z: Na.z, node: e.a }); // sát nút có sẵn: nhập vào nút đó, khỏi tạo hai ngã tư dính nhau
+      else if (Math.hypot(x - Nb.x, z - Nb.z) < 11) stops.push({ t: tn, x: Nb.x, z: Nb.z, node: e.b });
       else stops.push({ t: tn, x, z, edge: e.id, te });
     }
   }
@@ -837,6 +877,10 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
   // bỏ điểm dừng trùng nút liền nhau
   const uniq = [];
   for (const s of stops) { const last = uniq[uniq.length - 1]; if (last && s.node != null && last.node === s.node) continue; uniq.push(s); }
+  // đầu tự do vượt quá đường kia vài mét (lỡ tay kéo quá): cắt bỏ đoạn cụt, dừng ngay ở nút giao
+  const free = (s) => s.node == null && s.edge == null;
+  if (uniq.length > 2 && free(uniq[0]) && (uniq[1].t - uniq[0].t) * len < 12) uniq.shift();
+  if (uniq.length > 2 && free(uniq[uniq.length - 1]) && (uniq[uniq.length - 1].t - uniq[uniq.length - 2].t) * len < 12) uniq.pop();
   out.stops = uniq;
   if (uniq.length < 2) return { ...out, reason: 'Đoạn quá ngắn' };
 
@@ -869,6 +913,53 @@ export function planRoad(c, { a, b, ctrl = null, type = 'small', bridge = 'auto'
   if (blocked) return { ...out, reason: 'Vướng công trình, hãy san ủi trước' };
   if (out.cost > c.money) return { ...out, reason: 'Không đủ tiền' };
   return { ...out, ok: true };
+}
+
+/**
+ * Đất bị bỏ sót khi vẽ đường: ô đất trống không có mặt tiền nằm trong dải hẹp (≤ 4 ô) kẹp giữa dãy ô mặt tiền / mặt đường
+ * và vật cản (dãy mặt tiền khác, sông, dốc, mép bản đồ) — hẹp quá không chen thêm được một con đường. Uint8Array 0/1.
+ */
+export function landGaps(c) {
+  const out = new Uint8Array(N * N);
+  const empty = (i) => !c.acc[i] && !c.road[i] && !c.water[i] && !c.steep[i] && !c.occ[i] && !c.level[i] && !(c.decor && c.decor[i]) && !(c.beach && c.beach[i]) && !(c.falls && c.falls[i]) && !(c.railCell && c.railCell[i]);
+  const served = (i) => c.acc[i] > 0 || c.road[i];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = idx(x, y);
+    if (!empty(i)) continue;
+    for (const [dx, dy] of [[1, 0], [0, 1]]) {
+      let dl = 0, dr = 0, sl = false, sr = false;
+      for (let k = 1; k <= 5; k++) { const a = x - dx * k, b = y - dy * k; if (!inMap(a, b)) { dl = k; break; } const j = idx(a, b); if (!empty(j)) { dl = k; sl = served(j); break; } }
+      for (let k = 1; k <= 5; k++) { const a = x + dx * k, b = y + dy * k; if (!inMap(a, b)) { dr = k; break; } const j = idx(a, b); if (!empty(j)) { dr = k; sr = served(j); break; } }
+      if (dl && dr && dl + dr - 1 <= 4 && (sl || sr)) { out[i] = 1; break; }
+    }
+  }
+  return out;
+}
+
+/**
+ * Xem trước ảnh hưởng của đoạn đường sắp vẽ lên lưới ô (như vùng quy hoạch hiện dọc đường trong Cities: Skylines):
+ * gain = ô đất trống sẽ có mặt tiền (thêm đất xây nhà), lose = ô có nhà / trang trí sẽ bị giải toả dưới mặt đường.
+ */
+export function roadPreview(c, plan) {
+  const gain = [], lose = [];
+  if (!plan || !plan.pts) return { gain, lose };
+  const def = ROADS[plan.type] || ROADS.small, half = def.w / 2, under = new Set();
+  cellsUnder(plan.pts, half, (i) => { under.add(i); if (c.level[i] || (c.decor && c.decor[i]) || (c.zone[i] && !c.road[i])) lose.push(i); });
+  if (!def.elevated) {
+    const p = plan.pts, n = p.length / 2 - 1, seen = new Set();
+    for (let k = 0; k < n; k++) {
+      const x0 = p[k * 2], z0 = p[k * 2 + 1], x1 = p[k * 2 + 2], z1 = p[k * 2 + 3], reach = half + 21;
+      for (let y = Math.max(0, cellOf(Math.min(z0, z1) - reach)); y <= Math.min(N - 1, cellOf(Math.max(z0, z1) + reach)); y++)
+        for (let x = Math.max(0, cellOf(Math.min(x0, x1) - reach)); x <= Math.min(N - 1, cellOf(Math.max(x0, x1) + reach)); x++) {
+          const i = idx(x, y);
+          if (seen.has(i) || under.has(i)) continue;
+          if (distSeg(cellCenter(x), cellCenter(y), x0, z0, x1, z1).d - half >= 20.5) continue;
+          seen.add(i);
+          if (!c.acc[i] && !c.road[i] && !c.water[i] && !c.occ[i] && !c.steep[i] && c.own[i]) gain.push(i);
+        }
+    }
+  }
+  return { gain, lose };
 }
 
 /**

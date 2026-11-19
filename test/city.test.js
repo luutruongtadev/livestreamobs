@@ -1794,3 +1794,64 @@ test('hầm chui qua sông tự đắp cửa hầm, nạo vét lòng sông khi d
   assert.ok(left >= 1, 'lòng sông vẫn còn nước chảy qua');
   for (const [k] of p.fix.verts) if (p.fix.verts.get(k) < -3) assert.ok(c.hv[k] <= -3.15, 'lòng sông dưới hầm đã nạo vét');
 });
+
+test('vẽ đường kiểu Cities: Skylines: bắt góc nối thẳng / vuông góc từ điểm đầu, cắt bỏ đoạn cụt lỡ kéo quá, nút gần nhau nhập một', () => {
+  const c = openCity(12345), sx = c.start.x, sy = c.start.y + 14;
+  c.money = 1e6;
+  assert.ok(road(c, sx - 6, sy, sx + 6, sy + 4).ok);
+  const end = S.nodeAt(c, W(sx + 6), W(sy + 4), 3);
+  assert.ok(end);
+  // con trỏ lệch ~3° so với hướng nối thẳng của đoạn chéo: điểm bắt nằm đúng trên đường kéo dài
+  const ang = Math.atan2(4, 12) + 0.05, L = 60;
+  const sp = S.snapPoint(c, end.x + Math.cos(ang) * L, end.z + Math.sin(ang) * L, { from: { x: end.x, z: end.z, node: end.id } });
+  assert.equal(sp.guide, 'cont');
+  const cross = (sp.x - end.x) * 4 - (sp.z - end.z) * 12;
+  assert.ok(Math.abs(cross) < 1e-6 * L * 13, 'nằm trên đường kéo dài');
+  assert.ok(Math.abs(Math.hypot(sp.x - end.x, sp.z - end.z) % S.T) < 1e-6 || Math.abs(Math.hypot(sp.x - end.x, sp.z - end.z) % S.T - S.T) < 1e-6, 'độ dài tròn ô');
+  // vuông góc từ thân đường
+  const e = S.edgeAt(c, (W(sx - 6) + W(sx + 6)) / 2, (W(sy) + W(sy + 4)) / 2, 3), mid = S.nearestOnEdge(e, (W(sx - 6) + W(sx + 6)) / 2, (W(sy) + W(sy + 4)) / 2);
+  const px = -4, pz = 12, l = Math.hypot(px, pz), a2 = Math.atan2(pz, px) + 0.04;
+  const sq = S.snapPoint(c, mid.x + Math.cos(a2) * 50, mid.z + Math.sin(a2) * 50, { from: { x: mid.x, z: mid.z, edge: e.id } });
+  assert.equal(sq.guide, 'perp');
+  assert.ok(Math.abs(((sq.x - mid.x) * 12 + (sq.z - mid.z) * 4) / l) < 1e-6);
+  // kéo quá đường ngang 6 m: không để lại đoạn cụt, điểm cuối là nút giao
+  const c2 = openCity(12345); c2.money = 1e6;
+  assert.ok(road(c2, sx - 10, sy, sx + 10, sy).ok);
+  const dead0 = degrees(c2)[1];
+  const r = S.buildRoad(c2, { a: S.snapPoint(c2, W(sx), W(sy - 8)), b: { x: W(sx), z: W(sy) + 6 }, type: 'small' });
+  assert.ok(r.ok, r.reason);
+  assert.equal(degrees(c2)[1], dead0 + 1, 'chỉ thêm đầu cụt phía bắc của đường dọc, không có đoạn cụt thò qua phía nam');
+  assert.equal((c2.adj.get(r.endNode) || []).length, 3, 'điểm cuối là ngã ba');
+});
+
+test('vẽ đường: xem trước ô sẽ có mặt tiền xây nhà và ô nhà sẽ bị giải toả; cầu vượt có độ cao dọc tuyến', () => {
+  const c = town(), sx = c.start.x;
+  const plan = S.planRoad(c, { a: S.snapPoint(c, W(sx - 20), W(44)), b: S.snapPoint(c, W(sx + 20), W(44)), type: 'small' });
+  const fx = S.roadPreview(c, plan);
+  assert.ok(fx.gain.length >= 40, `thêm ô mặt tiền: ${fx.gain.length}`);
+  assert.ok(fx.gain.every((i) => !c.acc[i] && !c.road[i] && !c.water[i]));
+  // đường cắt qua dãy nhà đã mọc: các ô đó bị giải toả
+  run(c, 24 * 6);
+  const built = [...c.level.keys()].filter((i) => c.level[i] && i % S.N > sx + 1);
+  assert.ok(built.length > 0);
+  const hy = (built[0] / S.N) | 0, hx = built[0] % S.N;
+  const p2 = S.planRoad(c, { a: { x: W(hx), z: W(hy) - 30 }, b: { x: W(hx), z: W(hy) + 30 }, type: 'small' });
+  assert.ok(S.roadPreview(c, p2).lose.includes(built[0]));
+  c.pop = 9000; c.milestone = 6; c.sandbox = 1;
+  const p3 = S.planRoad(c, { a: S.snapPoint(c, W(sx - 20), W(50)), b: S.snapPoint(c, W(sx + 20), W(50)), type: 'overpass' });
+  assert.ok(p3.lift && Math.max(...p3.lift) === S.LIFT && p3.lift[0] === 0, 'cầu dốc từ mặt đất lên 7 m');
+  assert.equal(S.roadPreview(c, p3).gain.length, 0, 'cầu vượt không có nhà hai bên');
+});
+
+test('vẽ đường: dải đất hẹp kẹp giữa hai dãy mặt tiền (không chen thêm được đường) được đánh dấu bỏ sót', () => {
+  const c = openCity(12345), sx = c.start.x, sy = c.start.y + 14;
+  c.money = 1e6;
+  assert.ok(road(c, sx - 10, sy, sx + 10, sy).ok);
+  assert.ok(road(c, sx - 10, sy + 6, sx + 10, sy + 6).ok); // cách 6 ô: 2 + 2 hàng mặt tiền, giữa còn 1 hàng bỏ sót
+  assert.ok(road(c, sx - 10, sy + 20, sx + 10, sy + 20).ok); // cách 14 ô: còn đủ chỗ làm thêm một con đường
+  const g = S.landGaps(c);
+  const row = (y) => { let n = 0; for (let x = sx - 6; x <= sx + 6; x++) n += g[cell(x, y)]; return n; };
+  assert.ok(row(sy + 3) >= 10, `hàng giữa hai đường gần nhau bị bỏ sót: ${row(sy + 3)}`);
+  assert.equal(row(sy + 1), 0, 'ô mặt tiền không tính');
+  assert.equal(row(sy + 13), 0, 'dải rộng còn làm đường được: không tô');
+});

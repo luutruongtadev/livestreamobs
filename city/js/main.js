@@ -35,6 +35,7 @@ const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['tr
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let seatPick = null, distSel = 0; // đang chọn chỗ đặt trụ sở cho quận nào; quận đang xem trong bảng 🏙️
 let roadMode = 'line', gridSnap = true, moving = null, draw = null; // draw: { a, ctrl } khi đang vẽ đường / dây, { stops } khi vẽ tuyến
+let hideBld = (() => { try { return localStorage.getItem('phomoi.v2.hideBld') !== '0'; } catch { return true; } })(); // vẽ đường: tạm ẩn nhà, công trình
 let bridgeStyle = (() => { try { return S.BRIDGES[localStorage.getItem('phomoi.v2.bridge')] ? localStorage.getItem('phomoi.v2.bridge') : 'auto'; } catch { return 'auto'; } })(); // kiểu cầu cho đường mới qua sông
 let brush = 2, stroke = null; // cỡ cọ đào đắp (ô); stroke: { target, at, spent } khi đang giữ chuột đào đắp
 const keys = new Set();
@@ -158,7 +159,17 @@ function buildSub() {
     }
     const gb = el('button', 'tool mode'); gb.dataset.mode = 'grid'; gb.append(el('span', null, '#️⃣'), el('small', null, 'Bám lưới'));
     gb.addEventListener('click', () => { gridSnap = !gridSnap; refreshToolbar(); });
-    box.append(gb, el('div', 'sep'));
+    const hb = el('button', 'tool mode'); hb.dataset.mode = 'hide'; hb.append(el('span', null, '🏚️'), el('small', null, 'Ẩn nhà'));
+    hb.title = 'Tạm ẩn nhà và công trình khi vẽ đường, chỉ còn lưới ô xây nhà (phím H)';
+    hb.addEventListener('click', toggleHideBld);
+    box.append(gb, hb);
+    for (const [d, icon, label] of [[1, '🔼', 'Lên tầng'], [-1, '🔽', 'Xuống tầng']]) { // đổi tầng đường đang vẽ (PageUp / PageDown) mà không bỏ điểm đầu
+      const b = el('button', 'tool mode'); b.dataset.act = `lvl${d}`; b.append(el('span', null, icon), el('small', null, label));
+      b.title = `${label} cho đoạn đường đang vẽ: hầm ← mặt đất → cầu tầng 1 → 2 → 3 (phím ${d > 0 ? 'PageUp' : 'PageDown'})`;
+      b.addEventListener('click', () => shiftLevel(d));
+      box.append(b);
+    }
+    box.append(el('div', 'sep'));
     for (const [k, d] of Object.entries(S.BRIDGES)) { // kiểu cầu: áp cho đường mới vẽ qua sông, hoặc bấm cầu có sẵn ở chế độ Đổi cầu
       const b = el('button', 'tool mode'); b.dataset.mode = `bridge:${k}`; b.append(el('span', null, d.icon), el('small', null, d.name));
       b.addEventListener('click', () => { bridgeStyle = k; try { localStorage.setItem('phomoi.v2.bridge', k); } catch {} refreshToolbar(); renderHint(); updatePreview(); });
@@ -183,7 +194,7 @@ function refreshToolbar() {
   for (const b of $('tools').children) { const g = GROUPS.find((x) => x.id === b.dataset.group); b.classList.toggle('on', !!g.tool && g.tool === tool); b.classList.toggle('open', !g.tool && g.id === group); }
   for (const b of $('sub').children) {
     if (b.dataset.tool) { b.classList.toggle('on', b.dataset.tool === tool); b.classList.toggle('locked', S.SERVICES[b.dataset.tool] ? !S.isUnlocked(city, b.dataset.tool) : !!toolInfo(b.dataset.tool).locked); }
-    if (b.dataset.mode) b.classList.toggle('on', b.dataset.mode === 'grid' ? gridSnap : b.dataset.mode.startsWith('brush:') ? +b.dataset.mode.slice(6) === brush : b.dataset.mode.startsWith('bridge:') ? b.dataset.mode.slice(7) === bridgeStyle : b.dataset.mode === roadMode);
+    if (b.dataset.mode) b.classList.toggle('on', b.dataset.mode === 'grid' ? gridSnap : b.dataset.mode === 'hide' ? hideBld : b.dataset.mode.startsWith('brush:') ? +b.dataset.mode.slice(6) === brush : b.dataset.mode.startsWith('bridge:') ? b.dataset.mode.slice(7) === bridgeStyle : b.dataset.mode === roadMode);
   }
 }
 
@@ -203,7 +214,9 @@ function setTool(id) {
 function applyOverlay() {
   const t = toolInfo(tool), zoning = t.kind === 'zone', resZone = zoning && S.ZDEF[t.zone].raw ? t.zone : 0;
   const mode = resZone ? 'resource' : zoning ? 'zones' : t.line === 'pipe' || group === 'water' ? 'water' : t.line === 'power' || group === 'power' ? 'power' : t.kind === 'land' && !layer ? 'resource' : LAYERS[layer][0];
-  view.setOverlay(mode, zoning, tool !== 'info' && t.kind !== 'road' && t.kind !== 'line' && t.kind !== 'transit' && t.kind !== 'rail' && t.kind !== 'land', resZone);
+  const roadDraw = t.kind === 'road';
+  view.setOverlay(roadDraw ? 'roadgrid' : mode, zoning, roadDraw || (tool !== 'info' && t.kind !== 'line' && t.kind !== 'transit' && t.kind !== 'rail' && t.kind !== 'land'), resZone);
+  view.setBuildingsHidden(roadDraw && hideBld);
   view.setLandGrid(t.kind === 'land');
   view.setRoutesVisible(t.kind === 'transit' || group === 'transit' || mode === 'traffic');
 }
@@ -212,6 +225,7 @@ function renderHint(text) {
   let base = toolInfo(tool).desc;
   if (toolInfo(tool).kind === 'rail') base = draw ? `Đang vẽ ray · bấm thêm điểm uốn, bấm vào <b>cửa khẩu</b> / đầu ga / đầu ray để nối, <b>chuột phải</b> hoặc <b>Enter</b> để dừng ở điểm cuối, Esc để bỏ` : base;
   if (toolInfo(tool).kind === 'transit' && draw) base = `Đã đặt <b>${draw.stops.length} trạm</b> · bấm tiếp để thêm trạm, <b>chuột phải</b> hoặc <b>Enter</b> để chốt tuyến, Esc để bỏ`;
+  if (toolInfo(tool).kind === 'road' && (roadMode === 'line' || roadMode === 'curve')) base += ' · <b>PgUp/PgDn</b> đổi tầng · <b>H</b> ẩn/hiện nhà · ô <span style="color:#ff5aa0">hồng</span>: dải đất hẹp bị bỏ sót giữa các dãy mặt tiền';
   if (toolInfo(tool).kind === 'road') base += roadMode === 'line' ? ' · <b>Thẳng</b>: bấm điểm đầu, bấm điểm cuối' : roadMode === 'curve' ? ' · <b>Cong</b>: bấm điểm đầu, điểm uốn, điểm cuối' : roadMode === 'bridge' ? ` · <b>Đổi cầu</b>: bấm vào cây cầu để đổi thành ${S.BRIDGES[bridgeStyle].full.toLowerCase()}` : ' · <b>Nâng cấp</b>: bấm vào đoạn đường để đổi sang loại này';
   if (toolInfo(tool).kind === 'road' && roadMode !== 'upgrade' && roadMode !== 'bridge' && !S.ROADS[toolInfo(tool).type].elevated) base += ` · cầu qua sông: <b>${S.BRIDGES[bridgeStyle].icon} ${S.BRIDGES[bridgeStyle].name}</b>`;
   $('hint').innerHTML = text || hintOverride || base;
@@ -227,10 +241,35 @@ function rectTiles(a, b) {
 
 function cancelDraw() { draw = null; moving = null; view.setRibbon(null); view.setMarker(null); view.setGhost(null); view.setPreview(null); }
 
-/** Điểm bắt cho công cụ đường tại vị trí con trỏ. */
+/** Điểm bắt cho công cụ đường tại vị trí con trỏ: bắt nút, thân đường, góc so với điểm đầu (nối thẳng, vuông góc, 45°), lưới ô. */
 function roadSnap(type, free) {
   if (!hover) return null;
-  return S.snapPoint(city, hover.wx, hover.wz, { grid: gridSnap && !free, type });
+  return S.snapPoint(city, hover.wx, hover.wz, { grid: gridSnap && !free, type, from: draw && !draw.rail && !draw.stops ? (draw.ctrl ? { x: draw.ctrl.x, z: draw.ctrl.z } : draw.a) : null });
+}
+
+function toggleHideBld() {
+  hideBld = !hideBld;
+  try { localStorage.setItem('phomoi.v2.hideBld', hideBld ? '1' : '0'); } catch { /* bỏ qua */ }
+  applyOverlay(); refreshToolbar();
+  toast(hideBld ? '🏚️ Vẽ đường: tạm ẩn nhà, công trình — chỉ còn lưới ô xây nhà' : '🏠 Vẽ đường: hiện nhà, công trình');
+}
+
+const LVL_NAME = { '-1': 'Hầm chui (−6,5 m)', 0: 'Mặt đất', 1: 'Cầu tầng 1 (7 m)', 2: 'Cầu tầng 2 (14 m)', 3: 'Cầu tầng 3 (21 m)' };
+
+/** Đổi tầng của loại đường đang vẽ (đường 2 làn ↔ cầu vượt các tầng ↔ hầm), giữ nguyên điểm đầu đang vẽ. */
+function shiftLevel(d) {
+  const t = toolInfo(tool);
+  if (t.kind !== 'road') { setTool(d > 0 ? 'road:overpass' : 'road:tunnel'); return; }
+  const k = S.LEVEL_CHAIN.indexOf(t.type);
+  if (k < 0) { toast(`${S.ROADS[t.type].name}: chỉ đường 2 làn đổi tầng được (hầm ← mặt đất → cầu 1 → 2 → 3)`); return; }
+  const nt = S.LEVEL_CHAIN[k + d];
+  if (!nt) { toast(d > 0 ? 'Đã ở tầng cao nhất (cầu tầng 3, 21 m)' : 'Đã ở tầng thấp nhất (hầm chui)'); return; }
+  if (!S.roadUnlocked(city, nt)) { toast(`${S.ROADS[nt].name}: mở khi đạt ${fmt(S.ROADS[nt].unlock)} dân`); return; }
+  const keep = draw, mode = roadMode;
+  setTool(`road:${nt}`);
+  roadMode = mode === 'upgrade' || mode === 'bridge' ? 'line' : mode; draw = keep;
+  refreshToolbar(); updatePreview(); renderHint();
+  toast(`${S.ROADS[nt].icon} ${LVL_NAME[S.roadLvl(nt)]}`);
 }
 
 function linePoint() {
@@ -385,17 +424,23 @@ function updatePreview() {
     const needCtrl = roadMode === 'curve' && draw && !draw.ctrl;
     const sp = roadSnap(t.type, needCtrl);
     if (!sp) { view.setMarker(null); return; }
-    view.setMarker(sp, sp.node != null || sp.edge != null);
-    if (!draw) { view.setRibbon(null); renderHint(); return; }
+    view.setMarker(sp, sp.node != null || sp.edge != null || !!sp.guide);
+    if (!draw) { view.setRibbon(null); view.setPreview(null); renderHint(); return; }
     if (needCtrl) { // đang chọn điểm uốn: xem trước đường thẳng tới con trỏ
+      view.setPreview(null);
       view.setRibbon(new Float32Array([draw.a.x, draw.a.z, sp.x, sp.z]), 0.6, 0xffffff);
       renderHint('Bấm để đặt <b>điểm uốn</b>, rồi bấm điểm cuối');
       return;
     }
     const plan = S.planRoad(city, { a: draw.a, b: sp, ctrl: draw.ctrl, type: t.type, bridge: bridgeStyle });
     draw.plan = plan; draw.b = sp;
-    view.setRibbon(plan.pts, S.ROADS[t.type].w / 2, plan.ok ? 0xffffff : 0xff5b4a);
-    renderHint(`${S.ROADS[t.type].name}: <b>${(plan.len / S.T).toFixed(1)} ô</b> · ${money(plan.cost)}${plan.ok && plan.fix ? ` · tự ${plan.fix.fill ? `đắp cửa hầm ${plan.fix.fill} ô ven sông` : ''}${plan.fix.fill && plan.fix.dredge ? ', ' : ''}${plan.fix.dredge ? 'nạo vét lòng sông' : ''}` : ''}${plan.ok ? '' : ` · <b>${plan.reason}</b>`}`);
+    view.setRibbon(plan.pts, S.ROADS[t.type].w / 2, plan.ok ? 0xffffff : 0xff5b4a, plan.lift);
+    const fx = S.roadPreview(city, plan), tiles = [];
+    for (const i of fx.gain) tiles.push([i % S.N, (i / S.N) | 0, 0x5be38a]);
+    for (const i of fx.lose) tiles.push([i % S.N, (i / S.N) | 0, 0xff5b4a]);
+    view.setPreview(tiles);
+    const lv = S.roadLvl(t.type), guide = sp.guide ? ` · 📐 ${S.GUIDE_NAMES[sp.guide]}` : '';
+    renderHint(`${S.ROADS[t.type].name}${lv ? ` <b>(${LVL_NAME[lv]})</b>` : ''}: <b>${(plan.len / S.T).toFixed(1)} ô</b> · ${money(plan.cost)}${guide}${fx.gain.length ? ` · <span style="color:#5be38a">+${fx.gain.length} ô xây nhà</span>` : ''}${fx.lose.length ? ` · <span style="color:#ff7b6a">giải toả ${fx.lose.length} ô</span>` : ''}${S.LEVEL_CHAIN.includes(t.type) ? ' · PgUp/PgDn đổi tầng' : ''}${plan.ok && plan.fix ? ` · tự ${plan.fix.fill ? `đắp cửa hầm ${plan.fix.fill} ô ven sông` : ''}${plan.fix.fill && plan.fix.dredge ? ', ' : ''}${plan.fix.dredge ? 'nạo vét lòng sông' : ''}` : ''}${plan.ok ? '' : ` · <b>${plan.reason}</b>`}`);
     return;
   }
   if (t.kind === 'line') {
@@ -1209,6 +1254,8 @@ function bindInput() {
     else if (k === 'n') toggleNight();
     else if (k === 'l') $('bLayer').click();
     else if (k === 'c' && group === 'road') { roadMode = roadMode === 'curve' ? 'line' : 'curve'; cancelDraw(); refreshToolbar(); renderHint(); }
+    else if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); shiftLevel(k === 'pageup' ? 1 : -1); }
+    else if (k === 'h' && group === 'road') toggleHideBld();
     else if (k === 'g') { gridSnap = !gridSnap; refreshToolbar(); toast(gridSnap ? 'Bám lưới: bật' : 'Bám lưới: tắt (vẽ tự do)'); }
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));

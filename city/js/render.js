@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
 import { fishBoatGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
@@ -832,6 +832,14 @@ export class View {
           if (c.level[i] && (c.pOk[i] !== 1 || c.wOk[i] !== 1 || c.sOk[i] !== 1)) { r = 235; g = 50; b = 40; a = 130; } // nhà đang thiếu điện nước
         } else if (c.fishery && c.fishery[i]) { [r, g, b] = ZCOL[12]; a = this.ovStrong ? 150 : 0; } // ngư trường trên mặt nước: chỉ tô khi đang cầm công cụ quy hoạch (lúc thường có phao đánh dấu)
         else if (this.ovStrong && c.acc[i] && !c.occ[i] && !c.steep[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
+      } else if (mode === 'roadgrid') {
+        // đang vẽ đường: lưới ô xây nhà dọc đường (như vùng quy hoạch của Cities: Skylines), ô nhà đã có tô theo màu khu, dải đất bỏ sót tô hồng
+        const z = c.zone[i], gap = i ? this._gaps : (this._gaps = landGaps(c));
+        if (c.occ[i]) { r = 120; g = 130; b = 150; a = 150; }
+        else if (c.road[i] || c.water[i]) a = 0;
+        else if (c.level[i]) { const zc = ZCOL[z] || [200, 200, 200]; r = zc[0] * 0.55 + 70; g = zc[1] * 0.55 + 70; b = zc[2] * 0.55 + 80; a = this.hideBld ? 165 : 50; } // nhà đã có: màu khu nhạt đi để ô bỏ sót nổi lên
+        else if (c.acc[i] && !c.steep[i]) { if (z) { [r, g, b] = ZCOL[z]; a = 120; } else { r = g = b = 255; a = c.acc[i] === 1 ? 85 : 55; } }
+        else if (gap[i]) { r = 255; g = 60; b = 150; a = 175; } // đất sát đường mà không có mặt tiền: bị bỏ sót
       } else if (mode === 'resource') {
         // tài nguyên: đang cầm khu chuyên biệt thì ô cạnh đường đặt được sáng hẳn lên
         const z = c.zone[i], rs = c.res[i];
@@ -2409,7 +2417,7 @@ export class View {
       if (!L) continue;
       const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '', key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
       let mesh = this.growMeshes[key];
-      if (!mesh) { mesh = this.growMeshes[key] = this._inst((vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; }
+      if (!mesh) { mesh = this.growMeshes[key] = this._inst((vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3), this.matBuilding, 256, true); counts[key] = 0; mesh.visible = !this.hideBld; }
       if (counts[key] >= mesh.userData.cap) mesh = this._grow(this.growMeshes, key);
       const x = i % N, y = (i / N) | 0;
       // mọc lên từ từ trong ~1,2 giây
@@ -2621,29 +2629,51 @@ export class View {
   }
 
   /** tiles: [[x, y], ...]; color: số hex */
-  setPreview(tiles, color) {
-    const m = new THREE.Matrix4(), n = Math.min(tiles ? tiles.length : 0, N * N), c = this.city;
-    for (let k = 0; k < n; k++) { const [x, y] = tiles[k]; m.makeTranslation(cellCenter(x), (x >= 0 && y >= 0 && x < N && y < N ? Math.max(c.cellH[y * N + x], 0) : 0) + 0.4, cellCenter(y)); this.preview.setMatrixAt(k, m); }
+  setPreview(tiles, color) { // tiles: [[x, y], ...] một màu, hoặc [[x, y, màu], ...] mỗi ô một màu
+    const m = new THREE.Matrix4(), n = Math.min(tiles ? tiles.length : 0, N * N), c = this.city, col = this._pc || (this._pc = new THREE.Color());
+    for (let k = 0; k < n; k++) {
+      const [x, y, tc] = tiles[k];
+      m.makeTranslation(cellCenter(x), (x >= 0 && y >= 0 && x < N && y < N ? Math.max(c.cellH[y * N + x], 0) : 0) + 0.4, cellCenter(y)); this.preview.setMatrixAt(k, m);
+      this.preview.setColorAt(k, col.set(tc != null ? tc : 0xffffff));
+    }
     this.preview.count = n; this.preview.instanceMatrix.needsUpdate = true;
-    if (color != null) this.preview.material.color.set(color);
+    if (this.preview.instanceColor) this.preview.instanceColor.needsUpdate = true;
+    this.preview.material.color.set(n && tiles[0][2] != null ? 0xffffff : color != null ? color : this.preview.material.color);
   }
 
   /** Dải xem trước dọc polyline phẳng pts ([x, z, ...]) rộng 2 * half; null để ẩn. */
-  setRibbon(pts, half, color) {
-    if (!pts || pts.length < 4) { this.ribbon.visible = false; return; }
-    const n = pts.length / 2, pos = new Float32Array(n * 6), idx = [];
+  setRibbon(pts, half, color, lift = null) { // lift: độ cao mặt đường so với mặt đất từng điểm (cầu, hầm) — vẽ dải ở đúng độ cao kèm màn mờ xuống đất
+    if (!pts || pts.length < 4) { this.ribbon.visible = false; if (this.curtain) this.curtain.visible = false; return; }
+    const n = pts.length / 2, pos = new Float32Array(n * 6), idx = [], cur = lift ? new Float32Array(n * 6) : null;
     for (let k = 0; k < n; k++) {
       const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
       let tx = pts[b * 2] - pts[a * 2], tz = pts[b * 2 + 1] - pts[a * 2 + 1];
       const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
-      const x = pts[k * 2], z = pts[k * 2 + 1], y = this.roadY(x, z) + 0.5;
+      const x = pts[k * 2], z = pts[k * 2 + 1], g0 = this.roadY(x, z), y = (lift ? Math.max(heightAt(this.city, x, z), WATER_Y) + 0.25 + lift[k] : g0) + 0.5;
       pos.set([x + tz * half, y, z - tx * half, x - tz * half, y, z + tx * half], k * 6);
+      if (cur) cur.set([x, y, z, x, Math.min(y, g0), z], k * 6);
       if (k) idx.push(k * 2 - 2, k * 2 - 1, k * 2, k * 2 - 1, k * 2 + 1, k * 2);
     }
     const g = this.ribbon.geometry;
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(idx);
     this.ribbon.material.color.set(color);
     this.ribbon.visible = true;
+    if (!this.curtain) {
+      this.curtain = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
+      this.curtain.frustumCulled = false; this.curtain.renderOrder = 4; this.scene.add(this.curtain);
+    }
+    this.curtain.visible = !!cur;
+    if (cur) { const cg = this.curtain.geometry; cg.setAttribute('position', new THREE.BufferAttribute(cur, 3)); cg.setIndex(idx); this.curtain.material.color.set(color); }
+  }
+
+  /** Ẩn nhà và công trình (khi vẽ đường): còn đường, cây, mặt đất và lớp lưới quy hoạch. */
+  setBuildingsHidden(on) {
+    if (this.hideBld === on) return;
+    this.hideBld = on;
+    for (const k in this.growMeshes) this.growMeshes[k].visible = !on;
+    for (const m of this.signMeshes || []) m.visible = !on;
+    this.serviceGroup.visible = !on;
+    this.city.dirty.zones = true;
   }
 
   /** Dấu tròn tại điểm bắt (vàng khi bám vào đường / nút có sẵn). */
