@@ -830,7 +830,7 @@ export class View {
         if (z) {
           [r, g, b] = ZCOL[z]; a = c.level[i] ? (this.ovStrong ? 70 : 0) : this.ovStrong ? 150 : 95;
           if (c.level[i] && (c.pOk[i] !== 1 || c.wOk[i] !== 1 || c.sOk[i] !== 1)) { r = 235; g = 50; b = 40; a = 130; } // nhà đang thiếu điện nước
-        } else if (c.fishery && c.fishery[i]) { [r, g, b] = ZCOL[12]; a = this.ovStrong ? 150 : 90; } // ngư trường trên mặt nước
+        } else if (c.fishery && c.fishery[i]) { [r, g, b] = ZCOL[12]; a = this.ovStrong ? 150 : 0; } // ngư trường trên mặt nước: chỉ tô khi đang cầm công cụ quy hoạch (lúc thường có phao đánh dấu)
         else if (this.ovStrong && c.acc[i] && !c.occ[i] && !c.steep[i]) { r = g = b = 255; a = 50; } // ô quy hoạch tự sinh hai bên đường
       } else if (mode === 'resource') {
         // tài nguyên: đang cầm khu chuyên biệt thì ô cạnh đường đặt được sáng hẳn lên
