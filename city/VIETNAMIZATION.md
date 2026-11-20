@@ -301,4 +301,18 @@ Chỉ hiện ở kiểu nhà 🇻🇳; bản lưu không thêm trường mới.
 
 Nghiệm thu: test gộp `Việt Nam hoá` qua; toàn bộ test qua (trừ 4 test TikTok hỏng sẵn trên máy dev Node 19); đã xem trên trình duyệt.
 
-**Bước tiếp theo đề xuất:** Phase 3 (đời sống): khách ngồi quán, đông người ở chợ, học sinh tan trường, tập thể dục ở công viên, giờ cao điểm.
+### Phase 3, đời sống: xong
+Chỉ là hình (`render._life`), không đổi số liệu mô phỏng. Cập nhật khoảng 10 lần mỗi giây; có trần 1.500 người ngồi và 2.000 người đứng.
+- **Khách ngồi quán theo giờ:**
+  - Phở / bún / cơm: đông sáng 5h30–9h, trưa 11h–13h30, tối 17h30–21h.
+  - Cà phê: đông sáng 6h–9h và tối 19h–23h.
+  - Bánh mì: người đứng mua sáng sớm và chiều.
+  - Mưa thì vỉa hè vắng.
+- **Đi chợ:** chợ truyền thống trong khu quy hoạch đông nhất 5h–10h. Chợ trung tâm có người ra vào cửa chợ.
+- **Học sinh áo trắng túa ra cổng trường** lúc vào học (6h30–7h20) và tan học (10h50–11h50, 16h40–17h40), lẫn vài phụ huynh đón con.
+- **Tập thể dục:** ở công viên, quảng trường sáng 5h–7h. Nhảy dân vũ chiều tối 17h30–19h30: xếp hàng, nhún theo nhạc. Mưa thì không ai ra.
+- **Giờ cao điểm:** không thêm xe giả. Mô phỏng đã cho dân đi làm theo giờ nên xe máy đã đông vào sáng và chiều.
+
+Nghiệm thu: hoạt động đổi theo giờ, nhìn thấy khi phóng gần (đã xem trên trình duyệt lúc 6h, 7h, 11h). Số liệu mô phỏng không đổi. Toàn bộ test qua.
+
+**Bước tiếp theo đề xuất:** Phase 4 (mô phỏng): nắng nóng, kênh rạch hôi, nhà trọ cho công nhân, phố ẩm thực.

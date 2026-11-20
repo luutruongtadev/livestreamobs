@@ -727,6 +727,16 @@ export function pedGeometry() {
   return g.build();
 }
 
+/** Người ngồi ghế nhựa thấp (quán phở, cà phê vỉa hè): mặt hướng +z, gốc ở mặt đất dưới ghế. */
+export function sitGeometry() {
+  const g = new GB();
+  g.box(0, 0.34, 0.12, 0.4, 0.16, 0.5, 0x3a4350); // đùi
+  g.box(0, 0, 0.34, 0.38, 0.36, 0.14, 0x3a4350); // cẳng chân
+  g.box(0, 0.48, -0.06, 0.46, 0.64, 0.3, 0xffffff); // thân (màu áo theo từng người)
+  g.cyl(0, 1.12, -0.04, 0.19, 0.17, 0.32, 0xf0d9b5, 6, 0x3b2a1e);
+  return g.build();
+}
+
 export function carGeometry() {
   const g = new GB();
   g.box(0, 0.25, 0, 1.5, 0.6, 3.4, 0xffffff);

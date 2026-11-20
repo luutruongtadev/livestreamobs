@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -169,6 +169,9 @@ function hull2(pts) {
   for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
   return lo.slice(0, -1).concat(up.slice(0, -1));
 }
+
+/** Công trình có người tụ tập theo giờ (render._life). */
+const LIFE_SVC = new Set(['school', 'highschool', 'park', 'plaza', 'market']);
 
 /** Biển tên công trình công (một texture cho mỗi loại, dựng khi cần). */
 const SVC_TEX = {};
@@ -473,6 +476,10 @@ export class View {
     this.lanternMesh = this._inst(lanternGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), 3000, false);
     this.flagMesh = this._inst(poleFlagGeometry(), this.matBuilding, 1500, false);
     this.decoPts = []; this.decoKey = '';
+    // đời sống đường phố: người ngồi quán, người đứng (đi chợ, học sinh, tập thể dục); chỗ đặt lấy từ nhà và công trình
+    this.lifeSit = this._inst(sitGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 1500, false);
+    this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
+    this.lifeShops = []; this.lifeSvc = [];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {};
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
@@ -2023,6 +2030,67 @@ export class View {
     mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }
 
+  /**
+   * Đời sống đường phố (chỉ là hình, không đổi mô phỏng): khách ngồi quán phở, cà phê theo giờ, người mua bánh mì;
+   * người đi chợ buổi sáng; học sinh túa ra cổng trường giờ tan học; người tập thể dục, nhảy dân vũ ở công viên,
+   * quảng trường sáng sớm và chiều tối. Trời mưa thì vỉa hè, công viên vắng. Cập nhật khoảng 10 lần mỗi giây.
+   */
+  _life(dt) {
+    this._lifeT = (this._lifeT || 0) + dt;
+    if (this._lifeT < 0.1) return;
+    this._lifeT = 0;
+    const c = this.city, sit = this.lifeSit, stand = this.lifeStand, h = this.timeOfDay(), rain = c.inc && c.inc.weather === 'rain', out = rain ? 0.25 : 1, tm = this.time;
+    const m = new THREE.Matrix4(), l = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    let ns = 0, nt = 0;
+    const band = (t) => { for (const [a, b, v] of t) if (h >= a && h < b) return v; return 0; };
+    const seat = (base, x, z, a, k, hue) => { // một người ngồi: (x, z) trong khung căn nhà, a = hướng mặt
+      if (ns >= sit.userData.cap) return;
+      sit.setMatrixAt(ns, m.multiplyMatrices(base, l.compose(p.set(x, 0.14, z), q.setFromAxisAngle(up, a), s)));
+      sit.setColorAt(ns++, col.setHSL(hue, 0.45, 0.55));
+    };
+    const person = (base, x, z, a, hue, light = 0.55, bob = 0) => { // một người đứng
+      if (nt >= stand.userData.cap) return;
+      stand.setMatrixAt(nt, m.multiplyMatrices(base, l.compose(p.set(x, 0.14 + bob, z), q.setFromAxisAngle(up, a), s)));
+      stand.setColorAt(nt++, light >= 0.95 ? col.setHex(0xf6f6f6) : col.setHSL(hue, 0.45, light));
+    };
+    const PHO = band([[5.5, 9, 0.85], [9, 11, 0.25], [11, 13.5, 0.8], [13.5, 17.5, 0.2], [17.5, 21, 0.75], [21, 23, 0.3]]) * out;
+    const CAFE = band([[6, 9, 0.9], [9, 11.5, 0.5], [11.5, 14, 0.25], [14, 17, 0.45], [17, 19, 0.3], [19, 23, 0.85]]) * out;
+    const BANHMI = band([[5.5, 8.5, 1], [16, 19, 0.6]]) * out;
+    for (const u of this.lifeShops || []) {
+      const r = (k) => hash2(u.id, k, 97);
+      if (u.k === 'pho' && PHO) {
+        for (const [k, x, z, a] of [[0, -0.85, 6, Math.PI / 2], [1, 0.85, 6, -Math.PI / 2], [2, 0, 6.55, Math.PI], [3, -0.85, 6.9, Math.PI / 2], [4, 0.85, 6.9, -Math.PI / 2], [5, 0, 7.45, Math.PI]]) if (r(k) < PHO) seat(u.m, x, z, a, k, r(k + 9));
+      } else if (u.k === 'cafe' && CAFE) {
+        for (let k = 0; k < 4; k++) if (r(k) < CAFE) seat(u.m, -1.2 + k * 0.8, 6.2, 0, k, r(k + 9));
+      } else if (u.k === 'banhmi' && BANHMI) {
+        for (let k = 0; k < 3; k++) if (r(k) < BANHMI) person(u.m, -0.4 + k * 0.5, 6.15 + (k % 2) * 0.3, Math.PI, r(k + 9));
+      } else if (u.k === 'cho') { // chợ truyền thống trong khu quy hoạch: đông nhất sáng sớm
+        const n = Math.round(band([[5, 10, 9], [10, 12, 4], [15, 18, 4]]) * (rain ? 0.6 : 1));
+        for (let k = 0; k < n; k++) person(u.m, -3.8 + r(k) * 7.6 + Math.sin(tm * 0.3 + k) * 0.4, -3.5 + r(k + 20) * 8 , r(k + 40) * 6.3, r(k + 9));
+      }
+    }
+    for (const v of this.lifeSvc || []) {
+      const L = v.size * 10, zf = L / 2, r = (k) => hash2(v.id, k, 99);
+      if (v.k === 'school' || v.k === 'highschool') { // tan trường, vào học: học sinh áo trắng trước cổng, phụ huynh đón
+        const n = Math.round(band([[6.4, 7.3, 22], [10.8, 11.8, 26], [16.6, 17.6, 26]]));
+        for (let k = 0; k < n; k++) person(v.m, (r(k) - 0.5) * L * 0.7, zf + 0.4 + r(k + 30) * 2, r(k + 60) * 6.3, r(k + 9), k % 5 ? 0.97 : 0.5);
+      } else if (v.k === 'park' || v.k === 'plaza') { // tập thể dục sáng sớm, nhảy dân vũ chiều tối: xếp hàng, nhún theo nhạc
+        const on = band([[5, 7, 1], [17.5, 19.5, 1]]) * (rain ? 0 : 1);
+        if (!on) continue;
+        const cols = v.k === 'plaza' ? 5 : 3, rows = v.k === 'plaza' ? 4 : 2, gap = v.k === 'plaza' ? 1.6 : 1.4;
+        for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+          const k = i * rows + j, bob = Math.max(0, Math.sin(tm * 3.2 + (h < 12 ? 0 : k * 0.3))) * 0.12;
+          person(v.m, (i - (cols - 1) / 2) * gap, (j - (rows - 1) / 2) * gap + (v.k === 'plaza' ? 5.6 : 2), Math.PI + Math.sin(tm * 1.6) * (h < 12 ? 0.05 : 0.4), r(k), 0.6, bob);
+        }
+      } else if (v.k === 'market') { // chợ trung tâm: người ra vào cửa chợ
+        const n = Math.round(band([[5, 11, 26], [11, 15, 10], [15, 19, 16]]) * (rain ? 0.6 : 1));
+        for (let k = 0; k < n; k++) person(v.m, (r(k) - 0.5) * L * 0.8 + Math.sin(tm * 0.25 + k) * 0.5, zf - 1 + r(k + 30) * 3, r(k + 60) * 6.3, r(k + 9));
+      }
+    }
+    sit.count = ns; stand.count = nt;
+    for (const mm of [sit, stand]) { mm.instanceMatrix.needsUpdate = true; if (mm.instanceColor) mm.instanceColor.needsUpdate = true; }
+  }
+
   /** Đồ trên bãi biển tô theo ô: dù, ghế nằm, khăn, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa, phao bơi. */
   _beachProps() {
     const c = this.city;
@@ -2493,6 +2561,7 @@ export class View {
     let animating = false;
     const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0), fc = Object.fromEntries(FRONT_KINDS.map((k) => [k, 0]));
     let bc = 0;
+    this.lifeShops = [];
     for (const k in this.growMeshes) counts[k] = 0;
     // ruộng chia thửa 4 × 4 ô: mỗi thửa một loại cây, một nhà kho ở ô sát đường (ưu tiên), đường đất dọc mép thửa
     const farmHouse = new Map();
@@ -2537,6 +2606,7 @@ export class View {
           this.signMeshes[wd].setMatrixAt(sc[wd]++, sm.multiplyMatrices(m, sl));
           const fk = FRONT_OF_SIGN[wd], fm = fk && this.frontMeshes[fk], ux = -4.7 + w * (k + 0.5);
           if (fm && fc[fk] < fm.userData.cap) fm.setMatrixAt(fc[fk]++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // đồ bày ra vỉa hè theo loại quán
+          if (fk === 'pho' || fk === 'cafe' || fk === 'banhmi') this.lifeShops.push({ id: i * 4 + k, k: fk, m: new THREE.Matrix4().multiplyMatrices(m, new THREE.Matrix4().makeTranslation(ux, 0, 0)) }); // chỗ khách ngồi, đứng
           if (bc < this.bikeMesh.userData.cap && hash2(x * 3 + k, y, 43) < 0.7) this.bikeMesh.setMatrixAt(bc++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // xe máy khách đỗ trước cửa
         }
       }
@@ -2544,6 +2614,7 @@ export class View {
         sl.makeTranslation(MALL_SIGN.x, MALL_SIGN.y, MALL_SIGN.z).scale(_v3.set(MALL_SIGN.w, MALL_SIGN.h, 1));
         this.signMeshes[10].setMatrixAt(sc[10]++, sm.multiplyMatrices(m, sl));
       }
+      if (c.zone[i] === 20 && t >= 1) this.lifeShops.push({ id: i, k: 'cho', m: m.clone() }); // chợ truyền thống: người đi chợ
       col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
     }
@@ -2633,6 +2704,7 @@ export class View {
     this.serviceGroup.traverse((o) => { if (o.userData.own) o.geometry.dispose(); }); // giàn giáo công trường dựng riêng từng lần
     this.serviceGroup.clear();
     this.spinners = []; this.chimneys = []; this.siteAnims = []; this.movers = [];
+    this.lifeSvc = [];
     for (const s of c.services) {
       const def = SERVICES[s.type], grp = this._serviceObject(s.type);
       if (s.build > 0) { // công trường: nhà mọc dần theo tiến độ, giàn giáo, hàng rào, xe công trình
@@ -2654,6 +2726,7 @@ export class View {
         sg.position.set(0, 2.84, zf + 0.01); grp.add(sg);
       }
       grp.updateMatrixWorld(true);
+      if (LIFE_SVC.has(s.type)) this.lifeSvc.push({ id: s.uid ?? s.x * 1000 + s.y, k: s.type, size: def.size, m: grp.matrixWorld.clone() }); // học sinh, người tập thể dục, đi chợ
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
       for (const d of this._svc(s.type).movers || []) { // máy bay, tàu hoả, cẩu, xe tải chạy trong công trình
@@ -3192,6 +3265,7 @@ export class View {
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._movers(simDt);
     this._strollers(simDt);
+    this._life(dt);
     if (this.fallsGroup) { const day = (c.hour % 24) >= 7 && (c.hour % 24) <= 17; for (const o of this.fallsGroup.children) { if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); } else if (o.userData.rainbow) { o.visible = day; o.quaternion.copy(this.camera.quaternion); } } }
     if (this.hydroGroup) for (const o of this.hydroGroup.children) if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); }
     this._railTrains();
