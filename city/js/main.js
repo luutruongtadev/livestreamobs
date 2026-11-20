@@ -59,7 +59,7 @@ function toolInfo(id) {
     const z = S.ZDEF[+arg];
     if (!+arg) return { kind, zone: 0, icon: z.icon, label: 'Bỏ q.hoạch', desc: 'Kéo để bỏ quy hoạch (dỡ luôn nhà trong vùng)' };
     const cap = [z.res && `${z.res[0]}–${z.res[4]} dân`, z.jobs && `${z.jobs[0]}–${z.jobs[4]} chỗ làm`].filter(Boolean).join(', ');
-    const raw = z.raw ? ` · chỉ mọc trên ô có ${S.RAW[z.raw].icon} ${S.RAW[z.raw].name.toLowerCase()}, bán cho nhà máy ${S.RAW[z.raw].product} hoặc xuất khẩu` : '';
+    const raw = z.raw ? ` · chỉ mọc trên ô có ${S.RAW[z.raw].icon} ${S.RAW[z.raw].name.toLowerCase()}, bán cho ${S.PRODUCT_KINDS.filter((k) => S.PRODUCTS[k].in.some((a) => a.includes(z.raw))).map((k) => `${S.PRODUCTS[k].icon} ${S.PRODUCTS[k].name.toLowerCase()}`).join(', ')} hoặc xuất khẩu` : '';
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
   if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
@@ -931,9 +931,11 @@ function showInfo(tile) {
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
     const kind = S.bizKind(c, i);
-    const need = kind === 'factory' || kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
+    const need = kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
+    const prod = kind === 'factory' ? S.PRODUCTS[S.productOf(c, i)] : null, rec = kind === 'factory' ? S.recipeOf(c, i) : null; // chuỗi sản xuất nhiều tầng
+    const mname = (k) => S.MKT_NAME[k] || k;
     const dq = S.districtOf(c, i); if (dq >= 0) add('Quận', `${c.dist.list[dq].name} · chủ tịch ${c.dist.list[dq].chair}`);
-    title = L ? `${zd.icon} ${need && kind === 'factory' ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${need.product}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
+    title = L ? `${zd.icon} ${prod ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${prod.icon} ${prod.name.toLowerCase()}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
     if (L) {
       const h = S.cellHappy(c, i), rc = S.resCap(z, L), jb = S.jobCap(z, L);
       if (rc) {
@@ -951,7 +953,11 @@ function showInfo(tile) {
         add('Lương · yêu cầu', `${S.wageAt(c, i).toFixed(2)} ₫/giờ · ${S.EDU_NAME[S.reqEdu(z, L)].toLowerCase()}`);
         add('Tiền của doanh nghiệp', `<span class="${b.money[i] < 0 ? 'neg' : ''}">${fmt(b.money[i])} ₫</span>`);
         if (kind === 'market') add(`${need.icon} ${need.name} trên sạp`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
-        if (kind === 'factory' || kind === 'shop') add(kind === 'shop' ? 'Hàng trong kho' : `${need.icon} ${need.name} trong kho`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
+        if (kind === 'factory') {
+          add('Làm ra', `${prod.icon} ${prod.name} từ ${rec.map(mname).join(' + ')}${prod.tier ? ' (tầng 2: cần đủ cả hai)' : ''} · giá gốc ${fmt(S.priceOf(S.productOf(c, i)))} ₫`);
+          rec.forEach((k, j) => add(`${mname(k)} trong kho`, `${(j ? b.sin2[i] : b.sin[i]).toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`));
+        }
+        if (kind === 'shop') add('Hàng trong kho', `${b.sin[i].toFixed(1)} · giá trị TB ×${(b.sinK[i] || 1).toFixed(2)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
         if (kind === 'raw') { const left = S.reserveLeft(c, i, zd.raw), R = S.RESERVE[zd.raw]; add('Trữ lượng còn', `${Math.round(left * 100)}%${R.regen ? ` · tự hồi ${Math.round(R.regen * 100)}% mỗi ngày` : ' · không tái tạo'}`); }
         if (kind === 'factory' || kind === 'raw') add(kind === 'raw' ? `${S.RAW[zd.raw].icon} ${S.RAW[zd.raw].name} chờ xe tới chở` : 'Thành phẩm chờ xuất', b.sout[i].toFixed(1));
         add('Hiệu quả', `${Math.round(b.eff[i] * 100)}%`);
@@ -1131,7 +1137,7 @@ function renderEcon() {
   const m = c.market;
   $('mktNews').innerHTML = m.news ? `<span>${m.news.up ? '📈' : '📉'} ${m.news.text}</span><span>ngày ${m.news.day + 1}</span>` : '<span>Chưa có biến động lớn</span>';
   const cv = $('mktChart'), g = cv.getContext('2d'), W = cv.width, H = cv.height, hist = m.hist;
-  const COLS = ['#9bd84a', '#2fa36a', '#9aa0b8', '#b45fe0', '#3fb6dc', '#f2a03c'];
+  const COLS = ['#9bd84a', '#2fa36a', '#9aa0b8', '#b45fe0', '#3fb6dc', '#f2a03c', '#e8634a', '#d6c9a3', '#7a8fb8', '#c94fa0', '#f2d24a', '#4ad6c3'];
   g.clearRect(0, 0, W, H);
   let lo = 0.85, hi = 1.15; for (const row of hist) for (const v of row) { lo = Math.min(lo, v); hi = Math.max(hi, v); } // trục tự co giãn theo dữ liệu
   lo -= 0.03; hi += 0.03;

@@ -1,5 +1,5 @@
 // Phố Mới — kinh tế mở rộng: ngân sách theo ngành, giá thị trường xuất nhập khẩu, du lịch.
-import { SERVICES, RAW, RAW_KINDS, ZDEF, N, clamp } from './base.js';
+import { SERVICES, RAW, RAW_KINDS, PRODUCTS, PRODUCT_KINDS, productAt, ZDEF, N, clamp } from './base.js';
 import { initIntl, packIntl } from './intl.js';
 import { festMul } from './seasons.js';
 import { councilMod } from './council.js';
@@ -33,8 +33,8 @@ export const budgetK = (c, sector) => (c.budget && sector ? c.budget[sector] / 1
 
 // ───────────────────────── giá thị trường ─────────────────────────
 
-export const MKT_KINDS = [...RAW_KINDS, 'goods'];
-export const MKT_NAME = { ...Object.fromEntries(RAW_KINDS.map((k) => [k, `${RAW[k].icon} ${RAW[k].name}`])), goods: '📦 Hàng hoá' };
+export const MKT_KINDS = [...RAW_KINDS, ...PRODUCT_KINDS];
+export const MKT_NAME = { ...Object.fromEntries(RAW_KINDS.map((k) => [k, `${RAW[k].icon} ${RAW[k].name}`])), ...Object.fromEntries(PRODUCT_KINDS.map((k) => [k, `${PRODUCTS[k].icon} ${PRODUCTS[k].name}`])), goods: '📦 Hàng hoá' };
 const MKT_NEWS = {
   up: { agri: 'Mất mùa ở nơi khác, nông sản lên giá', wood: 'Khan hiếm gỗ, giá gỗ tăng', ore: 'Nhu cầu thép thế giới tăng, khoáng sản lên giá', oil: 'Giá dầu thế giới tăng vọt', fish: 'Mùa biển động, cá lên giá', goods: 'Hàng hoá đang được săn đón' },
   down: { agri: 'Được mùa khắp nơi, nông sản rớt giá', wood: 'Thừa gỗ, giá gỗ giảm', ore: 'Khoáng sản ế ẩm', oil: 'Giá dầu thế giới lao dốc', fish: 'Được mùa cá, giá giảm', goods: 'Thị trường hàng hoá bão hoà' },
@@ -51,7 +51,7 @@ export function marketDay(c) {
   if (rng() < 0.08) { // tin sốc giá
     const k = MKT_KINDS[(rng() * MKT_KINDS.length) | 0], up = rng() < 0.5;
     m.p[k] = clamp(m.p[k] + (up ? 0.35 : -0.3), 0.45, 1.9);
-    m.news = { day: c.day, kind: k, up, text: MKT_NEWS[up ? 'up' : 'down'][k] };
+    m.news = { day: c.day, kind: k, up, text: MKT_NEWS[up ? 'up' : 'down'][k] || `${MKT_NAME[k]}: ${up ? 'nhu cầu thế giới tăng, lên giá' : 'thừa hàng trên thế giới, rớt giá'}` };
     if (c.events) c.events.push({ type: 'market', text: m.news.text, kind: k, up });
   }
   for (const k of MKT_KINDS) m.p[k] = Math.round(m.p[k] * 1000) / 1000;

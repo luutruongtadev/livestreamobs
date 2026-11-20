@@ -32,7 +32,7 @@ export function pickLook(kind, cb, r) {
   if (kind !== 'truck') return kind; // xe dịch vụ: mỗi loại một hình riêng
   if (cb && (cb.t === 'export' || cb.imp)) return r < 0.75 ? 'container' : cb.kind === 'oil' ? 'tanker' : 'boxtruck'; // hàng ra vào thành phố
   const k = cb && cb.kind;
-  return k === 'oil' ? 'tanker' : k === 'wood' ? 'logtruck' : k === 'ore' || k === 'agri' ? 'dump' : k === 'fish' ? 'reefer' : r < 0.55 ? 'boxtruck' : 'deliveryvan';
+  return k === 'oil' || k === 'plastic' ? 'tanker' : k === 'wood' ? 'logtruck' : k === 'ore' || k === 'agri' ? 'dump' : k === 'fish' || k === 'food' ? 'reefer' : k === 'steel' ? 'logtruck' : r < 0.55 ? 'boxtruck' : 'deliveryvan';
 }
 
 export const MAX_VEH = 900; // tổng số xe chạy thật cùng lúc

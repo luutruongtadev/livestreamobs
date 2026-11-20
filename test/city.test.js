@@ -834,11 +834,11 @@ test('kinh tế: giá thị trường trôi theo ngày, có lịch sử, áp và
   for (const k of S.MKT_KINDS) { assert.ok(c.market.p[k] >= 0.45 && c.market.p[k] <= 1.9); }
   assert.ok(S.MKT_KINDS.some((k) => Math.abs(c.market.p[k] - 1) > 0.02), 'giá có đổi');
   // nhập khẩu tốn tiền theo giá thị trường
-  c.market.p.goods = 1.5; const i = 500; c.level[i] = 1; c.zone[i] = 2; c.biz.money[i] = 0;
-  c.onArrive(c, { t: 'cargo', to: i, kind: 'goods', qty: 8, imp: true });
-  assert.ok(Math.abs(c.biz.money[i] + 8 * S.PRICE.goods * S.PRICE.importMult * 1.5) < 0.01);
+  c.market.p.food = 1.5; const i = 500; c.level[i] = 1; c.zone[i] = 2; c.biz.money[i] = 0;
+  c.onArrive(c, { t: 'cargo', to: i, kind: 'food', qty: 8, imp: true });
+  assert.ok(Math.abs(c.biz.money[i] + 8 * S.priceOf('food') * S.PRICE.importMult * 1.5) < 0.01);
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-  assert.equal(back.market.hist.length, 41); assert.equal(back.market.p.goods, 1.5);
+  assert.equal(back.market.hist.length, 41); assert.equal(back.market.p.food, 1.5);
 });
 
 test('kinh tế: du lịch cần điểm tham quan và cửa ngõ; khách sạn cho khách ở lại, thu tiền phòng', () => {
@@ -2018,7 +2018,7 @@ test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài n
     back.outside = { kind: 'test' };
     const stepped = S.catchUp(back, 30, 26);
     assert.deepEqual([stepped.hours, stepped.skipped], [26, 4], 'chạy bù có giới hạn');
-    assert.ok(got.length >= 1 && got[0].pop > 0 && got[0].offer.goods && 'vacHomes' in got[0] && got[0].want, 'provider nhận bản tóm tắt ngày');
+    assert.ok(got.length >= 1 && got[0].pop > 0 && got[0].offer.food && 'vacHomes' in got[0] && got[0].want, 'provider nhận bản tóm tắt ngày');
     assert.ok(back.reports.length >= 1 && S.prosperity(back.reports.at(-1)) > 0);
   });
 });
@@ -2062,7 +2062,7 @@ test('city: lưu đám mây — cần đăng nhập, lưu / liệt kê / tải /
 });
 
 test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, giá chợ theo sức hút; offline dùng báo cáo cuối, bỏ lâu thì mất dân; API vào / báo cáo / rời', async () => {
-  const H = LEAGUE.LEAGUE.dayMs, rep = (o) => LEAGUE.cleanReport({ pop: 500, homes: 900, vacHomes: 400, jobs: 400, vacJobs: 60, wage: 20, tax: { r: 9, c: 9, i: 9 }, happy: 60, landValue: 40, pollution: 10, want: {}, offer: { goods: { qty: 50 } }, tourism: { attract: 20, perDay: 100, beds: 50 }, ...o });
+  const H = LEAGUE.LEAGUE.dayMs, rep = (o) => LEAGUE.cleanReport({ pop: 500, homes: 900, vacHomes: 400, jobs: 400, vacJobs: 60, wage: 20, tax: { r: 9, c: 9, i: 9 }, happy: 60, landValue: 40, pollution: 10, want: {}, offer: { food: { qty: 50 } }, tourism: { attract: 20, perDay: 100, beds: 50 }, ...o });
   const t0 = 1e12, lg = { id: 'g', season: 0, start: t0, rural: 20000, carry: 0, members: {} };
   const add = (id, r, joinDay = -10, at = t0) => { lg.members[id] = { owner: id, name: id, joinDay, report: r, reportAt: at }; };
   add('good', rep({ happy: 85, vacJobs: 150, landValue: 70, pollution: 5 }));
@@ -2076,8 +2076,8 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
   assert.ok(a.good.invest > a.bad.invest, 'môi trường kinh doanh tốt thì đầu tư nhiều hơn');
   assert.ok(a.gone.abandoned && a.gone.leave > 0 && a.gone.migrants === 0, 'bỏ quá lâu: không nhận gì, mất dần dân');
   assert.ok(lg.rural < 20000 && a.good.pool >= a.good.migrants, 'dân lấy từ nông thôn chung của nhóm');
-  const glut = { ...lg, members: { x: { owner: 'x', joinDay: 0, report: rep({ offer: { goods: { qty: 5000 } } }), reportAt: t0 } } };
-  assert.ok(LEAGUE.settle(glut, 1, t0).x.prices.goods < a.good.prices.goods, 'bán nhiều thì giá chợ chung rớt');
+  const glut = { ...lg, members: { x: { owner: 'x', joinDay: 0, report: rep({ offer: { food: { qty: 5000 } } }), reportAt: t0 } } };
+  assert.ok(LEAGUE.settle(glut, 1, t0).x.prices.food < a.good.prices.food, 'bán nhiều thì giá chợ chung rớt');
   assert.deepEqual(LEAGUE.standings(lg, t0).map((r) => r.owner)[0], 'good', 'xếp hạng theo điểm thịnh vượng');
   // API qua gateway (FileStore, DEV token)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-league-')), DEV = 'dev-token-lg';
@@ -2100,9 +2100,9 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
     assert.ok(r.ok && r.league.day === 1 && r.alloc && r.alloc.day === 1 && r.standings.length === 1);
     LgC.applyServer(c, r);
     // provider: 0 giờ hôm sau dùng phần chia (dân, giá chợ), sổ dân vẫn khớp
-    r.alloc.prices.goods = 0.7; c.league.alloc.prices.goods = 0.7;
+    r.alloc.prices.food = 0.7; c.league.alloc.prices.food = 0.7;
     run(c, 24);
-    assert.equal(c.market.p.goods, 0.7, 'giá chợ theo nhóm');
+    assert.equal(c.market.p.food, 0.7, 'giá chợ theo nhóm');
     assert.equal(c.league.alloc.used, true);
     assert.equal(LG.checkPop(c).drift, 0, 'nguồn dân đổi theo máy chủ mà sổ dân vẫn khớp');
     // đồng hồ thật: không chạy quá ngày giải; vắng lâu thì chạy bù tối đa 7 ngày
@@ -2118,62 +2118,96 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
 });
 
 test('city: mua bán giữa các thành phố trong nhóm — ghép theo giá sau thuế, chỉ khi rẻ hơn thế giới máy; hợp đồng áp vào xe nhập / xuất, thuế nhập khẩu vào ngân sách', async () => {
-  const mk = (owner, o) => ({ owner, name: owner, report: LEAGUE.cleanReport({ pop: 100, offer: { goods: { qty: o.cap || 0 } }, trade: { need: { goods: o.need || 0 }, ask: { goods: o.ask || 1 }, tariff: { goods: o.tariff || 0 } } }) });
-  const P = { goods: 1 };
+  const mk = (owner, o) => ({ owner, name: owner, report: LEAGUE.cleanReport({ pop: 100, offer: { food: { qty: o.cap || 0 } }, trade: { need: { food: o.need || 0 }, ask: { food: o.ask || 1 }, tariff: { food: o.tariff || 0 } } }) });
+  const P = { food: 1 };
   let t = LEAGUE.matchTrade([mk('A', { need: 100 }), mk('S1', { cap: 60, ask: 1 }), mk('S2', { cap: 80, ask: 0.9 })], P);
-  assert.deepEqual([t.A.buy.goods.qty, t.S2.sell.goods.qty, t.S1.sell.goods.qty], [100, 80, 20], 'rẻ nhất trước, đủ nhu cầu');
-  assert.ok(t.A.buy.goods.price > 0.9 && t.A.buy.goods.price < 1, 'giá trung bình theo hợp đồng');
+  assert.deepEqual([t.A.buy.food.qty, t.S2.sell.food.qty, t.S1.sell.food.qty], [100, 80, 20], 'rẻ nhất trước, đủ nhu cầu');
+  assert.ok(t.A.buy.food.price > 0.9 && t.A.buy.food.price < 1, 'giá trung bình theo hợp đồng');
   t = LEAGUE.matchTrade([mk('A', { need: 100, tariff: 0.5 }), mk('S1', { cap: 60, ask: 1.2 })], P);
-  assert.equal(t.A.buy.goods, undefined, 'thuế cao, giá chào cao: đắt hơn thế giới máy thì không mua');
+  assert.equal(t.A.buy.food, undefined, 'thuế cao, giá chào cao: đắt hơn thế giới máy thì không mua');
   t = LEAGUE.matchTrade([mk('A', { need: 50, cap: 50 })], P);
-  assert.equal(t.A.buy.goods, undefined, 'không tự mua của mình');
+  assert.equal(t.A.buy.food, undefined, 'không tự mua của mình');
   // phía game: hợp đồng mua 10 đơn vị hàng hoá giá 90% + thuế 20%
   const P2 = await import('../city/js/people.js');
   const c = town(); run(c, 24);
-  LgC.attachLeague(c, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 0, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 0, migrants: 0, tourists: 0, invest: 1, prices: { goods: 1 }, trade: { buy: { goods: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } }, standings: [] });
-  LgC.applyServer(c, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 1 }, alloc: { day: 1, prices: { goods: 1 }, trade: { buy: { goods: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } } });
+  LgC.attachLeague(c, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 0, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 0, migrants: 0, tourists: 0, invest: 1, prices: { food: 1 }, trade: { buy: { food: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } }, standings: [] });
+  LgC.applyServer(c, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 1 }, alloc: { day: 1, prices: { food: 1 }, trade: { buy: { food: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } } });
   let shop = -1; for (let i = 0; i < S.N * S.N && shop < 0; i++) if (c.level[i] && S.bizKind(c, i) === 'shop') shop = i;
   assert.ok(shop >= 0, 'có cửa hàng nhập hàng');
   LG.resetLedger(c);
   const money0 = c.money, biz0 = c.biz.money[shop];
-  P2.onArrive(c, { t: 'cargo', to: shop, from: -1, kind: 'goods', qty: 12, imp: true });
-  const unit = S.PRICE.goods, tariff = 10 * unit * 0.9 * 0.2;
+  P2.onArrive(c, { t: 'cargo', to: shop, from: -1, kind: 'food', qty: 12, imp: true });
+  const unit = S.priceOf('food'), tariff = 10 * unit * 0.9 * 0.2;
   assert.ok(Math.abs(c.money - money0 - tariff) < 1e-6, 'thuế nhập khẩu vào ngân sách');
-  assert.ok(Math.abs(biz0 - c.biz.money[shop] - (10 * unit * 0.9 * 1.2 + 2 * unit * S.PRICE.importMult * c.market.p.goods)) < 1e-3, 'doanh nghiệp trả giá hợp đồng + thuế cho 10, giá thế giới cho 2');
-  assert.equal(c.league.alloc.trade.buy.goods.left, 0, 'hợp đồng đã dùng hết');
+  assert.ok(Math.abs(biz0 - c.biz.money[shop] - (10 * unit * 0.9 * 1.2 + 2 * unit * S.PRICE.importMult * c.market.p.food)) < 1e-3, 'doanh nghiệp trả giá hợp đồng + thuế cho 10, giá thế giới cho 2');
+  assert.equal(c.league.alloc.trade.buy.food.left, 0, 'hợp đồng đã dùng hết');
   assert.ok(Math.abs(LG.checkLedger(c).drift) < 1e-3, 'sổ cái khớp');
   // chính sách: đổi mỗi loại hàng một lần mỗi ngày, gửi lên trong bản tóm tắt
-  assert.ok(LgC.setPolicy(c, 'tariff', 'goods', 0.6).ok);
-  assert.equal(LgC.policyOf(c).tariff.goods, 0.5, 'trần thuế 50%');
-  assert.equal(LgC.setPolicy(c, 'tariff', 'goods', 0.1).ok, false, 'đổi lần hai trong ngày');
+  assert.ok(LgC.setPolicy(c, 'tariff', 'food', 0.6).ok);
+  assert.equal(LgC.policyOf(c).tariff.food, 0.5, 'trần thuế 50%');
+  assert.equal(LgC.setPolicy(c, 'tariff', 'food', 0.1).ok, false, 'đổi lần hai trong ngày');
   run(c, 24);
-  assert.ok(c.league.outbox && c.league.outbox.trade.tariff.goods === 0.5 && 'need' in c.league.outbox.trade);
+  assert.ok(c.league.outbox && c.league.outbox.trade.tariff.food === 0.5 && 'need' in c.league.outbox.trade);
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-  assert.equal(LgC.policyOf(back).tariff.goods, 0.5, 'chính sách lưu lại');
+  assert.equal(LgC.policyOf(back).tariff.food, 0.5, 'chính sách lưu lại');
   // thanh toán: tiền đi thẳng từ bên mua sang bên bán qua máy chủ, tổng khớp tuyệt đối
-  const pairs = [{ b: 'A', s: 'B', k: 'goods', qty: 100, price: 0.9 }, { b: 'A', s: 'C', k: 'goods', qty: 50, price: 1 }];
+  const pairs = [{ b: 'A', s: 'B', k: 'food', qty: 100, price: 0.9 }, { b: 'A', s: 'C', k: 'food', qty: 50, price: 1 }];
   const paidA = 120 * unit * ((100 * 0.9 + 50 * 1) / 150); // A nhận 120 / 150, trả trước theo giá trung bình
-  const cl = LEAGUE.clearTrades(pairs, { A: { buy: { goods: { qty: 120, paid: paidA } } }, B: { sell: { goods: { qty: 100 } } }, C: { sell: { goods: { qty: 10 } } } }, 3);
+  const cl = LEAGUE.clearTrades(pairs, { A: { buy: { food: { qty: 120, paid: paidA } } }, B: { sell: { food: { qty: 100 } } }, C: { sell: { food: { qty: 10 } } } }, 3);
   const sum = (o) => Object.values(o || {}).reduce((x, v) => x + v, 0);
   assert.ok(Math.abs(paidA - (sum(cl.A.refund) + sum(cl.B.receive) + sum(cl.C.receive))) < 0.05, 'bên mua trả = bên bán nhận + hoàn lại');
-  assert.ok(cl.C.receive.goods < cl.B.receive.goods && cl.C.unmatchedSell.goods === 0, 'C giao ít thì nhận ít');
-  assert.ok(cl.A.refund.goods > 0, 'bên mua được hoàn phần bên bán không giao');
-  const none = LEAGUE.clearTrades(pairs, { B: { sell: { goods: { qty: 100 } } } }, 3);
+  assert.ok(cl.C.receive.food < cl.B.receive.food && cl.C.unmatchedSell.food === 0, 'C giao ít thì nhận ít');
+  assert.ok(cl.A.refund.food > 0, 'bên mua được hoàn phần bên bán không giao');
+  const none = LEAGUE.clearTrades(pairs, { B: { sell: { food: { qty: 100 } } } }, 3);
   assert.equal(sum(none.B.receive), 0, 'bên mua không nhận hàng thì bên bán không được trả');
   // phía game: bên bán nhận tiền qua quỹ nhóm vào đúng doanh nghiệp đã giao, sổ cái vẫn khớp
   const s2 = town(); run(s2, 24);
-  LgC.attachLeague(s2, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 3, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 3, prices: { goods: 1 }, trade: { buy: {}, sell: { goods: { qty: 40, price: 1.1, to: ['A'] } } } }, standings: [] });
-  s2.league.alloc.trade.sell.goods.left = 40;
+  LgC.attachLeague(s2, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 3, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 3, prices: { food: 1 }, trade: { buy: {}, sell: { food: { qty: 40, price: 1.1, to: ['A'] } } } }, standings: [] });
+  s2.league.alloc.trade.sell.food.left = 40;
   let fac = -1; for (let i = 0; i < S.N * S.N && fac < 0; i++) if (s2.level[i] && S.jobCap(s2.zone[i], s2.level[i])) fac = i;
   LG.resetLedger(s2);
   const m0 = s2.biz.money[fac];
-  P2.onArrive(s2, { t: 'export', from: fac, kind: 'goods', qty: 40 });
+  P2.onArrive(s2, { t: 'export', from: fac, kind: 'food', qty: 40 });
   assert.equal(s2.biz.money[fac], m0, 'bán theo hợp đồng: tiền chưa về ngay');
   assert.deepEqual(LgC.pendingUsed(s2), {}, 'ngày giải hôm nay chưa gửi');
-  s2.league.alloc = { day: 4, prices: { goods: 1 } };
-  assert.equal(LgC.pendingUsed(s2)[3].sell.goods.qty, 40, 'ngày đã qua: gửi số hàng đã giao');
-  LgC.applyServer(s2, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 4 }, alloc: { day: 4, prices: { goods: 1 } }, clear: [{ day: 3, receive: { goods: 40 * unit * 1.1 }, refund: {}, unmatchedBuy: {}, unmatchedSell: {} }] });
+  s2.league.alloc = { day: 4, prices: { food: 1 } };
+  assert.equal(LgC.pendingUsed(s2)[3].sell.food.qty, 40, 'ngày đã qua: gửi số hàng đã giao');
+  LgC.applyServer(s2, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 4 }, alloc: { day: 4, prices: { food: 1 } }, clear: [{ day: 3, receive: { food: 40 * unit * 1.1 }, refund: {}, unmatchedBuy: {}, unmatchedSell: {} }] });
   assert.ok(Math.abs(s2.biz.money[fac] - m0 - 40 * unit * 1.1 * (1 - s2.tax.i / 100)) < 1e-3, 'tiền hợp đồng về doanh nghiệp đã giao (trừ thuế)');
   assert.ok(Math.abs(LG.checkLedger(s2).drift) < 1e-3 && s2.ledger.group < 0, 'sổ cái khớp, tiền đến từ quỹ nhóm chứ không phải ví thế giới');
-  assert.equal(LgC.applyClear(s2, { day: 3, receive: { goods: 999 } }), false, 'không nhận hai lần');
+  assert.equal(LgC.applyClear(s2, { day: 3, receive: { food: 999 } }), false, 'không nhận hai lần');
+});
+
+test('city: chuỗi sản xuất nhiều tầng — nhà máy làm thành phẩm theo vị trí, tầng 2 cần đủ hai nguyên liệu, cửa hàng bán hàng đắt được giá hơn, mỗi thành phẩm có giá chợ riêng', async () => {
+  const P = await import('../city/js/people.js');
+  assert.ok(S.PRODUCT_KINDS.length >= 7 && S.MKT_KINDS.length === S.RAW_KINDS.length + S.PRODUCT_KINDS.length);
+  assert.ok(S.PRODUCT_KINDS.every((k) => S.PRODUCTS[k].in.every((alts) => alts.every((a) => S.RAW[a] || S.PRODUCTS[a]))), 'mọi nguyên liệu đều là nguyên liệu thô hoặc thành phẩm');
+  for (let i = 0; i < 400; i++) { const p = S.productAt(i, 21); assert.ok(S.PRODUCTS[p].work, 'xưởng chế biến chỉ làm thực phẩm, quần áo, nội thất'); }
+  assert.ok(S.priceOf('electronics') > S.priceOf('food') && S.importMultOf('steel') === S.PRICE.importMult && S.importMultOf('ore') === S.PRICE.rawImportMult);
+  const c = town(); run(c, 24 * 2);
+  const b = c.biz;
+  // tìm (hoặc dựng) một nhà máy tầng 2 cho máy móc
+  let f = -1; for (let i = 0; i < S.N * S.N && f < 0; i++) if (S.productAt(i, 3) === 'machine' && c.acc[i] && !c.level[i] && !c.water[i] && !c.occ[i]) f = i; // ô trống cạnh đường
+  c.zone[f] = 3; c.level[f] = 2; c.present[f] = 8; b.money[f] = 1e5; b.sout[f] = 0;
+  assert.deepEqual(S.recipeOf(c, f), ['steel', 'plastic']);
+  b.sin[f] = 20; b.sin2[f] = 0;
+  run(c, 1);
+  assert.equal(b.sout[f], 0, 'thiếu nhựa thì máy móc không làm được');
+  P.onArrive(c, { t: 'cargo', to: f, kind: 'plastic', qty: 20, imp: true, slot: 1 });
+  assert.equal(b.sin2[f], 20, 'nguyên liệu thứ hai vào đúng khe');
+  c.present[f] = 8; b.incoming[f] = 0;
+  for (let h = 0; h < 6 && !(b.sout[f] > 0); h++) { c.present[f] = 8; run(c, 1); }
+  assert.ok(b.sout[f] > 0, 'đủ hai nguyên liệu thì làm ra máy móc'); // (kho nguyên liệu có thể tăng vì xe nhập thêm)
+  // cửa hàng nhận điện tử: giá trị hàng trong kho cao hơn hàng thường
+  let shop = -1; for (let i = 0; i < S.N * S.N && shop < 0; i++) if (c.level[i] && S.bizKind(c, i) === 'shop') shop = i;
+  b.sin[shop] = 0; b.sinK[shop] = 1;
+  P.onArrive(c, { t: 'cargo', to: shop, kind: 'electronics', qty: 8, imp: true });
+  assert.ok(Math.abs(b.sinK[shop] - S.priceOf('electronics') / S.PRICE.goods) < 1e-6, 'giá trị hàng theo loại');
+  // giá chợ và bản tóm tắt theo từng thành phẩm
+  assert.ok(S.MKT_KINDS.every((k) => c.market.p[k] > 0));
+  run(c, 24);
+  const rep = c.reports.at(-1);
+  assert.ok(S.PRODUCT_KINDS.every((k) => rep.offer[k]) && !('goods' in rep.offer), 'bản tóm tắt chào bán theo từng thành phẩm');
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(S.MKT_KINDS.every((k) => back.market.p[k] > 0), 'giá chợ từng thành phẩm lưu lại');
 });

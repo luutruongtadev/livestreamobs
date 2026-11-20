@@ -5,8 +5,8 @@
 //   - provider khác (ví dụ máy chủ vùng cho chơi nhiều người) đăng ký bằng registerWorld và thay từng phần.
 // Mỗi 0 giờ, thành phố lập bản tóm tắt (dailyReport) và giao cho provider (report): thế giới máy chỉ giữ lịch sử,
 // máy chủ vùng sẽ gửi lên để chia dân, doanh nghiệp, du khách, ghép chợ (xem MULTIPLAYER.md).
-import { N, ZDEF, RAW_KINDS, resCap, jobCap, clamp } from './base.js';
-import { marketDay, tourismHour, tourismDay, tourismScore, mkt } from './econ.js';
+import { N, ZDEF, RAW_KINDS, productAt, resCap, jobCap, clamp } from './base.js';
+import { marketDay, tourismHour, tourismDay, tourismScore, mkt, MKT_KINDS } from './econ.js';
 import { intlHour, intlDay } from './intl.js';
 import { ruralDay, ledgerSummary } from './ledger.js';
 
@@ -48,12 +48,12 @@ export function dailyReport(c) {
   }
   // hàng chào bán: tồn kho chờ xe chở ở cơ sở khai thác, nhà máy (đơn vị) và giá thị trường hiện tại
   const offer = {};
-  for (const k of [...RAW_KINDS, 'goods']) offer[k] = { qty: 0, price: Math.round(mkt(c, k) * 100) / 100 };
+  for (const k of MKT_KINDS) offer[k] = { qty: 0, price: Math.round(mkt(c, k) * 100) / 100 };
   for (let i = 0; i < N * N; i++) {
     if (!c.level[i] || !jobCap(c.zone[i], c.level[i])) continue;
     const zd = ZDEF[c.zone[i]];
     if (zd.raw && offer[zd.raw]) offer[zd.raw].qty += c.biz.sout[i];
-    else if (zd.biz === 'ind') offer.goods.qty += c.biz.sout[i];
+    else if (zd.biz === 'ind') offer[productAt(i, c.zone[i])].qty += c.biz.sout[i]; // thành phẩm của nhà máy / xưởng
   }
   for (const k in offer) offer[k].qty = Math.round(offer[k].qty);
   const led = ledgerSummary(c), tour = c.tour ? (c.tour.score || tourismScore(c)) : null;

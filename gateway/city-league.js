@@ -8,7 +8,8 @@
 // Store cần getLeague(id) / putLeague(league) / openLeagues(season) / leagueOf(owner) / setLeagueOf(owner, id | null).
 import crypto from 'node:crypto';
 import { prosperity } from '../city/js/world.js';
-import { PRICE, priceOf } from '../city/js/base.js';
+import { PRICE, PRODUCTS, priceOf, importMultOf } from '../city/js/base.js';
+import { MKT_KINDS } from '../city/js/econ.js';
 
 export const LEAGUE = {
   dayMs: 3600_000, // 1 ngày giải = 1 giờ thật
@@ -23,11 +24,11 @@ export const LEAGUE = {
   drain: 0.02,
   keepDays: 6, // giữ phần chia của bấy nhiêu ngày gần nhất
 };
-const KINDS = ['agri', 'wood', 'ore', 'oil', 'fish', 'goods'];
+const KINDS = MKT_KINDS; // nguyên liệu thô + các thành phẩm (base.js PRODUCTS)
 /** Giá chào bán (phần của giá chợ chung) và thuế nhập khẩu người chơi đặt được. */
 export const TRADE = { askMin: 0.8, askMax: 1.2, tariffMax: 0.5 };
-const importMult = (k) => (k === 'goods' ? PRICE.importMult : PRICE.rawImportMult); // nhập từ thế giới máy đắt hơn giá chợ
-const DEMAND = { agri: 120, wood: 90, ore: 80, oil: 60, fish: 90, goods: 160 }; // nhu cầu của thị trường chung mỗi thành phố mỗi ngày
+const importMult = importMultOf; // nhập từ thế giới máy đắt hơn giá chợ
+const DEMAND = { agri: 120, wood: 90, ore: 80, oil: 60, fish: 90, ...Object.fromEntries(Object.entries(PRODUCTS).map(([k, p]) => [k, p.shop ? Math.round(p.shop * 450) : 70])) }; // nhu cầu của thị trường chung mỗi thành phố mỗi ngày
 
 export const seasonOf = (t) => Math.floor(t / (LEAGUE.seasonDays * 24 * LEAGUE.dayMs));
 export const dayOf = (lg, t) => Math.max(0, Math.floor((t - lg.start) / LEAGUE.dayMs));

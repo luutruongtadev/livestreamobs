@@ -36,7 +36,7 @@ export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './wor
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
-export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf } from './people.js';
+export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';

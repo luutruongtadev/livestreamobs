@@ -4,7 +4,7 @@
 // Đồng hồ thật: thành phố không chạy quá ngày giải hiện tại (1 ngày game / 1 giờ thật), vắng mặt thì chạy bù có giới hạn.
 import { registerWorld, AI_WORLD } from './world.js';
 import { MKT_KINDS, mkt } from './econ.js';
-import { PRICE, priceOf } from './base.js';
+import { PRICE, priceOf, importMultOf } from './base.js';
 import { world, groupFlow } from './ledger.js';
 
 export const CATCHUP_MAX_DAYS = 7;
@@ -123,7 +123,7 @@ export function applyClear(c, e) {
     const bc = U.cells.buy[k] || {}, bQty = Object.values(bc).reduce((a, x) => a + x.qty, 0);
     const refund = +(e.refund && e.refund[k]) || 0, ub = Math.min(bQty, +(e.unmatchedBuy && e.unmatchedBuy[k]) || 0);
     const paid = U.buy[k] ? U.buy[k].paid : 0, avg = U.buy[k] && U.buy[k].qty ? paid / U.buy[k].qty : 0;
-    const extraUnit = Math.max(0, priceOf(k) * (k === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, k) - avg);
+    const extraUnit = Math.max(0, priceOf(k) * importMultOf(k) * mkt(c, k) - avg);
     for (const [cell, x] of Object.entries(bc)) {
       const share = bQty ? x.qty / bQty : 0;
       if (refund > 0) { b.money[cell] += refund * share; groupFlow(c, 'tradeRefund', refund * share); }
