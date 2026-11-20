@@ -23,7 +23,7 @@ export function rainK(c) {
   const m = lunar(c.day || Math.floor((c.hour || 0) / 24)).month;
   const base = m >= 8 && m <= 11 ? 1 : m <= 4 ? 0.3 : 0.6;
   const w = c.inc && c.inc.weather;
-  return base * (w === 'storm' ? 1.6 : w === 'rain' ? 1.2 : w === 'dry' ? 0.7 : 1);
+  return base * (w === 'storm' ? 1.6 : w === 'rain' ? 1.2 : w === 'dry' ? 0.7 : w === 'heat' ? 0.5 : 1);
 }
 
 /** Nguồn sông (đầu nguồn ở mép bản đồ) và cửa sông chảy ra ngoài, theo mặt nước tự nhiên. Lưu tạm theo bản đồ. */

@@ -3199,7 +3199,7 @@ export class View {
     gl.position.copy(this.camera.position).addScaledVector(sunD, 2400); gl.scale.set(gs, gs, 1);
     gl.material.color.copy(A.sunC); gl.material.opacity = su.uSunUp.value * sstep(-0.02, 0.06, e) * 0.55;
     this.sunV.value.copy(this.sunDir).transformDirection(this.camera.matrixWorldInverse); this.sunCol.value.copy(this.sun.color).multiplyScalar(Math.min(1.2, this.sun.intensity / 2.2) * (1 + su.uDusk.value * 0.6)); // lá ngược nắng chiều sáng rõ hơn
-    su.uCloud.value += ((storm ? 1 : wet ? 0.85 : c.inc.weather === 'dry' ? 0.05 : 0.3) - su.uCloud.value) * k;
+    su.uCloud.value += ((storm ? 1 : wet ? 0.85 : c.inc.weather === 'dry' || c.inc.weather === 'heat' ? 0.05 : 0.3) - su.uCloud.value) * k;
     this.scene.fog.color.copy(su.uHor.value); this.scene.background.copy(su.uHor.value);
     { // bụi mịn: trời mù, sương khói ngả xám nâu, nhìn không xa
       const aqi = this.city && this.city.street ? this.city.street.aqi : 0, k = clamp((aqi - 90) / 220, 0, 0.65);

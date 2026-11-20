@@ -62,6 +62,25 @@ export function marketDay(c) {
 // ───────────────────────── du lịch ─────────────────────────
 
 /** Sức hút du lịch của thành phố và các nguồn của nó. */
+/**
+ * Phố ẩm thực: từ 4 ô khu ăn uống, giải trí (khu 17) trở lên liền nhau trên cùng một hàng hoặc một cột, cùng quay ra
+ * một phía đường. Trả về { streets, cells }.
+ */
+export function foodStreets(c) {
+  let streets = 0, cells = 0;
+  const ok = (i) => c.level[i] && c.zone[i] === 17;
+  for (const [dx, dy] of [[1, 0], [0, 1]]) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x;
+    if (!ok(i)) continue;
+    const px = x - dx, py = y - dy;
+    if (px >= 0 && py >= 0 && ok(py * N + px) && c.dir[py * N + px] === c.dir[i]) continue; // không phải đầu dãy
+    let n = 1, ax = x + dx, ay = y + dy;
+    while (ax < N && ay < N && ok(ay * N + ax) && c.dir[ay * N + ax] === c.dir[i]) { n++; ax += dx; ay += dy; }
+    if (n >= 4) { streets++; cells += n; }
+  }
+  return { streets, cells };
+}
+
 export function tourismScore(c) {
   let attract = 0, beds = 0, gates = 0;
   const parts = {};
@@ -73,6 +92,8 @@ export function tourismScore(c) {
   let leisure = 0;
   for (let i = 0; i < N * N; i++) if (c.level[i] && ZDEF[c.zone[i]].biz === 'leisure') leisure += c.level[i];
   attract += Math.min(12, leisure * 0.15);
+  const food = foodStreets(c); // phố ẩm thực: dãy quán liền nhau, vỉa hè càng tự do càng đông khách
+  if (food.cells) { const a = Math.min(12, food.cells * 0.35 * (c.street ? { free: 1.3, license: 1.1, clear: 0.8 }[c.street.sidewalk] || 1 : 1)); attract += a; parts.foodStreet = Math.round(a * 10) / 10; }
   { // đảo có tàu khách ra: mỗi đảo tính một lần
     const seen = new Set(); let isl = 0;
     for (const l of c.ferries || []) for (const x of l.isles || []) if (!seen.has(x.id)) { seen.add(x.id); isl += x.att; }
@@ -87,7 +108,7 @@ export function tourismScore(c) {
   for (const l of c.ferries || []) if (l.out) gates += 1;
   const happy = c.pstats ? c.pstats.happy : 55;
   const k = clamp(0.6 + (happy - 45) / 60, 0.4, 1.4); // thành phố vui vẻ, sạch sẽ thì khách thích
-  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour') * (c.street ? streetBonus(c).tour : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
+  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, food, foodA: parts.foodStreet || 0, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour') * (c.street ? streetBonus(c).tour : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
 }
 
 /** Hệ số khách chịu ở lại theo giá phòng: giá 12 ₫ như cũ (×1), rẻ thì đông hơn, đắt thì vắng; tiền phòng lãi nhất quanh 26 ₫. */

@@ -2242,3 +2242,31 @@ test('city: Việt Nam hoá P0 — chung cư cũ, nhà cấp 4, đồ bày trư�
   const deco = Object.fromEntries(S.FESTIVALS.map((f) => [f.id, f.deco || '']));
   assert.deepEqual([deco.tet, deco.trungthu, deco.saute], ['lantern flag', 'lantern', ''], 'Tết treo cờ và đèn lồng, Trung Thu đèn lồng, Sau Tết không trang trí');
 });
+
+test('city: Việt Nam hoá Phase 4 — nắng nóng, kênh rạch hôi, nhà trọ, phố ẩm thực; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 48); LG.resetLedger(c);
+  // nắng nóng: điện, nước dùng tăng 30% / 15%; nhà không có bóng cây kém vui
+  const p0 = c.stats.powerUse, home = [...c.level.keys()].find((i) => c.level[i] && c.zone[i] === 1 && !(c.cover.park[i] > 0.05));
+  const h0 = S.cellHappy(c, home).happy;
+  c.inc.weather = 'heat'; S.computeNetworks(c); S.recalc(c);
+  assert.ok(c.stats.powerUse >= Math.round(p0 * 1.3) - 1, 'điện dùng tăng');
+  assert.ok(S.cellHappy(c, home).happy < h0 && S.cellHappy(c, home).needs.some((n) => /Nắng nóng/.test(n)));
+  assert.ok(S.WEATHER.heat && S.hotSeason({ day: 15 }) !== S.hotSeason({ day: 75 }), 'nắng nóng chỉ ở mùa nóng');
+  // kênh rạch hôi gần nhà
+  c.inc.weather = 'clear'; const h1 = S.cellHappy(c, home).happy; c.waterPol[home] = 0.7;
+  assert.ok(S.cellHappy(c, home).happy <= h1 - 6 && S.cellHappy(c, home).needs.some((n) => /hôi/.test(n)));
+  c.waterPol[home] = 0;
+  // nhà trọ: liền kề cấp 1–2, một phần ba số ô (variant), tiền thuê rẻ
+  const j = home; c.zone[j] = 14; c.level[j] = 1; c.variant[j] = 3; const rTro = S.rentAt(c, j); c.variant[j] = 4; const rNormal = S.rentAt(c, j);
+  assert.ok(Math.abs(rTro / rNormal - S.TRO_RENT) < 1e-9 && S.isTro({ zone: [14], level: [2], variant: [6] }, 0));
+  c.zone[j] = 1; c.variant[j] = 0;
+  // phố ẩm thực: 5 ô khu ăn uống liền nhau cùng hướng
+  const t0 = S.tourismScore(c).attract, y = 40, x0 = c.start.x - 3;
+  for (let k = 0; k < 5; k++) { const i = y * S.N + x0 + k; c.zone[i] = 17; c.level[i] = 1; c.dir[i] = 2; }
+  assert.deepEqual(S.foodStreets(c), { streets: 1, cells: 5 });
+  assert.ok(S.tourismScore(c).attract > t0);
+  for (let k = 0; k < 5; k++) { const i = y * S.N + x0 + k; c.zone[i] = 0; c.level[i] = 0; }
+  // vài ngày nắng nóng vẫn không lệch sổ tiền
+  c.inc.weather = 'heat'; c.inc.wUntil = c.hour + 48; run(c, 48);
+  const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});

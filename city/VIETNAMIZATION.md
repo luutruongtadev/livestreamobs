@@ -315,4 +315,24 @@ Chỉ là hình (`render._life`), không đổi số liệu mô phỏng. Cập n
 
 Nghiệm thu: hoạt động đổi theo giờ, nhìn thấy khi phóng gần (đã xem trên trình duyệt lúc 6h, 7h, 11h). Số liệu mô phỏng không đổi. Toàn bộ test qua.
 
-**Bước tiếp theo đề xuất:** Phase 4 (mô phỏng): nắng nóng, kênh rạch hôi, nhà trọ cho công nhân, phố ẩm thực.
+### Phase 4, mô phỏng: xong
+Đi qua các hệ thống đã có. Không in thêm tiền, không thêm trường lưu; thời tiết mới `heat` chỉ là một giá trị nữa của trường thời tiết sẵn có.
+- **Nắng nóng gay gắt 🥵:** chỉ ở mùa nóng (tháng 4–7 âm), mỗi đợt 2 ngày.
+  - Điện dùng +30%, nước +15%: lưới đang sát công suất thì thiếu điện nước.
+  - Nhà không có công viên, cây xanh quanh đó kém vui (−4).
+  - Người già dễ ốm gấp đôi.
+  - Dễ cháy như ngày khô hạn; ít mưa; trời quang.
+- **Kênh rạch hôi:** nhà gần sông, kênh bẩn (ô nhiễm nước > 0,35) kém vui theo mức bẩn, có dòng "Kênh rạch, sông gần nhà bốc mùi hôi".
+  - Chương trình "Nạo vét cống, chống ngập" của quận giảm mùi đến 75% ở mức cao nhất.
+  - Giá đất vẫn giảm như trước.
+- **Nhà trọ:** một phần ba số ô liền kề cấp 1–2 (theo variant; khớp với hình dãy nhà trọ ở kiểu nhà Việt Nam).
+  - Tiền thuê ×0,65: người thu nhập thấp giữ được nhiều tiền hơn.
+  - Hơi chật (−2 vui).
+  - Tiền thuê vẫn đi vào ví toà nhà, sổ cái giữ nguyên.
+- **Phố ẩm thực 🍜:** từ 4 ô khu ăn uống, giải trí liền nhau cùng một mặt đường. Mỗi ô +0,35 sức hút du lịch (tối đa 12).
+  - Nhân với chính sách vỉa hè: tự do ×1,3, cấp phép ×1,1, dẹp ×0,8.
+  - Hiện trong bảng 💰 phần du lịch.
+
+Nghiệm thu: test gộp `Phase 4` qua (điện dùng tăng, mức vui đổi, tiền thuê nhà trọ, phố ẩm thực, sổ tiền không lệch sau 2 ngày nắng nóng). Toàn bộ test qua. Đã xem trên trình duyệt: nhãn thời tiết, dòng phố ẩm thực.
+
+**Bước tiếp theo đề xuất:** Phase 5 (văn hoá và vùng): Quốc khánh 2/9, bộ kiến trúc 4 vùng (Bắc, Trung, Nam, đồng bằng sông Cửu Long), chợ nổi, phố cổ.

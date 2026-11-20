@@ -100,7 +100,10 @@ export const wageAt = (c, i) => MK * (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) *
 /** Nguyên liệu một nhà máy đủ người dùng hết mỗi giờ. */
 const FACT_RATE = 0.5; // nguyên liệu một công nhân chế biến mỗi giờ (nhập nguyên liệu, xuất hàng vẫn còn lãi)
 const factoryUse = (c, i) => jobCap(c.zone[i], c.level[i]) * FACT_RATE * (1 + 0.12 * (c.level[i] - 1));
-export const rentAt = (c, i) => MK * (1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6);
+export const rentAt = (c, i) => MK * (1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6) * (isTro(c, i) ? TRO_RENT : 1);
+/** Nhà trọ: dãy phòng liền kề cấp 1–2 (một phần ba số ô, theo variant, khớp hình nhà trọ ở kiểu nhà Việt Nam) — tiền thuê rẻ hơn hẳn. */
+export const TRO_RENT = 0.65;
+export const isTro = (c, i) => c.zone[i] === 14 && c.level[i] >= 1 && c.level[i] <= 2 && c.variant[i] % 3 === 0;
 const spots = (c, i) => (c.occ[i] ? svcVal(c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
 const isShop = (c, i) => c.level[i] > 0 && (ZDEF[c.zone[i]].biz === 'shop' || ZDEF[c.zone[i]].biz === 'market');
 /** Nguyên liệu một nhà máy / xưởng / chợ cần: xưởng và chợ chỉ nhận vài loại, nhà máy lớn nhận loại gán theo vị trí. */
@@ -650,7 +653,7 @@ function servicesHour(c, h) {
     const from = best && svcPos(c, best);
     if (from && trip(c, 'fire', from, i, { t: 'fire', svc: best.uid, cell: i }, true)) { best.out = (best.out || 0) + 1; c.fireTruck[i] = 1; }
   }
-  if (c.pp.count >= 400 && pick >= 0 && !c.fire[pick] && rng() < built * 0.00006 * (c.inc.weather === 'dry' ? 2 : 1) * (c.pOk[pick] === 2 ? 2 : 1)) { c.fire[pick] = 7; c.events.push({ type: 'fireStart', x: pick % N, y: (pick / N) | 0, cause: c.pOk[pick] === 2 ? 'chập điện do quá tải' : c.inc.weather === 'dry' ? 'nắng nóng khô hạn' : 'sự cố điện' }); c.dirty.fx = true; }
+  if (c.pp.count >= 400 && pick >= 0 && !c.fire[pick] && rng() < built * 0.00006 * (c.inc.weather === 'dry' || c.inc.weather === 'heat' ? 2 : 1) * (c.pOk[pick] === 2 ? 2 : 1)) { c.fire[pick] = 7; c.events.push({ type: 'fireStart', x: pick % N, y: (pick / N) | 0, cause: c.pOk[pick] === 2 ? 'chập điện do quá tải' : c.inc.weather === 'dry' ? 'nắng nóng khô hạn' : 'sự cố điện' }); c.dirty.fx = true; }
 }
 
 // ───────────────────────── mỗi ngày ─────────────────────────
@@ -693,7 +696,7 @@ function peopleDay(c) {
     // sinh, bệnh, mất
     const hm = pp.home[id], care = hm >= 0 ? c.cover.care[hm] : 0, oldHome = hm >= 0 && whoOf(c, hm) === 'senior';
     if (age >= 20 && age <= 40 && hm >= 0 && !whoOf(c, hm) && c.resCount[hm] < resCap(c.zone[hm], c.level[hm]) + 2 && rng() < 0.05 * clamp(pp.happy[id] / 50, 0.4, 1.3)) { addCitizen(c, 0, 0, hm, 0, 'born'); c.econ.born++; day.born++; }
-    if (!pp.sick[id] && hm >= 0 && rng() < 0.004 + c.air[hm] * 0.035 + c.ground[hm] * 0.02 + 0.004 * (aqiSick(c) - 1) + pumpDirty + (c.garbage[hm] > garbageLimit(c.zone[hm], c.level[hm]) ? 0.012 : 0) + (age > 65 ? (oldHome ? 0.006 : 0.01) : 0)) pp.sick[id] = 1;
+    if (!pp.sick[id] && hm >= 0 && rng() < 0.004 + c.air[hm] * 0.035 + c.ground[hm] * 0.02 + 0.004 * (aqiSick(c) - 1) + pumpDirty + (c.garbage[hm] > garbageLimit(c.zone[hm], c.level[hm]) ? 0.012 : 0) + (age > 65 ? (oldHome ? 0.006 : 0.01) * (c.inc.weather === 'heat' ? 2 : 1) : 0)) pp.sick[id] = 1; // nắng nóng: người già dễ ốm gấp đôi
     if (pp.sick[id] > 48) { if (rng() < 0.25 * (1 - 0.7 * care)) { die(c, id); continue; } pp.sick[id] = 0; pp.amb[id] = 0; } // bệnh viện cứu được phần lớn ca nặng
     if (age > 70 && rng() < (age - 70) * 0.025 * (1 - 0.35 * care) * (oldHome ? 0.8 : 1)) { die(c, id); continue; }
     // tiền nhà, hài lòng, bỏ đi

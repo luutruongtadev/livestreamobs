@@ -1101,6 +1101,7 @@ function renderEcon() {
   const t = c.tour, sc = t.score || S.tourismScore(c), last = t.last;
   $('tourBox').innerHTML = [
     ['Sức hút (điểm tham quan, quán xá)', `${sc.attract}`],
+    ['🍜 Phố ẩm thực', sc.food && sc.food.streets ? `${sc.food.streets} phố, ${sc.food.cells} ô quán (sức hút +${sc.foodA || 0})` : 'chưa có: 4 ô 🍜 ăn uống, giải trí liền nhau cùng một mặt đường'],
     ['Cửa ngõ đón khách', sc.gates ? `${sc.gates} (đường vào, ga, sân bay, tàu ra biển)` : '<span class="neg">✖ chưa có</span>'],
     ['Du khách mỗi ngày (ước)', fmt(sc.perDay)],
     ['Đang lưu trú / giường', `${fmt(t.guests)} / ${fmt(sc.beds)}${sc.beds ? '' : ' · xây 🛎️ khách sạn'}`],

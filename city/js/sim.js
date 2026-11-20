@@ -12,7 +12,7 @@ import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } f
 import { outside, reportDay } from './world.js';
 import { packLeague, unpackLeague, contract, tradeUse } from './league.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen } from './people.js';
+import { procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
@@ -27,7 +27,7 @@ import { solveWater, rainK } from './water.js';
 import { fisheryOk, cleanFishery, packFishery, unpackFishery } from './fishery.js';
 import { FALLS, fallsRect, clearFalls, fallsCount, packFalls, unpackFalls } from './falls.js';
 import { decorRect, clearDecor, decorFx, decorUpkeep, decorHappy, packDecor, unpackDecor } from './decor.js';
-import { initIncidents, incidentsStep, incidentsHour } from './incidents.js';
+import { initIncidents, incidentsStep, incidentsHour, heatUse } from './incidents.js';
 import { initDistricts, packDistricts, districtHour, distFx, distCost, planCost, rebuildDmap } from './districts.js';
 const planCostQ = (q) => planCost(q, q.prog);
 
@@ -36,7 +36,7 @@ export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './wor
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
-export { bizKind, wageAt, rentAt, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
+export { bizKind, wageAt, rentAt, isTro, TRO_RENT, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
@@ -52,8 +52,8 @@ export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistric
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
-export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, marketDay } from './econ.js';
-export { WEATHER, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
+export { SECTORS, sectorOf, budgetK, MKT_KINDS, MKT_NAME, mkt, tourismScore, foodStreets, marketDay } from './econ.js';
+export { WEATHER, hotSeason, heatUse, triggerDisaster, crash, wildCount, crashFactor } from './incidents.js';
 export { planLine as planTransit, addLine as addTransit, removeLine as removeTransit, setVehicles, metroPoint, planRide, metroUnlocked, modeUnlocked, roadFleet } from './transit.js';
 
 export const ZONE_NAME = ZDEF.map((z) => z.name);
@@ -1666,13 +1666,13 @@ export function computeNetworks(c) {
     if (d.water) wSup[find(W, E + k)] += svcVal(s, 'water');
     if (d.sewage) sSup[find(W, E + k)] += svcVal(s, 'sewage');
   });
-  const rootP = new Int32Array(N * N).fill(-1), rootW = new Int32Array(N * N).fill(-1);
+  const rootP = new Int32Array(N * N).fill(-1), rootW = new Int32Array(N * N).fill(-1), hk = heatUse(c);
   for (let i = 0; i < N * N; i++) {
     if (c.cedge[i] < 0 || !c.acc[i]) continue;
     const k = eIx.get(c.cedge[i]);
     rootP[i] = find(P, k); rootW[i] = find(W, k);
     const L2 = c.level[i];
-    if (L2) { const u = utilUse(c.zone[i], L2); pUse[rootP[i]] += u; wUse[rootW[i]] += u; }
+    if (L2) { const u = utilUse(c.zone[i], L2); pUse[rootP[i]] += u * hk.power; wUse[rootW[i]] += u * hk.water; } // nắng nóng: dùng nhiều điện, nước hơn
   }
   const flag = (sup, use) => (sup <= 0 ? 0 : use > sup ? 2 : 1);
   let noP = 0, noW = 0, noU = 0;
@@ -2140,6 +2140,9 @@ export function cellHappy(c, i) {
   if (c.ground[i] > 0.25) needs.push('Đất ô nhiễm');
   if (c.noise[i] > 0.4) { h -= 6; needs.push('Ồn ào'); }
   if (c.dirtyWater) { h -= 6; needs.push('Nước máy bẩn: trạm bơm hút gần cống xả'); }
+  if (c.inc && c.inc.weather === 'heat' && c.level[i] && !(c.cover.park[i] > 0.05)) { h -= 4; needs.push('🥵 Nắng nóng, quanh nhà không có bóng cây'); }
+  if (!c.water[i] && c.waterPol[i] > 0.35) { const k = 1 - 0.25 * distFx(c, i, 'drain'); h -= Math.round(c.waterPol[i] * 10 * k); needs.push(k < 1 ? 'Kênh rạch hôi (quận đang nạo vét)' : 'Kênh rạch, sông gần nhà bốc mùi hôi'); } // nạo vét của quận giảm mùi
+  if (isTro(c, i)) { h -= 2; needs.push('Phòng trọ chật, rẻ'); }
   if (c.dead && c.dead[i]) { h -= 10; needs.push(c.cover.death[i] > 0.05 ? 'Người mất chưa được xe tang đưa đi' : 'Không có nghĩa trang hay đài hoá thân gần đây'); }
   if (c.crime[i] > 0.3) { h -= Math.round(c.crime[i] * 16); needs.push(c.cover.police[i] < 0.05 ? 'Tội phạm nhiều, ngoài vùng công an' : 'Tội phạm nhiều'); }
   const who = ZDEF[c.zone[i]].who;
@@ -2210,7 +2213,7 @@ export function recalc(c) {
   for (const k in inc) inc[k] = Math.round(inc[k]);
   Object.assign(s, {
     pop, jobs, jobsBy: { c: jc, i: ji, o: jo }, housing, workers, employed, unemployed, vacJobs, companies, happy: ps.happy,
-    powerCap: pCap, powerUse: use, waterCap: wCap, waterUse: use, sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
+    powerCap: pCap, powerUse: Math.round(use * heatUse(c).power), waterCap: wCap, waterUse: Math.round(use * heatUse(c).water), sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
     inc, income: inc.r + inc.c + inc.i + inc.t + inc.u, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
   });
   // nhu cầu: dân tới khi có việc và nhà trống ít; việc làm mở thêm khi có người làm và người mua
@@ -2382,7 +2385,7 @@ function hourTick(c) {
   const W = outside(c); // thế giới bên ngoài: thế giới máy (chơi một mình) hoặc provider khác (world.js)
   let rooms = W.tourismHour(c, touristSpend) + W.intlHour(c, { spend: touristSpend, addCitizen });
   if (c.rail && c.rail.lines.length) { const o = intlOutlook(c); rooms += railHour(c, { spend: touristSpend, addCitizen, lure: o.lure, mood: o.mood }); } // tàu liên vận qua cửa khẩu: tiền vé // du khách: tiền phòng, phí hạ cánh / cập cảng của khách quốc tế
-  incidentsHour(c);
+  { const hot = c.inc.weather === 'heat'; incidentsHour(c); if (hot !== (c.inc.weather === 'heat')) { computeNetworks(c); recalc(c); } } // đổi sang / hết nắng nóng: tính lại điện nước
   seasonHour(c); // bão, ngập, triều cường
   if (c.council) { const fresh = councilHour(c); if (fresh.length) (c.aiQueue || (c.aiQueue = [])).push(...fresh.map((f) => f.id)); } // hộp thư thị trưởng
   if (c.dist && c.dist.on) { const jobs = districtHour(c); if (jobs.length) (c.distQueue || (c.distQueue = [])).push(...jobs); } // quận, chủ tịch quận
@@ -2590,6 +2593,6 @@ function deserializeAt(o) {
   resetLedger(c, o.ledger); resetPop(c, o.rural ?? undefined, o.abroad ?? 0); // sổ cái mở lại từ bản lưu (ví dân lưu dạng số nguyên); bản lưu cũ: nông thôn đầy
   return c;
 }
-const WEATHER_KINDS = ['clear', 'rain', 'dry', 'hail'];
+const WEATHER_KINDS = ['clear', 'rain', 'dry', 'hail', 'heat'];
 
 void bizKind;
