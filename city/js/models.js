@@ -814,7 +814,7 @@ const LOT_HEDGE = new Set(['clinic', 'school', 'highschool', 'police', 'fire', '
 
 /** Công trình đặt tay. Trả về { geometry, spin?: [{geometry, pos:[x,y,z]}] } — gốc ở tâm khối đất, mặt tiền về +z. */
 export function serviceModel(type, size) {
-  const g = new GB(), S = size * T, e = S - 0.3;
+  const g = new GB(), S = size * 10, e = S - 0.3; // mô hình dựng theo ô 10 m, cảnh thu nhỏ theo cỡ ô thật (T / 10)
   const out = {};
   const pave = (c) => g.box(0, 0, 0, e, 0.14, e, c);
   if (type === 'waterfall') { // thác nước: phần thác, hồ, vách đá vẽ riêng theo địa hình (render.js); ở đây chỉ có đài ngắm cảnh trên đỉnh

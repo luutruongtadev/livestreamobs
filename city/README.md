@@ -209,6 +209,13 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 
 Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản lưu cũ giữ kiểu cũ). Khu nhà ở thấp, nhà phố, liền kề, ký túc xá, hỗn hợp, cửa hàng và ăn uống mọc thành dãy nhà ống nhiều màu: ban công có lan can và chậu cây, cửa cuốn hoặc cửa hàng có biển hiệu chữ và mái bạt, trên mái có bồn nước inox, máy nước nóng, tum mái tôn, cờ đỏ sao vàng ở ban công. Đường có cột điện bê tông với dây điện chằng chịt thay cho đèn đường, xe đẩy bán hàng có ô che trên vỉa hè, cây dừa ven sông biển, và gần như ai cũng đi xe máy.
 
+## Ô nhỏ hơn (thành phố mới)
+
+- Thành phố mới dùng ô cạnh **8,4 m**, tức ô cũ (10 m) bớt 30% diện tích.
+- Nhà, công trình thu nhỏ theo cho vừa lô. Đường, xe, người, cây giữ kích thước thật, nên phố trông dày và thật hơn.
+- Đường nhỏ vẫn có 2 hàng ô mặt tiền mỗi bên; đại lộ chiếm 2 hàng ô. Vỉa hè được lấn mép lô một chút, khỏi mất trắng cả hàng ô.
+- Bản lưu cũ giữ ô 10 m như trước. Đổi qua lại giữa hai cỡ ô thì trang tự tải lại để dựng cảnh đúng cỡ.
+
 ## Cây công trình (kiểu Development Tree của Cities: Skylines 2)
 
 - **Áp dụng cho thành phố mới** (bản lưu cũ và chế độ Open giữ cách cũ): công trình dịch vụ không tự mở theo dân số nữa mà phải tiêu **điểm phát triển** ở bảng 🔬.

@@ -2473,7 +2473,7 @@ export class View {
       if (t < 1) animating = true;
       const e = 1 - (1 - t) * (1 - t);
       q.setFromAxisAngle(up, farm ? 0 : ROT[c.dir[i] & 3]); // ruộng không xoay: luống, đường đất thẳng hàng cả cánh đồng
-      p.set(cellCenter(x), c.cellH[i] + 0.02, cellCenter(y)); s.set(1, Math.max(0.02, e), 1);
+      p.set(cellCenter(x), c.cellH[i] + 0.02, cellCenter(y)); s.set(T / 10, Math.max(0.02, e) * (T / 10), T / 10); // nhà dựng theo ô 10 m: thu theo cỡ ô
       m.compose(p, q, s);
       mesh.setMatrixAt(counts[key], m);
       if (vnGeo && t >= 1 && (c.zone[i] === 2 || c.zone[i] === 7 || c.zone[i] === 17)) { // chữ trên biển hiệu từng căn nhà ống
@@ -2575,14 +2575,14 @@ export class View {
     for (const s of c.services) {
       const def = SERVICES[s.type], grp = this._serviceObject(s.type);
       if (s.build > 0) { // công trường: nhà mọc dần theo tiến độ, giàn giáo, hàng rào, xe công trình
-        grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3];
+        grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3]; grp.scale.setScalar(T / 10);
         this._site(grp, s, def, 1 - s.build / s.buildTot);
         this.serviceGroup.add(grp);
         continue;
       }
-      grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3];
+      grp.position.set((s.x + def.size / 2) * T - HALF, this._padY(s.x, s.y, def.size) + 0.02, (s.y + def.size / 2) * T - HALF); grp.rotation.y = ROT[s.dir & 3]; grp.scale.setScalar(T / 10);
       (s.mods || []).forEach((id, k) => { // module: khối phụ ở các góc lô đất, góc sau trước
-        const geo = this.modCache[id] || (this.modCache[id] = moduleGeometry(id)), mesh = new THREE.Mesh(geo, this.matBuilding), o = (def.size * T) / 2 - 2.1;
+        const geo = this.modCache[id] || (this.modCache[id] = moduleGeometry(id)), mesh = new THREE.Mesh(geo, this.matBuilding), o = (def.size * 10) / 2 - 2.1;
         mesh.position.set(k % 2 ? o : -o, 0.14, k < 2 ? -o : o); mesh.castShadow = mesh.receiveShadow = true;
         grp.add(mesh);
       });
@@ -2605,7 +2605,7 @@ export class View {
   _site(grp, s, def, prog) {
     const main = grp.children[0], H0 = SITE_H[s.type] || (SITE_H[s.type] = (main.geometry.computeBoundingBox(), main.geometry.boundingBox.max.y));
     for (const o of grp.children) { o.scale.y = Math.max(0.04, prog * 0.92); o.userData.spin = false; } // phần đã xây
-    const L = def.size * T, half = L / 2, g = new GB(), hs = hash2(s.x, s.y, 91), h = Math.max(1.5, H0 * prog * 0.92);
+    const L = def.size * 10, half = L / 2, g = new GB(), hs = hash2(s.x, s.y, 91), h = Math.max(1.5, H0 * prog * 0.92);
     g.box(0, 0.06, 0, L - 0.4, 0.1, L - 0.4, 0x8a6e4e); // nền đất đã san
     if (prog < 0.35) g.box(0, 0.08, 0, L * 0.6, 0.1, L * 0.6, 0x5e4a35); // hố móng
     // hàng rào tôn: chừa cổng ở mặt trước (+z)
@@ -2674,6 +2674,7 @@ export class View {
     this.ghostMat.color.set(ok ? 0x7dffa0 : 0xff6b5b);
     this.ghostGroup.visible = true;
     this.ghostGroup.position.set((fp.x + fp.size / 2) * T - HALF, this._padY(fp.x, fp.y, fp.size) + 0.05, (fp.y + fp.size / 2) * T - HALF);
+    this.ghostGroup.scale.setScalar(T / 10);
   }
 
   /** tiles: [[x, y], ...]; color: số hex */

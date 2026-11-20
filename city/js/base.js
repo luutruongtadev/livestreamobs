@@ -1,5 +1,7 @@
 // Phố Mới — hằng số, bảng định nghĩa và hàm thuần dùng chung cho mọi module mô phỏng.
-export const T = 10; // cạnh một ô (đơn vị thế giới)
+export let T = 10; // cạnh một ô (đơn vị thế giới, mét): 10 với bản lưu cũ, CELL_NEW với thành phố mới — biến "sống", đổi bằng setMapSize
+/** Cạnh ô của thành phố mới: nhỏ hơn ô cũ 30% diện tích (√0,7 × 10 m), lô đất, nhà gọn hơn so với đường, xe, người. */
+export const CELL_NEW = 8.4;
 export const LAND = 12; // cạnh một ô đất (lưới quản lý đất cũ, tính theo ô lưới)
 /** Cỡ bản đồ chọn được khi chơi mới (số ô mỗi cạnh). 96 là cỡ của các bản lưu cũ. */
 export const MAP_SIZES = { 96: { name: 'Vừa', desc: '96 × 96 ô, gọn, máy yếu chạy mượt' }, 128: { name: 'Lớn', desc: '128 × 128 ô, gần gấp đôi diện tích' }, 160: { name: 'Rất lớn', desc: '160 × 160 ô, gần gấp ba, cần máy khoẻ' } };
@@ -8,8 +10,9 @@ export let N = 96; // bản đồ N x N ô
 export let HALF = (N * T) / 2;
 export let LT = Math.ceil(N / LAND); // bản đồ có LT x LT ô đất
 /** Đổi cỡ bản đồ cho mọi module (giá trị N, HALF, LT nhập ở module khác tự cập nhật theo). */
-export function setMapSize(n) {
+export function setMapSize(n, t = T) {
   n = MAP_SIZES[n] ? +n : 96;
+  T = t === CELL_NEW ? CELL_NEW : 10;
   N = n; HALF = (N * T) / 2; LT = Math.ceil(N / LAND);
   return N;
 }

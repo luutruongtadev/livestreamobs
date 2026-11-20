@@ -1861,7 +1861,7 @@ function bindMaps() {
   $('mapCancel').addEventListener('click', () => $('maps').classList.remove('show'));
   $('mapGo').addEventListener('click', () => {
     if (city && city.edges.size > 1 && !confirm('Bỏ thành phố hiện tại và bắt đầu vùng đất mới? (Các ô lưu vẫn giữ nguyên)')) return;
-    const opts = { size: mapPick.size, map: mapPick.kind }, c = mapPick.mode === 'open' ? S.newSandbox(mapPick.seed, opts) : S.newCity(mapPick.seed, { ...opts, devTree: true });
+    const opts = { size: mapPick.size, map: mapPick.kind, cell: S.CELL_NEW }, c = mapPick.mode === 'open' ? S.newSandbox(mapPick.seed, opts) : S.newCity(mapPick.seed, { ...opts, devTree: true });
     $('maps').classList.remove('show'); $('over').classList.remove('show');
     if (startCity(c)) { autosave(); if (mapPick.mode === 'open') toast('🎨 Chế độ Open: mọi thứ đã mở, tiền không giới hạn, không phá sản'); }
   });
@@ -1869,7 +1869,7 @@ function bindMaps() {
 
 /** Đổi sang thành phố c. Cảnh 3D dựng theo cỡ bản đồ: khác cỡ thì cất thành phố vào phiên rồi tải lại trang (trả về false). */
 function startCity(c) {
-  if (view.mapN !== S.N) {
+  if (view.mapN !== S.N || view.cellT !== S.T) { // cảnh 3D dựng theo cỡ bản đồ và cỡ ô
     try { sessionStorage.setItem(KEY + 'pending', JSON.stringify(S.serialize(c))); } catch { city = c; writeSlot('auto'); }
     location.reload();
     return false;
@@ -1948,9 +1948,9 @@ try {
   if (pend) { sessionStorage.removeItem(KEY + 'pending'); first = S.deserialize(JSON.parse(pend)); }
 } catch (e) { bootErr = e; }
 if (!first) { const d = readSlot('auto'); if (d) try { first = S.deserialize(d.city); } catch (e) { bootErr = e; } }
-if (!first) first = S.newCity(undefined, { size: 128, devTree: true });
+if (!first) first = S.newCity(undefined, { size: 128, devTree: true, cell: S.CELL_NEW });
 view = new View($('view'));
-view.mapN = S.N;
+view.mapN = S.N; view.cellT = S.T;
 window.__view = view;
 try { view.dayNight = localStorage.getItem(KEY + 'night') !== '0'; } catch { /* bỏ qua */ }
 $('bNight').classList.toggle('on', view.dayNight);

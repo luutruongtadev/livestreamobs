@@ -3,7 +3,7 @@
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
   N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
-  MAP_SIZES, ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
+  MAP_SIZES, CELL_NEW, ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, MAPS, setMapSize, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
@@ -368,7 +368,7 @@ export function terraformDone(c) {
  * Đổi cỡ bản đồ cho mọi module, nên cảnh 3D phải dựng lại nếu cỡ khác cỡ đang vẽ.
  */
 export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
-  setMapSize(opts.size || 96);
+  setMapSize(opts.size || 96, opts.cell || 10);
   const c = {
     v: 4, tgen: 2, seed, name: 'Phố Mới', style: 'vn', map: MAPS[opts.map] ? opts.map : 'river',
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
@@ -727,7 +727,7 @@ export function snapPoint(c, x, z, { grid = true, type = 'small', from = null, h
   const g = from ? guideSnap(c, from, x, z, grid) : null;
   if (g) return { x: clamp(g.x, -lim, lim), z: clamp(g.z, -lim, lim), guide: g.guide, len: g.len };
   if (grid) {
-    if (myW > T) { x = Math.round((x + HALF) / T) * T - HALF; z = Math.round((z + HALF) / T) * T - HALF; } // đại lộ bám mép ô
+    if (myW > 15) { x = Math.round((x + HALF) / T) * T - HALF; z = Math.round((z + HALF) / T) * T - HALF; } // đại lộ bám mép ô
     else { x = cellCenter(cellOf(x)); z = cellCenter(cellOf(z)); }
   }
   return { x: clamp(x, -lim, lim), z: clamp(z, -lim, lim) };
@@ -773,12 +773,15 @@ function segInt(ax, az, bx, bz, cx, cz, dx, dz) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { t, u } : null;
 }
 
+/** Nửa bề rộng đường tính để chặn ô: ô nhỏ (thành phố mới) cho vỉa hè lấn mép lô đất tới 1,8 m, khỏi mất cả hàng ô vì vài chục phân. */
+const blockHalf = (half) => (T < 10 ? Math.max(T / 2, half - 1.8) : half);
+
 /** Duyệt các ô bị một polyline rộng `half` đè lên (để chặn xây / dỡ nhà). */
 function cellsUnder(pts, half, fn) {
   const n = pts.length / 2 - 1, seen = new Set();
   for (let k = 0; k < n; k++) {
     const x0 = pts[k * 2], z0 = pts[k * 2 + 1], x1 = pts[k * 2 + 2], z1 = pts[k * 2 + 3];
-    const l = Math.hypot(x1 - x0, z1 - z0) || 1, ext = 5 * (Math.abs((z1 - z0) / l) + Math.abs((x1 - x0) / l)), lim = half + ext - 0.6;
+    const l = Math.hypot(x1 - x0, z1 - z0) || 1, ext = (T / 2) * (Math.abs((z1 - z0) / l) + Math.abs((x1 - x0) / l)), lim = blockHalf(half) + ext - 0.6;
     const cx0 = Math.max(0, cellOf(Math.min(x0, x1) - lim)), cx1 = Math.min(N - 1, cellOf(Math.max(x0, x1) + lim));
     const cy0 = Math.max(0, cellOf(Math.min(z0, z1) - lim)), cy1 = Math.min(N - 1, cellOf(Math.max(z0, z1) + lim));
     for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
@@ -995,12 +998,12 @@ export function roadPreview(c, plan) {
   if (!def.elevated) {
     const p = plan.pts, n = p.length / 2 - 1, seen = new Set();
     for (let k = 0; k < n; k++) {
-      const x0 = p[k * 2], z0 = p[k * 2 + 1], x1 = p[k * 2 + 2], z1 = p[k * 2 + 3], reach = half + 21;
+      const x0 = p[k * 2], z0 = p[k * 2 + 1], x1 = p[k * 2 + 2], z1 = p[k * 2 + 3], reach = half + 2 * T + 1;
       for (let y = Math.max(0, cellOf(Math.min(z0, z1) - reach)); y <= Math.min(N - 1, cellOf(Math.max(z0, z1) + reach)); y++)
         for (let x = Math.max(0, cellOf(Math.min(x0, x1) - reach)); x <= Math.min(N - 1, cellOf(Math.max(x0, x1) + reach)); x++) {
           const i = idx(x, y);
           if (seen.has(i) || under.has(i)) continue;
-          if (distSeg(cellCenter(x), cellCenter(y), x0, z0, x1, z1).d - half >= 20.5) continue;
+          if (distSeg(cellCenter(x), cellCenter(y), x0, z0, x1, z1).d - half >= 2 * T + 0.5) continue;
           seen.add(i);
           if (!c.acc[i] && !c.road[i] && !c.water[i] && !c.occ[i] && !c.steep[i] && c.own[i]) gain.push(i);
         }
@@ -1272,15 +1275,15 @@ function rebuildRoadCells(c) {
   const minD = new Float32Array(N * N).fill(1e9);
   c.road.fill(0); c.cedge.fill(-1);
   for (const e of c.edges.values()) {
-    const half = ROADS[e.type].w / 2, p = e.pts, n = p.length / 2 - 1, reach = half + 32, high = ROADS[e.type].elevated;
+    const half = ROADS[e.type].w / 2, p = e.pts, n = p.length / 2 - 1, reach = half + 3.2 * T, high = ROADS[e.type].elevated;
     for (let k = 0; k < n; k++) {
       const x0 = p[k * 2], z0 = p[k * 2 + 1], x1 = p[k * 2 + 2], z1 = p[k * 2 + 3];
-      const l = Math.hypot(x1 - x0, z1 - z0) || 1, ext = 5 * (Math.abs((z1 - z0) / l) + Math.abs((x1 - x0) / l));
+      const l = Math.hypot(x1 - x0, z1 - z0) || 1, ext = (T / 2) * (Math.abs((z1 - z0) / l) + Math.abs((x1 - x0) / l));
       const cx0 = Math.max(0, cellOf(Math.min(x0, x1) - reach)), cx1 = Math.min(N - 1, cellOf(Math.max(x0, x1) + reach));
       const cy0 = Math.max(0, cellOf(Math.min(z0, z1) - reach)), cy1 = Math.min(N - 1, cellOf(Math.max(z0, z1) + reach));
       for (let y = cy0; y <= cy1; y++) for (let x = cx0; x <= cx1; x++) {
         const px = cellCenter(x), pz = cellCenter(y), r = distSeg(px, pz, x0, z0, x1, z1), i = idx(x, y);
-        if (r.d < half + ext - 0.6) c.road[i] = 1;
+        if (r.d < blockHalf(half) + ext - 0.6) c.road[i] = 1;
         const dd = r.d - half;
         if (!high && dd < minD[i]) { // đường trên cao: chặn ô bên dưới nhưng không có nhà quay mặt ra
           minD[i] = dd; c.cedge[i] = e.id;
@@ -1297,8 +1300,8 @@ function rebuildRoadCells(c) {
     for (let y = gy - 2; y <= gy + 2; y++) for (let x = gx - 2; x <= gx + 2; x++) if (inMap(x, y) && Math.hypot(cellCenter(x) - g.x, cellCenter(y) - g.z) < ROUNDABOUT_R) c.road[idx(x, y)] = 1;
   }
   for (let i = 0; i < N * N; i++) {
-    const alley = !!(c.street && c.street.alley) && !c.road[i] && !c.water[i] && minD[i] >= 20.5 && minD[i] < 30.5; // hẻm: hàng thứ ba sau mặt đường
-    c.acc[i] = c.road[i] || c.water[i] || (c.railCell && c.railCell[i]) || (c.resvCell && c.resvCell[i]) ? 0 : minD[i] < 10.5 ? 1 : minD[i] < 20.5 || alley ? 2 : 0;
+    const alley = !!(c.street && c.street.alley) && !c.road[i] && !c.water[i] && minD[i] >= 2 * T + 0.5 && minD[i] < 3 * T + 0.5; // hẻm: hàng thứ ba sau mặt đường
+    c.acc[i] = c.road[i] || c.water[i] || (c.railCell && c.railCell[i]) || (c.resvCell && c.resvCell[i]) ? 0 : minD[i] < T + 0.5 ? 1 : minD[i] < 2 * T + 0.5 || alley ? 2 : 0;
     if (c.alley) c.alley[i] = alley ? 1 : 0;
     if (!c.acc[i] && !c.road[i]) c.cedge[i] = -1;
     if (c.road[i]) {
@@ -2436,7 +2439,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2478,13 +2481,13 @@ function unpackBld(c, o, lv) {
 
 /** Nạp bản lưu. Đổi cỡ bản đồ theo bản lưu; nạp hỏng thì trả cỡ cũ để thành phố đang chơi không bị ảnh hưởng. */
 export function deserialize(o) {
-  const prev = N;
-  try { return deserializeAt(o); } catch (e) { setMapSize(prev); throw e; }
+  const prev = N, prevT = T;
+  try { return deserializeAt(o); } catch (e) { setMapSize(prev, prevT); throw e; }
 }
 
 function deserializeAt(o) {
   if (!o || ![2, 3, 4].includes(o.v) || !MAP_SIZES[o.n]) throw new Error('Bản lưu không hợp lệ hoặc thuộc phiên bản cũ');
-  setMapSize(o.n);
+  setMapSize(o.n, o.cell === CELL_NEW ? CELL_NEW : 10); // bản lưu cũ: ô 10 m
   const num = (v, d) => (Number.isFinite(+v) ? +v : d);
   const old = o.v === 2; // bản lưu trước khi có người dân: giữ nguyên đường và nhà, dân sẽ tự dọn về
   const open = o.v < 4; // bản lưu trước khi có mua đất / cây công nghệ: đất mở sẵn cả bản đồ, địa hình giữ kiểu cũ, điểm tính bù theo mốc đã đạt

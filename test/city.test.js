@@ -1927,3 +1927,27 @@ test('cây công trình (kiểu Cities: Skylines 2): thành phố mới mở cô
   // chế độ Open mở hết
   assert.equal(S.isUnlocked(S.newSandbox(5, { devTree: true }), 'nuclear'), true);
 });
+
+test('ô nhỏ hơn 30% diện tích (8,4 m) cho thành phố mới: đường vẫn 2 hàng ô mặt tiền mỗi bên, nhà mọc, lưu / nạp giữ cỡ ô; bản lưu cũ vẫn ô 10 m', () => {
+  const c = newCity(12345, { cell: S.CELL_NEW }); c.owned.fill(1); c.own.fill(1); c.money = 1e6;
+  assert.equal(S.T, S.CELL_NEW);
+  const sx = c.start.x, sy = c.start.y + 12, Wc = S.cellCenter;
+  const rd = (x0, y0, x1, y1, type = 'small') => S.buildRoad(c, { a: S.snapPoint(c, Wc(x0), Wc(y0), { type }), b: S.snapPoint(c, Wc(x1), Wc(y1), { type }), type });
+  assert.ok(rd(sx - 12, sy, sx + 12, sy).ok);
+  const row = (dy) => { let n = 0; for (let x = sx - 8; x <= sx + 8; x++) n += c.acc[(sy + dy) * S.N + x] ? 1 : 0; return n; };
+  assert.equal(row(0), 0, 'ô dưới đường');
+  for (const dy of [-2, -1, 1, 2]) assert.equal(row(dy), 17, `hàng ${dy} có mặt tiền`);
+  assert.equal(row(3), 0); assert.equal(row(-3), 0);
+  assert.ok(rd(sx - 12, sy + 6, sx + 12, sy + 6, 'large').ok);
+  for (let x = sx - 8; x <= sx + 8; x++) assert.equal(c.road[(sy + 4) * S.N + x], 0, 'đại lộ chỉ chiếm 2 hàng ô');
+  S.zoneRect(c, sx - 10, sy - 2, sx + 10, sy - 1, 1);
+  for (let k = 0; k < 4; k++) S.placeService(c, 'wind', sx + k * 2 - 4, sy + 2);
+  S.placeService(c, 'tower', sx + 6, sy + 2);
+  const sh = shore(c); S.placeService(c, 'outlet', ...sh);
+  assert.ok(S.buildLine(c, 'pipe', { x: Wc(sh[0]), z: Wc(sh[1]) }, { x: Wc(sx - 12), z: Wc(sy) }).ok);
+  for (let h = 0; h < 24 * 4; h++) S.tick(c);
+  assert.ok([...c.level].some((v) => v), 'nhà mọc');
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(S.T, S.CELL_NEW); assert.equal(c2.edges.size, c.edges.size);
+  const old = newCity(5); assert.equal(S.T, 10); void old;
+});
