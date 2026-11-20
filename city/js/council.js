@@ -2,6 +2,7 @@
 // Mọi con số và hậu quả do game tính ở đây; LLM (qua /api/city/ai, xem city/js/ai.js) chỉ viết lời và mặc cả
 // trong khung số game cho phép. Không có LLM thì dùng mẫu câu soạn sẵn bên dưới.
 import { N, SERVICES, ZDEF, clamp } from './base.js';
+import { cityPay, cityGet } from './ledger.js';
 import { lunar, stormSeason } from './seasons.js';
 
 // ───────────────────────── hiệu ứng tạm thời ─────────────────────────
@@ -375,7 +376,7 @@ export function councilHour(c) {
     d.checked = true;
     const built = Math.floor(floodWorks(c) - d.base);
     if (built >= d.target) c.events.push({ type: 'council', text: `✅ Đã hoàn thành cam kết với ${d.who}: xây ${built} công trình chống ngập` });
-    else { const back = Math.round(d.grant * 1.5); c.money -= back; c.events.push({ type: 'council', text: `⚠️ Không đạt cam kết với ${d.who} (mới xây ${Math.max(0, built)}/${d.target}): hoàn trả ${back.toLocaleString('vi-VN')} ₫` }); }
+    else { const back = Math.round(d.grant * 1.5); cityPay(c, 'council', back); c.events.push({ type: 'council', text: `⚠️ Không đạt cam kết với ${d.who} (mới xây ${Math.max(0, built)}/${d.target}): hoàn trả ${back.toLocaleString('vi-VN')} ₫` }); }
   }
   if (h === 9 && k.inbox.filter((i) => i.status === 'pending').length < 4) {
     if (rng() < 0.4) { const it = newDilemma(c, rng); if (it) fresh.push(it); }
@@ -430,7 +431,7 @@ export function decide(c, id, optId, auto = false, by = null) {
     if (!by) return { ok: false, reason: 'Không đủ tiền cho phương án này' };
     return decide(c, id, defaultOption(it.type).id, true); // chủ tịch quận không chi quá quỹ: quyết theo mặc định
   }
-  c.money += auto && o.money > 0 ? Math.round(o.money / 2) : o.money; // quá hạn mới xử lý: khoản thu chỉ còn một nửa
+  cityGet(c, 'council', auto && o.money > 0 ? Math.round(o.money / 2) : o.money); // quá hạn mới xử lý: khoản thu chỉ còn một nửa
   for (const [key, v, days] of o.mods) c.council.mods.push({ key, v, until: c.day + days, from: it.type });
   if (o.rating) c.council.ratingBias += o.rating;
   if (o.fire) { // làm ngơ chuyện phòng cháy: vài căn nhà ở bốc cháy thật
@@ -461,8 +462,8 @@ export function signDeal(c, id) {
   const it = c.council.inbox.find((i) => i.id === id && i.kind === 'deal');
   if (!it || it.status !== 'pending') return { ok: false, reason: 'Đàm phán đã kết thúc' };
   const o = clampOffer(it.type, it.offer), d = { type: it.type, who: it.who, from: c.day, until: c.day + o.days, ...o };
-  if (it.type === 'investor') c.money += o.invest;
-  if (it.type === 'grant') { c.money += o.grant; d.base = floodWorks(c); }
+  if (it.type === 'investor') cityGet(c, 'council', o.invest);
+  if (it.type === 'grant') { cityGet(c, 'council', o.grant); d.base = floodWorks(c); }
   c.council.deals.push(d);
   it.status = 'signed';
   c.events.push({ type: 'council', text: `🤝 Đã ký với ${it.who}: ${DEALS[it.type].summary(o)}` });

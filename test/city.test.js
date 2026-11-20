@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as S from '../city/js/sim.js';
+import * as LG from '../city/js/ledger.js';
 import { resolveStatic } from '../gateway/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -1592,13 +1593,13 @@ test('kinh tế, dân: tuổi lẻ vẫn lên lớp, xe tới muộn của chuy�
   assert.equal(pp.state[w], S.ST.WORK);
   // lưu / nạp: giữ tiền doanh nghiệp (kể cả nợ), tuổi nhà, hài lòng; bản lưu cũ vẫn nạp được
   let biz = -1, bld = -1; for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) { if (S.jobCap(c.zone[i], c.level[i])) biz = i; else bld = i; }
-  c.biz.money[biz] = -321; c.age[bld] = 777; c.loans = []; assert.ok(S.takeLoan(c, 0).ok);
+  c.biz.money[biz] = -321 * S.MK; c.age[bld] = 777; c.loans = []; assert.ok(S.takeLoan(c, 0).ok);
   const avgHappy = (d) => { let s = 0; for (let id = 0; id < d.pp.n; id++) if (d.pp.alive[id]) s += d.pp.happy[id]; return s / d.pp.count; };
   const o = JSON.parse(JSON.stringify(S.serialize(c))), d = S.deserialize(o);
-  assert.deepEqual([d.biz.money[biz], d.age[bld], Math.round(avgHappy(d))], [-321, 777, Math.round(avgHappy(c))]);
+  assert.deepEqual([d.biz.money[biz], d.age[bld], Math.round(avgHappy(d))], [-321 * S.MK, 777, Math.round(avgHappy(c))]);
   delete o.bld; delete o.people.happy; o.loans = [{ amount: 20000, daily: 5500, left: 4 }];
   const old = S.deserialize(o);
-  assert.deepEqual([old.biz.money[biz], old.age[bld], old.loans[0].h], [150, 30, 96]);
+  assert.deepEqual([old.biz.money[biz], old.age[bld], old.loans[0].h], [150 * S.MK, 30, 96]);
   let hours = 0; while (d.loans.length && hours < 200) { S.tick(d); hours++; }
   assert.equal(hours, 96, 'vay 4 ngày trả đúng 96 giờ');
   // ngân sách 150%: một tháp canh lửa nhỏ không làm cả thành phố vui thêm 1 điểm
@@ -1950,4 +1951,61 @@ test('ô nhỏ hơn 30% diện tích (8,4 m) cho thành phố mới: đường v
   const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(S.T, S.CELL_NEW); assert.equal(c2.edges.size, c.edges.size);
   const old = newCity(5); assert.equal(S.T, 10); void old;
+});
+
+test('city: sổ cái tiền — mọi đồng tiền vào / ra đều ghi sổ, tổng trong thành phố + bên ngoài luôn bảo toàn; nạp lại mở sổ mới', () => {
+  const c = town(); LG.resetLedger(c); // town() chỉnh tiền tay: mở sổ sau đó
+  S.takeLoan(c, 0);
+  const sx = c.start.x;
+  assert.ok(road(c, sx + 14, 24, sx + 22, 24).ok);
+  const near = (k) => Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5);
+  for (let d = 0; d < 3; d++) { run(c, 24); const k = LG.checkLedger(c); assert.ok(near(k), `ngày ${d}: lệch ${k.drift}`); }
+  assert.ok(c.stats.pop > 0, 'có dân để có lương, mua sắm');
+  const sum = LG.ledgerSummary(c), keys = sum.rows.map((r) => r.key);
+  assert.ok(keys.includes('arrive') && sum.rows.every((r) => LG.FLOWS[r.key]), 'dòng ra / vào bên ngoài đều có tên');
+  const inn = Object.fromEntries(sum.inner.map((r) => [r.key, r.v]));
+  for (const k of ['wage', 'tax', 'rent', 'procure', 'shop']) assert.ok(inn[k] > 0, `vòng tiền bên trong: ${k}`); // thuế, tiền nhà, thầu bảo trì đều chảy trong thành phố
+  assert.ok(!keys.includes('upkeep') || -sum.rows.find((r) => r.key === 'upkeep').v < inn.procure, 'bảo trì phần lớn trả cho doanh nghiệp trong thành phố');
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  run(back, 24);
+  assert.ok(near(LG.checkLedger(back)), 'bản lưu nạp lại vẫn bảo toàn');
+});
+
+test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài nguyên cạn dần, báo cáo ngày, thế giới bên ngoài thay được, chạy bù', () => {
+  const c = town();
+  run(c, 48);
+  const p = LG.checkPop(c);
+  assert.equal(p.drift, 0, 'dân thành phố + nông thôn + nước ngoài khớp sinh / mất');
+  assert.ok(p.city > 0 && p.rural < LG.RURAL.start + 200, 'dân đến lấy từ nông thôn');
+  // nông thôn cạn: không còn người chuyển đến (chỉ còn sinh con)
+  c.popl.rural = 0; c.popl.base = c.pp.count + c.popl.abroad - c.popl.born + c.popl.died; // giữ bảo toàn khi chỉnh tay
+  run(c, 48); // trọn một ngày sau khi nông thôn cạn
+  assert.equal(c.popl.last.rural || 0, 0, 'hết dân nông thôn thì không ai chuyển đến');
+  assert.equal(LG.checkPop(c).drift, 0);
+  // trữ lượng: mỏ khoáng sản khai thác hết thì cạn hẳn, không còn trên bản đồ; rừng tự hồi; lưu lại được
+  const R = S.RESERVE, P = { i: -1 };
+  for (let i = 0; i < S.N * S.N && P.i < 0; i++) if (c.res[i] === S.RAW.ore.id) P.i = i;
+  assert.ok(P.i >= 0, 'bản đồ có khoáng sản');
+  const RV = { extract: null };
+  return import('../city/js/reserve.js').then((M) => {
+    RV.extract = M.extract;
+    assert.equal(M.extract(c, P.i, 'ore', R.ore.cap - 10), R.ore.cap - 10);
+    assert.equal(M.extract(c, P.i, 'ore', 50), 10, 'chỉ lấy được phần còn lại');
+    assert.equal(c.res[P.i], 0, 'mỏ cạn biến khỏi bản đồ');
+    assert.ok(c.events.some((e) => e.type === 'depleted'));
+    let w = -1; for (let i = 0; i < S.N * S.N && w < 0; i++) if (i !== P.i && c.res[i] === S.RAW.wood.id) w = i;
+    M.extract(c, w, 'wood', 1000); run(c, 24);
+    assert.ok(S.reserveLeft(c, w, 'wood') > 1 - 1000 / R.wood.cap, 'rừng tự hồi');
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.res[P.i], 0, 'mỏ cạn vẫn cạn sau khi nạp lại');
+    assert.equal(back.popl.rural, c.popl.rural, 'nông thôn lưu lại');
+    // báo cáo ngày và provider: thay thế giới máy bằng provider khác nhận bản tóm tắt
+    const got = [];
+    S.registerWorld('test', { report: (city, rep) => got.push(rep) });
+    back.outside = { kind: 'test' };
+    const stepped = S.catchUp(back, 30, 26);
+    assert.deepEqual([stepped.hours, stepped.skipped], [26, 4], 'chạy bù có giới hạn');
+    assert.ok(got.length >= 1 && got[0].pop > 0 && got[0].offer.goods && 'vacHomes' in got[0] && got[0].want, 'provider nhận bản tóm tắt ngày');
+    assert.ok(back.reports.length >= 1 && S.prosperity(back.reports.at(-1)) > 0);
+  });
 });

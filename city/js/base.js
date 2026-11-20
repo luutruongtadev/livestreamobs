@@ -282,7 +282,10 @@ export const DEPOT_FREE = 4; // chưa có bến xe thì các tuyến xe buýt + 
 
 // giá hàng trong chuỗi cung ứng (mỗi đơn vị)
 // load: một xe hàng cho cửa hàng, chợ; loadF: xe nguyên liệu lớn nhất cho nhà máy, xưởng (chở đủ khoảng 8 giờ chạy máy)
-export const PRICE = { raw: 3, goods: 8, retail: 15, market: 10, importMult: 1.4, rawImportMult: 1.1, exportMult: 0.85, load: 8, loadF: 32 };
+/** Hệ số tiền của dân và doanh nghiệp so với tiền ngân sách: kinh tế khép kín (ledger.js) cần thuế thu đúng phần trăm
+ * thu nhập thật mà ngân sách vẫn đủ như cũ, nên lương, giá, tiền nhà, ví dân / doanh nghiệp đều nhân MK. */
+export const MK = 14;
+export const PRICE = { raw: 3 * MK, goods: 8 * MK, retail: 15 * MK, market: 10 * MK, importMult: 1.4, rawImportMult: 1.1, exportMult: 0.85, load: 8, loadF: 32 };
 export const priceOf = (kind) => (kind === 'goods' ? PRICE.goods : PRICE.raw);
 
 // mua đất: ô đất phải kề phần đã có, càng có nhiều càng đắt

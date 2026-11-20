@@ -3,7 +3,8 @@
 //   Hẻm: cho nhà ống mọc sâu vào hàng thứ ba sau mặt đường (thêm chỗ ở, nhưng chật chội).
 //   Xe: ai giàu, học cao thì mua ô tô; chính sách cấm xe máy nội đô, phí ô tô vào trung tâm, làn riêng xe buýt.
 //   Bụi mịn AQI theo lượng xe máy, ô tô, nhà máy: cao thì dân ốm nhiều, kém vui, du khách chê.
-import { N, ZDEF, ROADS, clamp, hash2, cellX, cellZ } from './base.js';
+import { MK, N, ZDEF, ROADS, clamp, hash2, cellX, cellZ } from './base.js';
+import { cityGet } from './ledger.js';
 
 export const SIDEWALK = {
   free: { name: 'Để tự do', icon: '🍜', comm: 0.04, tour: 1.08, speed: 0.9, happy: 1, cost: 0, desc: 'Quán xá, hàng rong bày kín vỉa hè: phố sôi động, du khách mê ẩm thực đường phố, thuế thương mại tăng; nhưng người đi bộ phải xuống lòng đường, xe chạy chậm' },
@@ -34,7 +35,7 @@ export const inCenter = (c, cell) => { const k = c.street && c.street.center; if
 /** Người id đi phương tiện gì khi đi xe riêng: 'car' (ô tô) hay 'moto' (xe máy). Giàu, học cao thì ô tô nhiều hơn. */
 export function vehicleOf(c, id) {
   const pp = c.pp, base = c.style === 'vn' ? 0.06 : 0.32;
-  const p = clamp(base + pp.edu[id] * 0.07 + clamp((pp.money[id] - 80) / 900, 0, 0.25), 0.03, 0.75);
+  const p = clamp(base + pp.edu[id] * 0.07 + clamp((pp.money[id] - 80 * MK) / (900 * MK), 0, 0.25), 0.03, 0.75);
   return hash2(id, pp.gen[id], 913) < p ? 'car' : 'moto';
 }
 
@@ -73,7 +74,7 @@ export function countTrip(c, choice) {
   const day = c.street && c.street.day;
   if (!day) return;
   if (choice.kind === 'moto') day.moto++;
-  else if (choice.kind === 'car') { day.car++; if (choice.taxi) day.taxi++; if (choice.fee) { day.fee += choice.fee; c.money += choice.fee; } }
+  else if (choice.kind === 'car') { day.car++; if (choice.taxi) day.taxi++; if (choice.fee) { day.fee += choice.fee; cityGet(c, 'fare', choice.fee); } }
   else if (choice.kind === 'transit' || choice.kind === 'walk') day.shift++;
 }
 

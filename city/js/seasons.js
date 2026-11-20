@@ -1,6 +1,7 @@
 // Phố Mới — lịch âm, lễ hội Việt Nam và mùa mưa bão (bão, ngập lụt, triều cường).
 // Lịch rút gọn: 10 ngày game = 1 tháng âm, 120 ngày = 1 năm. Mỗi ngày game ứng với ngày âm 1, 4, 7, ... 28 của tháng.
 import { N, SERVICES, idx, inMap, clamp, cellOf } from './base.js';
+import { cityPay } from './ledger.js';
 import { distFx } from './districts.js';
 
 export const MONTH_DAYS = 10, YEAR_DAYS = 120;
@@ -107,7 +108,7 @@ export function organize(c, id, start, scale) {
   const r = canOrganize(c, id, start, scale);
   if (!r.ok) return r;
   const v = r.venue, safe = !!(c.cover && c.cover.police[v.cell >= 0 ? v.cell : idx(v.x, v.y)] > 0.05);
-  c.money -= r.cost;
+  cityPay(c, 'event', r.cost);
   c.fest.org = { id, start, scale, venue: v.uid, venueType: v.type, safe, venueBonus: FEST[id].venue === v.type, cost: r.cost };
   return { ...r, safe };
 }

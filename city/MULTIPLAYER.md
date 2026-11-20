@@ -44,6 +44,24 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 
 ### Giai đoạn A — chuẩn bị trong game (chưa cần máy chủ)
 
+**Tiến độ** (giai đoạn A xong; còn lại các điểm ghi chú bên dưới)
+
+- [x] **A1 — sổ cái tiền** (`js/ledger.js`): mọi khoản tiền vào / ra đều ghi sổ với bên đối ứng; bảo toàn: tổng tiền trong thành phố + bên ngoài = mốc (có test). Bảng ngân sách có mục "Dòng tiền hôm qua".
+- [x] **A2 — khép vòng tiền bên trong:**
+  - tiền của dân, doanh nghiệp nhân hệ số `MK` (base.js) để thuế thu đúng phần trăm thu nhập thật mà ngân sách vẫn như cũ;
+  - thuế = đúng phần trừ vào lương / doanh thu; tiền nhà về chủ nhà (ví toà nhà), chủ nhà nộp thuế nhà đất và thuê sửa chữa;
+  - bảo trì, xây dựng, chi phí cố định của doanh nghiệp thành hợp đồng cho doanh nghiệp trong thành phố (`procure`, phần vượt năng lực thì thuê ngoài);
+  - dân mua hàng qua nhu cầu gộp bị trừ ví thật; doanh nghiệp có lãi chia lợi nhuận cho dân.
+  - Cân bằng sau 21 ngày thử: dân số, ngân sách gần như cũ.
+- [x] **A3 — sổ dân:** người đến từ nông thôn (12.000 người, tự sinh / mất) hoặc nước ngoài, người đi về nông thôn; nông thôn cạn thì hết người chuyển đến. Bảo toàn tuyệt đối (có test). Bảng dân cư có mục "Dân đến, đi".
+- [x] **A4 — tài nguyên có trữ lượng** (`js/reserve.js`): khoáng sản, dầu cạn hẳn và biến khỏi bản đồ; rừng, cá, đất màu tự hồi mỗi ngày; lưu lại được; trữ lượng hiện khi bấm cơ sở khai thác.
+- [x] **A5 — thế giới bên ngoài thay được** (`js/world.js`): provider `ai` (thế giới máy) và `registerWorld` cho provider khác; bản tóm tắt mỗi ngày (`dailyReport`: nhà, việc trống, lương, thuế, hài lòng, người muốn đi và lý do, hàng chào bán, du lịch, GDP); điểm thịnh vượng thử (`prosperity`); chạy bù `catchUp` có giới hạn.
+
+**Còn để sau (chưa làm trong giai đoạn A):**
+- "Thế giới máy" vẫn chưa hữu hạn: xuất nhập khẩu, du khách, khách vãng lai, văn phòng bán dịch vụ ra ngoài, vốn toà nhà mới, tiền người mới mang theo, thưởng mốc, vay vẫn lấy từ bên ngoài không giới hạn (xem mục "Dòng tiền hôm qua"). Chốt câu hỏi 2–3 ở mục 7 rồi mới khép.
+- Dịch vụ công chưa cần nhân viên thật (mục 5.1 điểm 6); lương chưa theo cung cầu (điểm 3); giá cả, lạm phát (điểm 4).
+- Chạy bù chưa gắn vào giao diện (chỉ dùng khi có chế độ cạnh tranh với đồng hồ thật).
+
 1. **Sổ cái kinh tế khép kín.** Mọi khoản tiền là chuyển giữa các ví:
 
    | Khoản | Từ | Tới |

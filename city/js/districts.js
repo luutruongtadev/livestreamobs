@@ -5,9 +5,10 @@
 // công cộng nhỏ bằng quỹ xây dựng (chủ tịch chọn loại, game chọn chỗ phủ nhiều dân thiếu nhất, không phá nhà). LLM (qua /api/city/ai, kind 'district')
 // chỉ chọn mức chương trình, viết lời nhận lệnh, báo cáo và chọn phương án; game ép mọi thứ vào khung và tự tính hậu quả.
 // Không có LLM thì dùng kế hoạch, báo cáo, lựa chọn dự phòng bên dưới.
-import { N, clamp, jobCap, SERVICES, RATE } from './base.js';
+import { MK, N, clamp, jobCap, SERVICES, RATE } from './base.js';
 import { DILEMMAS, decide, cleanText } from './council.js';
 import { stormSeason } from './seasons.js';
+import { world } from './ledger.js';
 
 export const DIST_UNLOCK = 400; // số dân để lập quận
 export const MAX_LV = 3;
@@ -550,7 +551,7 @@ export function districtHour(c) {
     });
   }
   if (h === 0 && c.dfx && c.biz) { // hỗ trợ hộ kinh doanh: doanh nghiệp trong quận có thêm vốn mỗi ngày
-    for (let i = 0; i < N * N; i++) { const f = c.level[i] && jobCap(c.zone[i], c.level[i]) ? distFx(c, i, 'business') : 0; if (f) c.biz.money[i] += 6 * f; }
+    for (let i = 0; i < N * N; i++) { const f = c.level[i] && jobCap(c.zone[i], c.level[i]) ? distFx(c, i, 'business') : 0; if (f) { c.biz.money[i] += 6 * MK * f; world(c, 'subsidy', 6 * MK * f); } }
   }
   return jobs;
 }

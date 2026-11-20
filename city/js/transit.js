@@ -1,6 +1,7 @@
 // Phố Mới — giao thông công cộng: xe buýt và tàu điện (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
 import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, ROADS, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
+import { cityPay, cityGet } from './ledger.js';
 import { spawnVehicle, reroute, findPath, VKIND } from './traffic.js';
 import { syncFerries } from './ships.js';
 
@@ -55,7 +56,7 @@ export function addLine(c, mode, pts, free = false) {
   const line = { id, mode, count: 1, hue: HUES[(id - 1) % HUES.length], stops: pts.map((p) => ({ x: p.x, z: p.z, waiting: [] })), veh: [], riders: 0, ridersDay: 0 };
   if (TRANSIT[mode].road) for (const s of line.stops) { const e = nearestEdge(c, s.x, s.z); if (e) { s.x = e.x; s.z = e.z; } }
   tr.lines.push(line);
-  c.money -= r.cost;
+  cityPay(c, 'build', r.cost);
   maintainTransit(c);
   c.dirty.transit = true;
   return { ...r, line };
@@ -79,7 +80,7 @@ export function setVehicles(c, id, n) {
   const cost = Math.max(0, n - line.count) * TRANSIT[line.mode].vehCost;
   if (cost > c.money) return { ok: false, reason: 'Không đủ tiền' };
   if (TRANSIT[line.mode].road && n > line.count) { const f = roadFleet(c); if (f.used + n - line.count > f.cap) return { ok: false, reason: `Hết chỗ cho xe: ${f.used} / ${f.cap} xe, xây thêm 🚏 bến xe` }; }
-  c.money -= cost; line.count = n;
+  cityPay(c, 'build', cost); line.count = n;
   maintainTransit(c);
   return { ok: true, cost };
 }
@@ -138,7 +139,7 @@ function exchange(c, line, slot, at) {
   slot.riders = stay;
   while (stop.waiting.length && slot.riders.length < def.cap) {
     slot.riders.push(stop.waiting.shift());
-    c.money += c.transit.fare; c.transit.income += c.transit.fare; c.transit.riders++; line.riders++;
+    cityGet(c, 'fare', c.transit.fare); c.transit.income += c.transit.fare; c.transit.riders++; line.riders++;
   }
 }
 

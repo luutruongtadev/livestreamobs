@@ -4,6 +4,7 @@
 // Tuyến nhiều bến bật "chuyến ra biển" (ở một bến bất kỳ) thì nối thêm chặng từ đầu tuyến gần biển nhất ra cửa biển.
 // Bến trên đảo (vùng đất không thuộc đất liền lớn nhất): du khách đang ở thành phố đi tàu ra đảo chơi trong ngày rồi về.
 import { N, SERVICES, TRANSIT, ZDEF, idx, inMap, cellCenter, clamp } from './base.js';
+import { cityGet } from './ledger.js';
 
 const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const SPEED_DWELL = 4; // giây mô phỏng tàu đỗ ở mỗi bến
@@ -252,7 +253,7 @@ const fareOf = (c) => (c.transit.ferryFare === undefined ? 4 : c.transit.ferryFa
 export const fareK = (c) => clamp(1.3 - fareOf(c) / 16, 0.15, 1.3);
 function pay(c, line, n) {
   const f = fareOf(c) * n;
-  c.money += f; c.transit.income += f; c.transit.riders += n; line.riders += n;
+  cityGet(c, 'fare', f); c.transit.income += f; c.transit.riders += n; line.riders += n;
 }
 
 /** Tàu cập bến k: trả khách xuống, đón khách lên (thu vé lúc lên tàu). */

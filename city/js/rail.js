@@ -3,6 +3,7 @@
 // bắc cầu, chỗ đồi thấp thì xẻ đất (hạ mặt đất hai bên ray) hoặc đắp nền. Ga có đường ray thông ra cửa khẩu đón tàu liên vận:
 // du khách, người tới định cư, thu tiền vé; hàng xuất khẩu qua biên được giá hơn; thành phố hút dân hơn.
 import { N, T, HALF, idx, inMap, clamp, cellOf, SERVICES, TERRA_COST, resCap } from './base.js';
+import { cityPay } from './ledger.js';
 
 export const RAIL = {
   ground: 9, bridge: 34, tunnel: 52, // giá mỗi mét theo loại (mặt đất / cầu cạn, cầu qua sông / hầm)
@@ -263,7 +264,7 @@ export function addRail(c, plan) {
   const line = { id: c.rail.nextId++, wp: plan.wp, ys: Float32Array.from(plan.ys), kinds: plan.kinds };
   c.rail.lines.push(line);
   for (let q = 0; q < plan.cuts.length; q += 2) c.terra[plan.cuts[q]] = plan.cuts[q + 1];
-  c.money -= plan.cost;
+  cityPay(c, 'build', plan.cost);
   c.rail.ver++;
   return { ok: true, line, cost: plan.cost, cut: plan.cuts.length > 0 };
 }
@@ -424,7 +425,7 @@ export function railHour(c, { spend, addCitizen, lure = 1, mood = 1 }) {
     const pull = c.pull || 0, immig = pull > 0.05 ? Math.round(5 * (0.5 + pull * 1.5) * (0.6 + rng() * 0.8)) : 0;
     const homes = (c.vac && c.vac.home) || [];
     let placed = 0;
-    for (let k = 0; k < immig && homes.length; k++) {
+    for (let k = 0; k < immig && homes.length && (!c.popl || c.popl.rural > 0); k++) { // người định cư đi tàu từ nông thôn, tỉnh khác
       const j = (rng() * homes.length) | 0, cell = homes[j], r = rng();
       addCitizen(c, 20 + rng() * 25, r < 0.2 ? 3 : r < 0.6 ? 2 : r < 0.9 ? 1 : 0, cell, 60 + rng() * 120);
       placed++;

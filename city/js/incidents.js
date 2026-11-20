@@ -1,8 +1,9 @@
 // Phố Mới — sự cố và thiên tai: thời tiết, mặt đường xuống cấp, tai nạn giao thông (có thể liên hoàn, bốc cháy),
 // cướp giật, cháy rừng, bão đá, lốc xoáy. Công an, xe cứu hộ, cứu hoả phải chạy tới hiện trường bằng xe thật.
-import { N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
+import { MK, N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
 import { trip, reroute, cellPos } from './traffic.js';
 import { seasonWeather } from './seasons.js';
+import { world } from './ledger.js';
 
 export const WEATHER = {
   clear: { name: 'Trời quang', icon: '☀️' },
@@ -142,8 +143,8 @@ function robberies(c) {
     }
     if (c.hour - r.h0 >= 3) { // kẻ cướp đã tẩu thoát
       inc.robberies = inc.robberies.filter((o) => o !== r);
-      c.biz.money[r.cell] -= 90; c.crime[r.cell] = Math.min(1, c.crime[r.cell] + 0.1);
-      for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] === r.cell) c.pp.money[id] -= 15;
+      c.biz.money[r.cell] -= 90 * MK; world(c, 'crime', -90 * MK); c.crime[r.cell] = Math.min(1, c.crime[r.cell] + 0.1);
+      for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] === r.cell) { c.pp.money[id] -= 15 * MK; world(c, 'crime', -15 * MK); }
       c.events.push({ type: 'robberyEscaped' });
     }
   }

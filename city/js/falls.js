@@ -2,6 +2,7 @@
 // xuống ô thấp hơn kề bên trong vùng tô: đoạn thoải thành suối, chỗ hụt độ cao thành thác đổ, ô thấp nhất thành hồ dưới chân.
 // Vùng tô phải đủ dốc (chênh cao từ FALLS.minDrop m). Càng cao, càng nhiều bậc thác càng hút du khách.
 import { N, idx, inMap, clamp } from './base.js';
+import { cityPay } from './ledger.js';
 
 export const FALLS = { cost: 220, upkeep: 2, minDrop: 3, unlock: 400 };
 const D8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
@@ -83,7 +84,7 @@ export function fallsRect(c, x0, y0, x1, y1, { erase = false, dry = false } = {}
   if (cost > c.money && !c.sandbox) return { ok: false, count: cells.length, cost, drop, reason: 'Không đủ tiền' };
   if (dry) return { ok: true, count: cells.length, cost, drop };
   for (const i of cells) { c.falls[i] = erase ? 0 : 1; if (!erase) { c.zone[i] = 0; c.tree[i] = 0; } }
-  c.money -= cost;
+  cityPay(c, 'build', cost);
   c._falls = null; c.decorFx = null;
   if (c.dirty) Object.assign(c.dirty, { falls: true, zones: true, trees: true });
   return { ok: true, count: cells.length, cost, drop };

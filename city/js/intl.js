@@ -94,7 +94,7 @@ export function intlHour(c, { spend, addCitizen }) {
     let placed = 0;
     for (let k = 0; k < e.immig && homes.length; k++) {
       const j = (rng() * homes.length) | 0, cell = homes[j], r = rng();
-      addCitizen(c, 22 + rng() * 20, r < 0.3 ? 3 : r < 0.65 ? 2 : r < 0.9 ? 1 : 0, cell, 80 + rng() * 140);
+      addCitizen(c, 22 + rng() * 20, r < 0.3 ? 3 : r < 0.65 ? 2 : r < 0.9 ? 1 : 0, cell, 80 + rng() * 140, 'abroad'); // nhập cư quốc tế
       placed++;
       if (c.resCount[cell] >= resCap(c.zone[cell], c.level[cell])) homes.splice(j, 1);
     }

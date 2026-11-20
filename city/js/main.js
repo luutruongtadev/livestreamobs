@@ -1,5 +1,6 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
+import { ledgerSummary } from './ledger.js';
 import { View, DCOL } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
@@ -764,6 +765,7 @@ function showInfo(tile) {
         add('Tiền của doanh nghiệp', `<span class="${b.money[i] < 0 ? 'neg' : ''}">${fmt(b.money[i])} ₫</span>`);
         if (kind === 'market') add(`${need.icon} ${need.name} trên sạp`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
         if (kind === 'factory' || kind === 'shop') add(kind === 'shop' ? 'Hàng trong kho' : `${need.icon} ${need.name} trong kho`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
+        if (kind === 'raw') { const left = S.reserveLeft(c, i, zd.raw), R = S.RESERVE[zd.raw]; add('Trữ lượng còn', `${Math.round(left * 100)}%${R.regen ? ` · tự hồi ${Math.round(R.regen * 100)}% mỗi ngày` : ' · không tái tạo'}`); }
         if (kind === 'factory' || kind === 'raw') add(kind === 'raw' ? `${S.RAW[zd.raw].icon} ${S.RAW[zd.raw].name} chờ xe tới chở` : 'Thành phẩm chờ xuất', b.sout[i].toFixed(1));
         add('Hiệu quả', `${Math.round(b.eff[i] * 100)}%`);
         add('Chỗ đỗ xe', `${c.parked[i]} xe`);
@@ -1005,6 +1007,13 @@ function renderExpenses(force) {
       bb.append(expRow({ icon: d.icon, name: d.name, note: `${Math.round(done * 100)}% · xong sau ${sv.build} giờ · đã chi ${money(d.cost)}`, cost: d.upkeep * S.RATE, x: (sv.x + d.size / 2) * S.T - S.HALF, z: (sv.y + d.size / 2) * S.T - S.HALF }, pg));
     }
   }
+  // sổ cái: tiền vào / ra khỏi thành phố hôm qua (ngân sách, dân, doanh nghiệp), và tiền chảy bên trong
+  const fb = $('flowBox'), sum = ledgerSummary(city); fb.textContent = '';
+  if (!sum.rows.length) { fb.append(el('div', 'exi', 'Chưa đủ một ngày để chốt sổ')); return; }
+  const line = (name, v, cls) => { const r = el('div', 'row'); r.append(el('span', null, name), el('span', cls ?? (v >= 0 ? 'pos' : 'neg'), `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`)); return r; };
+  fb.append(line('Vào từ bên ngoài', sum.inflow), line('Ra bên ngoài', sum.outflow));
+  for (const r of sum.rows.slice(0, 14)) fb.append(line(`${r.group === 'city' ? '🏛️' : '👥'} ${r.name}`, r.v));
+  for (const r of sum.inner) fb.append(line(`🔄 ${r.name}`, r.v, ''));
 }
 
 function renderLoans() {
@@ -1070,6 +1079,17 @@ function renderCity(force) {
     row('Nhà ở: đang ở / sức chứa', `${fmt(ps.pop - ps.homeless)} / ${fmt(s.housing)}`),
     row('Vô gia cư · đang ốm', `${fmt(ps.homeless)} · ${fmt(ps.sick)}`),
     row('Hôm qua: sinh · mất · bỏ đi', `${last.born || 0} · ${last.died || 0} · ${last.movedOut || 0}`),
+    ...(() => { // sổ dân: dân đến từ đâu, đi đâu (ledger.js); báo cáo ngày (world.js)
+      const P = c.popl, pl = (P && P.last) || {}, rep = c.reports && c.reports[c.reports.length - 1];
+      if (!P) return [];
+      return [
+        '<h4>Dân đến, đi (hôm qua)</h4>',
+        row('Từ nông thôn · nước ngoài · trẻ sinh ra', `${pl.rural || 0} · ${pl.abroad || 0} · ${pl.born || 0}`),
+        row('Về nông thôn · ra nước ngoài · mất', `${pl.toRural || 0} · ${pl.toAbroad || 0} · ${pl.died || 0}`),
+        row('Nông thôn còn (nguồn dân chuyển đến)', `${fmt(P.rural)} người${P.rural < 500 ? ' <span class="neg">· sắp cạn</span>' : ''}`),
+        ...(rep ? [row('Muốn rời đi: thất nghiệp · vô gia cư · bất mãn · nợ', `${rep.want.unemployed} · ${rep.want.homeless} · ${rep.want.unhappy} · ${rep.want.broke}`), row('Điểm thịnh vượng', `${S.prosperity(rep)}`)] : []),
+      ];
+    })(),
     '<h4>Học vấn người lớn</h4>',
     row('Chưa học · tiểu học', `${pct(ps.edu[0], adults)} · ${pct(ps.edu[1], adults)}`),
     row('Trung học · đại học', `${pct(ps.edu[2], adults)} · ${pct(ps.edu[3], adults)}`),
@@ -1912,6 +1932,7 @@ function frame(now) {
       refreshToolbar(); renderDev();
     } else if (ev.type === 'fireStart') toast(`🔥 Có đám cháy${ev.cause ? ` (${ev.cause})` : ''}! Xe cứu hoả gần nhất đang chạy tới`);
     else if (ev.type === 'built') toast(`🏗️ Đã xây xong ${ev.icon} ${ev.name}`);
+    else if (ev.type === 'depleted') toast(ev.text);
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
     else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng', leisure: 'quán ăn, chỗ vui chơi' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
