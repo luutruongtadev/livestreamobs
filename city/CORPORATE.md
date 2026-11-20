@@ -197,3 +197,10 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - **Chuỗi bán lẻ**: tập đoàn bậc 3 (gốc, ≥ 2 nhà máy) mua thêm cửa hàng độc lập quanh cụm; cửa hàng cùng nhóm nhận hàng từ nhà máy của nhóm theo ưu tiên giao nội bộ.
 - **Bảng thị trường** trong 🏢: giá thế giới từng sản phẩm, số nhà máy, các cụm kinh tế.
 - Chưa làm: kho bãi / logistics là công trình riêng, biển hiệu logo, giá bán theo cung cầu nội địa từng công ty, liên thành phố.
+
+## 16. Tiến độ — kho bãi, logo, giá nội địa (làm thêm sau Phase 4)
+
+- **Kho bãi / logistics**: công trình riêng của công ty (khu công nghiệp có cờ kho, mô hình 3D nhà kho dài có cửa xuống hàng, mái đón, container, xe đầu kéo). CEO xây khi nhóm có ≥ 4 nhà máy (thêm 3 cho mỗi kho tiếp theo, tối đa 3 kho) và hàng đang ứ hoặc đang xuất. Hiệu ứng thật: mỗi kho thêm 16 chỗ chứa × cấp (tối đa 64) cho mọi nhà máy cùng nhóm, giao hàng nội bộ nhanh hơn (hệ số khoảng cách 0.55 → 0.42), xuất theo lô 24 thay vì 16 (ít chuyến xe hơn). Kho không sản xuất, công ty trả phí lưu kho (0.5 MK mỗi người làm mỗi giờ) để kho trả lương, đóng thuế như doanh thu dịch vụ. Kho không tính vào thị phần, ngành chính, xuất khẩu.
+- **Biển logo**: mỗi công ty gốc có một logo (màu riêng, vòng tròn chữ cái đầu, tên in hoa) treo trên cổng nhà máy và kho của cả nhóm; tấm ảnh logo dựng lại khi danh sách công ty đổi; tối đa 12 công ty có logo.
+- **Giá nội địa theo cung cầu**: chỉ số giá từng loại hàng (0.8–1.3) trôi theo nhập khẩu so với xuất khẩu thật mỗi ngày (thiếu hàng phải nhập thì lên, thừa phải xuất thì xuống, kéo dần về 1); mỗi công ty có hệ số bán (0.9–1.2): tồn kho ứ thì hạ giá, cạn thì nâng, độc quyền thì đẩy thêm. Giá hàng giao trong thành phố = giá gốc × chỉ số × hệ số bán (trần 1.35); người bán nhận đúng số người mua trả nên sổ tiền không lệch. Bảng 🏢 hiện chỉ số nội địa và hệ số bán.
+- Chưa làm: logistics làm công ty con riêng (đội xe tải riêng), giá bán lẻ cho dân theo cung cầu, tập đoàn liên thành phố.

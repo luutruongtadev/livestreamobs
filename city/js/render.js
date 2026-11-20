@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -126,6 +126,25 @@ function signAtlas() {
     g.fillStyle = SIGN_BG[k] === '#f2c200' ? '#b0141c' : '#fff6d0';
     g.font = 'bold 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(w, 256, k * 64 + 34, 490);
+  });
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+/** Biển logo công ty (tập đoàn): mỗi công ty gốc một ô trên tấm ảnh, nền màu theo công ty, chữ cái đầu trong vòng tròn và tên in hoa. */
+const LOGO_SLOTS = 12, LOGO_H = 94;
+function logoAtlas(list) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = LOGO_H * LOGO_SLOTS;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#444'; g.fillRect(0, 0, cv.width, cv.height);
+  list.forEach((o, k) => {
+    const y = k * LOGO_H, [r, gg, b] = o.rgb;
+    g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, y, 512, LOGO_H);
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(52, y + LOGO_H / 2, 34, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgb(${r * 0.7 | 0},${gg * 0.7 | 0},${b * 0.7 | 0})`; g.font = 'bold 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(o.init, 52, y + LOGO_H / 2 + 2, 56);
+    g.fillStyle = '#fff'; g.font = 'bold 46px system-ui, sans-serif'; g.textAlign = 'left';
+    g.fillText(o.name, 104, y + LOGO_H / 2 + 2, 390);
   });
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
@@ -470,6 +489,14 @@ export class View {
       for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
       const mm = new THREE.InstancedMesh(pg, this.signMat, 2000); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.signMeshes.push(mm);
     }
+    // biển logo công ty trên cổng nhà máy, kho (mỗi công ty gốc một ô của tấm ảnh logo)
+    this.logoMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); this.logoMeshes = []; this.logoKey = ''; this.logoSlot = new Map();
+    for (let k = 0; k < LOGO_SLOTS; k++) {
+      const pg = new THREE.PlaneGeometry(1, 1), uv = pg.attributes.uv, v0 = 1 - (k + 1) / LOGO_SLOTS, v1 = 1 - k / LOGO_SLOTS;
+      for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
+      const mm = new THREE.InstancedMesh(pg, this.logoMat, 600); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.logoMeshes.push(mm);
+    }
+    this.gateMesh = this._inst(corpGateGeometry(), this.matBuilding, 600, false);
     // vỉa hè trước quán (theo chữ trên biển), xe máy đỗ trước cửa; trang trí lễ trên cột điện (cờ, đèn lồng)
     this.frontMeshes = Object.fromEntries(FRONT_KINDS.map((k) => [k, this._inst(shopFrontGeometry(k), this.matBuilding, 2000, false)]));
     this.bikeMesh = this._inst(parkedBikesGeometry(), this.matBuilding, 3000, false);
@@ -2560,11 +2587,24 @@ export class View {
     return mesh;
   }
 
+  /** Dựng lại tấm ảnh logo khi danh sách công ty gốc (hoặc tên, bậc) đổi. */
+  _logoAtlas() {
+    const C = this.city.corp, roots = C ? C.list.filter((q) => !q.parent).slice(0, LOGO_SLOTS) : [];
+    const key = roots.map((q) => `${q.id}:${q.name}`).join('|');
+    if (key === this.logoKey) return;
+    this.logoKey = key; this.logoSlot = new Map(roots.map((q, k) => [q.id, k]));
+    if (this.logoMat.map) this.logoMat.map.dispose();
+    this.logoMat.map = roots.length ? logoAtlas(roots.map((q) => ({ name: q.name.toUpperCase(), init: q.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(), rgb: DCOL[q.id % DCOL.length] }))) : null;
+    this.logoMat.needsUpdate = true;
+  }
+
   _buildings() {
     const c = this.city, counts = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
     let animating = false;
     const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0), fc = Object.fromEntries(FRONT_KINDS.map((k) => [k, 0]));
-    let bc = 0;
+    let bc = 0, gc = 0;
+    const lc = new Array(LOGO_SLOTS).fill(0);
+    this._logoAtlas();
     this.lifeShops = [];
     for (const k in this.growMeshes) counts[k] = 0;
     // ruộng chia thửa 4 × 4 ô: mỗi thửa một loại cây, một nhà kho ở ô sát đường (ưu tiên), đường đất dọc mép thửa
@@ -2585,6 +2625,8 @@ export class View {
         const tx = !house && x % 4 === 3 && x + 1 < N && nb(i + 1) ? 1 : 0, tz = !house && y % 4 === 3 && nb(i + N) ? 1 : 0; // đường đất giữa hai thửa
         key = `farm${crop}-${house ? L : 0}-${tx}${tz}`; farm = !house;
         make = () => farmGeometry(crop, house, tx, tz, L);
+      } else if (c.ware && c.ware[i]) { // kho bãi của công ty
+        key = `ware-${L}`; make = () => warehouseGeometry(L);
       } else {
         key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
         make = () => (vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3);
@@ -2618,6 +2660,10 @@ export class View {
         sl.makeTranslation(MALL_SIGN.x, MALL_SIGN.y, MALL_SIGN.z).scale(_v3.set(MALL_SIGN.w, MALL_SIGN.h, 1));
         this.signMeshes[10].setMatrixAt(sc[10]++, sm.multiplyMatrices(m, sl));
       }
+      if (t >= 1 && c.owner && c.owner[i] && (c.zone[i] === 3 || c.zone[i] === 21) && gc < this.gateMesh.userData.cap) { // cổng + biển logo công ty
+        const slot = this.logoSlot.get(c.corpGroup ? c.corpGroup[c.owner[i]] : c.owner[i]);
+        if (slot != null && lc[slot] < 600) { this.gateMesh.setMatrixAt(gc++, m); sl.makeTranslation(0, 2.83, 4.79).scale(_v3.set(3.4, 0.62, 1)); this.logoMeshes[slot].setMatrixAt(lc[slot]++, sm.multiplyMatrices(m, sl)); }
+      }
       if (c.zone[i] === 20 && t >= 1) this.lifeShops.push({ id: i, k: 'cho', m: m.clone() }); // chợ truyền thống: người đi chợ
       col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
@@ -2626,6 +2672,8 @@ export class View {
     this.signMeshes.forEach((mm, k) => { mm.count = sc[k]; mm.instanceMatrix.needsUpdate = true; });
     for (const k of FRONT_KINDS) { const mm = this.frontMeshes[k]; mm.count = fc[k]; mm.instanceMatrix.needsUpdate = true; }
     this.bikeMesh.count = bc; this.bikeMesh.instanceMatrix.needsUpdate = true;
+    this.gateMesh.count = gc; this.gateMesh.instanceMatrix.needsUpdate = true;
+    this.logoMeshes.forEach((mm, k) => { mm.count = lc[k]; mm.instanceMatrix.needsUpdate = true; });
     return animating;
   }
 
@@ -2888,6 +2936,8 @@ export class View {
     this.hideBld = on;
     for (const k in this.growMeshes) this.growMeshes[k].visible = !on;
     for (const m of this.signMeshes || []) m.visible = !on;
+    for (const m of this.logoMeshes || []) m.visible = !on;
+    if (this.gateMesh) this.gateMesh.visible = !on;
     this.serviceGroup.visible = !on;
     this.city.dirty.zones = true;
   }

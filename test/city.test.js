@@ -2436,3 +2436,41 @@ test('city: tập đoàn Phase 4 — vốn đi theo giá thế giới, cụm kin
     const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
   } finally { Object.assign(S.CORP, keep); }
 });
+
+test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá nội địa theo cung cầu và hệ số bán, mô hình kho + biển logo; sổ tiền vẫn khớp', async () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list[0];
+    assert.ok(q, 'có công ty');
+    // kho bãi: công ty xây kho trên ô mới; ô có cờ kho, nhóm có thêm chỗ chứa
+    q.stage = 2; q.cash = 4000 * S.MK; c.stats.powerCap = 1e9;
+    const site = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]);
+    LG.resetLedger(c);
+    const r = S.corpAct(c, q, { type: 'build', cells: [site], ware: true });
+    assert.ok(r.ok, JSON.stringify(r));
+    assert.ok(c.ware[site] === 1 && q.wares.includes(site) && q.log.some((e) => e.type === 'warehouse'));
+    c.level[site] = 2; c.dirty.buildings = true; // coi như đã xây xong: kho cấp 2
+    let rebuilt = false; for (let h = 0; h < 48 && !rebuilt; h++) { S.tick(c); rebuilt = c.corpStore[q.id] > 0; }
+    assert.ok(rebuilt && c.corpStore[q.id] === S.CORP.storeCap * 2, 'kho thêm chỗ chứa cho cả nhóm');
+    // kho không tính là nhà máy sản xuất (thị phần, ngành chính)
+    assert.ok(S.marketShare(c, q.id, S.productAt(site, 3)) <= 1);
+    // giá nội địa: chỉ số cung cầu nằm trong khung; hệ số bán chỉnh theo tồn kho; giá giao hàng trong thành phố kẹp trong khung
+    run(c, 48);
+    for (const k of Object.keys(S.PRODUCTS)) assert.ok(c.corp.dp[k] >= S.CORP.dpMin && c.corp.dp[k] <= S.CORP.dpMax);
+    const cell = q.cells.find(([i]) => c.level[i] && !c.ware[i])[0];
+    q.markup = 1.2; c.corpMark[q.id] = 1.2; c.corp.dp.steel = 1.3;
+    assert.ok(Math.abs(c.fn.corpPrice(c, 'steel', cell) - Math.min(S.CORP.priceMax, 1.3 * 1.2)) < 1e-9, 'giá = chỉ số × hệ số bán, kẹp trần');
+    assert.equal(c.fn.corpPrice(c, 'steel', null), 1.3, 'bên bán độc lập: chỉ theo chỉ số cung cầu');
+    // mô hình 3D và biển logo
+    const M = await import('../city/js/models.js');
+    assert.ok(M.warehouseGeometry(2).attributes.position.count > 100 && M.corpGateGeometry().attributes.position.count > 0);
+    // lưu / nạp giữ kho, hệ số bán, chỉ số giá
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    const bq = back.corp.list.find((x) => x.id === q.id);
+    assert.ok(bq.wares.includes(site) && Math.abs(bq.markup - 1.2) < 1e-6 && back.ware[site] === 1 && back.corp.dp.steel > 1);
+    LG.resetLedger(c); run(c, 24 * 8);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});

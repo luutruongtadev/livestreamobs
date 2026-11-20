@@ -19,7 +19,7 @@ import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budge
 import { intlHour, intlDay, promoCost, flyHappy, intlOutlook } from './intl.js';
 import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, tunnelCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
-import { corpHour, initCorp, packCorp, corpNote } from './corp.js';
+import { corpHour, initCorp, packCorp, corpNote, corpPayWare, corpFlow, corpPrice } from './corp.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
@@ -630,7 +630,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { corpNote, zoneRect, clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
+  c.fn = { corpNote, corpPayWare, corpFlow, corpPrice, saleIncome, zoneRect, clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);

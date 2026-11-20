@@ -1725,6 +1725,7 @@ const CORP_LOG = {
   jv: (e) => `Liên doanh ${e.name} với ${e.partner}, góp ${money(e.cash)}`, loan: (e) => `Vay ngân hàng ${money(e.amount)}`, loanPaid: () => 'Trả hết nợ vay', default: (e) => `Vỡ nợ ${money(e.debt)} khi giải thể`,
   crisis: (e) => `Khủng hoảng: quỹ ${money(e.cash)}, nhà máy chạy ${e.eff}% công suất`, payUp: (e) => `Thiếu người (${e.fill}% chỗ làm có người): tăng lương 15% để giành lao động`, payDown: (e) => `Hạ lương về mức cũ (${e.fill}% chỗ có người)`,
   monopoly: (e) => `Nắm quá 60% ${S.PRODUCTS[e.product] ? S.PRODUCTS[e.product].name.toLowerCase() : ''} của thành phố: độc quyền`, monopolyEnd: () => 'Hết độc quyền', dependence: (e) => `Giữ ${e.share}% việc làm của thành phố`, shock: (e) => `Sụp đổ, thành phố mất ${e.share}% việc làm`,
+  warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`,
   dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
 };
 /** AI (Claude) đóng vai CEO: chọn một trong các hành động game đã kiểm tra; quá hạn game tự dùng lựa chọn của luật. */
@@ -1773,7 +1774,7 @@ function renderCorp0(force) {
     const box = el('div', 'card'), sg = S.signals(c).filter((x) => x.plants > 0 || x.price >= 1.15), hubs = C.hubs || [];
     box.append(el('b', null, '🌐 Thị trường và cụm kinh tế'));
     const t = el('p'); t.style.cssText = 'margin:4px 0;font-size:12px';
-    t.textContent = sg.length ? 'Giá thế giới (nhà máy trong thành phố): ' + sg.map((x) => `${S.PRODUCTS[x.p].icon} ${S.PRODUCTS[x.p].name} ${x.price.toFixed(2)}${x.price >= 1.2 ? '↑' : x.price <= 0.8 ? '↓' : ''} (${x.plants})`).join(' · ') : 'Chưa có số liệu.';
+    t.textContent = sg.length ? 'Giá thế giới (nhà máy trong thành phố): ' + sg.map((x) => `${S.PRODUCTS[x.p].icon} ${S.PRODUCTS[x.p].name} ${x.price.toFixed(2)}${x.price >= 1.2 ? '↑' : x.price <= 0.8 ? '↓' : ''} (${x.plants}) · nội địa ×${x.dp.toFixed(2)}`).join(' · ') : 'Chưa có số liệu.';
     box.append(t, el('small', null, hubs.length ? `Cụm kinh tế: ${hubs.map((h) => `${h.sector ? S.PRODUCTS[h.sector].name : 'hỗn hợp'} ${h.n} cơ sở, ${h.jobs} việc`).join('; ')} (chạy nhanh hơn 10%)` : 'Chưa có cụm kinh tế: cần từ 6 cơ sở của công ty nằm sát nhau.'));
     root.append(box);
   }
@@ -1792,7 +1793,7 @@ function renderCorp0(force) {
   const p = el('p'); p.style.cssText = 'margin:4px 0;font-size:12px';
   p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm. ${q.parent ? `Công ty con của ${S.corpTitle(S.corpById(c, q.parent))}.` : st.group.subs ? `Cả nhóm: ${st.group.n} nhà máy, ${st.group.jobs} việc làm, ${st.group.subs} công ty con.` : ''}`;
   card.append(p);
-  const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''} · 💱 Giá thế giới ${st.signal}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
+  const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''}${st.wares ? ` · 🏗️ ${st.wares} kho (chứa thêm ${st.store} mỗi nhà máy)` : ''} · 💱 Giá thế giới ${st.signal} · 🏷️ Hệ số bán ${st.markup}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
   card.append(tr2, el('br'));
   { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono].name.toLowerCase()}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
   for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}`), el('br'));

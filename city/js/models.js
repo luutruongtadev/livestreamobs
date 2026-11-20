@@ -1543,6 +1543,36 @@ function sieuThi(g, r) {
   for (let k = 0; k < 8; k++) g.box(4.3, 0.14, -3 + k * 0.85, 0.36, 0.9, 1.3, pick(r, [0x2a2a2a, 0xd8262e, 0x1f6fc8, 0xe9e9e9, 0x8a949c]));
 }
 
+/** Kho bãi, logistics của công ty (khu công nghiệp có cờ kho): nhà kho dài, cửa xuống hàng, mái đón, container, xe đầu kéo. Mặt trước +z. */
+export function warehouseGeometry(level) {
+  const g = new GB(), r = mulberry32(900 + level * 13), h = 3.2 + level * 0.5;
+  const wall = pick(r, [0xe3e6e8, 0xd9dee2, 0xe8e2d4]), roof = pick(r, [0x6c7a86, 0x5f7f6a, 0x8a5a44]), band = pick(r, [0x1f6fc8, 0xe8681f, 0x16935a]);
+  g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xa7a79f);
+  g.box(0, 0.14, -1.3, 8.8, h, 6.2, wall);
+  g.gable(0, 0.14 + h, -1.3, 9.2, 1.1, 6.6, roof, true, wall);
+  g.box(0, 0.14 + h * 0.7, 1.83, 8.8, 0.5, 0.06, band); // dải màu hãng
+  for (let k = 0; k < 4; k++) { // cửa xuống hàng + bệ nâng
+    const x = -3.3 + k * 2.2;
+    g.box(x, 0.64, 1.82, 1.7, 2.3, 0.08, 0x56626b);
+    for (let j = 1; j < 5; j++) g.box(x, 0.64 + j * 0.46, 1.86, 1.7, 0.03, 0.04, 0x434d54);
+    g.box(x, 0.14, 2.25, 1.9, 0.5, 0.9, 0x8a867e);
+  }
+  g.box(0, 3.1, 2.7, 8.8, 0.14, 1.9, 0x8a949c); for (const x of [-4.2, 4.2]) g.box(x, 0.14, 3.55, 0.14, 2.96, 0.14, 0x6e7a82); // mái đón
+  for (let k = 0; k < 2 + level; k++) g.box(-3.8 + (k % 3) * 2.7, 0.14 + ((k / 3) | 0) * 1.25, 4 + ((k / 3) | 0) * 0.1, 2.5, 1.2, 1.1, [0xc0392b, 0x2f6fb0, 0x2f8f5a, 0xe6a01e][k % 4]); // container
+  g.box(3.3, 0.35, 3.9, 1.6, 1.7, 3.2, 0xf1f1ef); g.box(3.3, 0.35, 5.7, 1.4, 1.5, 0.9, 0x2f6fb0); g.box(3.3, 1.2, 6.15, 1.2, 0.6, 0.05, 0x9fc4e8); // xe đầu kéo + rơ moóc
+  for (const x of [3.3 - 0.8, 3.3 + 0.8]) for (const z of [3.1, 4.3, 5.9]) g.box(x, 0.14, z, 0.2, 0.5, 0.5, 0x2a2a2a); // bánh
+  g.box(-2, 0.14 + h + 0.9, -1.3, 1.2, 0.5, 1.2, 0x8d9499); g.box(2, 0.14 + h + 0.9, -1.3, 1.2, 0.5, 1.2, 0x8d9499); // chụp thông gió
+  return g.build();
+}
+/** Cổng nhà máy / kho của công ty: hai cột và xà ngang đỡ biển logo (biển là mặt phẳng riêng, vẽ trong render). Mặt trước +z. */
+export function corpGateGeometry() {
+  const g = new GB();
+  for (const x of [-1.75, 1.75]) g.box(x, 0.14, 4.7, 0.18, 3.1, 0.18, 0x8a949c);
+  g.box(0, 2.5, 4.7, 3.7, 0.65, 0.12, 0xe3e3e0);
+  return g.build();
+}
+
 /** Nhà theo phong cách Việt Nam cho các khu dân cư thấp / trung bình, liền kề, hỗn hợp, cửa hàng, giải trí, ký túc xá. Không hợp thì trả null. */
 const VN_KIND = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop', 4: 'apt', 5: 'mall' };
 /** Khu này có nhà kiểu Việt Nam không (tra bảng, không dựng hình). */
