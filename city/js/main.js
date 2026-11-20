@@ -33,7 +33,7 @@ const GROUPS = [
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['smooth', '🌀', 'Cong liền'], ['upgrade', '⬆️', 'Nâng cấp'], ['raise', '⏫', 'Nâng tầng'], ['lower', '⏬', 'Hạ tầng'], ['bridge', '🌉', 'Đổi cầu']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước'], ['district', 'Lớp xem: các quận (mỗi quận một màu, viền đậm là ranh giới; 🏛️ toà UBND là trụ sở quận)', '🏙️', 'Quận']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước'], ['district', 'Lớp xem: các quận (mỗi quận một màu, viền đậm là ranh giới; 🏛️ toà UBND là trụ sở quận)', '🏙️', 'Quận'], ['corp', 'Lớp xem: tập đoàn (mỗi công ty một màu; nhạt = đất đã xin, đang xây)', '🏢', 'Tập đoàn']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let seatPick = null, distSel = 0; // đang chọn chỗ đặt trụ sở cho quận nào; quận đang xem trong bảng 🏙️
@@ -1362,6 +1362,8 @@ function updateHud(force) {
   if ($('fest').classList.contains('show')) renderFest(force);
   if ($('inbox').classList.contains('show')) renderInbox(force);
   if ($('dist').classList.contains('show')) renderDist(force);
+  if ($('corp').classList.contains('show')) renderCorp(force);
+  { const n = c.corp ? c.corp.asks.length : 0; $('corpN').textContent = n ? `✋${n}` : c.corp && c.corp.list.length ? String(c.corp.list.length) : ''; }
   aiPump(); distPump();
   const asks = c.dist.on ? c.dist.list.filter((q) => q.prop && q.prop.status === 'ask').length : 0;
   $('distN').textContent = c.dist.on ? (asks ? `✋${asks}` : String(c.dist.list.length)) : '';
@@ -1605,10 +1607,11 @@ function openSide(id) {
   if (id === 'flows') renderFlows();
   if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
   if (id === 'league') { renderLeague(); leagueSync(true); }
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'corp', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
+  if (id === 'corp' && $('corp').classList.contains('show')) renderCorp(true);
   if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
   if (id === 'saves') { renderSlots(); renderCloud(); cloudRefresh(); }
   if (id === 'dev') renderDev();
@@ -1637,6 +1640,7 @@ function bindUi() {
   $('dateBox').addEventListener('click', () => openSide('fest'));
   $('bInbox').addEventListener('click', () => openSide('inbox'));
   $('bDist').addEventListener('click', () => openSide('dist'));
+  $('bCorp').addEventListener('click', () => openSide('corp'));
   $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
@@ -1707,6 +1711,55 @@ function keepFocus(fn) {
   if (!k || document.activeElement === a) return;
   const n = document.querySelector(`[data-draft="${k}"]`);
   if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+}
+
+/** Bảng 🏢 Tập đoàn: đề xuất đang chờ thị trưởng, danh sách công ty, chi tiết + lịch sử của công ty đang chọn. */
+let corpSel = 0;
+const CORP_LOG = {
+  founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
+  ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
+  askFailed: (e) => `Dự án không thực hiện được: ${e.text}`, counterOk: (e) => `Nhượng bộ: nâng cam kết lên ${e.jobs} việc làm`, counterNo: () => 'Không nhượng bộ thêm việc làm',
+  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
+};
+function renderCorp(force) { keepFocus(() => renderCorp0(force)); }
+function renderCorp0(force) {
+  const c = city, C = c.corp;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${corpSel}|${C.list.map((q) => q.id + ':' + q.cells.length + ':' + q.log.length).join(',')}|${C.asks.map((a) => a.id + ':' + a.jobs).join(',')}`;
+  if (!force && renderCorp.key === key) return;
+  renderCorp.key = key;
+  const root = $('corpBody'); root.textContent = '';
+  root.append(el('small', null, 'Công ty hình thành từ nhà máy có sẵn. CEO (chạy bằng luật theo tính cách) tự mở rộng, tự xin đất; bạn duyệt, từ chối hoặc đòi thêm việc làm. Lãi dư chia cho dân; lịch sử chỉ ghi việc thật.'));
+  for (const a of C.asks) {
+    const q = S.corpById(c, a.corp); if (!q) continue;
+    const card = el('div', 'card'), opts = el('div', 'opts');
+    card.append(el('b', null, `🏭 ${S.corpTitle(q)} xin ${a.sites.length} ô đất`), el('p', null, `Cam kết thêm ${a.jobs} việc làm trong ${a.days} ngày, nộp phí đất ${money(S.CORP.landFee * S.MK * a.sites.length)}. Còn ${Math.max(0, a.expires - c.day)} ngày để trả lời.`));
+    const yes = el('button', 'mini acc', '✅ Chấp nhận'), more = el('button', 'mini', '🗣️ Đòi thêm việc làm'), no = el('button', 'mini', '❌ Từ chối');
+    yes.onclick = () => { const r = S.approveAsk(c, a.id); toast(r.ok ? `🏭 Đã duyệt cho ${S.corpTitle(q)}` : r.reason); S.recalc(c); renderCorp(true); };
+    more.disabled = !!a.countered; more.onclick = () => { const r = S.counterAsk(c, a.id); toast(r.reply || r.reason); renderCorp(true); };
+    no.onclick = () => { S.rejectAsk(c, a.id); renderCorp(true); };
+    opts.append(yes, more, no); card.append(opts); root.append(card);
+  }
+  if (!C.list.length) { root.append(el('p', null, `Chưa có công ty nào: cần ${S.CORP.foundMin} dân và nhà máy đang chạy có lãi để hình thành công ty.`)); return; }
+  if (corpSel >= C.list.length) corpSel = 0;
+  const tb = el('table', 'dover');
+  tb.innerHTML = '<tr><th>Công ty</th><th>Bậc</th><th>🏭</th><th>👷 Việc</th><th>🌐 Ảnh hưởng</th><th>💰 Quỹ</th></tr>';
+  C.list.forEach((q, k) => {
+    const st = S.corpStats(c, q), [r, g, b] = DCOL[q.id % DCOL.length], tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
+    [S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
+    tr.onclick = () => { corpSel = k; renderCorp(true); };
+    tb.append(tr);
+  });
+  root.append(tb);
+  const q = C.list[corpSel], st = S.corpStats(c, q), ceo = S.CEOS[q.ceo], card = el('div', 'card'), pr = S.PRODUCTS[st.sector];
+  card.append(el('b', null, `${S.corpTitle(q)}${pr ? ` · ${pr.icon} ${pr.name}` : ''}`));
+  const p = el('p'); p.style.cssText = 'margin:4px 0;font-size:12px';
+  p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm.`;
+  card.append(p);
+  for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}`), el('br'));
+  card.append(el('h4', null, 'Lịch sử'));
+  const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';
+  for (const e of q.log.slice(-40).reverse()) ul.append(el('div', null, `Ngày ${e.day + 1}: ${CORP_LOG[e.type] ? CORP_LOG[e.type](e) : e.type}`));
+  card.append(ul); root.append(card);
 }
 
 function renderInbox(force) { keepFocus(() => renderInbox0(force)); }

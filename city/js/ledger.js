@@ -46,9 +46,10 @@ export const FLOWS = {
   bizCost: ['Chi phí doanh nghiệp thuê ngoài', 'private'],
   landlord: ['Chủ nhà thuê sửa chữa ngoài', 'private'],
   dividend: ['Lợi nhuận chia cho chủ ở ngoài thành phố', 'private'],
+  corpBuild: ['Tập đoàn thuê ngoài xây nhà máy', 'private'],
 };
 /** Dòng tiền chảy bên trong thành phố (chỉ đếm khối lượng, không đổi tổng). */
-export const INNER = { wage: 'Lương trả cho dân', shop: 'Dân mua sắm, ăn uống', supply: 'Doanh nghiệp mua hàng của nhau', rent: 'Tiền nhà dân trả chủ nhà', tax: 'Thuế, thuế nhà đất về ngân sách', procure: 'Ngân sách, chủ nhà, doanh nghiệp thuê doanh nghiệp trong thành phố (xây, bảo trì, dịch vụ)', dividend: 'Doanh nghiệp chia lợi nhuận cho dân', tariff: 'Thuế nhập khẩu hàng của thành phố khác về ngân sách' };
+export const INNER = { wage: 'Lương trả cho dân', shop: 'Dân mua sắm, ăn uống', supply: 'Doanh nghiệp mua hàng của nhau', rent: 'Tiền nhà dân trả chủ nhà', tax: 'Thuế, thuế nhà đất về ngân sách', procure: 'Ngân sách, chủ nhà, doanh nghiệp thuê doanh nghiệp trong thành phố (xây, bảo trì, dịch vụ)', dividend: 'Doanh nghiệp chia lợi nhuận cho dân', tariff: 'Thuế nhập khẩu hàng của thành phố khác về ngân sách', corpLand: 'Công ty nộp phí đất cho ngân sách' };
 /** Khoản chi của ngân sách trả cho doanh nghiệp trong thành phố (thầu xây, bảo trì) thay vì ra bên ngoài. */
 const PROCURE = new Set(['build', 'upkeep', 'event']);
 
@@ -58,6 +59,7 @@ export function totalMoney(c) {
   const pp = c.pp;
   if (pp) for (let id = 0; id < pp.n; id++) if (pp.alive[id]) t += pp.money[id];
   if (c.biz) { const b = c.biz.money; for (let i = 0; i < N * N; i++) t += b[i]; }
+  if (c.corp) for (const q of c.corp.list) t += q.cash; // quỹ các công ty (corp.js)
   if (c.econ && c.econ.pool) t += c.econ.pool.r + c.econ.pool.c + c.econ.pool.i; // thuế đang gom chờ chia đều cả tuần
   if (c.hourInc) t += c.hourInc.r + c.hourInc.c + c.hourInc.i; // thuế đã trừ, chưa vào ngân sách
   return t;

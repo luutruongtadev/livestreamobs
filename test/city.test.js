@@ -2270,3 +2270,38 @@ test('city: Việt Nam hoá Phase 4 — nắng nóng, kênh rạch hôi, nhà tr
   c.inc.weather = 'heat'; c.inc.wUntil = c.hour + 48; run(c, 48);
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
 });
+
+test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, mở rộng, xin dự án, cam kết, lưu, sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 120); LG.resetLedger(c);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 12);
+    const q = c.corp.list[0];
+    assert.ok(q && q.cells.length >= 1 && c.owner[q.cells[0][0]] === q.id, 'có công ty sở hữu nhà máy');
+    assert.ok(S.stageOf(c, q) >= 1 && S.influence(c, q) >= 0 && S.CEOS[q.ceo]);
+    // cổng hành động từ chối ô không hợp lệ, quỹ thiếu, dự án nhiều ô khi chưa duyệt
+    assert.equal(S.corpAct(c, q, { type: 'build', cells: [0] }).ok, false);
+    q.cash = 0; assert.equal(S.corpAct(c, q, { type: 'ask', sites: [1] }).ok, false);
+    // đề xuất dự án: duyệt → xây, nộp phí đất, cam kết việc làm đo được
+    q.cash = 5000 * S.MK; q.cool.ask = 0; q.ceo = 'bold'; c.corp.asks = [];
+    const site = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
+    const ask = S.corpAct(c, q, { type: 'ask', sites: site });
+    assert.ok(ask.ok, ask.reason);
+    c.stats.powerCap = 1e9; // điện dư (nếu thiếu điện, công ty không dám xây)
+    const m0 = c.money, ok = S.approveAsk(c, ask.ask.id);
+    assert.ok(ok.ok, JSON.stringify(ok)); assert.ok(c.money > m0 && q.deals.length === 1 && q.deals[0].status === 'open', 'duyệt: nộp phí đất, có cam kết');
+    q.deals[0].due = c.day; q.deals[0].base = 99999; run(c, 24);
+    assert.ok(q.log.some((e) => e.type === 'dealBreach'), 'không đạt cam kết thì bị ghi lại');
+    // mặc cả: đòi thêm một lần
+    q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = [];
+    const a2 = S.corpAct(c, q, { type: 'ask', sites: [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2) });
+    if (a2.ok) { const r = S.counterAsk(c, a2.ask.id); assert.ok(r.ok && S.counterAsk(c, a2.ask.id).ok === false); }
+    // lưu và nạp lại: công ty, ô sở hữu, quỹ giữ nguyên
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.corp.list.length, c.corp.list.length);
+    assert.equal(back.owner[q.cells[0][0]], q.id);
+    LG.resetLedger(c); // quỹ ở trên do test đặt tay: tính lại gốc sổ rồi chạy tiếp
+    run(c, 24 * 10);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});

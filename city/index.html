@@ -155,6 +155,9 @@
   #bFest span { font-size: 12px; font-weight: 700; }
   #bFest span:empty { display: none; }
   #bDist { position: fixed; left: 8px; bottom: 208px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
+  #bCorp { position: fixed; left: 8px; bottom: 260px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
+  #bCorp span { font-size: 12px; font-weight: 700; }
+  #bCorp span:empty { display: none; }
   #bDist span { font-size: 12px; font-weight: 700; }
   #bDist span:empty { display: none; }
   .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
@@ -267,6 +270,11 @@
 
 <button class="panel" id="bFest" title="Lễ hội và mùa mưa bão: lịch âm, tổ chức lễ hội, bão, ngập (cũng mở được bằng cách bấm vào ô ngày giờ trên cùng)">🎎 <span id="festN"></span></button>
 <button class="panel" id="bDist" title="Quận và chủ tịch quận: tự làm, giao việc hay để chủ tịch tự chủ">🏙️ <span id="distN"></span></button>
+<button class="panel" id="bCorp" title="Tập đoàn: các công ty do AI điều hành, đề xuất xin đất, cam kết việc làm, lịch sử">🏢 <span id="corpN"></span></button>
+<div class="panel side win" id="corp">
+  <h3>🏢 Tập đoàn <span><button data-close>✕</button></span></h3>
+  <div id="corpBody"></div>
+</div>
 <div class="panel side win" id="dist">
   <h3>🏙️ Điều hành các quận <span><button id="distPeek" title="Thu bảng lại để xem bản đồ (bấm 🏙️ để mở lại)">▁</button> <button data-close>✕</button></span></h3>
   <div id="distAi" class="sub"></div>

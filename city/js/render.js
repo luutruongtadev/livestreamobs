@@ -885,6 +885,10 @@ export class View {
           const edge = (x + 1 < N && c.dmap[i + 1] !== q) || (y + 1 < N && c.dmap[i + N] !== q) || (x > 0 && c.dmap[i - 1] !== q) || (y > 0 && c.dmap[i - N] !== q);
           a = c.water[i] ? 25 : edge ? 210 : 70; // trụ sở là toà nhà UBND quận thật, không tô riêng
         }
+      } else if (mode === 'corp') {
+        // tập đoàn: mỗi công ty một màu; ô đã xây đậm, ô đang xây dở nhạt
+        const o = c.owner ? c.owner[i] : 0;
+        if (o) { [r, g, b] = DCOL[o % DCOL.length]; a = c.level[i] ? 190 : 100; }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
       } else if (!c.water[i]) {

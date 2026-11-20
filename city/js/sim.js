@@ -19,6 +19,7 @@ import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budge
 import { intlHour, intlDay, promoCost, flyHappy, intlOutlook } from './intl.js';
 import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, tunnelCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
+import { corpHour, initCorp, packCorp } from './corp.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
@@ -49,6 +50,7 @@ export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
+export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash } from './corp.js';
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
@@ -397,6 +399,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   initSeason(c);
   initCouncil(c);
   initDistricts(c);
+  initCorp(c);
   initStreet(c);
   initRail(c); c.railCell = railCells(c); c.tunnelCell = tunnelCells(c);
   applyStreet(c);
@@ -627,7 +630,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
+  c.fn = { zoneRect, clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
@@ -2388,6 +2391,7 @@ function hourTick(c) {
   { const hot = c.inc.weather === 'heat'; incidentsHour(c); if (hot !== (c.inc.weather === 'heat')) { computeNetworks(c); recalc(c); } } // đổi sang / hết nắng nóng: tính lại điện nước
   seasonHour(c); // bão, ngập, triều cường
   if (c.council) { const fresh = councilHour(c); if (fresh.length) (c.aiQueue || (c.aiQueue = [])).push(...fresh.map((f) => f.id)); } // hộp thư thị trưởng
+  corpHour(c); // tập đoàn: quét lợi nhuận, CEO ra quyết định
   if (c.dist && c.dist.on) { const jobs = districtHour(c); if (jobs.length) (c.distQueue || (c.distQueue = [])).push(...jobs); } // quận, chủ tịch quận
   // thu nhập giữa hai giờ (xe hàng, xe rác tới nơi) đã cộng dồn sẵn vào c.hourInc
   transitHour(c);
@@ -2467,7 +2471,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural, abroad: c.popl.abroad } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2586,6 +2590,7 @@ function deserializeAt(o) {
   initSeason(c, o.season || {});
   initCouncil(c, o.council || {});
   initDistricts(c, o.dist || {});
+  initCorp(c, o.corp || {});
   if (!o.apv) for (const sv of c.services) if (sv.type === 'airport' && !(sv.mods || (sv.mods = [])).includes('intl')) sv.mods.push('intl'); // bản lưu trước khi có sân bay nội địa: sân bay cũ đã là quốc tế
   applyStreet(c);
   if (o.sandbox) enableSandbox(c);
