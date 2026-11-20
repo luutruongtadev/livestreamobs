@@ -16,6 +16,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
   3. **Hàng hoá và năng lượng phải được sản xuất.** Tài nguyên có trữ lượng và cạn dần; rừng và cá hồi lại theo tốc độ riêng; điện than và điện dầu đốt nhiên liệu thật.
 - **Máy chủ chia nguồn chung** (dân chuyển nhà, doanh nghiệp mới, du khách, nhu cầu của chợ) theo sức hút của từng thành phố. Máy chủ chỉ đóng vai những người muốn chuyển đi, mỗi người tự chọn nơi đến theo chính sách của thành phố.
 
+- **Thuế nhập khẩu theo loại hàng** do mỗi thành phố tự đặt, áp lên hàng từ thành phố khác (xem mục 3, việc 12b).
 - **Cuối game** (đất đã kín, công trình đã đủ), xem mục 4:
   - điểm mùa tính theo mức cải thiện và chất lượng sống, không theo tổng dân;
   - thêm nhà cấp 6–7 và cải tạo đô thị để tăng mật độ;
@@ -94,6 +95,14 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
     - bán dưới giá vốn thì lỗ thật, nhà máy phá sản dần.
 
     Giao dịch ghi vào sổ `trades` với cả hai bên.
+12b. **Thuế nhập khẩu giữa các thành phố** (mỗi thành phố tự đặt, theo từng loại hàng):
+    - Giá thành phố B phải trả = giá chào của A × (1 + thuế của B với loại hàng đó). Chợ chung ghép người mua với nơi bán có giá sau thuế rẻ nhất.
+    - Tiền thuế vào ngân sách của B (nơi nhập), tức là chuyển từ doanh nghiệp của B sang ngân sách của B, nên tổng tiền của nhóm vẫn khớp.
+    - **Cái được:** thêm thu ngân sách; bảo vệ nhà máy và việc làm trong nước.
+    - **Cái giá:** nhà máy cần nguyên liệu ngoài phải mua đắt hơn; hàng tiêu dùng đắt làm mức hài lòng giảm nhẹ; điểm "môi trường kinh doanh" giảm nên ít doanh nghiệp mới chọn đến.
+    - **Hệ quả tự nhiên:** nơi thuế thấp thành trung tâm thương mại; thuế trả đũa và chiến tranh thương mại tự nổi lên từ chính sách, không cần cơ chế tấn công.
+    - **Luật chặn:** trần thuế khoảng 50%; đổi thuế có hiệu lực sau 1 ngày game, mỗi loại hàng đổi tối đa 1 lần mỗi ngày; thuế của mọi thành phố hiện công khai trên bảng so sánh chính sách.
+    - Trong chế độ chơi một mình, thuế áp lên hàng của "thế giới máy".
 13. **Thành phố đang offline:** máy chủ dùng bản tóm tắt cuối cùng của họ. Họ vẫn nhận người nếu còn nhà trống, vẫn mất người bất mãn; khi mở lại thì chạy bù.
 14. **Thành phố bị bỏ** khoảng 7 ngày: dân và tiền chảy dần về nông thôn; người chơi quay lại thì thành phố nhỏ đi nhưng vẫn còn.
 15. **Bảng dữ liệu:** `profiles`, `groups`, `group_members`, `cities`, `city_reports`, `trades`, `seasons`, kèm Row Level Security theo người chơi. Bản tóm tắt và chia nguồn đi qua HTTP thường; thông báo và ai đang online đi qua `/ws`.
