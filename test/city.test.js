@@ -2228,3 +2228,16 @@ test('city: chuỗi sản xuất nhiều tầng — nhà máy làm thành phẩm
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.ok(S.MKT_KINDS.every((k) => back.market.p[k] > 0), 'giá chợ từng thành phẩm lưu lại');
 });
+
+test('city: Việt Nam hoá P0 — chung cư cũ, nhà cấp 4, đồ bày trước quán, xe shipper, trang trí lễ', async () => {
+  const M = await import('../city/js/models.js'), { pickLook, LOOKS } = await import('../city/js/traffic.js');
+  const nv = (g) => (g ? g.attributes.position.count : 0);
+  assert.ok(nv(M.growableVN(4, 1, 0)) > 0 && nv(M.growableVN(4, 2, 1)) > 0, 'khu cao tầng cấp 1–2: chung cư cũ');
+  assert.equal(M.growableVN(4, 3, 0), null, 'cấp 3+ giữ tháp như cũ');
+  assert.notEqual(nv(M.growableVN(1, 1, 0)), nv(M.growableVN(1, 1, 2)), 'nhà riêng cấp 1: nhà cấp 4 (variant 0, 1), nhà ống (variant 2)');
+  assert.ok(M.FRONT_KINDS.every((k) => nv(M.shopFrontGeometry(k)) > 0) && M.FRONT_OF_SIGN.length === 8 && nv(M.parkedBikesGeometry()) > 0);
+  assert.ok(nv(M.lanternGeometry()) > 0 && nv(M.poleFlagGeometry()) > 0 && nv(M.vehicleGeometry('shipper')) > 0);
+  assert.equal(pickLook('moto', null, 0.97), 'shipper'); assert.ok(LOOKS.shipper.len > 0);
+  const deco = Object.fromEntries(S.FESTIVALS.map((f) => [f.id, f.deco || '']));
+  assert.deepEqual([deco.tet, deco.trungthu, deco.saute], ['lantern flag', 'lantern', ''], 'Tết treo cờ và đèn lồng, Trung Thu đèn lồng, Sau Tết không trang trí');
+});

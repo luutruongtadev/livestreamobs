@@ -3,9 +3,9 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -451,6 +451,12 @@ export class View {
       for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
       const mm = new THREE.InstancedMesh(pg, this.signMat, 2000); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.signMeshes.push(mm);
     }
+    // vỉa hè trước quán (theo chữ trên biển), xe máy đỗ trước cửa; trang trí lễ trên cột điện (cờ, đèn lồng)
+    this.frontMeshes = Object.fromEntries(FRONT_KINDS.map((k) => [k, this._inst(shopFrontGeometry(k), this.matBuilding, 2000, false)]));
+    this.bikeMesh = this._inst(parkedBikesGeometry(), this.matBuilding, 3000, false);
+    this.lanternMesh = this._inst(lanternGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), 3000, false);
+    this.flagMesh = this._inst(poleFlagGeometry(), this.matBuilding, 1500, false);
+    this.decoPts = []; this.decoKey = '';
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {};
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
@@ -934,6 +940,7 @@ export class View {
     // 2) dải mặt đường
     const cross = new Map(); // edgeId -> [mặt cắt đầu a, mặt cắt đầu b]
     const st = new GB(), lamps = []; // dầm, lan can, trụ, cột đèn; vị trí bóng đèn đường
+    this.decoPts = []; this.decoKey = ''; // chỗ treo cờ, đèn lồng dịp lễ (dọc cột điện kiểu Việt Nam)
     this.wprof = new Map();
     this.trims = trim;
     // lòng hầm chui đang mở (đáy thấp hơn mặt đất): khoét mặt đất để thấy đường bên dưới.
@@ -2067,6 +2074,25 @@ export class View {
     this.floodMesh.count = n; this.floodMesh.instanceMatrix.needsUpdate = true;
   }
 
+  /** Cờ, đèn lồng trên cột điện trong dịp lễ (lễ có trường deco); chỉ dựng lại khi đổi lễ hoặc đổi đường. */
+  _festDeco() {
+    const c = this.city, fn = c.style === 'vn' ? festivalNow(c) : null, deco = (fn && fn.f.deco) || '', key = `${deco}|${fn ? fn.f.id : ''}|${this.decoPts.length}`;
+    if (key === this.decoKey) return;
+    this.decoKey = key;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
+    const LANT = fn && fn.f.id === 'trungthu' ? [0xf2c200, 0xe8681f, 0xd8262e, 0x16935a, 0x1f6fc8] : [0xd8262e, 0xe0261e, 0xc81e1e];
+    let nl = 0, nf = 0;
+    for (const o of this.decoPts) {
+      if (o.t === 'lantern' && deco.includes('lantern') && nl < this.lanternMesh.userData.cap) {
+        this.lanternMesh.setMatrixAt(nl, m.compose(p.set(o.x, o.y, o.z), q.identity(), s1));
+        this.lanternMesh.setColorAt(nl++, col.setHex(LANT[(hash2(Math.round(o.x), Math.round(o.z), 71) * LANT.length) | 0]));
+      } else if (o.t === 'flag' && deco.includes('flag') && nf < this.flagMesh.userData.cap) this.flagMesh.setMatrixAt(nf++, m.compose(p.set(o.x, o.y, o.z), q.setFromAxisAngle(up, o.a), s1));
+    }
+    this.lanternMesh.count = nl; this.flagMesh.count = nf;
+    this.lanternMesh.instanceMatrix.needsUpdate = true; this.flagMesh.instanceMatrix.needsUpdate = true;
+    if (this.lanternMesh.instanceColor) this.lanternMesh.instanceColor.needsUpdate = true;
+  }
+
   /** Pháo hoa ban đêm ở nơi tổ chức lễ (đêm giao thừa, Trung thu, lễ hội quy mô vừa trở lên). */
   _fireworks(simDt, dt) {
     const c = this.city;
@@ -2358,6 +2384,15 @@ export class View {
             st.at(m4.compose(v3.set((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2), q.setFromEuler(e3.set(-Math.atan2(dy, ll), Math.atan2(dx, dz), 0, 'YXZ')), one)).box(0, 0, 0, 0.07, 0.07, Math.hypot(ll, dy), 0x1c1f22).at(null);
           }
         }
+        { // trang trí lễ: cờ cắm chéo trên cột (quay ra lòng đường), đèn lồng treo trên dây điện thấp nhất giữa hai cột
+          const d = this.decoPts;
+          d.push({ t: 'flag', x: px, y: top - 2.9, z: pz, a: Math.atan2(b.rx * sd, b.rz * sd) - Math.PI / 2 });
+          if (prevPole) for (const f of [0.3, 0.5, 0.7]) {
+            const ax = prevPole[0] + b.rx * -0.8, az = prevPole[2] + b.rz * -0.8, bx = px + b.rx * -0.8, bz = pz + b.rz * -0.8, l = Math.hypot(bx - ax, bz - az);
+            const sag = (0.5 + l * 0.012) * (1 - Math.abs(2 * f - 1));
+            d.push({ t: 'lantern', x: ax + (bx - ax) * f, y: prevPole[1] - 0.6 + (top - prevPole[1]) * f - sag, z: az + (bz - az) * f, a: 0 });
+          }
+        }
         prevPole = [px, top, pz];
         // xe đẩy bán hàng có ô che ở vỉa hè bên kia, thỉnh thoảng
         const swk = c.street ? c.street.sidewalk : 'free', vendor = swk === 'free' ? 0.6 : swk === 'license' ? 0.3 : 0; // chính sách vỉa hè
@@ -2440,7 +2475,8 @@ export class View {
   _buildings() {
     const c = this.city, counts = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
     let animating = false;
-    const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0);
+    const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0), fc = Object.fromEntries(FRONT_KINDS.map((k) => [k, 0]));
+    let bc = 0;
     for (const k in this.growMeshes) counts[k] = 0;
     // ruộng chia thửa 4 × 4 ô: mỗi thửa một loại cây, một nhà kho ở ô sát đường (ưu tiên), đường đất dọc mép thửa
     const farmHouse = new Map();
@@ -2483,6 +2519,9 @@ export class View {
           if (sc[wd] >= 2000) continue;
           sl.makeTranslation(-4.7 + w * (k + 0.5), 3.32, 4.6 + 0.16).scale(_v3.set(w - 0.7, 0.72, 1));
           this.signMeshes[wd].setMatrixAt(sc[wd]++, sm.multiplyMatrices(m, sl));
+          const fk = FRONT_OF_SIGN[wd], fm = fk && this.frontMeshes[fk], ux = -4.7 + w * (k + 0.5);
+          if (fm && fc[fk] < fm.userData.cap) fm.setMatrixAt(fc[fk]++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // đồ bày ra vỉa hè theo loại quán
+          if (bc < this.bikeMesh.userData.cap && hash2(x * 3 + k, y, 43) < 0.7) this.bikeMesh.setMatrixAt(bc++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // xe máy khách đỗ trước cửa
         }
       }
       col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
@@ -2490,6 +2529,8 @@ export class View {
     }
     for (const k in this.growMeshes) { const mesh = this.growMeshes[k]; mesh.count = counts[k]; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     this.signMeshes.forEach((mm, k) => { mm.count = sc[k]; mm.instanceMatrix.needsUpdate = true; });
+    for (const k of FRONT_KINDS) { const mm = this.frontMeshes[k]; mm.count = fc[k]; mm.instanceMatrix.needsUpdate = true; }
+    this.bikeMesh.count = bc; this.bikeMesh.instanceMatrix.needsUpdate = true;
     return animating;
   }
 
@@ -2790,7 +2831,7 @@ export class View {
       if (v.wreck && !v.crashed) { v.crashed = true; v.ryaw += v.crashYaw || 0.6; } // xe tai nạn nằm chéo đường
       p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz) + this.waterLift(e, sa)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
       const look = v.look || v.kind;
-      if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : col.setHSL(v.color, 0.6, 0.5));
+      if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : look === 'shipper' ? col.set(v.color < 0.5 ? 0x1fae54 : 0xee5a2d) : col.setHSL(v.color, 0.6, 0.5)); // shipper: xanh lá hoặc cam
       else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
       else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
       else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
@@ -3120,6 +3161,7 @@ export class View {
     this._weather(dt);
     this._floodWater();
     this._fireworks(simDt, dt);
+    this._festDeco();
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._movers(simDt);
