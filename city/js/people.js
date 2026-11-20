@@ -583,13 +583,14 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   let trucks = 0;
   for (const v of c.traffic.vehicles) if (v.kind === 'truck') trucks++;
   // kinds: các loại nhà cung cấp nhận được (cửa hàng nhận mọi hàng tiêu dùng); không ai cung cấp thì nhập từ ngoài
+  const og = (i) => (c.corpGroup && c.owner ? c.corpGroup[c.owner[i]] | 0 : 0); // nhóm công ty của ô: hàng trong nhóm ưu tiên giao cho nhau
   const deliver = (list, kinds, importKind) => {
     for (const [to, slot] of list.slice(0, 24)) {
       const qty = bizKind(c, to) === 'factory' ? clamp(Math.round(factoryUse(c, to) * 8), PRICE.load, PRICE.loadF) : PRICE.load; // nhà máy: xe to, đủ chạy chừng 8 giờ
       let best = -1, bk = null, bd = Infinity;
-      for (const k of kinds) for (const s of supply[k]) { if (b.sout[s] < qty) continue; const d = dist(s, to); if (d < bd) { bd = d; best = s; bk = k; } }
+      for (const k of kinds) for (const s of supply[k]) { if (b.sout[s] < qty) continue; const d = dist(s, to) * (og(s) && og(s) === og(to) ? 0.55 : 1); if (d < bd) { bd = d; best = s; bk = k; } }
       if (best >= 0) {
-        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; continue; }
+        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; if (og(best) && og(best) === og(to)) c.fn.corpNote(c, 'intern', best, qty); continue; }
       }
       const out = nearestOutside(c, to);
       if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind: importKind(), qty, imp: true, slot }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
@@ -601,9 +602,9 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   deliver(needShop.map((i) => [i, 0]), SHOP_KINDS, pickShop);
   // kho đầy mà trong thành phố không ai mua: xuất ra ngoài
   for (const [sups, kind] of [...RAW_KINDS, ...PRODUCT_KINDS].map((k) => [supply[k], k])) for (const s of sups) {
-    if (b.sout[s] < 30) continue;
+    if (b.sout[s] < (c.corpExp && c.corpExp[c.owner[s]] ? 16 : 30)) continue; // công ty đẩy xuất khẩu: xuất sớm hơn
     const out = nearestOutside(c, s);
-    if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: 16 }, trucks < MAX_TRUCKS)) { b.sout[s] -= 16; trucks++; }
+    if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: 16 }, trucks < MAX_TRUCKS)) { b.sout[s] -= 16; trucks++; if (c.owner && c.owner[s]) c.fn.corpNote(c, 'export', s, 16); }
   }
   for (const i of broke) {
     c.econ.bankrupt++; c.econ.day.bankrupt++;

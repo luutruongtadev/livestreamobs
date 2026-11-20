@@ -1364,7 +1364,7 @@ function updateHud(force) {
   if ($('dist').classList.contains('show')) renderDist(force);
   if ($('corp').classList.contains('show')) renderCorp(force);
   { const n = c.corp ? c.corp.asks.length : 0; $('corpN').textContent = n ? `✋${n}` : c.corp && c.corp.list.length ? String(c.corp.list.length) : ''; }
-  aiPump(); distPump();
+  aiPump(); distPump(); corpPump();
   const asks = c.dist.on ? c.dist.list.filter((q) => q.prop && q.prop.status === 'ask').length : 0;
   $('distN').textContent = c.dist.on ? (asks ? `✋${asks}` : String(c.dist.list.length)) : '';
   { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
@@ -1719,8 +1719,25 @@ const CORP_LOG = {
   founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
   ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
   askFailed: (e) => `Dự án không thực hiện được: ${e.text}`, counterOk: (e) => `Nhượng bộ: nâng cam kết lên ${e.jobs} việc làm`, counterNo: () => 'Không nhượng bộ thêm việc làm',
-  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
+  subsidiary: (e) => `Lập công ty con ${e.name} (${e.n} nhà máy, vốn ${money(e.cash)})`, exportOn: (e) => `Đẩy xuất khẩu: tồn kho thành phẩm ${e.stock}`, exportOff: (e) => `Dừng đẩy xuất khẩu (tồn kho ${e.stock})`,
+  decision: (e) => `${e.ai ? '🤖 ' : ''}Quyết: ${S.OPTS[e.id] || e.id}${e.ok ? '' : ' (không thực hiện được)'}${e.text ? ` — “${e.text}”` : ''}`,
+  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
 };
+/** AI (Claude) đóng vai CEO: chọn một trong các hành động game đã kiểm tra; quá hạn game tự dùng lựa chọn của luật. */
+function corpPump() {
+  const c = city;
+  if (!c.corp) return;
+  c.corp.ai = aiOnline();
+  const qu = c.corpQueue;
+  if (!qu || !qu.length || corpPump.busy) return;
+  const q = S.corpById(c, qu.shift());
+  if (!q || !q.pend) return;
+  corpPump.busy = true;
+  const opts = q.pend.opts.map((id) => ({ id, label: S.OPTS[id] }));
+  aiCall('corp', { city: citySummary(c, S), q: S.corpBrief(c, q), options: opts }).then((d) => {
+    if (city === c && d && d.id && q.pend) S.corpResolve(c, q, d.id, d.why);
+  }).finally(() => { corpPump.busy = false; if (city === c && $('corp').classList.contains('show')) renderCorp(true); });
+}
 function renderCorp(force) { keepFocus(() => renderCorp0(force)); }
 function renderCorp0(force) {
   const c = city, C = c.corp;
@@ -1743,9 +1760,10 @@ function renderCorp0(force) {
   if (corpSel >= C.list.length) corpSel = 0;
   const tb = el('table', 'dover');
   tb.innerHTML = '<tr><th>Công ty</th><th>Bậc</th><th>🏭</th><th>👷 Việc</th><th>🌐 Ảnh hưởng</th><th>💰 Quỹ</th></tr>';
-  C.list.forEach((q, k) => {
-    const st = S.corpStats(c, q), [r, g, b] = DCOL[q.id % DCOL.length], tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
-    [S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
+  const order = [...C.list].sort((x, y) => S.rootOf(c, x.id) - S.rootOf(c, y.id) || (x.parent ? 1 : 0) - (y.parent ? 1 : 0) || x.id - y.id);
+  order.forEach((q) => {
+    const k = C.list.indexOf(q), st = S.corpStats(c, q), [r, g, b] = DCOL[S.rootOf(c, q.id) % DCOL.length], tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
+    [(q.parent ? '↳ ' : '') + S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
     tr.onclick = () => { corpSel = k; renderCorp(true); };
     tb.append(tr);
   });
@@ -1753,8 +1771,10 @@ function renderCorp0(force) {
   const q = C.list[corpSel], st = S.corpStats(c, q), ceo = S.CEOS[q.ceo], card = el('div', 'card'), pr = S.PRODUCTS[st.sector];
   card.append(el('b', null, `${S.corpTitle(q)}${pr ? ` · ${pr.icon} ${pr.name}` : ''}`));
   const p = el('p'); p.style.cssText = 'margin:4px 0;font-size:12px';
-  p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm.`;
+  p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm. ${q.parent ? `Công ty con của ${S.corpTitle(S.corpById(c, q.parent))}.` : st.group.subs ? `Cả nhóm: ${st.group.n} nhà máy, ${st.group.jobs} việc làm, ${st.group.subs} công ty con.` : ''}`;
   card.append(p);
+  const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
+  card.append(tr2, el('br'));
   for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}`), el('br'));
   card.append(el('h4', null, 'Lịch sử'));
   const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';

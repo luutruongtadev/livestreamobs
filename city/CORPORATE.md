@@ -169,3 +169,12 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - Khác với đề xuất: đề xuất của công ty nằm trong bảng 🏢 riêng chứ không vào hộp thư 📨 (không đụng cấu trúc `council.inbox`).
 - UI: nút 🏢, bảng danh sách + chi tiết + lịch sử, ba nút Chấp nhận / Đòi thêm việc làm / Từ chối; lớp bản đồ "Tập đoàn".
 - Chưa làm (để Phase 2): biển hiệu logo công ty trên nhà máy, LLM chọn hành động, công ty con, bậc 4, giao dịch nội bộ, xuất khẩu chủ động, bán lẻ / logistics.
+
+## 13. Tiến độ — Phase 2 đã làm (chờ push)
+
+- **Công ty con**: công ty bậc ≥ 2 có ≥ 5 nhà máy lập tối đa 3 công ty con (chuyển 2 nhà máy, ưu tiên khác ngành chính, kèm vốn từ quỹ mẹ; mẹ giữ ≥ 3). Công ty con cùng CEO với mẹ, chia lãi lên mẹ. Bậc 4 (Tập đoàn) = ≥ 2 con và ≥ 12 nhà máy cả nhóm. Mẹ giải thể thì con thành độc lập.
+- **Giao dịch nội bộ**: `people.js` ưu tiên nhà cung cấp cùng nhóm (khoảng cách × 0.55) và đếm hàng giao trong nhóm (`intern`).
+- **Xuất khẩu chủ động**: tồn kho thành phẩm ≥ 18 thì bật đẩy xuất (xuất từ 16 thay vì 30), tắt khi < 8, giữ ít nhất 6 ngày giữa hai lần đổi. Đếm hàng xuất (`xunits`).
+- **AI chọn hành động**: khi có AI, CEO chỉ có ≥ 2 lựa chọn hợp lệ thì chờ AI chọn (`kind: 'corp'` ở gateway, chỉ chọn trong danh sách, kèm lý do ghi vào lịch sử, đánh dấu 🤖). Quá 6 giờ game hoặc AI tắt thì dùng lựa chọn của luật. Không có AI vẫn chơi bình thường.
+- **UI**: cây công ty mẹ ↳ con, màu bản đồ theo tập đoàn mẹ, hàng nội bộ / xuất khẩu, lý do của CEO trong lịch sử.
+- **Chưa làm**: kho bãi / logistics, bán lẻ, biển hiệu logo, khủng hoảng lan truyền, M&A (Phase 3).

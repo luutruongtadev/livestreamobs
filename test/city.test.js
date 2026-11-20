@@ -2305,3 +2305,47 @@ test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, m�
     const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
   } finally { Object.assign(S.CORP, keep); }
 });
+
+test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list[0];
+    assert.ok(q, 'có công ty');
+    // gom đủ nhà máy cho mẹ rồi lập công ty con: vốn chuyển từ quỹ mẹ, ô chuyển chủ
+    for (let i = 0; i < S.N * S.N && q.cells.length < 6; i++) if (c.level[i] && !c.owner[i] && S.ZDEF[c.zone[i]].biz === 'ind') { c.owner[i] = q.id; q.cells.push([i, c.day]); }
+    q.stage = 2; q.cash = 3000 * S.MK; q.cool.sub = 0; LG.resetLedger(c);
+    const built = S.cellsBuilt(c, q).length, r = S.corpAct(c, q, { type: 'subsidiary' });
+    assert.ok(r.ok, r.reason);
+    const kid = r.kid;
+    assert.ok(kid.parent === q.id && S.rootOf(c, kid.id) === q.id && c.corpGroup[kid.id] === q.id && c.owner[kid.cells[0][0]] === kid.id);
+    assert.equal(S.cellsBuilt(c, q).length + S.cellsBuilt(c, kid).length, built, 'ô chuyển chủ, không mất');
+    assert.equal(S.corpAct(c, kid, { type: 'subsidiary' }).ok, false, 'công ty con không lập con tiếp');
+    assert.ok(q.log.some((e) => e.type === 'subsidiary') && kid.log.some((e) => e.type === 'founded'));
+    // AI chọn hành động: id lạ bị bỏ; id hợp lệ được thực thi và ghi lịch sử; quá hạn thì dùng lựa chọn của luật
+    q.pend = { opts: ['expand', 'hold'], def: 'hold', since: c.hour };
+    assert.equal(S.corpResolve(c, q, 'subsidiary', 'x').ok, false);
+    assert.equal(S.corpResolve(c, q, 'hold', 'Giữ tiền <b>').ok, true);
+    assert.ok(q.log.at(-1).type === 'decision' && q.log.at(-1).ai && !/[<>]/.test(q.log.at(-1).text) && !q.pend);
+    q.pend = { opts: ['hold'], def: 'hold', since: c.hour - 20 }; run(c, 1); assert.equal(q.pend, null, 'quá hạn chờ AI thì game tự quyết');
+    // xuất khẩu chủ động: tồn kho cao thì bật, cờ chuyển sang bảng tra của people.js
+    while (c.hour % 24 !== 5) run(c, 1); // đặt tồn kho ngay trước giờ kiểm tra lúc 6h
+    for (const [i] of q.cells) c.biz.sout[i] = 40;
+    run(c, 2); assert.equal(q.export, 1); assert.equal(c.corpExp[q.id], 1);
+    S.corpNote(c, 'intern', q.cells[0][0], 5); assert.ok(q.intern >= 5);
+    // gateway: CEO chỉ được chọn trong danh sách, thẻ <corp> không lọt khoá / chuỗi lạ
+    const calls = [], fake = { beta: { messages: { create: async (b) => { calls.push(b); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ id: 'project', why: 'Chốt' }) }] }; } } } };
+    const { createCityAi } = await import('../gateway/city-ai.js'), ai = createCityAi({ env: {}, client: fake, log: { warn() {} } });
+    assert.equal((await ai.run({ kind: 'corp', q: { risk: 0.8, name: 'A<b>', 'x y': 1 }, options: [{ id: 'expand', label: 'a' }] })).id, null);
+    assert.match(calls[0].messages[0].content, /"risk":0\.8/); assert.doesNotMatch(calls[0].messages[0].content, /x y/);
+    assert.equal((await ai.run({ kind: 'corp', q: {}, options: [{ id: 'project', label: 'p' }, { id: 'hold', label: 'h' }] })).id, 'project');
+    await assert.rejects(ai.run({ kind: 'corp', q: {}, options: [] }));
+    // lưu / nạp giữ công ty con, cờ xuất khẩu; chạy tiếp không lệch sổ
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    const bk = back.corp.list.find((x) => x.id === kid.id);
+    assert.ok(bk && bk.parent === q.id && back.corp.list.find((x) => x.id === q.id).export === 1 && !back.corp.list.some((x) => x.pend));
+    LG.resetLedger(c); run(c, 24 * 10);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
