@@ -178,3 +178,14 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - **AI chọn hành động**: khi có AI, CEO chỉ có ≥ 2 lựa chọn hợp lệ thì chờ AI chọn (`kind: 'corp'` ở gateway, chỉ chọn trong danh sách, kèm lý do ghi vào lịch sử, đánh dấu 🤖). Quá 6 giờ game hoặc AI tắt thì dùng lựa chọn của luật. Không có AI vẫn chơi bình thường.
 - **UI**: cây công ty mẹ ↳ con, màu bản đồ theo tập đoàn mẹ, hàng nội bộ / xuất khẩu, lý do của CEO trong lịch sử.
 - **Chưa làm**: kho bãi / logistics, bán lẻ, biển hiệu logo, khủng hoảng lan truyền, M&A (Phase 3).
+
+## 14. Tiến độ — Phase 3 đã làm
+
+- **Mua bán sáp nhập**: công ty bậc ≥ 2 mua lại đối thủ đang khó (nửa giá trị tài sản, trở thành công ty con) hoặc xưởng độc lập gần cụm (tiền bán về tay dân). Có nghỉ 15 ngày giữa hai thương vụ.
+- **Chống độc quyền**: thương vụ bị chặn nếu đẩy nhóm quá 60% một sản phẩm (từ 4 nhà máy). Nhóm nắm ≥ 60% bị ghi cảnh báo; giữ ≥ 25% việc làm thì cảnh báo phụ thuộc.
+- **Liên doanh**: hai công ty gốc góp nửa vốn mỗi bên vào công ty mới, xin chung một dự án 2 ô (thị trưởng vẫn duyệt); lãi chia cho hai bên, giải thể thì trả vốn cho hai bên. Đối tác đồng ý hay không tuỳ tính cách, quan hệ.
+- **Cạnh tranh**: lao động (thiếu người thì tăng lương 15%, người dân coi chỗ lương cao là gần hơn), đất (đề xuất đến trước, ô bị lấy thì dự án nhỏ lại), nguyên liệu (giao hàng gần nhất như cũ). Công ty càng lớn càng cam kết ít việc làm, càng khó nhượng bộ.
+- **Khủng hoảng**: nhận diện bằng luật (hết tiền, nhà máy ế), CEO chọn vay (ngân hàng thế giới, lãi 0.4%/ngày, trả dần), bán cơ sở yếu, hoặc chịu. Nhóm chiếm ≥ 5% việc làm sụp đổ thì cả thành phố mất niềm tin 20 ngày.
+- **Công cụ thị trưởng** (bảng 🏢): 🛡️ bảo hộ doanh nghiệp nhỏ 30 ngày (tốn ngân sách, chia vốn, không bị mua lại), 🎯 mời đối thủ mới.
+- AI chọn thêm các hành động mua lại, liên doanh, vay (vẫn chỉ trong danh sách hợp lệ).
+- Chưa làm: logistics / kho bãi, bán lẻ, biển hiệu logo, giá thị trường theo cung cầu từng công ty (Phase 4).

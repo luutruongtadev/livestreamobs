@@ -4,7 +4,7 @@
 // ghi lịch sử). Phase 1: CEO chạy bằng luật theo tính cách (chưa gọi LLM; LLM sẽ chỉ chọn trong danh sách hành động hợp lệ).
 // Mọi chuyển tiền là chuyển nội bộ trong thành phố hoặc đi qua procure / inner / world, nên sổ cái vẫn khớp.
 import { N, MK, ZDEF, PRODUCTS, productAt, jobCap, hash2, clamp } from './base.js';
-import { inner, world } from './ledger.js';
+import { inner, world, worldCan } from './ledger.js';
 
 /** Bảng tham số cân bằng (đơn vị: MK). */
 export const CORP = {
@@ -15,6 +15,8 @@ export const CORP = {
   commitDays: 40, jobsPerCell: 7, pendDays: 40, maxLog: 120,
   foundEvery: 6, foundMin: 300, // lập công ty mới: mỗi 6 ngày, thành phố từ 300 dân
   subCells: 5, subCool: 12, maxSubs: 3, // công ty con: mẹ có ≥ 5 nhà máy, nghỉ 12 ngày giữa hai lần lập, tối đa 3 con
+  acqCool: 15, monoShare: 0.6, depShare: 0.25, // mua lại: nghỉ 15 ngày; độc quyền khi ≥ 60% một sản phẩm; phụ thuộc khi nhóm giữ ≥ 25% việc làm
+  loanMK: 60, loanRate: 0.004, payUp: 1.15, // vay: 60 MK mỗi nhà máy, lãi 0.4%/ngày; tăng lương 15% để giành lao động
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
@@ -87,7 +89,7 @@ export function influence(c, q) {
 }
 export function corpStats(c, q) {
   const mine = cellsBuilt(c, q);
-  return { cells: mine.length, pending: q.cells.length - mine.length, jobs: jobsOf(c, q), eff: effOf(c, q), cash: q.cash, stage: q.stage, influence: influence(c, q), sector: corpSector(c, q), group: groupOf(c, q), export: q.export, intern: Math.round(q.intern), xunits: Math.round(q.xunits) };
+  return { cells: mine.length, pending: q.cells.length - mine.length, jobs: jobsOf(c, q), eff: effOf(c, q), cash: q.cash, stage: q.stage, influence: influence(c, q), sector: corpSector(c, q), group: groupOf(c, q), debt: Math.round(q.debt || 0), share: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, mono: monopolyOf(c, rootOf(c, q.id)), export: q.export, intern: Math.round(q.intern), xunits: Math.round(q.xunits) };
 }
 
 // ───────────────────────── khởi tạo, lưu ─────────────────────────
@@ -104,8 +106,9 @@ export function initCorp(c, o = {}) {
     const q = {
       id: r.id | 0, name: String(r.name || 'Công ty').replace(/[<>]/g, '').slice(0, 40), ceo: CEOS[r.ceo] ? r.ceo : 'steady', sector: PRODUCTS[r.sector] ? r.sector : null,
       parent: r.parent | 0, stage: clamp(r.stage | 0, 1, 4), cash: Math.max(0, num(r.cash)), born: r.born | 0, trust: clamp(num(r.trust), -3, 5),
-      cool: { act: num(r.cool && r.cool.act), ask: num(r.cool && r.cool.ask), sub: num(r.cool && r.cool.sub) },
-      export: r.export ? 1 : 0, xAt: num(r.xAt), intern: Math.max(0, num(r.intern)), xunits: Math.max(0, num(r.xunits)),
+      cool: { act: num(r.cool && r.cool.act), ask: num(r.cool && r.cool.ask), sub: num(r.cool && r.cool.sub), acq: num(r.cool && r.cool.acq) },
+      export: r.export ? 1 : 0, xAt: num(r.xAt), debt: Math.max(0, num(r.debt)), pay: clamp(num(r.pay, 1), 1, 1.5), pAt: num(r.pAt), lastShare: clamp(num(r.lastShare), 0, 1), mono: r.mono ? 1 : 0, dep: r.dep ? 1 : 0, crisisAt: num(r.crisisAt, -99),
+      partners: Array.isArray(r.partners) ? r.partners.slice(0, 2).map((x) => x | 0) : undefined, intern: Math.max(0, num(r.intern)), xunits: Math.max(0, num(r.xunits)),
       goal: r.goal && r.goal.jobs > 0 ? { jobs: r.goal.jobs | 0 } : { jobs: 40 },
       cells: (Array.isArray(r.cells) ? r.cells : []).filter((p) => Array.isArray(p) && p[0] >= 0 && p[0] < N * N).map((p) => [p[0] | 0, p[1] | 0]),
       deals: (Array.isArray(r.deals) ? r.deals : []).slice(0, 6).map((d) => ({ id: d.id | 0, cells: d.cells | 0, jobs: d.jobs | 0, base: d.base | 0, due: d.due | 0, status: ['open', 'met', 'breach'].includes(d.status) ? d.status : 'open' })),
@@ -119,11 +122,11 @@ export function initCorp(c, o = {}) {
     id: a.id | 0, corp: a.corp | 0, day: a.day | 0, expires: a.expires | 0, sites: a.sites.filter((i) => i >= 0 && i < N * N).slice(0, 8).map((i) => i | 0), jobs: a.jobs | 0, days: a.days | 0,
     status: ['open', 'agreed'].includes(a.status) ? a.status : 'open', countered: a.countered ? 1 : 0,
   }));
-  for (const q of list) if (q.parent === q.id || !list.some((x) => x.id === q.parent)) q.parent = 0;
-  c.corp = { list, asks, nextId: Math.max(1, o.nextId | 0, ...list.map((q) => q.id + 1)), nextAsk: Math.max(1, o.nextAsk | 0, ...asks.map((a) => a.id + 1)), foundAt: num(o.foundAt, -99), off: o.off ? 1 : 0 };
+  for (const q of list) { if (q.parent === q.id || !list.some((x) => x.id === q.parent)) q.parent = 0; if (q.partners) { q.partners = q.partners.filter((x) => list.some((y) => y.id === x)); if (q.partners.length < 2) q.partners = undefined; } }
+  c.corp = { list, asks, nextId: Math.max(1, o.nextId | 0, ...list.map((q) => q.id + 1)), nextAsk: Math.max(1, o.nextAsk | 0, ...asks.map((a) => a.id + 1)), foundAt: num(o.foundAt, -99), off: o.off ? 1 : 0, sme: num(o.sme, -1), rival: num(o.rival, -1) };
   rebuildGroups(c);
 }
-export const packCorp = (c) => (c.corp ? { list: c.corp.list.map(({ pend, ...q }) => ({ ...q, cash: Math.round(q.cash), intern: Math.round(q.intern), xunits: Math.round(q.xunits) })), asks: c.corp.asks, nextId: c.corp.nextId, nextAsk: c.corp.nextAsk, foundAt: c.corp.foundAt, off: c.corp.off || undefined } : undefined);
+export const packCorp = (c) => (c.corp ? { list: c.corp.list.map(({ pend, ...q }) => ({ ...q, cash: Math.round(q.cash), intern: Math.round(q.intern), xunits: Math.round(q.xunits) })), asks: c.corp.asks, nextId: c.corp.nextId, nextAsk: c.corp.nextAsk, foundAt: c.corp.foundAt, off: c.corp.off || undefined, sme: c.corp.sme, rival: c.corp.rival } : undefined);
 
 // ───────────────────────── chỗ xây ─────────────────────────
 
@@ -205,15 +208,44 @@ export function corpAct(c, q, act) {
     news(c, `🏢 ${corpTitle(q)} lập ${corpTitle(kid)}, làm ${PRODUCTS[p.sector].name.toLowerCase()}`);
     return { ok: true, kid };
   }
+  if (act.type === 'acquire') {
+    const p = acquirePlan(c, q);
+    if (!p) return { ok: false, reason: 'Không có thương vụ phù hợp' };
+    q.cool.acq = c.day + CORP.acqCool;
+    if (p.corp) { // đối thủ đang khó: trở thành công ty con (gồm cả các con của nó)
+      const r = corpById(c, p.corp);
+      q.cash -= p.price; r.cash += p.price;
+      for (const s of subsOf(c, r)) s.parent = q.id;
+      r.parent = q.id; q.trust = clamp(q.trust + 0.3, -3, 5); rebuildGroups(c);
+      corpLog(c, q, 'acquire', { kind: 'rival', name: r.name, n: p.cells, cost: Math.round(p.price) });
+      corpLog(c, r, 'acquired', { by: q.name, cost: Math.round(p.price) });
+      news(c, `🤝 ${corpTitle(q)} mua lại ${corpTitle(r)} đang gặp khó, nhập vào nhóm`);
+      return { ok: true, rival: r };
+    }
+    q.cash -= p.price; if (!toResidents(c, p.price)) world(c, 'dividend', -p.price); // tiền bán về tay chủ cũ (dân trong thành phố)
+    claim(c, q, p.cell);
+    corpLog(c, q, 'acquire', { kind: 'sme', n: 1, cost: Math.round(p.price) });
+    return { ok: true, cell: p.cell };
+  }
+  if (act.type === 'loan') {
+    const L = loanPlan(c, q);
+    if (!L) return { ok: false, reason: 'Không vay được' };
+    q.cash += L; q.debt = (q.debt || 0) + L; world(c, 'corpLoan', L);
+    corpLog(c, q, 'loan', { amount: Math.round(L) });
+    news(c, `🏦 ${corpTitle(q)} vay vốn ngân hàng để vượt khó`);
+    return { ok: true, amount: L };
+  }
   if (act.type === 'ask') {
     if (c.corp.asks.some((a) => a.corp === q.id)) return { ok: false, reason: 'Đã có đề xuất đang chờ' };
     if (c.day < q.cool.ask) return { ok: false, reason: 'Đang trong thời gian nghỉ đề xuất' };
     const sites = (act.sites || []).filter((i) => siteOk(c, i));
     if (!sites.length) return { ok: false, reason: 'Không có khu đất phù hợp' };
-    if (q.cash < feeOf(sites.length) + CORP.landFee * MK * sites.length + CORP.reserve * MK) return { ok: false, reason: 'Quỹ không đủ cho dự án' };
-    const a = { id: c.corp.nextAsk++, corp: q.id, day: c.day, expires: c.day + CORP.askDays, sites, jobs: Math.round(sites.length * CORP.jobsPerCell), days: CORP.commitDays, status: 'open', countered: 0 };
-    c.corp.asks.push(a); corpLog(c, q, 'ask', { n: sites.length, jobs: a.jobs });
-    news(c, `🏭 ${corpTitle(q)} xin cấp ${sites.length} ô đất làm nhà máy, cam kết thêm ${a.jobs} việc làm trong ${a.days} ngày (xem 🏢 Tập đoàn)`);
+    const need = feeOf(sites.length) + CORP.landFee * MK * sites.length + CORP.reserve * MK, jv = act.jv ? corpById(c, act.jv) : null;
+    if (jv ? q.cash < need / 2 || jv.cash < need / 2 : q.cash < need) return { ok: false, reason: 'Quỹ không đủ cho dự án' };
+    const k = 1 - Math.min(0.4, influence(c, q) / 100); // công ty càng lớn càng cam kết ít việc làm hơn (ảnh hưởng)
+    const a = { id: c.corp.nextAsk++, corp: q.id, day: c.day, expires: c.day + CORP.askDays, sites, jobs: Math.round(sites.length * CORP.jobsPerCell * k), days: CORP.commitDays, status: 'open', countered: 0, jv: jv ? jv.id : 0 };
+    c.corp.asks.push(a); corpLog(c, q, 'ask', { n: sites.length, jobs: a.jobs, jv: jv ? jv.name : undefined });
+    news(c, `🏭 ${corpTitle(q)}${jv ? ` cùng ${corpTitle(jv)} (liên doanh)` : ''} xin cấp ${sites.length} ô đất làm nhà máy, cam kết thêm ${a.jobs} việc làm trong ${a.days} ngày (xem 🏢 Tập đoàn)`);
     return { ok: true, ask: a };
   }
   return { ok: false, reason: 'Hành động không có' };
@@ -223,8 +255,18 @@ export function corpAct(c, q, act) {
 
 /** Thị trưởng chấp nhận: công ty nộp phí đất cho ngân sách, xây, và nhận cam kết việc làm đo được. */
 export function approveAsk(c, id) {
-  const a = c.corp.asks.find((x) => x.id === id), q = a && corpById(c, a.corp);
+  const a = c.corp.asks.find((x) => x.id === id);
+  let q = a && corpById(c, a.corp);
   if (!a || !q) return { ok: false, reason: 'Đề xuất không còn' };
+  if (a.jv) { // liên doanh: hai công ty góp vốn đều nhau vào công ty mới, công ty mới xây và chịu cam kết
+    const p = corpById(c, a.jv), need = feeOf(a.sites.length) + CORP.landFee * MK * a.sites.length + CORP.reserve * MK, half = need / 2;
+    if (!p || q.cash < half || p.cash < half) { c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Một bên liên doanh không còn đủ vốn' }; }
+    const jq = makeCorp(c, `Liên doanh ${q.name.split(' ')[0]}–${p.name.split(' ')[0]}`.slice(0, 40), q.ceo, q.sector, 0, 0);
+    jq.partners = [q.id, p.id]; q.cash -= half; p.cash -= half; jq.cash = half * 2;
+    corpLog(c, q, 'jv', { name: jq.name, partner: p.name, cash: Math.round(half) }); corpLog(c, p, 'jv', { name: jq.name, partner: q.name, cash: Math.round(half) });
+    corpLog(c, jq, 'founded', { n: 0, sector: q.sector, cash: Math.round(half * 2), parent: `${q.name} + ${p.name}` });
+    q = jq; rebuildGroups(c);
+  }
   const land = CORP.landFee * MK * a.sites.length;
   if (q.cash < land) return { ok: false, reason: 'Quỹ công ty không đủ nộp phí đất' };
   const base = jobsOf(c, q);
@@ -252,7 +294,7 @@ export function counterAsk(c, id) {
   if (!a || !q) return { ok: false, reason: 'Đề xuất không còn' };
   if (a.countered) return { ok: false, reason: 'Đã đòi thêm một lần rồi' };
   a.countered = 1;
-  const want = CEOS[q.ceo].concede + q.trust * 0.05;
+  const want = CEOS[q.ceo].concede + q.trust * 0.05 - influence(c, q) / 200; // lớn hơn thì cứng hơn
   if (hash2(q.id, c.day, 61) < want) {
     a.jobs = Math.round(a.jobs * 1.4); corpLog(c, q, 'counterOk', { jobs: a.jobs });
     return { ok: true, accepted: true, jobs: a.jobs, reply: `${corpTitle(q)} đồng ý nâng cam kết lên ${a.jobs} việc làm.` };
@@ -273,9 +315,9 @@ export function rootOf(c, id) {
 export const subsOf = (c, q) => c.corp.list.filter((x) => x.parent === q.id);
 /** Bảng tra cho people.js: corpGroup[id công ty] = id công ty gốc (ưu tiên giao hàng nội bộ), corpExp[id] = đang đẩy xuất khẩu. */
 function rebuildGroups(c) {
-  const g = [0], e = [0];
-  for (const q of c.corp.list) { g[q.id] = rootOf(c, q.id); e[q.id] = q.export ? 1 : 0; }
-  c.corpGroup = g; c.corpExp = e;
+  const g = [0], e = [0], pay = [0];
+  for (const q of c.corp.list) { g[q.id] = rootOf(c, q.id); e[q.id] = q.export ? 1 : 0; pay[q.id] = q.pay || 1; }
+  c.corpGroup = g; c.corpExp = e; c.corpPay = pay;
 }
 /** people.js báo: 'intern' = hàng giao trong cùng nhóm (qty đơn vị), 'export' = hàng xuất ra ngoài từ ô của công ty. */
 export function corpNote(c, kind, cell, qty) {
@@ -291,7 +333,7 @@ function groupOf(c, q) {
 
 function makeCorp(c, name, ceo, sector, parent, cash) {
   const C = c.corp, id = C.nextId++;
-  const q = { id, name, ceo, sector, parent, stage: 1, cash, born: c.day, trust: 0, cool: { act: c.day + 2, ask: c.day, sub: c.day + CORP.subCool }, goal: { jobs: 40 }, cells: [], deals: [], log: [], export: 0, intern: 0, xunits: 0 };
+  const q = { id, name, ceo, sector, parent, stage: 1, cash, born: c.day, trust: 0, cool: { act: c.day + 2, ask: c.day, sub: c.day + CORP.subCool, acq: c.day + CORP.acqCool }, goal: { jobs: 40 }, cells: [], deals: [], log: [], export: 0, intern: 0, xunits: 0, debt: 0, pay: 1, pAt: 0, lastShare: 0, mono: 0, dep: 0, crisisAt: -99 };
   C.list.push(q);
   return q;
 }
@@ -300,13 +342,16 @@ export const OPTS = {
   expand: 'Mở thêm một nhà máy cạnh cụm hiện có (tự làm, tốn quỹ)',
   project: 'Xin thị trưởng một dự án nhiều ô đất (có cam kết việc làm)',
   subsidiary: 'Lập công ty con từ các cơ sở hiện có (đa ngành)',
+  acquire: 'Mua lại một doanh nghiệp (đối thủ đang khó, hoặc xưởng độc lập gần cụm)',
+  jv: 'Lập liên doanh với công ty khác, cùng góp vốn xin một dự án',
+  loan: 'Vay vốn ngân hàng để vượt khó (có lãi, phải trả dần)',
   release: 'Bán bớt cơ sở yếu nhất để giảm lỗ',
   hold: 'Giữ nguyên, tích luỹ tiền',
 };
 
 /** Lập công ty con: chuyển 2 nhà máy (ưu tiên khác ngành chính) và vốn khởi đầu từ quỹ mẹ; mẹ phải còn ít nhất 3 nhà máy. */
 function subsidiaryPlan(c, q) {
-  if (q.parent || q.stage < 2 || c.day < (q.cool.sub || 0) || subsOf(c, q).length >= CORP.maxSubs) return null;
+  if (q.parent || q.partners || q.stage < 2 || c.day < (q.cool.sub || 0) || subsOf(c, q).length >= CORP.maxSubs) return null;
   const mine = cellsBuilt(c, q);
   if (mine.length < CORP.subCells) return null;
   const seed = feeOf(2);
@@ -319,18 +364,23 @@ function subsidiaryPlan(c, q) {
 /** Các hành động CEO đang có thể làm (đã kiểm tra điều kiện), kèm lựa chọn mặc định của luật. */
 export function corpOptions(c, q) {
   const ceo = CEOS[q.ceo], ids = [], mine = cellsBuilt(c, q).length, eff = effOf(c, q);
-  if (q.cash < CORP.reserve * MK * 0.5 && eff < 0.3 && mine > 1) return { ids: ['release', 'hold'], def: 'release' };
+  if (q.cash < CORP.reserve * MK * 0.5 && eff < 0.35) { // khủng hoảng: vay, bán cơ sở yếu, hoặc chịu
+    if (loanPlan(c, q)) ids.push('loan');
+    if (mine > 1) ids.push('release');
+    const def = ids.includes('loan') && ceo.risk >= 0.3 ? 'loan' : ids.includes('release') ? 'release' : ids.includes('loan') ? 'loan' : 'hold';
+    return ids.length ? { ids: [...ids, 'hold'], def } : { ids: [], def: 'hold' };
+  }
   if (eff < 0.35 || q.cells.length - mine >= 2) return { ids: [], def: 'hold' };
   const chest = CORP.cellFee * (1 + ceo.risk * 2) * MK + CORP.reserve * MK;
   if (q.cash < chest) return { ids: [], def: 'hold' };
   const n = Math.min(5, 2 + q.stage);
-  const can = { expand: q.cells.length < capCells(q) && expandSite(c, q) >= 0 && powerOk(c), project: false, subsidiary: !!subsidiaryPlan(c, q) };
-  if (q.cash >= feeOf(n) + CORP.landFee * MK * n + CORP.reserve * MK && !c.corp.asks.length && c.day >= q.cool.ask && !c.corp.asks.some((a) => a.corp === q.id) && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
-  for (const k of ['expand', 'project', 'subsidiary']) if (can[k]) ids.push(k);
+  const can = { expand: q.cells.length < capCells(q) && expandSite(c, q) >= 0 && powerOk(c), project: false, subsidiary: !!subsidiaryPlan(c, q), acquire: !!acquirePlan(c, q), jv: !!jvPlan(c, q) };
+  if (q.cash >= feeOf(n) + CORP.landFee * MK * n + CORP.reserve * MK && !c.corp.asks.length && c.day >= q.cool.ask && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
+  for (const k of ['expand', 'project', 'subsidiary', 'acquire', 'jv']) if (can[k]) ids.push(k);
   if (!ids.length) return { ids: [], def: 'hold' };
   ids.push('hold');
-  const def = can.subsidiary && (ceo.risk >= 0.45 || q.stage >= 3) ? 'subsidiary' : can.project && ceo.risk >= 0.45 ? 'project' : can.expand ? 'expand' : can.project ? 'project' : 'hold';
-  return { ids, def };
+  const bold = ceo.risk >= 0.45 || q.stage >= 3, order = bold ? ['subsidiary', 'acquire', 'project', 'expand', 'jv'] : ['expand', 'jv', 'subsidiary', 'project', 'acquire']; // liều: ăn to; thận trọng: làm chắc, tìm đối tác
+  return { ids, def: order.find((k) => can[k]) || 'hold' };
 }
 
 /** Thực thi một lựa chọn (mọi thứ vẫn qua corpAct để kiểm tra lại). */
@@ -339,6 +389,9 @@ export function corpDo(c, q, id) {
   if (id === 'expand') { const i = expandSite(c, q); return i >= 0 ? corpAct(c, q, { type: 'build', cells: [i] }) : { ok: false, reason: 'Không còn chỗ' }; }
   if (id === 'project') return corpAct(c, q, { type: 'ask', sites: projectSites(c, q, n) });
   if (id === 'subsidiary') return corpAct(c, q, { type: 'subsidiary' });
+  if (id === 'acquire') return corpAct(c, q, { type: 'acquire' });
+  if (id === 'loan') return corpAct(c, q, { type: 'loan' });
+  if (id === 'jv') { const p = jvPlan(c, q); return p ? corpAct(c, q, { type: 'ask', sites: p.sites, jv: p.partner }) : { ok: false, reason: 'Không có đối tác' }; }
   if (id === 'release') { const i = poorest(c, q); if (i >= 0) { const r = corpAct(c, q, { type: 'release', cell: i }); if (r.ok) news(c, `📉 ${corpTitle(q)} gặp khó khăn, bán bớt một cơ sở`); return r; } }
   return { ok: true };
 }
@@ -348,7 +401,7 @@ export function corpBrief(c, q) {
   const g = groupOf(c, q), ceo = CEOS[q.ceo], st = corpStats(c, q);
   return {
     name: corpTitle(q), stage: q.stage, ceo: ceo.name, philosophy: ceo.philosophy, invest: ceo.invest, nego: ceo.nego, risk: ceo.risk, sector: PRODUCTS[st.sector] ? PRODUCTS[st.sector].name : '',
-    cells: st.cells, pending: st.pending, jobs: st.jobs, eff: Math.round(st.eff * 100), cashMK: Math.round(q.cash / MK), goalJobs: q.goal.jobs, subs: g.subs, groupCells: g.n, groupJobs: g.jobs,
+    cells: st.cells, pending: st.pending, jobs: st.jobs, eff: Math.round(st.eff * 100), cashMK: Math.round(q.cash / MK), debtMK: Math.round((q.debt || 0) / MK), jobShare: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, monopoly: monopolyOf(c, rootOf(c, q.id)) || '', partners: q.partners ? 1 : 0, goalJobs: q.goal.jobs, subs: g.subs, groupCells: g.n, groupJobs: g.jobs,
     export: q.export, internUnits: Math.round(q.intern), exportUnits: Math.round(q.xunits), trust: q.trust, influence: st.influence, city: { pop: c.pp ? c.pp.count : 0, powerUsePct: c.stats && c.stats.powerCap ? Math.round((100 * c.stats.powerUse) / c.stats.powerCap) : 0 },
   };
 }
@@ -384,12 +437,12 @@ function settle(c, q) {
   corpDo(c, q, o.ids.includes(def) ? def : 'hold');
 }
 
-function found(c) {
+function found(c, opt = {}) {
   const C = c.corp, roots = C.list.filter((q) => !q.parent).length;
-  if (C.off || c.pp.count < CORP.foundMin || roots >= maxCorps(c) || c.day - C.foundAt < CORP.foundEvery) return;
-  let seed = -1, bm = 20 * MK;
-  for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind' && c.biz.money[i] > bm) { bm = c.biz.money[i]; seed = i; }
-  if (seed < 0) return;
+  if (!opt.force && (C.off || c.pp.count < CORP.foundMin || roots >= maxCorps(c) || c.day - C.foundAt < CORP.foundEvery)) return null;
+  let seed = -1, bm = opt.force ? 0 : 20 * MK;
+  for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind' && c.biz.money[i] > bm && (!opt.avoid || prodOf(c, i) !== opt.avoid)) { bm = c.biz.money[i]; seed = i; }
+  if (seed < 0) return null;
   C.foundAt = c.day;
   const id = C.nextId, ceo = CEO_KEYS[(hash2(id, 5, 17) * CEO_KEYS.length) | 0];
   const taken = new Set(C.list.map((q) => q.name));
@@ -406,6 +459,7 @@ function found(c) {
   q.stage = stageOf(c, q); q.sector = corpSector(c, q);
   corpLog(c, q, 'founded', { n: q.cells.length, sector: q.sector, cash: Math.round(q.cash) });
   news(c, `🏢 ${corpTitle(q)} thành lập, lấy ${q.cells.length} nhà máy làm nền, làm ${PRODUCTS[q.sector].name.toLowerCase()}`);
+  return q;
 }
 
 function evalDeals(c, q) {
@@ -430,9 +484,10 @@ function toResidents(c, amount) {
 /** Chia lãi dư: công ty con chuyển lên công ty mẹ (nội bộ nhóm), công ty gốc chia cho dân. */
 function payout(c, q) {
   const ceo = CEOS[q.ceo], chest = (CORP.cellFee * 3 + CORP.reserve) * MK, over = q.cash - chest;
-  if (!(over > 0)) return;
+  if (!(over > 0) || q.debt > 0) return;
   const d = over * ceo.payout * 0.5;
   if (!(d > 1)) return;
+  if (q.partners) { const ps = q.partners.map((x) => corpById(c, x)).filter(Boolean); if (ps.length) { q.cash -= d; for (const p of ps) p.cash += d / ps.length; return; } }
   const mom = q.parent ? corpById(c, q.parent) : null;
   if (mom) { q.cash -= d; mom.cash += d; return; }
   if (toResidents(c, d)) q.cash -= d;
@@ -456,17 +511,23 @@ function daily(c) {
     if (q.parent && !corpById(c, q.parent)) q.parent = 0; // mẹ đã giải thể: công ty con thành độc lập
   }
   rebuildGroups(c);
+  marketScan(c);
   for (const q of C.list) {
     const st = stageOf(c, q);
     if (st !== q.stage) { corpLog(c, q, 'stage', { from: q.stage, to: st }); if (st > q.stage) news(c, `📈 ${corpTitle({ ...q, stage: st })} lên bậc "${STAGES[st]}"`); q.stage = st; }
     q.sector = corpSector(c, q) || q.sector;
     evalDeals(c, q);
-    if (q.cells.length) { exportCheck(c, q); ceoDecide(c, q); payout(c, q); }
+    if (q.cells.length) { debtDay(c, q); exportCheck(c, q); payCheck(c, q); watch(c, q); ceoDecide(c, q); payout(c, q); }
     if (c.day % 14 === 0) corpLog(c, q, 'season', { jobs: jobsOf(c, q), cells: cellsBuilt(c, q).length, intern: Math.round(q.intern), xunits: Math.round(q.xunits) });
     if (q.goal && jobsOf(c, q) >= q.goal.jobs) { corpLog(c, q, 'goal', { jobs: q.goal.jobs }); q.goal = { jobs: Math.round(q.goal.jobs * 1.8) }; }
   }
-  // công ty hết ô: giải thể, quỹ còn lại chia cho dân
+  for (const q of C.list) if (!q.parent && q.cells.length) q.lastShare = jobShare(c, q.id); // để biết cú sốc nếu nhóm này sụp
+  // công ty hết ô: giải thể (liên doanh trả vốn cho các bên), quỹ còn lại chia cho dân; nhóm lớn sụp thì cả thành phố chịu cú sốc
   for (const q of [...C.list]) if (!q.cells.length) {
+    const ps = q.partners ? q.partners.map((x) => corpById(c, x)).filter(Boolean) : [];
+    if (ps.length && q.cash > 0) { for (const p of ps) p.cash += q.cash / ps.length; q.cash = 0; }
+    if (q.debt > 0) { corpLog(c, q, 'default', { debt: Math.round(q.debt) }); q.debt = 0; }
+    if (!q.parent && q.lastShare >= 0.05 && c.council) { shock(c, q); }
     if (q.cash > 0) q.cash -= toResidents(c, q.cash);
     if (q.cash > 0 && !(c.pp && c.pp.count)) { world(c, 'dividend', -q.cash); q.cash = 0; } // chưa có dân: chủ ở ngoài thành phố
     if (q.cash <= 0) { news(c, `🏚️ ${corpTitle(q)} đã giải thể`); C.list = C.list.filter((x) => x !== q); C.asks = C.asks.filter((a) => a.corp !== q.id); }
@@ -475,6 +536,7 @@ function daily(c) {
   found(c);
   rebuildGroups(c);
 }
+
 
 /** Gọi mỗi giờ game. Cuối ngày (23h) quét lợi nhuận về quỹ; 6h sáng công ty ra quyết định. */
 export function corpHour(c) {
@@ -491,3 +553,160 @@ export function corpHour(c) {
 }
 /** Tiền đang nằm trong quỹ các công ty (cộng vào tổng tiền để sổ cái khớp). */
 export const corpCash = (c) => (c.corp ? c.corp.list.reduce((s, q) => s + q.cash, 0) : 0);
+
+// ───────────────────────── Phase 3: thị trường, mua bán sáp nhập, liên doanh, vay, khủng hoảng ─────────────────────────
+
+const prodOf = (c, i) => productAt(i, c.zone[i] === 21 ? 21 : 3);
+const valueOf = (c, i) => CORP.cellFee * MK * c.level[i] * 0.7 + Math.max(0, c.biz.money[i]);
+
+/** Quét thị trường mỗi ngày: số nhà máy theo sản phẩm (tot), của từng nhóm (by), việc làm của từng nhóm (gj). */
+export function marketScan(c) {
+  const tot = {}, by = {}, gj = {};
+  let jobs = 0;
+  for (let i = 0; i < N * N; i++) {
+    if (!c.level[i]) continue;
+    const jc = jobCap(c.zone[i], c.level[i]), g = c.owner[i] && c.corpGroup ? c.corpGroup[c.owner[i]] | 0 : 0;
+    jobs += jc;
+    if (g) gj[g] = (gj[g] || 0) + jc;
+    if (ZDEF[c.zone[i]].biz === 'ind') { const p = prodOf(c, i); tot[p] = (tot[p] || 0) + 1; if (g) { by[g] = by[g] || {}; by[g][p] = (by[g][p] || 0) + 1; } }
+  }
+  c.corp.mkt = { tot, by, gj, jobs };
+  return c.corp.mkt;
+}
+const mkt = (c) => c.corp.mkt || marketScan(c);
+/** Thị phần của một nhóm (id công ty gốc) theo một sản phẩm, 0..1. */
+export const marketShare = (c, root, p) => { const m = mkt(c); return m.tot[p] ? ((m.by[root] && m.by[root][p]) || 0) / m.tot[p] : 0; };
+/** Tỷ trọng việc làm của cả nhóm trong thành phố, 0..1. */
+export const jobShare = (c, root) => { const m = mkt(c); return m.jobs ? (m.gj[root] || 0) / m.jobs : 0; };
+/** Sản phẩm mà nhóm đang độc quyền (≥ 4 nhà máy và ≥ 60% số nhà máy cùng sản phẩm), hoặc null. */
+export function monopolyOf(c, root) {
+  const m = mkt(c), by = m.by[root] || {};
+  for (const p in by) if (by[p] >= 4 && m.tot[p] && by[p] / m.tot[p] >= CORP.monoShare) return p;
+  return null;
+}
+/** Mua thêm các ô này thì nhóm có vượt ngưỡng độc quyền không (luật chống độc quyền của thành phố). */
+function monopolizes(c, root, cells) {
+  const m = mkt(c), n = {};
+  for (const i of cells) { const p = prodOf(c, i); n[p] = (n[p] || 0) + 1; }
+  for (const p in n) { const mine = ((m.by[root] && m.by[root][p]) || 0) + n[p]; if (mine >= 4 && m.tot[p] && mine / m.tot[p] > CORP.monoShare) return true; }
+  return false;
+}
+
+/** Thương vụ khả thi: đối thủ đang khó (mua nửa giá trị tài sản, thành công ty con) hoặc xưởng độc lập gần cụm (trừ khi đang được bảo hộ). */
+function acquirePlan(c, q) {
+  if (q.stage < 2 || q.partners || c.day < (q.cool.acq || 0)) return null;
+  const root = rootOf(c, q.id);
+  let best = null;
+  for (const r of c.corp.list) {
+    if (r.id === q.id || r.id === root || r.parent || r.partners) continue;
+    const bl = cellsBuilt(c, r);
+    if (!bl.length || !(r.cash < CORP.reserve * MK * 0.5 || effOf(c, r) < 0.35)) continue;
+    const price = Math.round(bl.reduce((s, i) => s + valueOf(c, i), 0) * 0.5);
+    if (q.cash < price + CORP.reserve * MK || monopolizes(c, root, bl)) continue;
+    if (!best || price < best.price) best = { corp: r.id, price, cells: bl.length };
+  }
+  if (best) return best;
+  if ((c.corp.sme ?? -1) >= c.day) return null; // doanh nghiệp nhỏ đang được thành phố bảo hộ
+  const centre = centreOf(c, q);
+  if (!centre) return null;
+  let pick = -1, pd = 10;
+  for (let i = 0; i < N * N; i++) {
+    if (!c.level[i] || c.owner[i] || ZDEF[c.zone[i]].biz !== 'ind') continue;
+    const d = Math.hypot((i % N) - centre.x, ((i / N) | 0) - centre.y);
+    if (d < pd) { pd = d; pick = i; }
+  }
+  if (pick < 0) return null;
+  const price = Math.round(valueOf(c, pick));
+  if (q.cash < price + CORP.reserve * MK || monopolizes(c, root, [pick])) return null;
+  return { cell: pick, price };
+}
+
+/** Liên doanh: một công ty gốc khác đủ vốn và (tuỳ tính cách, quan hệ) chịu góp nửa vốn một dự án 2 ô. */
+function jvPlan(c, q) {
+  if (q.parent || q.partners || c.corp.asks.length || c.day < q.cool.ask) return null;
+  const n = 2, need = feeOf(n) + CORP.landFee * MK * n + CORP.reserve * MK;
+  if (q.cash < need / 2 + CORP.reserve * MK || !powerOk(c)) return null;
+  let best = null;
+  for (const r of c.corp.list) {
+    if (r.id === q.id || r.parent || r.partners || !cellsBuilt(c, r).length || r.cash < need / 2 + CORP.reserve * MK) continue;
+    if (!(hash2(r.id, c.day, 71) < 0.45 + (1 - CEOS[r.ceo].risk) * 0.25 + r.trust * 0.04)) continue; // đối tác đồng ý hay không
+    if (!best || r.cash > best.cash) best = r;
+  }
+  if (!best) return null;
+  const sites = projectSites(c, q, n);
+  return sites.length >= n ? { partner: best.id, sites } : null;
+}
+
+/** Khoản vay ngân hàng thế giới: 60 MK mỗi nhà máy, một khoản một lúc, chỉ khi thế giới còn tiền cho vay. */
+function loanPlan(c, q) {
+  if (!c.ledger || q.debt > 0 || q.cells.length === 0) return 0;
+  const L = CORP.loanMK * MK * Math.max(2, cellsBuilt(c, q).length);
+  return worldCan(c, L) ? L : 0;
+}
+/** Mỗi ngày: trả lãi (trả không nổi thì cộng vào gốc), có dư thì trả bớt gốc. */
+function debtDay(c, q) {
+  if (!(q.debt > 0)) return;
+  const intr = q.debt * CORP.loanRate;
+  if (q.cash >= intr) { q.cash -= intr; world(c, 'corpLoan', -intr); } else q.debt += intr;
+  const pay = Math.min(q.debt, q.cash - CORP.reserve * MK * 1.5);
+  if (pay > 0) { q.cash -= pay; q.debt -= pay; world(c, 'corpLoan', -pay); }
+  if (q.debt < 1) { q.debt = 0; corpLog(c, q, 'loanPaid', {}); }
+}
+
+/** Cạnh tranh lao động: thiếu người thì tăng lương 15% (hút người làm từ chỗ khác), đủ người hoặc cạn quỹ thì hạ lại. */
+function payCheck(c, q) {
+  if (c.day < (q.pAt || 0)) return;
+  const l = cellsBuilt(c, q);
+  if (!l.length) return;
+  let st = 0, cap = 0;
+  for (const i of l) { st += c.staff[i]; cap += jobCap(c.zone[i], c.level[i]); }
+  const fill = cap ? st / cap : 1;
+  if ((q.pay || 1) === 1 && fill < 0.6 && q.cash > CORP.reserve * MK * 2) { q.pay = CORP.payUp; q.pAt = c.day + 8; corpLog(c, q, 'payUp', { fill: Math.round(fill * 100) }); }
+  else if (q.pay > 1 && (fill > 0.9 || q.cash < CORP.reserve * MK)) { q.pay = 1; q.pAt = c.day + 8; corpLog(c, q, 'payDown', { fill: Math.round(fill * 100) }); }
+}
+
+/** Theo dõi rủi ro của nhóm: khủng hoảng, độc quyền, phụ thuộc (ghi nhật ký một lần khi bắt đầu). */
+function watch(c, q) {
+  const root = rootOf(c, q.id);
+  if (q.cash < CORP.reserve * MK * 0.5 && effOf(c, q) < 0.35 && c.day - (q.crisisAt ?? -99) >= 10) {
+    q.crisisAt = c.day; corpLog(c, q, 'crisis', { cash: Math.round(q.cash), eff: Math.round(effOf(c, q) * 100) });
+    news(c, `📉 ${corpTitle(q)} lâm vào khủng hoảng: hết tiền, nhà máy chạy ế`);
+  }
+  if (q.parent) return;
+  const mono = monopolyOf(c, root), sh = jobShare(c, root);
+  if (mono && !q.mono) { q.mono = 1; corpLog(c, q, 'monopoly', { product: mono }); news(c, `🧱 ${corpTitle(q)} nắm quá ${Math.round(CORP.monoShare * 100)}% ${PRODUCTS[mono].name.toLowerCase()} của thành phố: coi chừng độc quyền (mời đối thủ, bảo hộ doanh nghiệp nhỏ trong 🏢)`); }
+  else if (!mono && q.mono) { q.mono = 0; corpLog(c, q, 'monopolyEnd', {}); }
+  if (sh >= CORP.depShare && !q.dep) { q.dep = 1; corpLog(c, q, 'dependence', { share: Math.round(sh * 100) }); news(c, `⚠️ ${corpTitle(q)} giữ ${Math.round(sh * 100)}% việc làm của thành phố: nếu sụp, cả thành phố chịu`); }
+  else if (sh < CORP.depShare * 0.8 && q.dep) q.dep = 0;
+}
+
+/** Nhóm lớn sụp đổ: thành phố mất việc, mất niềm tin một thời gian (dùng hiệu ứng tạm thời của hộp thư thị trưởng). */
+function shock(c, q) {
+  const k = Math.min(6, Math.max(1, Math.round(q.lastShare * 50)));
+  c.council.mods.push({ key: 'happy', v: -k, until: c.day + 20, from: 'corp' }, { key: 'pull', v: -0.05, until: c.day + 20, from: 'corp' });
+  corpLog(c, q, 'shock', { share: Math.round(q.lastShare * 100) });
+  news(c, `💥 ${corpTitle(q)} sụp đổ, mất ${Math.round(q.lastShare * 100)}% việc làm của thành phố: dân bất an ${k} điểm trong 20 ngày`);
+}
+
+/** Công cụ của thị trưởng: bảo hộ doanh nghiệp nhỏ 30 ngày (không bị mua lại, được hỗ trợ vốn). */
+export function protectSme(c) {
+  const list = [];
+  for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind') list.push(i);
+  const cost = Math.round(150 * MK);
+  if ((c.corp.sme ?? -1) >= c.day) return { ok: false, reason: 'Đang trong thời gian bảo hộ' };
+  if (!list.length) return { ok: false, reason: 'Không có doanh nghiệp công nghiệp độc lập nào' };
+  if (!c.sandbox && c.money < cost) return { ok: false, reason: 'Ngân sách không đủ' };
+  c.money -= cost; for (const i of list) c.biz.money[i] += cost / list.length; inner(c, 'corpSme', cost); // hỗ trợ vốn: ngân sách → ví doanh nghiệp (trong thành phố)
+  c.corp.sme = c.day + 30;
+  news(c, `🛡️ Thành phố bảo hộ ${list.length} doanh nghiệp nhỏ trong 30 ngày: không bị mua lại, được hỗ trợ vốn ${Math.round(cost / list.length)} ₫ mỗi nơi`);
+  return { ok: true, n: list.length, cost };
+}
+/** Công cụ của thị trưởng: mời một đối thủ (công ty mới từ xưởng độc lập, khác sản phẩm của bên đang áp đảo). */
+export function inviteRival(c) {
+  const roots = c.corp.list.filter((q) => !q.parent).length;
+  if (roots >= maxCorps(c) + 2) return { ok: false, reason: 'Thành phố đã có quá nhiều công ty lớn' };
+  let top = null, ts = 0;
+  for (const q of c.corp.list) if (!q.parent) { const m = monopolyOf(c, q.id), s = jobShare(c, q.id); if (m ? 2 + s > ts : s > ts && !top) { top = m; ts = m ? 2 + s : s; } }
+  const q = found(c, { force: true, avoid: top });
+  return q ? { ok: true, corp: q } : { ok: false, reason: 'Không còn xưởng độc lập nào để lập công ty' };
+}

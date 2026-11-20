@@ -96,7 +96,7 @@ export function onBuildingCleared(c, i) {
 }
 
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
-export const wageAt = (c, i) => MK * (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1));
+export const wageAt = (c, i) => MK * (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1)) * (c.corpPay && c.owner ? c.corpPay[c.owner[i]] || 1 : 1); // công ty trả cao hơn để giành lao động
 /** Nguyên liệu một nhà máy đủ người dùng hết mỗi giờ. */
 const FACT_RATE = 0.5; // nguyên liệu một công nhân chế biến mỗi giờ (nhập nguyên liệu, xuất hàng vẫn còn lãi)
 const factoryUse = (c, i) => jobCap(c.zone[i], c.level[i]) * FACT_RATE * (1 + 0.12 * (c.level[i] - 1));
@@ -440,7 +440,7 @@ export function peopleHour(c) {
       for (let k = 0; k < 6; k++) {
         const j = vacJobs[(rng() * vacJobs.length) | 0];
         if (c.staff[j] >= jobCap(c.zone[j], c.level[j]) || reqEdu(c.zone[j], c.level[j]) > pp.edu[id]) continue;
-        const d = base >= 0 ? dist(base, j) : 0;
+        const d = (base >= 0 ? dist(base, j) : 0) / (c.corpPay && c.owner ? c.corpPay[c.owner[j]] || 1 : 1); // lương cao: coi như gần hơn
         if (d < bd) { bd = d; best = j; }
       }
       if (best >= 0) { pp.work[id] = best; c.staff[best]++; matched++; pp.idle[id] = 0; }
