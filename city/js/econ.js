@@ -100,10 +100,11 @@ export const feeStay = (fee) => clamp(1.3 - fee / 40, 0.3, 1.2);
 export function tourismHour(c, spend) {
   const t = c.tour, h = c.hour % 24, sc = tourismScore(c), rng = c.rng || Math.random;
   t.score = sc;
-  if (!sc.gates || !sc.perDay) { t.guests = Math.max(0, t.guests - Math.ceil(t.guests / 8)); return 0; }
+  const perDay = c.tourOverride != null ? c.tourOverride : sc.perDay; // nhóm cạnh tranh: số khách máy chủ chia (league.js)
+  if (!sc.gates || !perDay) { t.guests = Math.max(0, t.guests - Math.ceil(t.guests / 8)); return 0; }
   // khách tới rải trong ngày, nhiều nhất buổi sáng và đầu giờ chiều
   const share = h >= 7 && h <= 19 ? (h <= 10 || (h >= 13 && h <= 15) ? 0.11 : 0.06) : 0;
-  const arrive = Math.round(sc.perDay * share * (0.75 + rng() * 0.5));
+  const arrive = Math.round(perDay * share * (0.75 + rng() * 0.5));
   // lưu trú: khách ở lại 1–3 đêm nếu còn phòng; mỗi giờ một phần khách trả phòng
   const leave = Math.ceil(t.guests / 36);
   t.guests = Math.max(0, t.guests - leave);

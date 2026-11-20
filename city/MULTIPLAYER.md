@@ -108,6 +108,22 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 
 ### Giai đoạn C — nhóm cạnh tranh và nguồn chung
 
+**Tiến độ: phần chính xong (2026-11-20).** Máy chủ `gateway/city-league.js`, phía game `js/league.js`, bảng 🏆, migration `20261121000000_city_league.sql`.
+
+- Nhóm tối đa 30 thành phố (lấp nhóm đông trước), mùa 14 ngày thật; 1 ngày giải = 1 giờ thật. Thành phố trong nhóm không chạy quá ngày giải hiện tại; mở lại thì chạy bù tối đa 7 ngày, vắng lâu hơn thì phần vượt bị bỏ.
+- Mỗi ngày giải máy chủ chia (hàm `settle`, thuần, có test):
+  - dân chuyển đến: nông thôn chung của nhóm (4.000 người mỗi thành phố khi vào, mỗi ngày kéo ra tối đa 70 người / thành phố đang chơi, tự tăng chậm) + người vừa rời các thành phố + người hôm trước chưa có chỗ; chia theo căn bậc hai sức hút nhà ở (hài lòng, việc trống, lương, thuế dân cư, giá đất, ô nhiễm), tối đa bằng nhà trống; người mới vào được ×1,5 trong 6 ngày giải;
+  - du khách: theo căn bậc hai sức hút du lịch;
+  - đầu tư mới: hệ số nhu cầu thương mại / công nghiệp / văn phòng 0,5–1,5 theo môi trường kinh doanh (thuế doanh nghiệp, người chờ việc, giá đất);
+  - giá chợ chung: theo tổng hàng chào bán so với nhu cầu của cả nhóm.
+- Thành phố offline dùng bản tóm tắt cuối; bỏ quá 7 ngày thật thì không nhận gì, mỗi ngày mất 2% dân về nguồn chung (áp khi chủ quay lại).
+- Bảng xếp hạng theo điểm thịnh vượng (`world.js prosperity`, bản thử: chưa tính theo mức cải thiện trong mùa như mục 4.1).
+
+**Chưa làm trong giai đoạn C:**
+- Mua bán trực tiếp giữa các thành phố và thuế nhập khẩu (việc 12b): hiện chỉ có giá chợ chung; xuất nhập khẩu vẫn với thế giới máy.
+- Sổ `trades`; nguồn chung chưa khép với tiền (người chuyển đến mang tiền từ ví thế giới của mỗi thành phố, chưa từ thành phố cũ).
+- Thông báo qua `/ws`, giao diện chia bậc hạng (Làng … Siêu đô thị), thưởng cuối mùa: để giai đoạn E.
+
 10. **Nhóm cạnh tranh** khoảng 20–50 thành phố, ghép theo điểm gần nhau. Mùa dài 2 tuần. Chế độ cạnh tranh dùng đồng hồ thật, không tua nhanh.
 11. **Máy chủ chia nguồn mỗi ngày game.** Một vòng gồm:
     1. Thành phố gửi bản tóm tắt (bảng `city_reports`).

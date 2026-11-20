@@ -41,7 +41,7 @@ export class FileStore {
   constructor({ file = null, devToken = '' } = {}) {
     this.file = file;
     this.devToken = devToken;
-    this.db = { channels: {}, rounds: [], leaderboard: {}, citySaves: {} };
+    this.db = { channels: {}, rounds: [], leaderboard: {}, citySaves: {}, leagues: {}, leagueOf: {} };
     try { if (file) this.db = { ...this.db, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* chưa có */ }
     this.points = new PointsBuffer(async (rows) => { for (const r of rows) { const k = `${r.channelId}|${r.gameId}|${r.week}|${r.viewer}`; const o = this.db.leaderboard[k] || { ...r, points: 0, wins: 0 }; o.points += r.points; o.wins += r.wins; o.name = r.name; this.db.leaderboard[k] = o; } this.save(); });
   }
@@ -93,6 +93,12 @@ export class FileStore {
   async getCitySave(owner, slot) { return this.db.citySaves?.[owner]?.[slot] || null; }
   async putCitySave(owner, slot, meta, data) { const row = { ...meta, data, updated_at: new Date().toISOString() }; ((this.db.citySaves ||= {})[owner] ||= {})[slot] = row; this.save(); return row; }
   async deleteCitySave(owner, slot) { if (this.db.citySaves?.[owner]) { delete this.db.citySaves[owner][slot]; this.save(); } }
+  // Phố Mới: nhóm cạnh tranh (cả nhóm là một object JSON)
+  async getLeague(id) { const g = this.db.leagues?.[id]; return g ? JSON.parse(JSON.stringify(g)) : null; }
+  async putLeague(lg) { (this.db.leagues ||= {})[lg.id] = JSON.parse(JSON.stringify(lg)); this.save(); }
+  async openLeagues(season) { return Object.values(this.db.leagues || {}).filter((g) => g.season === season).map((g) => JSON.parse(JSON.stringify(g))); }
+  async leagueOf(owner) { return this.db.leagueOf?.[owner] || null; }
+  async setLeagueOf(owner, id) { if (id) (this.db.leagueOf ||= {})[owner] = id; else if (this.db.leagueOf) delete this.db.leagueOf[owner]; this.save(); }
   async close() { await this.points.stop(); this.save(); }
 }
 
@@ -193,6 +199,15 @@ export class SupabaseStore {
     return row || null;
   }
   async deleteCitySave(owner, slot) { await this.rest('DELETE', 'city_saves', `owner_id=eq.${encodeURIComponent(owner)}&slot=eq.${encodeURIComponent(slot)}`); }
+  // Phố Mới: nhóm cạnh tranh (bảng city_leagues + city_league_members, migration 20261121000000_city_league.sql)
+  async getLeague(id) { const rows = await this.rest('GET', 'city_leagues', `id=eq.${encodeURIComponent(id)}&select=data`); return rows?.[0]?.data || null; }
+  async putLeague(lg) { await this.rest('POST', 'city_leagues', 'on_conflict=id', { id: lg.id, season: lg.season, members: Object.keys(lg.members).length, data: lg, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates'); }
+  async openLeagues(season) { return ((await this.rest('GET', 'city_leagues', `season=eq.${Number(season) | 0}&members=lt.30&select=data&order=members.desc&limit=20`)) || []).map((r) => r.data); }
+  async leagueOf(owner) { const rows = await this.rest('GET', 'city_league_members', `owner_id=eq.${encodeURIComponent(owner)}&select=league_id`); return rows?.[0]?.league_id || null; }
+  async setLeagueOf(owner, id) {
+    if (id) await this.rest('POST', 'city_league_members', 'on_conflict=owner_id', { owner_id: owner, league_id: id }, 'resolution=merge-duplicates');
+    else await this.rest('DELETE', 'city_league_members', `owner_id=eq.${encodeURIComponent(owner)}`);
+  }
   async endSession(s) { if (s?.id) await this.rest('PATCH', 'live_sessions', `id=eq.${s.id}`, { ended_at: new Date().toISOString(), minutes: Math.round((Date.now() - s.started) / 60_000) }); }
   async close() { await this.points.stop(); }
 }

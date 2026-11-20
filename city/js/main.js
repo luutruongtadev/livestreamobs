@@ -2,6 +2,7 @@
 import * as S from './sim.js';
 import { ledgerSummary, worldReserve, worldK } from './ledger.js';
 import * as Cloud from './cloud.js';
+import * as Lg from './league.js';
 import { View, DCOL } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
@@ -92,6 +93,59 @@ function writeSlot(name) {
   try { localStorage.setItem(KEY + name, JSON.stringify(data)); return true; } catch (e) { toast('Không lưu được: ' + e.message); return false; }
 }
 function autosave() { if (city && !city.over) writeSlot('auto'); lastSave = performance.now(); }
+
+// ───────────────────────── nhóm cạnh tranh (league.js) ─────────────────────────
+const lgNet = { at: 0, busy: false, err: '' };
+/** Gửi bản tóm tắt mới (nếu có) hoặc hỏi trạng thái nhóm; 30 giây một lần, ép = ngay. */
+async function leagueSync(force) {
+  if (!city || !city.league || lgNet.busy) return;
+  const now = performance.now();
+  if (!force && !city.league.outbox && now - lgNet.at < 30000) return;
+  lgNet.busy = true; lgNet.at = now;
+  const c = city, rep = c.league.outbox, token = await Cloud.getToken();
+  const r = rep ? await Lg.leagueReport(token, c.name, rep) : await Lg.leagueStatus(token);
+  lgNet.busy = false;
+  if (c !== city || !c.league) return;
+  if (r.ok && r.league && r.league.id === c.league.id) { if (rep && c.league.outbox === rep) c.league.outbox = null; Lg.applyServer(c, r); lgNet.err = ''; }
+  else if ((r.ok && !r.league) || r.status === 404) { Lg.detachLeague(c); toast('🏆 Thành phố không còn trong nhóm (đã rời hoặc sang mùa mới): chơi tự do như trước'); }
+  else lgNet.err = r.error || 'Không đồng bộ được với máy chủ';
+  if ($('league').classList.contains('show')) renderLeague();
+}
+async function leagueJoin() {
+  if (city.sandbox) { toast('Thành phố chế độ Open không vào nhóm cạnh tranh được'); return; }
+  const r = await Lg.leagueJoin(await Cloud.getToken(), city.name);
+  if (!r.ok || !r.league) { toast(r.error || 'Không vào nhóm được'); return; }
+  Lg.attachLeague(city, r);
+  autosave(); toast(`🏆 Đã vào nhóm (${r.league.members} thành phố). Từ giờ 1 ngày game = 1 giờ thật`);
+  renderLeague();
+}
+async function leagueLeave() {
+  await Lg.leagueLeave(await Cloud.getToken());
+  Lg.detachLeague(city); autosave(); toast('Đã rời nhóm: thành phố chơi tự do như trước'); renderLeague();
+}
+function renderLeague() {
+  const box = $('leagueBody');
+  if (!box) return;
+  box.textContent = '';
+  const row = (k, v) => { const r = el('div', 'row'); r.append(el('span', null, k), el('span', null, v)); return r; };
+  if (!Cloud.cloudMode()) { box.append(el('div', 'row', 'Mở game qua máy chủ của nền tảng để vào nhóm cạnh tranh')); return; }
+  const L = city.league;
+  if (!L) {
+    box.append(el('p', 'small', 'Thi với thành phố của người chơi khác. Không ai đụng được vào thành phố của bạn: dân chuyển đến, du khách, đầu tư mới và giá chợ được máy chủ chia chung cho cả nhóm theo sức hút (việc làm, hài lòng, thuế, giá đất, du lịch). Từ lúc vào nhóm, 1 ngày game = 1 giờ thật, không tua nhanh được; vắng mặt thì mở lại sẽ chạy bù tối đa 7 ngày.'));
+    if (!cloud.user) { box.append(el('div', 'row', 'Đăng nhập ở 💾 Lưu và tải → ☁️ Đám mây trước')); return; }
+    const b = el('button', 'mini acc', '🏆 Vào nhóm'); b.addEventListener('click', leagueJoin); box.append(b);
+    return;
+  }
+  const dayNow = Lg.leagueDayNow(L), ms = Math.max(0, L.start + (dayNow + 1) * L.dayMs - Date.now()), a = L.alloc;
+  if (lgNet.err) box.append(el('div', 'row neg', lgNet.err));
+  box.append(row('Ngày giải · mùa', `${dayNow + 1} · ${L.season}`), row('Ngày mới sau', `${Math.ceil(ms / 60000)} phút`), row('Thành phố trong nhóm', fmt(L.members || L.standings.length)), row('Nông thôn chung còn', L.rural != null ? `${fmt(L.rural)} người` : '–'));
+  box.append(el('h4', null, 'Phần được chia hôm nay'));
+  if (a) box.append(row('Dân chuyển đến (tối đa bằng nhà trống)', fmt(a.migrants)), row('Du khách', fmt(a.tourists)), row('Đầu tư mới', `×${a.invest}`), row('Giá chợ chung', Object.entries(a.prices || {}).map(([k, v]) => `${S.MKT_NAME[k].split(' ')[0]} ${Math.round(v * 100)}%`).join(' · ')));
+  else box.append(el('div', 'row', 'Chưa có: gửi bản tóm tắt ngày đầu tiên lúc 0 giờ'));
+  box.append(el('h4', null, 'Bảng xếp hạng (điểm thịnh vượng)'));
+  L.standings.slice(0, 30).forEach((s, k) => box.append(row(`${k + 1}. ${s.name}${s.owner === cloud.user?.id ? ' (bạn)' : ''}${s.abandoned ? ' 🏚️' : s.online ? '' : ' 💤'}`, `${fmt(s.score)} điểm · ${fmt(s.pop)} dân`)));
+  const out = el('button', 'mini', 'Rời nhóm'); out.addEventListener('click', leagueLeave); box.append(out);
+}
 
 // ───────────────────────── lưu đám mây (cloud.js) ─────────────────────────
 const cloud = { user: null, slots: [], busy: false, at: 0, err: '' };
@@ -1466,7 +1520,8 @@ function peekDist() { $('dist').classList.add('peek'); toast('Bấm 🏙️ đ�
 
 function openSide(id) {
   if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  if (id === 'league') { renderLeague(); leagueSync(true); }
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'league']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
@@ -1481,6 +1536,7 @@ function bindUi() {
   $('distPeek').addEventListener('click', () => peekDist());
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
+  $('bLeague').addEventListener('click', () => openSide('league'));
   $('moneyStat').addEventListener('click', () => openSide('budget')); // bấm ô 💰 tiền cũng mở bảng ngân sách
   $('moneyStat').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSide('budget'); } });
   $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
@@ -1954,6 +2010,11 @@ function startCity(c) {
     return false;
   }
   city = c; window.__city = c;
+  if (c.league) { // nhóm cạnh tranh: chạy bù thời gian vắng mặt theo đồng hồ thật rồi đồng bộ máy chủ
+    const r = Lg.syncClock(c, S.catchUp);
+    if (r.ran || r.skipped) setTimeout(() => toast(`🏆 Đã chạy bù ${Math.round(r.ran / 24)} ngày vắng mặt${r.skipped ? `, bỏ qua ${Math.round(r.skipped / 24)} ngày (vắng quá ${Lg.CATCHUP_MAX_DAYS} ngày)` : ''}`), 400);
+    setTimeout(() => leagueSync(true), 0);
+  }
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('ferryFare').value = c.transit.ferryFare ?? 4; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
@@ -1983,7 +2044,10 @@ function frame(now) {
   if (stroke && now - stroke.at > 110) { stroke.at = now; strokeStep(false); }
 
   const hourBefore = city.hour;
-  S.advance(city, dt * speed);
+  if (city.league && city.hour >= Lg.allowedHour(city.league)) { // đồng hồ thật của nhóm: chờ ngày giải mới
+    if (!frame.waitHint || now - frame.waitHint > 15000) { frame.waitHint = now; const ms = Math.max(0, (city.league.start + (Lg.leagueDayNow(city.league) + 1) * city.league.dayMs) - Date.now()); hintOverride = `🏆 Đã hết ngày giải hôm nay: thành phố chờ ngày mới sau <b>${Math.ceil(ms / 60000)} phút</b> (nhóm cạnh tranh chạy theo đồng hồ thật)`; renderHint(); }
+  } else { if (frame.waitHint) { frame.waitHint = 0; hintOverride = null; renderHint(); } S.advance(city, dt * speed); }
+  leagueSync(false);
   const n = city.hour - hourBefore;
   for (const ev of city.events.splice(0)) {
     if (ev.type === 'milestone') {
@@ -1992,6 +2056,8 @@ function frame(now) {
     } else if (ev.type === 'fireStart') toast(`🔥 Có đám cháy${ev.cause ? ` (${ev.cause})` : ''}! Xe cứu hoả gần nhất đang chạy tới`);
     else if (ev.type === 'built') toast(`🏗️ Đã xây xong ${ev.icon} ${ev.name}`);
     else if (ev.type === 'depleted') toast(ev.text);
+    else if (ev.type === 'league') toast(ev.text);
+    else if (ev.type === 'leagueDay') { const a = ev.alloc; toast(`🏆 Ngày giải mới: ${fmt(a.migrants)} người được chia về thành phố, ${fmt(a.tourists)} du khách, đầu tư ×${a.invest}`); }
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
     else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng', leisure: 'quán ăn, chỗ vui chơi' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }

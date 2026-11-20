@@ -8,6 +8,8 @@ import * as LG from '../city/js/ledger.js';
 import { resolveStatic, createHttpHandler } from '../gateway/index.js';
 import { FileStore } from '../gateway/store.js';
 import { createCityCloud } from '../gateway/city-cloud.js';
+import * as LEAGUE from '../gateway/city-league.js';
+import * as LgC from '../city/js/league.js';
 import http from 'node:http';
 import os from 'node:os';
 import fs from 'node:fs';
@@ -2055,5 +2057,60 @@ test('city: lưu đám mây — cần đăng nhập, lưu / liệt kê / tải /
     await new Promise((r) => off.listen(0, '127.0.0.1', r));
     assert.equal((await fetch(`http://127.0.0.1:${off.address().port}/api/city/saves`)).status, 503);
     off.close();
+  } finally { server.close(); }
+});
+
+test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, giá chợ theo sức hút; offline dùng báo cáo cuối, bỏ lâu thì mất dân; API vào / báo cáo / rời', async () => {
+  const H = LEAGUE.LEAGUE.dayMs, rep = (o) => LEAGUE.cleanReport({ pop: 500, homes: 900, vacHomes: 400, jobs: 400, vacJobs: 60, wage: 20, tax: { r: 9, c: 9, i: 9 }, happy: 60, landValue: 40, pollution: 10, want: {}, offer: { goods: { qty: 50 } }, tourism: { attract: 20, perDay: 100, beds: 50 }, ...o });
+  const t0 = 1e12, lg = { id: 'g', season: 0, start: t0, rural: 20000, carry: 0, members: {} };
+  const add = (id, r, joinDay = -10, at = t0) => { lg.members[id] = { owner: id, name: id, joinDay, report: r, reportAt: at }; };
+  add('good', rep({ happy: 85, vacJobs: 150, landValue: 70, pollution: 5 }));
+  add('bad', rep({ happy: 25, vacJobs: 0, landValue: 10, pollution: 60, tax: { r: 18, c: 18, i: 18 }, tourism: null }));
+  add('full', rep({ vacHomes: 3 }));
+  add('gone', rep({ pop: 1000 }), -10, t0 - LEAGUE.LEAGUE.abandonMs - 1);
+  const a = LEAGUE.settle(lg, 0, t0);
+  assert.ok(a.good.migrants > a.bad.migrants, 'chính sách tốt thì nhiều người chuyển đến hơn');
+  assert.ok(a.full.migrants <= 3, 'không quá số nhà trống');
+  assert.ok(a.good.tourists > 0 && a.bad.tourists === 0, 'không có điểm du lịch thì không có khách');
+  assert.ok(a.good.invest > a.bad.invest, 'môi trường kinh doanh tốt thì đầu tư nhiều hơn');
+  assert.ok(a.gone.abandoned && a.gone.leave > 0 && a.gone.migrants === 0, 'bỏ quá lâu: không nhận gì, mất dần dân');
+  assert.ok(lg.rural < 20000 && a.good.pool >= a.good.migrants, 'dân lấy từ nông thôn chung của nhóm');
+  const glut = { ...lg, members: { x: { owner: 'x', joinDay: 0, report: rep({ offer: { goods: { qty: 5000 } } }), reportAt: t0 } } };
+  assert.ok(LEAGUE.settle(glut, 1, t0).x.prices.goods < a.good.prices.goods, 'bán nhiều thì giá chợ chung rớt');
+  assert.deepEqual(LEAGUE.standings(lg, t0).map((r) => r.owner)[0], 'good', 'xếp hạng theo điểm thịnh vượng');
+  // API qua gateway (FileStore, DEV token)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-league-')), DEV = 'dev-token-lg';
+  const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
+  let clock = t0;
+  const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityLeague: LEAGUE.createCityLeague({ store, now: () => clock }) }));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const call = async (method, p = '', body, token = DEV) => { const res = await fetch(`http://127.0.0.1:${server.address().port}/api/city/league${p}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, ...(await res.json()) }; };
+  try {
+    assert.equal((await call('GET', '', undefined, '')).status, 401);
+    assert.equal((await call('GET')).league, null, 'chưa vào nhóm');
+    const j = await call('POST', '/join', { name: 'Phố <i>A</i>' });
+    assert.ok(j.ok && j.league.day === 0 && j.me.name === 'Phố iA/i');
+    const c = town(); LgC.attachLeague(c, j);
+    run(c, 24); // qua 0 giờ: provider gửi bản tóm tắt vào outbox
+    assert.ok(c.league.outbox && 'left' in c.league.outbox, 'bản tóm tắt ngày chờ gửi');
+    clock += H; // sang ngày giải 1
+    const r = await call('POST', '/report', { report: c.league.outbox });
+    assert.ok(r.ok && r.league.day === 1 && r.alloc && r.alloc.day === 1 && r.standings.length === 1);
+    LgC.applyServer(c, r);
+    // provider: 0 giờ hôm sau dùng phần chia (dân, giá chợ), sổ dân vẫn khớp
+    r.alloc.prices.goods = 0.7; c.league.alloc.prices.goods = 0.7;
+    run(c, 24);
+    assert.equal(c.market.p.goods, 0.7, 'giá chợ theo nhóm');
+    assert.equal(c.league.alloc.used, true);
+    assert.equal(LG.checkPop(c).drift, 0, 'nguồn dân đổi theo máy chủ mà sổ dân vẫn khớp');
+    // đồng hồ thật: không chạy quá ngày giải; vắng lâu thì chạy bù tối đa 7 ngày
+    const L = c.league;
+    assert.equal(LgC.allowedHour(L, L.start + 0.5 * H), L.cityHour0 + 24);
+    const before = c.hour, sync = LgC.syncClock(c, S.catchUp, L.start + 30 * H);
+    assert.equal(sync.ran, LgC.CATCHUP_MAX_DAYS * 24); assert.ok(sync.skipped > 0 && c.hour - before === sync.ran);
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.ok(back.league && back.league.id === L.id && S.outside(back).kind === 'league', 'lưu lại vẫn trong nhóm');
+    assert.equal((await call('POST', '/leave')).ok, true);
+    assert.equal((await call('GET')).league, null, 'đã rời nhóm');
   } finally { server.close(); }
 });

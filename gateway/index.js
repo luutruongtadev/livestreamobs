@@ -95,7 +95,7 @@ export function resolveStatic(urlPath, root = ROOT) {
   return null;
 }
 
-export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig, cityAi = null, cityCloud = null }) {
+export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig, cityAi = null, cityCloud = null, cityLeague = null }) {
   const catalogJson = JSON.stringify(catalog);
   const widgetsJson = JSON.stringify(widgets);
   const configJs = `window.PLATFORM = ${JSON.stringify(publicConfig)};\n`;
@@ -106,6 +106,10 @@ export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicCo
       if (req.method !== 'POST') { res.writeHead(405, head); return res.end(); }
       if (!cityAi) { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"offline":true}'); }
       return cityAi.handle(req, res, head);
+    }
+    if (url.pathname === '/api/city/league' || url.pathname.startsWith('/api/city/league/')) { // Phố Mới: nhóm cạnh tranh
+      if (!cityLeague) { res.writeHead(503, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"error":"Máy chủ chưa bật nhóm cạnh tranh"}'); }
+      return cityLeague.handle(req, res, head, url.pathname);
     }
     if (url.pathname === '/api/city/saves' || url.pathname.startsWith('/api/city/saves/')) { // Phố Mới: lưu đám mây
       if (!cityCloud) { res.writeHead(503, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"error":"Máy chủ chưa bật lưu đám mây"}'); }
@@ -150,7 +154,9 @@ async function main() {
   const cityAi = createCityAi({ env });
   const { createCityCloud } = await import('./city-cloud.js');
   const cityCloud = createCityCloud({ store });
-  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig, cityAi, cityCloud }));
+  const { createCityLeague } = await import('./city-league.js');
+  const cityLeague = createCityLeague({ store });
+  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig, cityAi, cityCloud, cityLeague }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);
   server.listen(port, env.HOST || '0.0.0.0', () => {
