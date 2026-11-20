@@ -1,6 +1,6 @@
 # Phố Mới — kế hoạch chơi nhiều người
 
-Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và việc cần làm từ buổi bàn ngày 2026-11-20.
+Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và việc cần làm từ các buổi bàn ngày 2026-11-20.
 
 ## 1. Đã chốt
 
@@ -15,6 +15,11 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
   2. **Tiền không in thêm.** Mọi khoản tiền nằm trong một ví (ngân sách thành phố, hộ dân, doanh nghiệp, ngân hàng trung ương); mọi giao dịch là chuyển giữa các ví.
   3. **Hàng hoá và năng lượng phải được sản xuất.** Tài nguyên có trữ lượng và cạn dần; rừng và cá hồi lại theo tốc độ riêng; điện than và điện dầu đốt nhiên liệu thật.
 - **Máy chủ chia nguồn chung** (dân chuyển nhà, doanh nghiệp mới, du khách, nhu cầu của chợ) theo sức hút của từng thành phố. Máy chủ chỉ đóng vai những người muốn chuyển đi, mỗi người tự chọn nơi đến theo chính sách của thành phố.
+
+- **Cuối game** (đất đã kín, công trình đã đủ), xem mục 4:
+  - điểm mùa tính theo mức cải thiện và chất lượng sống, không theo tổng dân;
+  - thêm nhà cấp 6–7 và cải tạo đô thị để tăng mật độ;
+  - hết mùa thì giữ thành phố, chỉ reset điểm mùa.
 
 ## 2. Hiện trạng mã (để biết phải sửa gì)
 
@@ -102,7 +107,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 ### Giai đoạn E — hiển thị và cảm giác cạnh tranh
 
 19. **Báo cáo mỗi ngày:** bao nhiêu người đến từ đâu, đi đâu, vì sao. Ví dụ: "đi vì thất nghiệp 12%, đến TP X vì lương cao hơn 15%".
-20. **Bảng hạng theo điểm thịnh vượng** (dân số, GDP, mức hài lòng). Các bậc: Làng, Thị trấn, Thị xã, Thành phố, Đô thị loại I, Siêu đô thị. Có thưởng cuối mùa.
+20. **Bảng hạng theo điểm mùa** (cách tính ở mục 4.1), chia theo cỡ thành phố. Các bậc: Làng, Thị trấn, Thị xã, Thành phố, Đô thị loại I, Siêu đô thị. Có thưởng cuối mùa.
 21. **Bảng so sánh chính sách** với các thành phố trong nhóm: thuế, giá bán, sức hút.
 22. **Đi thăm 3D thành phố người khác** (chỉ xem).
 23. Xe tải, tàu, máy bay chở hàng và khách từ thành phố khác hiện ở cổng, có ghi tên thành phố.
@@ -113,7 +118,53 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 - Bán điện, nước cho thành phố khác.
 - Chat.
 
-## 4. Luật cân bằng cần có từ đầu
+## 4. Cuối game: khi đất đã kín, công trình đã đủ
+
+Giới hạn hiện có: bản đồ cố định (96, 128 hoặc 160 ô mỗi cạnh) và mua đất tối đa hết bản đồ; nhà tối đa cấp 5 (`MAX_LEVEL`); các mốc dân số và cây công nghệ đều có điểm cuối. Hướng chung: khi hết chỗ mở rộng, mục tiêu đổi từ **làm to hơn** sang **làm tốt hơn**.
+
+### 4.1 Điểm mùa (đã chốt)
+
+- Điểm mỗi mùa tính trên **mức cải thiện trong mùa** và **chất lượng sống**, không tính tổng dân tuyệt đối:
+  - GDP trên đầu người, mức hài lòng, tuổi thọ;
+  - thời gian đi làm, ô nhiễm, tội phạm, nợ công.
+- Bảng hạng chia theo cỡ thành phố: thành phố nhỏ chỉ đua với thành phố nhỏ.
+- Thành phố đã đầy vẫn lên hạng được bằng cách làm cho dân sống tốt hơn.
+
+### 4.2 Tăng mật độ thay cho tăng diện tích (đã chốt)
+
+- **Nhà cấp 6–7:** cao ốc và tháp chọc trời. Chỉ lên được khi giá đất cao, có metro và đủ lao động có trình độ.
+- **Cải tạo đô thị:** phá khu nhà thấp tầng cũ để xây cao hơn. Trong lúc cải tạo, dân phải tạm chuyển đi và có thể sang thành phố khác; đây là quyết định có cái giá thật.
+- **Lấn biển, san núi** bằng công cụ địa hình có sẵn, nhưng rất đắt và tốn tài nguyên.
+
+### 4.3 Hết mùa (đã chốt)
+
+- **Giữ thành phố, chỉ reset điểm mùa.** Không ai mất công xây; nhờ điểm tính theo mức cải thiện nên người chơi lâu năm và người mới vẫn đua công bằng.
+
+### 4.4 Áp lực không bao giờ dừng
+
+Để thành phố đầy không tự chạy một mình:
+
+- **Hạ tầng già đi:** đường xuống cấp (đã có); thêm ống nước, cầu và công trình xuống cấp, phải duy tu hoặc xây lại.
+- **Dân già đi:** thành phố cũ đông người già, ít người lao động; phải có chính sách hút người trẻ, mà trong kinh tế khép kín người trẻ phải giành từ thành phố khác.
+- **Tài nguyên cạn:** ngành khai thác chết dần, buộc chuyển sang chế biến, văn phòng, du lịch.
+- **Người dân đòi hỏi cao dần:** tiêu chuẩn "đủ tốt" tăng theo mùa.
+- **Chu kỳ kinh tế và thiên tai:** giá thị trường biến động, các loại thiên tai hiện có.
+
+### 4.5 Mục tiêu dài hơi
+
+- **Đại công trình:** sân bay quốc tế lớn, khu công nghệ cao, cảng nước sâu, lễ hội quốc tế. Cần rất nhiều tiền, hàng hoá và lao động trong nhiều ngày; cho điểm và sức hút lớn, nhưng làm cạn nguồn lực trong lúc xây.
+- **Lập thành phố mới** khi đã đạt bậc cao nhất:
+  - mang theo điểm danh tiếng (mở sẵn vài công nghệ, thêm dân khởi đầu);
+  - thành phố cũ vẫn còn, làm "thành phố chị em" để giao thương.
+
+### 4.6 Việc cần làm cho phần cuối game
+
+1. Công thức điểm mùa và bảng hạng chia theo cỡ thành phố (gộp vào giai đoạn E).
+2. Nhà cấp 6–7 và điều kiện lên cấp; công cụ cải tạo đô thị với dân tạm chuyển đi (làm được ngay trong chế độ chơi một mình, cùng giai đoạn A).
+3. Xuống cấp cho ống nước, cầu, công trình; dân già đi; tiêu chuẩn hài lòng tăng theo mùa.
+4. Đại công trình và lập thành phố mới mang theo điểm danh tiếng (để sau, khi đã có máy chủ).
+
+## 5. Luật cân bằng cần có từ đầu
 
 - **Không đua hạ thuế xuống đáy:** thuế thấp thì thu ít, không đủ nuôi dịch vụ, mức hài lòng giảm. Thuế 0% không được là cách thắng.
 - **Không để giàu càng giàu:** lợi thế giảm dần trong công thức chia; thành phố to thì đông đúc, đất đắt, kẹt xe nên sức hút giảm.
@@ -122,7 +173,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 - **Khởi đầu không buồn tẻ:** nhóm dân khởi đầu (lấy từ nông thôn) và khoản vay khởi nghiệp phải đủ để vài giờ đầu vẫn vui.
 - **Nhịp mùa:** đầu mùa nông thôn đông người, ai cũng lớn được; cuối mùa nguồn chính là người rời từ thành phố khác, cạnh tranh gay gắt hơn.
 
-## 5. Còn cần quyết
+## 6. Còn cần quyết
 
 | # | Câu hỏi | Đề xuất |
 |---|---|---|
@@ -135,7 +186,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 | 7 | Thành phố bị bỏ: dân và tiền tự chảy đi sau bao lâu | khoảng 7 ngày |
 | 8 | Cỡ nhóm cạnh tranh | 20–50 thành phố, ghép theo điểm |
 
-## 6. Ước lượng
+## 7. Ước lượng
 
 - **Bản lưu:** khoảng 100–300 KB mỗi thành phố (chưa đo). Gói miễn phí của Supabase đủ cho vài chục người chơi.
 - **Phần nặng nhất:** giai đoạn A (viết lại dòng tiền và dòng người trong toàn bộ mô phỏng). Nên làm trước, vì không cần máy chủ và chế độ chơi một mình cũng được lợi.
