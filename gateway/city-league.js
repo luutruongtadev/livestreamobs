@@ -8,6 +8,7 @@
 // Store cần getLeague(id) / putLeague(league) / openLeagues(season) / leagueOf(owner) / setLeagueOf(owner, id | null).
 import crypto from 'node:crypto';
 import { prosperity } from '../city/js/world.js';
+import { PRICE } from '../city/js/base.js';
 
 export const LEAGUE = {
   dayMs: 3600_000, // 1 ngày giải = 1 giờ thật
@@ -23,6 +24,9 @@ export const LEAGUE = {
   keepDays: 6, // giữ phần chia của bấy nhiêu ngày gần nhất
 };
 const KINDS = ['agri', 'wood', 'ore', 'oil', 'fish', 'goods'];
+/** Giá chào bán (phần của giá chợ chung) và thuế nhập khẩu người chơi đặt được. */
+export const TRADE = { askMin: 0.8, askMax: 1.2, tariffMax: 0.5 };
+const importMult = (k) => (k === 'goods' ? PRICE.importMult : PRICE.rawImportMult); // nhập từ thế giới máy đắt hơn giá chợ
 const DEMAND = { agri: 120, wood: 90, ore: 80, oil: 60, fish: 90, goods: 160 }; // nhu cầu của thị trường chung mỗi thành phố mỗi ngày
 
 export const seasonOf = (t) => Math.floor(t / (LEAGUE.seasonDays * 24 * LEAGUE.dayMs));
@@ -42,8 +46,44 @@ export function cleanReport(r) {
     want: { unemployed: Math.round(num(want.unemployed, 0, pop)), homeless: Math.round(num(want.homeless, 0, pop)), unhappy: Math.round(num(want.unhappy, 0, pop)), broke: Math.round(num(want.broke, 0, pop)) },
     wantTotal: Math.round(num(r.wantTotal, 0, pop)), left: Math.round(num(r.left, 0, pop)),
     offer, tourism: r.tourism ? { attract: num(r.tourism.attract, 0, 1e4), perDay: num(r.tourism.perDay, 0, 1e6), beds: num(r.tourism.beds, 0, 1e6) } : null,
+    trade: { need: perKind(r.trade?.need, 0, 1e6), sold: perKind(r.trade?.sold, 0, 1e6), ask: perKind(r.trade?.ask, TRADE.askMin, TRADE.askMax, 1), tariff: perKind(r.trade?.tariff, 0, TRADE.tariffMax, 0) },
     gdp: num(r.gdp, 0, 1e12), money: num(r.money, -1e12, 1e12), income: num(r.income, 0, 1e10), expense: num(r.expense, 0, 1e10),
   };
+}
+
+function perKind(o, lo, hi, d = 0) { const out = {}; for (const k of KINDS) out[k] = num(o?.[k], lo, hi, d); return out; }
+
+/**
+ * Mua bán giữa các thành phố (hợp đồng giá trong một ngày giải). Bên mua: thành phố hôm qua nhập khẩu (need);
+ * bên bán: hàng đang chào (offer) hoặc đã bán hôm qua (sold), giá = giá chợ chung × giá chào của người bán.
+ * Giá tới tay bên mua = giá bán × (1 + thuế nhập khẩu của bên mua); chỉ mua khi rẻ hơn nhập từ thế giới máy, rẻ nhất trước.
+ * Trả về { [owner]: { buy: { k: { qty, price, tariff, from } }, sell: { k: { qty, price, to } } } } (price: hệ số giá).
+ */
+export function matchTrade(active, prices) {
+  const out = {};
+  for (const m of active) out[m.owner] = { buy: {}, sell: {} };
+  for (const k of KINDS) {
+    const P = prices[k] || 1, world = P * importMult(k), pairs = [];
+    const cap = new Map(active.map((m) => [m.owner, Math.floor(Math.max(m.report.offer[k].qty, m.report.trade.sold[k]))]));
+    const need = new Map(active.map((m) => [m.owner, Math.floor(m.report.trade.need[k])]));
+    for (const b of active) for (const s of active) {
+      if (b === s || !need.get(b.owner) || !cap.get(s.owner)) continue;
+      const ask = P * s.report.trade.ask[k], landed = ask * (1 + b.report.trade.tariff[k]);
+      if (landed < world) pairs.push({ b, s, ask, landed });
+    }
+    pairs.sort((x, y) => x.landed - y.landed || x.ask - y.ask);
+    for (const p of pairs) {
+      const q = Math.min(need.get(p.b.owner), cap.get(p.s.owner));
+      if (q <= 0) continue;
+      need.set(p.b.owner, need.get(p.b.owner) - q); cap.set(p.s.owner, cap.get(p.s.owner) - q);
+      const bu = out[p.b.owner].buy[k] || (out[p.b.owner].buy[k] = { qty: 0, value: 0, tariff: p.b.report.trade.tariff[k], from: [] });
+      bu.qty += q; bu.value += q * p.ask; if (!bu.from.includes(p.s.name)) bu.from.push(p.s.name);
+      const se = out[p.s.owner].sell[k] || (out[p.s.owner].sell[k] = { qty: 0, value: 0, to: [] });
+      se.qty += q; se.value += q * p.ask; if (!se.to.includes(p.b.name)) se.to.push(p.b.name);
+    }
+  }
+  for (const o of Object.values(out)) for (const side of ['buy', 'sell']) for (const d of Object.values(o[side])) { d.price = Math.round((d.value / d.qty) * 1000) / 1000; delete d.value; }
+  return out;
 }
 
 /** Sức hút nhà ở (0..1): hài lòng, việc làm còn trống, lương, thuế, giá đất, ô nhiễm. */
@@ -102,9 +142,9 @@ export function settle(lg, day, now) {
     const supply = active.reduce((a, m) => a + m.report.offer[k].qty, 0), demand = DEMAND[k] * Math.max(1, active.length);
     prices[k] = Math.round(clamp(Math.pow(demand / Math.max(demand * 0.2, supply), 0.35), 0.45, 1.9) * 1000) / 1000;
   }
-  const allocs = {};
+  const allocs = {}, trade = matchTrade(active, prices);
   active.forEach((m, k) => {
-    allocs[m.owner] = { day, migrants: mig[k], tourists: tour[k], invest: Math.round(clamp(0.6 + 0.4 * (bMean ? bw[k] / bMean : 1), 0.5, 1.5) * 100) / 100, prices, leave: 0, pool, fromRural };
+    allocs[m.owner] = { day, migrants: mig[k], tourists: tour[k], invest: Math.round(clamp(0.6 + 0.4 * (bMean ? bw[k] / bMean : 1), 0.5, 1.5) * 100) / 100, prices, leave: 0, pool, fromRural, trade: trade[m.owner] };
   });
   for (const m of gone) allocs[m.owner] = { day, migrants: 0, tourists: 0, invest: 1, prices, leave: m.drained || 0, pool, abandoned: true };
   const takenRural = Math.min(fromRural, mig.reduce((a, b) => a + b, 0));

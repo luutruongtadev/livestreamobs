@@ -2114,3 +2114,38 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
     assert.equal((await call('GET')).league, null, 'đã rời nhóm');
   } finally { server.close(); }
 });
+
+test('city: mua bán giữa các thành phố trong nhóm — ghép theo giá sau thuế, chỉ khi rẻ hơn thế giới máy; hợp đồng áp vào xe nhập / xuất, thuế nhập khẩu vào ngân sách', async () => {
+  const mk = (owner, o) => ({ owner, name: owner, report: LEAGUE.cleanReport({ pop: 100, offer: { goods: { qty: o.cap || 0 } }, trade: { need: { goods: o.need || 0 }, ask: { goods: o.ask || 1 }, tariff: { goods: o.tariff || 0 } } }) });
+  const P = { goods: 1 };
+  let t = LEAGUE.matchTrade([mk('A', { need: 100 }), mk('S1', { cap: 60, ask: 1 }), mk('S2', { cap: 80, ask: 0.9 })], P);
+  assert.deepEqual([t.A.buy.goods.qty, t.S2.sell.goods.qty, t.S1.sell.goods.qty], [100, 80, 20], 'rẻ nhất trước, đủ nhu cầu');
+  assert.ok(t.A.buy.goods.price > 0.9 && t.A.buy.goods.price < 1, 'giá trung bình theo hợp đồng');
+  t = LEAGUE.matchTrade([mk('A', { need: 100, tariff: 0.5 }), mk('S1', { cap: 60, ask: 1.2 })], P);
+  assert.equal(t.A.buy.goods, undefined, 'thuế cao, giá chào cao: đắt hơn thế giới máy thì không mua');
+  t = LEAGUE.matchTrade([mk('A', { need: 50, cap: 50 })], P);
+  assert.equal(t.A.buy.goods, undefined, 'không tự mua của mình');
+  // phía game: hợp đồng mua 10 đơn vị hàng hoá giá 90% + thuế 20%
+  const P2 = await import('../city/js/people.js');
+  const c = town(); run(c, 24);
+  LgC.attachLeague(c, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 0, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 0, migrants: 0, tourists: 0, invest: 1, prices: { goods: 1 }, trade: { buy: { goods: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } }, standings: [] });
+  LgC.applyServer(c, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 1 }, alloc: { day: 1, prices: { goods: 1 }, trade: { buy: { goods: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } } });
+  let shop = -1; for (let i = 0; i < S.N * S.N && shop < 0; i++) if (c.level[i] && S.bizKind(c, i) === 'shop') shop = i;
+  assert.ok(shop >= 0, 'có cửa hàng nhập hàng');
+  LG.resetLedger(c);
+  const money0 = c.money, biz0 = c.biz.money[shop];
+  P2.onArrive(c, { t: 'cargo', to: shop, from: -1, kind: 'goods', qty: 12, imp: true });
+  const unit = S.PRICE.goods, tariff = 10 * unit * 0.9 * 0.2;
+  assert.ok(Math.abs(c.money - money0 - tariff) < 1e-6, 'thuế nhập khẩu vào ngân sách');
+  assert.ok(Math.abs(biz0 - c.biz.money[shop] - (10 * unit * 0.9 * 1.2 + 2 * unit * S.PRICE.importMult * c.market.p.goods)) < 1e-3, 'doanh nghiệp trả giá hợp đồng + thuế cho 10, giá thế giới cho 2');
+  assert.equal(c.league.alloc.trade.buy.goods.left, 0, 'hợp đồng đã dùng hết');
+  assert.ok(Math.abs(LG.checkLedger(c).drift) < 1e-3, 'sổ cái khớp');
+  // chính sách: đổi mỗi loại hàng một lần mỗi ngày, gửi lên trong bản tóm tắt
+  assert.ok(LgC.setPolicy(c, 'tariff', 'goods', 0.6).ok);
+  assert.equal(LgC.policyOf(c).tariff.goods, 0.5, 'trần thuế 50%');
+  assert.equal(LgC.setPolicy(c, 'tariff', 'goods', 0.1).ok, false, 'đổi lần hai trong ngày');
+  run(c, 24);
+  assert.ok(c.league.outbox && c.league.outbox.trade.tariff.goods === 0.5 && 'need' in c.league.outbox.trade);
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(LgC.policyOf(back).tariff.goods, 0.5, 'chính sách lưu lại');
+});

@@ -142,6 +142,21 @@ function renderLeague() {
   box.append(el('h4', null, 'Phần được chia hôm nay'));
   if (a) box.append(row('Dân chuyển đến (tối đa bằng nhà trống)', fmt(a.migrants)), row('Du khách', fmt(a.tourists)), row('Đầu tư mới', `×${a.invest}`), row('Giá chợ chung', Object.entries(a.prices || {}).map(([k, v]) => `${S.MKT_NAME[k].split(' ')[0]} ${Math.round(v * 100)}%`).join(' · ')));
   else box.append(el('div', 'row', 'Chưa có: gửi bản tóm tắt ngày đầu tiên lúc 0 giờ'));
+  // buôn bán với thành phố khác: hợp đồng hôm nay + chính sách giá chào, thuế nhập khẩu (áp từ ngày giải sau)
+  box.append(el('h4', null, 'Buôn bán với thành phố khác'));
+  const tr = a && a.trade, deals = [];
+  if (tr) for (const [side, verb, who] of [['buy', 'Mua', 'from'], ['sell', 'Bán', 'to']]) for (const [k, d] of Object.entries(tr[side] || {})) deals.push(row(`${verb} ${S.MKT_NAME[k]} ${side === 'buy' ? 'của' : 'cho'} ${(d[who] || []).slice(0, 3).join(', ')}`, `${fmt(d.qty)} · giá ${Math.round(d.price * 100)}%${side === 'buy' && d.tariff ? ` + thuế ${Math.round(d.tariff * 100)}%` : ''}${d.left != null && d.left < d.qty ? ` · còn ${fmt(Math.round(d.left))}` : ''}`));
+  if (deals.length) box.append(...deals); else box.append(el('div', 'row', 'Hôm nay chưa có hợp đồng (cần nhập / xuất khẩu hôm qua và giá rẻ hơn thế giới máy)'));
+  const P = Lg.policyOf(city), tbl = el('div', 'policy');
+  box.append(el('small', null, 'Giá chào bán: phần của giá chợ chung khi bán cho thành phố khác. Thuế nhập khẩu: đánh vào hàng mua của thành phố khác, tiền vào ngân sách; thuế cao thì dân, doanh nghiệp mua của thế giới máy. Mỗi loại đổi được một lần mỗi ngày.'));
+  const step = (field, k, d) => { const r = Lg.setPolicy(city, field, k, P[field][k] + d); if (!r.ok) toast(r.reason); renderLeague(); };
+  for (const k of S.MKT_KINDS) {
+    const line = el('div', 'row');
+    const ctl = (field, lab) => { const g = el('span'), m = el('button', 'mini', '−'), p = el('button', 'mini', '+'); m.addEventListener('click', () => step(field, k, -0.05)); p.addEventListener('click', () => step(field, k, 0.05)); g.append(lab, m, el('b', null, ` ${Math.round(P[field][k] * 100)}% `), p); return g; };
+    line.append(el('span', null, S.MKT_NAME[k]), ctl('ask', 'chào '), ctl('tariff', ' thuế '));
+    tbl.append(line);
+  }
+  box.append(tbl);
   box.append(el('h4', null, 'Bảng xếp hạng (điểm thịnh vượng)'));
   L.standings.slice(0, 30).forEach((s, k) => box.append(row(`${k + 1}. ${s.name}${s.owner === cloud.user?.id ? ' (bạn)' : ''}${s.abandoned ? ' 🏚️' : s.online ? '' : ' 💤'}`, `${fmt(s.score)} điểm · ${fmt(s.pop)} dân`)));
   const out = el('button', 'mini', 'Rời nhóm'); out.addEventListener('click', leagueLeave); box.append(out);

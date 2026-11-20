@@ -217,14 +217,26 @@ export function onArrive(c, cb, v) {
       const b = c.biz, to = cb.to;
       b.incoming[to] = 0;
       if (!c.level[to]) return undefined;
-      const price = priceOf(cb.kind), cost = cb.qty * price * (cb.imp ? (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, cb.kind) : 1); // nhập khẩu theo giá thị trường
+      const price = priceOf(cb.kind);
+      let cost = cb.qty * price * (cb.imp ? (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, cb.kind) : 1); // nhập khẩu theo giá thị trường
+      let deal = null;
+      if (cb.imp && c.fn && c.fn.contract && (deal = c.fn.contract(c, 'buy', cb.kind, cb.qty))) { // nhóm cạnh tranh: mua của thành phố khác theo hợp đồng, thuế nhập khẩu vào ngân sách
+        const unit = price * deal.price, tariff = deal.qty * unit * deal.tariff, rest = cb.qty - deal.qty;
+        cost = deal.qty * unit + tariff + rest * price * (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, cb.kind);
+        b.money[to] -= tariff; c.money += tariff; inner(c, 'tariff', tariff); cost -= tariff;
+        world(c, 'importCity', -deal.qty * unit); cost -= deal.qty * unit; b.money[to] -= deal.qty * unit;
+      }
+      if (cb.imp) { const ik = c.econ.day.impK || (c.econ.day.impK = {}); ik[cb.kind] = (ik[cb.kind] || 0) + cb.qty; }
       b.sin[to] += cb.qty; b.money[to] -= cost;
       if (cb.imp) world(c, 'import', -cost); else if (c.level[cb.from]) inner(c, 'supply', cost); else world(c, 'import', -cost); // bên bán đã dỡ: coi như trả ra ngoài
       if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * price, 'i');
       return undefined;
     }
     case 'export': {
-      if (c.level[cb.from]) saleIncome(c, cb.from, cb.qty * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0) + (c.railExport || 0)) * mkt(c, cb.kind), 'i', 'export');
+      const deal = c.fn && c.fn.contract ? c.fn.contract(c, 'sell', cb.kind, cb.qty) : null, rest = cb.qty - (deal ? deal.qty : 0); // nhóm cạnh tranh: bán cho thành phố khác theo hợp đồng
+      if (deal && c.level[cb.from]) saleIncome(c, cb.from, deal.qty * priceOf(cb.kind) * deal.price, 'i', 'exportCity');
+      if (rest > 0 && c.level[cb.from]) saleIncome(c, cb.from, rest * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0) + (c.railExport || 0)) * mkt(c, cb.kind), 'i', 'export');
+      { const ek = c.econ.day.expK || (c.econ.day.expK = {}); ek[cb.kind] = (ek[cb.kind] || 0) + cb.qty; }
       c.econ.day.exportValue = (c.econ.day.exportValue || 0) + cb.qty * priceOf(cb.kind) * mkt(c, cb.kind);
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;

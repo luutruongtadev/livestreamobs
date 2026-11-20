@@ -119,8 +119,10 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 - Thành phố offline dùng bản tóm tắt cuối; bỏ quá 7 ngày thật thì không nhận gì, mỗi ngày mất 2% dân về nguồn chung (áp khi chủ quay lại).
 - Bảng xếp hạng theo điểm thịnh vượng (`world.js prosperity`, bản thử: chưa tính theo mức cải thiện trong mùa như mục 4.1).
 
+- **Mua bán giữa các thành phố và thuế nhập khẩu (việc 12b, xong):** hợp đồng giá theo ngày giải. Máy chủ (`matchTrade`) ghép bên mua (thành phố có nhập khẩu hôm qua) với bên bán (hàng đang chào hoặc đã bán hôm qua), giá = giá chợ chung × giá chào của người bán (80–120%), giá tới tay = giá × (1 + thuế nhập khẩu của bên mua, tối đa 50%); chỉ mua khi rẻ hơn nhập từ thế giới máy, rẻ nhất trước. Trong ngày, xe nhập / xuất của thành phố tính theo giá hợp đồng tới hết số lượng; thuế nhập khẩu vào ngân sách bên mua. Bảng 🏆 hiện hợp đồng hôm nay và chỉnh giá chào, thuế từng loại hàng (mỗi loại một lần mỗi ngày, áp từ ngày giải sau).
+
 **Chưa làm trong giai đoạn C:**
-- Mua bán trực tiếp giữa các thành phố và thuế nhập khẩu (việc 12b): hiện chỉ có giá chợ chung; xuất nhập khẩu vẫn với thế giới máy.
+- Hàng vẫn đi bằng xe nhập / xuất với "bên ngoài" như cũ: hợp đồng chỉ đổi giá, chưa có xe chạy giữa hai thành phố; tiền mua bán vẫn qua ví thế giới riêng của mỗi thành phố (khép theo nhóm ở giai đoạn D).
 - Sổ `trades`; nguồn chung chưa khép với tiền (người chuyển đến mang tiền từ ví thế giới của mỗi thành phố, chưa từ thành phố cũ).
 - Thông báo qua `/ws`, giao diện chia bậc hạng (Làng … Siêu đô thị), thưởng cuối mùa: để giai đoạn E.
 

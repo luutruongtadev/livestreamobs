@@ -5,7 +5,39 @@
 import { registerWorld, AI_WORLD } from './world.js';
 import { MKT_KINDS } from './econ.js';
 
-export const CATCHUP_MAX_DAYS = 7; // vắng lâu hơn: phần thời gian vượt quá bị bỏ (thành phố không lớn thêm lúc vắng chủ)
+export const CATCHUP_MAX_DAYS = 7;
+/** Giá chào bán (phần của giá chợ chung) và thuế nhập khẩu hàng của thành phố khác (khớp gateway/city-league.js TRADE). */
+export const TRADE = { askMin: 0.8, askMax: 1.2, tariffMax: 0.5 };
+
+/** Chính sách buôn bán của thành phố trong nhóm: giá chào từng loại hàng, thuế nhập khẩu từng loại hàng. */
+export function policyOf(c) {
+  const L = c.league;
+  if (!L) return null;
+  if (!L.policy) L.policy = { ask: {}, tariff: {}, changed: {} };
+  for (const k of MKT_KINDS) { if (!(L.policy.ask[k] > 0)) L.policy.ask[k] = 1; if (!(L.policy.tariff[k] >= 0)) L.policy.tariff[k] = 0; }
+  return L.policy;
+}
+/** Đổi giá chào (field 'ask') hoặc thuế nhập khẩu ('tariff') của một loại hàng: mỗi loại tối đa một lần mỗi ngày game, máy chủ áp từ ngày giải sau. */
+export function setPolicy(c, field, kind, v) {
+  const P = policyOf(c);
+  if (!P || !MKT_KINDS.includes(kind) || (field !== 'ask' && field !== 'tariff')) return { ok: false, reason: 'Không đổi được' };
+  const key = `${field}:${kind}`;
+  if (P.changed[key] === c.day) return { ok: false, reason: 'Mỗi loại hàng chỉ đổi được một lần mỗi ngày' };
+  const val = field === 'ask' ? Math.min(TRADE.askMax, Math.max(TRADE.askMin, +v || 1)) : Math.min(TRADE.tariffMax, Math.max(0, +v || 0));
+  P[field][kind] = Math.round(val * 100) / 100; P.changed[key] = c.day;
+  return { ok: true, value: P[field][kind] };
+}
+/**
+ * Hợp đồng mua / bán với thành phố khác trong ngày giải: lấy tối đa qty đơn vị từ phần còn lại.
+ * side: 'buy' | 'sell'. Trả về { qty, price (hệ số giá), tariff } hoặc null.
+ */
+export function contract(c, side, kind, qty) {
+  const d = c.league && c.league.alloc && c.league.alloc.trade && c.league.alloc.trade[side] && c.league.alloc.trade[side][kind];
+  if (!d || !(d.left > 0) || !(qty > 0)) return null;
+  const q = Math.min(qty, d.left);
+  d.left -= q;
+  return { qty: q, price: d.price, tariff: d.tariff || 0 };
+} // vắng lâu hơn: phần thời gian vượt quá bị bỏ (thành phố không lớn thêm lúc vắng chủ)
 
 /** Phần chia hôm nay chưa dùng (mỗi 0 giờ của thành phố dùng một lần). */
 const fresh = (c) => (c.league && c.league.alloc && !c.league.alloc.used ? c.league.alloc : null);
@@ -45,6 +77,8 @@ registerWorld('league', {
   },
   report(c, rep) {
     rep.left = (c.popl && c.popl.last && c.popl.last.toRural) || 0; // người rời thành phố hôm qua: vào nguồn chung của nhóm
+    const P = policyOf(c), last = (c.econ && c.econ.last) || {};
+    rep.trade = { need: { ...(last.impK || {}) }, sold: { ...(last.expK || {}) }, ask: { ...P.ask }, tariff: { ...P.tariff } }; // nhập / xuất hôm qua theo loại hàng, chính sách buôn bán
     c.league.outbox = rep; // chỉ cần bản mới nhất; main.js gửi lên máy chủ
   },
 });
@@ -67,11 +101,12 @@ export function attachLeague(c, server) {
 export function detachLeague(c) { delete c.league; c.outside = null; }
 
 /** Lưu / nạp phần nhóm của thành phố (bản lưu). */
-export const packLeague = (c) => (c.league ? { id: c.league.id, start: c.league.start, dayMs: c.league.dayMs, joinDay: c.league.joinDay, cityHour0: c.league.cityHour0, drainedApplied: c.league.drainedApplied || 0, season: c.league.season } : undefined);
+export const packLeague = (c) => (c.league ? { id: c.league.id, start: c.league.start, dayMs: c.league.dayMs, joinDay: c.league.joinDay, cityHour0: c.league.cityHour0, drainedApplied: c.league.drainedApplied || 0, season: c.league.season, policy: c.league.policy ? { ask: c.league.policy.ask, tariff: c.league.policy.tariff } : undefined } : undefined);
 export function unpackLeague(c, o) {
   if (!o || !o.id || !(o.dayMs > 0)) return;
   c.league = { id: String(o.id), start: +o.start || 0, dayMs: +o.dayMs, joinDay: o.joinDay | 0, cityHour0: o.cityHour0 | 0, drainedApplied: o.drainedApplied | 0, season: o.season | 0, alloc: null, outbox: null, standings: [] };
   c.outside = { kind: 'league' };
+  if (o.policy) { const P = policyOf(c); for (const k of MKT_KINDS) { if (+o.policy.ask?.[k] > 0) P.ask[k] = Math.min(TRADE.askMax, Math.max(TRADE.askMin, +o.policy.ask[k])); if (+o.policy.tariff?.[k] >= 0) P.tariff[k] = Math.min(TRADE.tariffMax, +o.policy.tariff[k]); } }
 }
 
 /**
@@ -106,5 +141,8 @@ export function applyServer(c, r) {
   if (!c.league || !r || !r.ok || !r.league) return;
   const L = c.league;
   L.start = r.league.start; L.dayMs = r.league.dayMs; L.standings = r.standings || L.standings; L.rural = r.league.rural; L.members = r.league.members; L.nextAt = r.league.nextAt; L.day = r.league.day;
-  if (r.alloc && (!L.alloc || L.alloc.day !== r.alloc.day)) L.alloc = { ...r.alloc, used: false };
+  if (r.alloc && (!L.alloc || L.alloc.day !== r.alloc.day)) {
+    L.alloc = { ...r.alloc, used: false };
+    if (L.alloc.trade) for (const side of ['buy', 'sell']) for (const d of Object.values(L.alloc.trade[side] || {})) d.left = d.qty; // hợp đồng trong ngày: dùng dần
+  }
 }

@@ -31,6 +31,8 @@ export const FLOWS = {
   office: ['Dịch vụ văn phòng bán ra ngoài', 'private'],
   export: ['Xuất khẩu', 'private'],
   import: ['Nhập khẩu', 'private'],
+  importCity: ['Mua hàng của thành phố khác trong nhóm', 'private'],
+  exportCity: ['Bán hàng cho thành phố khác trong nhóm', 'private'],
   tourist: ['Du khách chi tiêu', 'private'],
   arrive: ['Người mới đến, trẻ sinh ra (tiền mang theo)', 'private'],
   leave: ['Người mất, người bỏ đi (tiền mang theo)', 'private'],
@@ -45,7 +47,7 @@ export const FLOWS = {
   dividend: ['Lợi nhuận chia cho chủ ở ngoài thành phố', 'private'],
 };
 /** Dòng tiền chảy bên trong thành phố (chỉ đếm khối lượng, không đổi tổng). */
-export const INNER = { wage: 'Lương trả cho dân', shop: 'Dân mua sắm, ăn uống', supply: 'Doanh nghiệp mua hàng của nhau', rent: 'Tiền nhà dân trả chủ nhà', tax: 'Thuế, thuế nhà đất về ngân sách', procure: 'Ngân sách, chủ nhà, doanh nghiệp thuê doanh nghiệp trong thành phố (xây, bảo trì, dịch vụ)', dividend: 'Doanh nghiệp chia lợi nhuận cho dân' };
+export const INNER = { wage: 'Lương trả cho dân', shop: 'Dân mua sắm, ăn uống', supply: 'Doanh nghiệp mua hàng của nhau', rent: 'Tiền nhà dân trả chủ nhà', tax: 'Thuế, thuế nhà đất về ngân sách', procure: 'Ngân sách, chủ nhà, doanh nghiệp thuê doanh nghiệp trong thành phố (xây, bảo trì, dịch vụ)', dividend: 'Doanh nghiệp chia lợi nhuận cho dân', tariff: 'Thuế nhập khẩu hàng của thành phố khác về ngân sách' };
 /** Khoản chi của ngân sách trả cho doanh nghiệp trong thành phố (thầu xây, bảo trì) thay vì ra bên ngoài. */
 const PROCURE = new Set(['build', 'upkeep', 'event']);
 
