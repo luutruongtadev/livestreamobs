@@ -60,11 +60,41 @@ export function totalMoney(c) {
   return t;
 }
 
-/** Mở sổ mới (thành phố mới, vừa nạp bản lưu, hoặc test chỉnh tiền tay): mốc bảo toàn = tổng hiện tại. */
-export function resetLedger(c) {
-  c.ledger = { world: 0, base: totalMoney(c), day: {}, inner: {}, last: null, lastInner: null };
+/**
+ * Thế giới máy có hạn: số dư ban đầu, mỗi ngày phát hành thêm chậm (khoảng 2% mỗi mùa 14 ngày, tính trên tổng tiền
+ * của thành phố + thế giới). Thế giới nghèo đi thì mua ít hàng, du khách tiêu ít, vốn đầu tư mới ít (worldK).
+ */
+export const WORLD = { start: 4000000, issueDay: 0.02 / 14, floor: 0.2 };
+
+/**
+ * Mở sổ mới (thành phố mới, vừa nạp bản lưu, hoặc test chỉnh tiền tay): mốc bảo toàn = tổng hiện tại.
+ * keep: { world, r0, issued } của sổ cũ (nạp bản lưu) để số dư thế giới không bị nạp lại đầy.
+ */
+export function resetLedger(c, keep = null) {
+  const w = keep && Number.isFinite(+keep.world) ? +keep.world : 0;
+  c.ledger = { world: w, base: totalMoney(c) + w, r0: keep && +keep.r0 > 0 ? +keep.r0 : WORLD.start, issued: keep && +keep.issued > 0 ? +keep.issued : 0, day: {}, inner: {}, last: null, lastInner: null };
   return c.ledger;
 }
+/** Số dư của thế giới bên ngoài (ngân hàng, nhà đầu tư, khách nước ngoài, nông thôn). */
+export const worldReserve = (c) => (c.ledger ? c.ledger.r0 + c.ledger.world : WORLD.start);
+/** Sức mua của thế giới so với lúc đầu: 1 khi còn từ nửa số dư ban đầu trở lên, thấp nhất WORLD.floor. */
+export function worldK(c) {
+  const L = c.ledger;
+  if (!L || c.sandbox) return 1;
+  return Math.max(WORLD.floor, Math.min(1, (L.r0 + L.world) / (L.r0 * 0.5)));
+}
+/** Thế giới có đủ tiền cho một khoản (vay, tài trợ) không: giữ lại ít nhất 10% số dư ban đầu. */
+export const worldCan = (c, amt) => !c.ledger || c.sandbox || worldReserve(c) - amt >= c.ledger.r0 * 0.1;
+/** Phát hành thêm tiền mỗi ngày (vào ví thế giới): tổng tiền tăng chậm, có kiểm soát. */
+export function issueDay(c) {
+  const L = c.ledger;
+  if (!L) return 0;
+  const amt = Math.max(0, (worldReserve(c) + totalMoney(c)) * WORLD.issueDay);
+  L.world += amt; L.base += amt; L.issued += amt;
+  L.lastIssue = amt;
+  return amt;
+}
+export const packLedger = (c) => (c.ledger ? { world: Math.round(c.ledger.world), r0: c.ledger.r0, issued: Math.round(c.ledger.issued) } : undefined);
 
 /** Tiền đi qua ranh giới thành phố: amt > 0 vào từ bên ngoài, amt < 0 ra bên ngoài. Ví trong thành phố do nơi gọi tự cộng trừ. */
 export function world(c, key, amt) {
@@ -89,8 +119,8 @@ export function cityPay(c, key, amt) {
 export function cityTake(c, key, amt) { c.money += amt; inner(c, key, amt); }
 /** Ngân sách nhận từ bên ngoài. */
 export function cityGet(c, key, amt) { c.money += amt; world(c, key, amt); }
-/** Ngân sách bị đặt thẳng một số mới (chế độ Open). */
-export function citySet(c, key, v) { world(c, key, v - c.money); c.money = v; }
+/** Ngân sách bị đặt thẳng một số mới (chế độ Open: tiền in ra, không lấy của thế giới). */
+export function citySet(c, key, v) { if (c.ledger) c.ledger.base += v - c.money; c.money = v; }
 
 /** Chốt sổ mỗi ngày (0 giờ): giữ số liệu hôm qua để xem. */
 export function ledgerDay(c) {
@@ -112,6 +142,9 @@ export function checkLedger(c) {
 
 /** Dân nông thôn lúc bắt đầu chơi, tỉ lệ sinh / mất mỗi ngày của nông thôn. */
 export const RURAL = { start: 12000, birth: 0.004, death: 0.003 };
+/** Người nước ngoài có thể nhập cư (có hạn, cộng thêm người của thành phố ra nước ngoài). */
+export const ABROAD = { start: 8000 };
+export const abroadLeft = (c) => !c.popl || ABROAD.start + c.popl.abroad > 0;
 export const POP_FROM = { rural: 'Từ nông thôn', abroad: 'Từ nước ngoài', born: 'Trẻ sinh ra', died: 'Người mất', toRural: 'Về nông thôn', toAbroad: 'Ra nước ngoài' };
 
 export function resetPop(c, rural = c.popl ? c.popl.rural : RURAL.start, abroad = 0) {

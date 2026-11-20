@@ -1,6 +1,6 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
-import { ledgerSummary } from './ledger.js';
+import { ledgerSummary, worldReserve, worldK } from './ledger.js';
 import { View, DCOL } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
@@ -1009,6 +1009,7 @@ function renderExpenses(force) {
   }
   // sổ cái: tiền vào / ra khỏi thành phố hôm qua (ngân sách, dân, doanh nghiệp), và tiền chảy bên trong
   const fb = $('flowBox'), sum = ledgerSummary(city); fb.textContent = '';
+  if (city.ledger && !city.sandbox) { const r = el('div', 'row'), k = worldK(city); r.title = 'Tiền của ngân hàng, nhà đầu tư, khách nước ngoài, nông thôn: có hạn, mỗi ngày phát hành thêm khoảng 2% mỗi mùa. Còn dưới một nửa thì thế giới mua ít hàng, khách tiêu ít, vốn đầu tư mới ít đi'; r.append(el('span', null, '🌏 Thế giới bên ngoài còn'), el('span', k < 1 ? 'neg' : '', `${fmt(Math.round(worldReserve(city)))} ₫${k < 1 ? ` · sức mua ×${k.toFixed(2)}` : ''}`)); fb.append(r); }
   if (!sum.rows.length) { fb.append(el('div', 'exi', 'Chưa đủ một ngày để chốt sổ')); return; }
   const line = (name, v, cls) => { const r = el('div', 'row'); r.append(el('span', null, name), el('span', cls ?? (v >= 0 ? 'pos' : 'neg'), `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`)); return r; };
   fb.append(line('Vào từ bên ngoài', sum.inflow), line('Ra bên ngoài', sum.outflow));
@@ -1424,6 +1425,8 @@ function bindUi() {
   $('distPeek').addEventListener('click', () => peekDist());
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
+  $('moneyStat').addEventListener('click', () => openSide('budget')); // bấm ô 💰 tiền cũng mở bảng ngân sách
+  $('moneyStat').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSide('budget'); } });
   $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
   $('bSave').addEventListener('click', () => openSide('saves'));
   $('bCity').addEventListener('click', () => openSide('people'));

@@ -3,6 +3,7 @@
 // Sân bay nào cũng có chuyến bay nội địa: chở khách trong nước tới và người dân bay đi chơi, công tác (thu phí mỗi khách).
 // Chuyến bay quốc tế chỉ đáp ở sân bay đã gắn module 🌏 Nhà ga quốc tế; dân cũng bay ra nước ngoài từ đó.
 import { SERVICES, HOUR_SEC, clamp, resCap } from './base.js';
+import { abroadLeft } from './ledger.js';
 import { tourismScore } from './econ.js';
 import { seaGates } from './ships.js';
 import { festMul } from './seasons.js';
@@ -92,7 +93,7 @@ export function intlHour(c, { spend, addCitizen }) {
     // người nhập cư: dọn vào nhà trống; hết nhà thì quay về
     const homes = (c.vac && c.vac.home) || [];
     let placed = 0;
-    for (let k = 0; k < e.immig && homes.length; k++) {
+    for (let k = 0; k < e.immig && homes.length && abroadLeft(c); k++) { // người nước ngoài có hạn (ledger.js)
       const j = (rng() * homes.length) | 0, cell = homes[j], r = rng();
       addCitizen(c, 22 + rng() * 20, r < 0.3 ? 3 : r < 0.65 ? 2 : r < 0.9 ? 1 : 0, cell, 80 + rng() * 140, 'abroad'); // nhập cư quốc tế
       placed++;

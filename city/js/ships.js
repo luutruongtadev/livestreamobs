@@ -253,7 +253,9 @@ const fareOf = (c) => (c.transit.ferryFare === undefined ? 4 : c.transit.ferryFa
 export const fareK = (c) => clamp(1.3 - fareOf(c) / 16, 0.15, 1.3);
 function pay(c, line, n) {
   const f = fareOf(c) * n;
-  cityGet(c, 'fare', f); c.transit.income += f; c.transit.riders += n; line.riders += n;
+  const paid = c.fn && c.fn.householdPay ? c.fn.householdPay(c, f) : 0; // dân đi tàu trả vé
+  if (f - paid > 0) cityGet(c, 'fare', f - paid);
+  c.transit.income += f; c.transit.riders += n; line.riders += n;
 }
 
 /** Tàu cập bến k: trả khách xuống, đón khách lên (thu vé lúc lên tàu). */

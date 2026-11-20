@@ -57,8 +57,14 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 - [x] **A4 — tài nguyên có trữ lượng** (`js/reserve.js`): khoáng sản, dầu cạn hẳn và biến khỏi bản đồ; rừng, cá, đất màu tự hồi mỗi ngày; lưu lại được; trữ lượng hiện khi bấm cơ sở khai thác.
 - [x] **A5 — thế giới bên ngoài thay được** (`js/world.js`): provider `ai` (thế giới máy) và `registerWorld` cho provider khác; bản tóm tắt mỗi ngày (`dailyReport`: nhà, việc trống, lương, thuế, hài lòng, người muốn đi và lý do, hàng chào bán, du lịch, GDP); điểm thịnh vượng thử (`prosperity`); chạy bù `catchUp` có giới hạn.
 
-**Còn để sau (chưa làm trong giai đoạn A):**
-- "Thế giới máy" vẫn chưa hữu hạn: xuất nhập khẩu, du khách, khách vãng lai, văn phòng bán dịch vụ ra ngoài, vốn toà nhà mới, tiền người mới mang theo, thưởng mốc, vay vẫn lấy từ bên ngoài không giới hạn (xem mục "Dòng tiền hôm qua"). Chốt câu hỏi 2–3 ở mục 7 rồi mới khép.
+- [x] **A6 — thế giới máy có hạn** (chốt 2026-11-20: chơi một mình cũng khép kín; tổng tiền tăng chậm):
+  - ví thế giới bên ngoài có số dư (4 triệu ₫ lúc đầu, lưu theo bản lưu), mỗi ngày phát hành thêm khoảng 2% mỗi mùa 14 ngày;
+  - xuất khẩu, du khách, khách vãng lai, văn phòng bán ra ngoài, tiền phòng, vốn toà nhà mới, tiền người mới mang theo, thưởng mốc đều lấy từ ví này và giảm theo sức mua (`worldK`) khi ví còn dưới một nửa;
+  - ngân hàng không cho vay khi thế giới cạn tiền; người nước ngoài nhập cư có hạn (8.000 người);
+  - vé xe buýt, tàu điện trừ ví người đi; phí đường, vé tàu thuỷ trừ chung ví dân;
+  - bảng ngân sách hiện số dư thế giới bên ngoài; bấm ô 💰 mở bảng ngân sách.
+
+**Còn để sau:**
 - Dịch vụ công chưa cần nhân viên thật (mục 5.1 điểm 6); lương chưa theo cung cầu (điểm 3); giá cả, lạm phát (điểm 4).
 - Chạy bù chưa gắn vào giao diện (chỉ dùng khi có chế độ cạnh tranh với đồng hồ thật).
 
@@ -259,8 +265,8 @@ Mục tiêu: mỗi đồng tiền và mỗi người đều có nguồn gốc v�
 | # | Câu hỏi | Đề xuất |
 |---|---|---|
 | 1 | Ai là người chơi: streamer với tài khoản có sẵn, hay người chơi thường? | chưa chọn |
-| 2 | Chế độ chơi một mình giữ như hiện tại, hay cũng chuyển sang kinh tế khép kín? | khép kín, với "thế giới máy" hữu hạn |
-| 3 | Tổng tiền cố định tuyệt đối, hay tăng chậm? | tăng khoảng 2% mỗi mùa theo mức tăng dân |
+| 2 | Chế độ chơi một mình giữ như hiện tại, hay cũng chuyển sang kinh tế khép kín? | **đã chốt:** khép kín, "thế giới máy" hữu hạn |
+| 3 | Tổng tiền cố định tuyệt đối, hay tăng chậm? | **đã chốt:** tăng chậm, khoảng 2% mỗi mùa |
 | 4 | Tốc độ đồng hồ cạnh tranh | 1 ngày game = 1 giờ thật |
 | 5 | Tỷ lệ tăng dân: phần riêng / nguồn chung | khoảng 35% / 65% |
 | 6 | Mức sàn mất dân và ưu tiên người mới vào giữa mùa | tối đa khoảng 3% dân mỗi ngày; người mới được ưu tiên nhận dân từ nông thôn vài ngày đầu |

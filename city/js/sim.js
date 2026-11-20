@@ -7,11 +7,11 @@ import {
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, MAPS, setMapSize, distSeg, nearestOnEdge, TRANSIT,
 } from './base.js';
-import { cityPay, cityGet, cityTake, citySet, world, resetLedger, ledgerDay, resetPop, ruralDay } from './ledger.js';
+import { cityPay, cityGet, cityTake, citySet, world, resetLedger, ledgerDay, resetPop, ruralDay, worldK, worldCan, issueDay, packLedger } from './ledger.js';
 import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } from './reserve.js';
 import { outside, reportDay } from './world.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { procure, wageAt, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen } from './people.js';
+import { procure, householdPay, wageAt, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
@@ -626,7 +626,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt };
+  c.fn = { clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
@@ -2315,6 +2315,7 @@ export function takeLoan(c, k) {
   const def = LOANS[k];
   if (!def) return { ok: false, reason: 'Không có khoản vay này' };
   if (c.loans.length >= MAX_LOANS) return { ok: false, reason: `Chỉ được vay tối đa ${MAX_LOANS} khoản cùng lúc` };
+  if (!worldCan(c, def.amount)) return { ok: false, reason: 'Ngân hàng hết tiền cho vay: thế giới bên ngoài đang cạn tiền' };
   c.loans.push({ amount: def.amount, daily: Math.round((def.amount * (1 + def.rate)) / def.days), left: def.days, h: def.days * 24 });
   cityGet(c, 'loanIn', def.amount); c.debtHours = 0;
   recalc(c);
@@ -2344,7 +2345,7 @@ function growth(c) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
       if (rng() < Math.max(0, dm) * 0.4) {
         c.level[i] = 1; c.variant[i] = (rng() * 3) | 0; c.dir[i] = c.rdir[i]; c.age[i] = 0; c.tree[i] = 0;
-        world(c, 'bizOpen', 150 * MK - c.biz.money[i]); c.biz.money[i] = 150 * MK; c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) ? 10 : 0;
+        { const cap = 150 * MK * worldK(c); world(c, 'bizOpen', cap - c.biz.money[i]); c.biz.money[i] = cap; } c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) ? 10 : 0; // vốn ban đầu từ nhà đầu tư bên ngoài
         c.dirty.buildings = c.dirty.trees = true; built = true;
         computeNetworks(c); // cập nhật phần công suất còn dư
       }
@@ -2390,9 +2391,10 @@ function hourTick(c) {
   c.econ.ring[h] ={ r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms };
   recalc(c);
   c.taxBreakK = taxBreak(c); // nhà đầu tư được miễn một phần thuế thương mại, công nghiệp (áp lúc doanh nghiệp bị trừ thuế, people.js)
-  cityTake(c, 'tax', c.hourInc.r + c.hourInc.c + c.hourInc.i); c.hourInc.r = c.hourInc.c = c.hourInc.i = 0; // thuế phát sinh sau đây (thầu bảo trì) sang giờ sau mới thu cityGet(c, 'rooms', rooms); // thuế: phần đã trừ thật của dân, doanh nghiệp
+  cityTake(c, 'tax', c.hourInc.r + c.hourInc.c + c.hourInc.i); c.hourInc.r = c.hourInc.c = c.hourInc.i = 0; // thuế: phần đã trừ thật của dân, doanh nghiệp; thuế phát sinh sau đây (thầu bảo trì) sang giờ sau mới thu
+  cityGet(c, 'rooms', rooms * worldK(c)); // khách ngoài thành phố trả: thế giới nghèo thì trả ít
   { const lp = (s.exp.loans || 0) / 24; cityPay(c, 'loanPay', lp); cityPay(c, 'upkeep', s.expense / 24 - lp); }
-  if (h === 0) { ledgerDay(c); W.ruralDay(c); reserveDay(c); reportDay(c); }
+  if (h === 0) { issueDay(c); ledgerDay(c); W.ruralDay(c); reserveDay(c); reportDay(c); }
   if (h === 0) { W.marketDay(c); W.tourismDay(c); W.intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); }
   if (h === 0 || (c.inc && c.inc.weather !== c._wWeather)) { // mùa mưa / khô, trời bão: ao hồ do đào đắp đầy lên hoặc cạn bớt
     c._wWeather = c.inc && c.inc.weather;
@@ -2405,7 +2407,7 @@ function hourTick(c) {
   if (!c.sandbox && c.money < BANKRUPT_AT || c.debtHours > BANKRUPT_DAYS * 24) { c.over = true; c.events.push({ type: 'bankrupt' }); }
   while (c.milestone < MILESTONES.length && s.pop >= MILESTONES[c.milestone].pop) {
     const m = MILESTONES[c.milestone++];
-    cityGet(c, 'reward', m.reward); c.points += m.points + (c.devTree ? DEV_TREE_BONUS : 0);
+    cityGet(c, 'reward', Math.round(m.reward * worldK(c))); c.points += m.points + (c.devTree ? DEV_TREE_BONUS : 0); // thưởng từ ngân sách cấp trên (ví thế giới, có hạn)
     const fresh = (d) => d.unlock && d.unlock <= m.pop && !MILESTONES.some((o, k) => k < c.milestone - 1 && o.pop >= d.unlock);
     const unlocked = [...Object.values(SERVICES), ...ZDEF.slice(1)].filter(fresh).map((d) => d.name);
     c.events.push({ type: 'milestone', name: m.name, reward: m.reward, points: m.points, unlocked });
@@ -2457,9 +2459,9 @@ export function serialize(c) {
   const pack = (k) => b64(c[k]), pp = packPeople(c), terra = [];
   for (let k = 0; k < c.terra.length; k++) if (c.terra[k]) terra.push(k, c.terra[k]);
   return {
-    v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
+    v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural, abroad: c.popl.abroad } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), council: packCouncil(c), dist: packDistricts(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2582,7 +2584,7 @@ function deserializeAt(o) {
   applyStreet(c);
   if (o.sandbox) enableSandbox(c);
   computeMaps(c); recalc(c);
-  resetLedger(c); resetPop(c, o.rural ?? undefined); // sổ cái mở lại từ bản lưu (ví dân lưu dạng số nguyên); bản lưu cũ: nông thôn đầy
+  resetLedger(c, o.ledger); resetPop(c, o.rural ?? undefined, o.abroad ?? 0); // sổ cái mở lại từ bản lưu (ví dân lưu dạng số nguyên); bản lưu cũ: nông thôn đầy
   return c;
 }
 const WEATHER_KINDS = ['clear', 'rain', 'dry', 'hail'];

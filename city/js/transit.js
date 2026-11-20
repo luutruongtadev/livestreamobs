@@ -1,7 +1,7 @@
 // Phố Mới — giao thông công cộng: xe buýt và tàu điện (chạy trên đường, kẹt cùng xe khác) và metro (ray riêng trên cao).
 // Người dân tự chọn đi tuyến nào khi tổng thời gian đi bộ + chờ + ngồi xe có lợi hơn tự lái.
 import { TRANSIT, MILESTONES, SERVICES, DEPOT_FREE, HALF, N, ROADS, idx, cellOf, nearestOnEdge, cellX, cellZ, clamp } from './base.js';
-import { cityPay, cityGet } from './ledger.js';
+import { cityPay, cityGet, cityTake } from './ledger.js';
 import { spawnVehicle, reroute, findPath, VKIND } from './traffic.js';
 import { syncFerries } from './ships.js';
 
@@ -138,8 +138,9 @@ function exchange(c, line, slot, at) {
   for (const r of slot.riders) { if (r.to === at) c.onArrive(c, r.cb, null); else stay.push(r); }
   slot.riders = stay;
   while (stop.waiting.length && slot.riders.length < def.cap) {
-    slot.riders.push(stop.waiting.shift());
-    cityGet(c, 'fare', c.transit.fare); c.transit.income += c.transit.fare; c.transit.riders++; line.riders++;
+    const r = stop.waiting.shift(); slot.riders.push(r);
+    const pp = c.pp, id = r.cb && r.cb.t === 'cit' ? r.cb.id : -1;
+    if (id >= 0 && pp.alive[id]) { pp.money[id] -= c.transit.fare; cityTake(c, 'fare', c.transit.fare); } else cityGet(c, 'fare', c.transit.fare); c.transit.income += c.transit.fare; c.transit.riders++; line.riders++; // khách là dân thì trừ ví người đó
   }
 }
 

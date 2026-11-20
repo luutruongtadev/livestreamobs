@@ -12,7 +12,7 @@ import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
 import { distFx } from './districts.js';
 import { fisheryMul } from './fishery.js';
-import { world, inner, cityGet, popIn, popOut, ruralLeft } from './ledger.js';
+import { world, inner, cityGet, cityTake, worldK, popIn, popOut, ruralLeft } from './ledger.js';
 import { extract } from './reserve.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
@@ -55,7 +55,7 @@ export function addCitizen(c, age, edu, home, money = 40, from = 'rural') {
   let id = pp.free.pop();
   if (id === undefined) { if (pp.n >= pp.cap) growPeople(pp); id = pp.n++; }
   pp.alive[id] = 1; pp.gen[id]++; pp.age[id] = age; pp.edu[id] = edu; pp.study[id] = 0; pp.enrolled[id] = 0;
-  pp.home[id] = home; pp.work[id] = -1; pp.loc[id] = home; pp.car[id] = -1; pp.money[id] = money * MK; pp.happy[id] = 55;
+  pp.home[id] = home; pp.work[id] = -1; pp.loc[id] = home; pp.car[id] = -1; pp.money[id] = money * MK * (from === 'rural' || from === 'abroad' ? worldK(c) : 1); pp.happy[id] = 55; // tiền mang theo lấy từ thế giới bên ngoài
   world(c, 'arrive', pp.money[id]); popIn(c, from);
   pp.state[id] = ST.HOME; pp.sick[id] = 0; pp.amb[id] = 0; pp.commute[id] = 0; pp.idle[id] = 0;
   if (home >= 0) c.resCount[home]++;
@@ -306,10 +306,24 @@ export function touristSpend(c, n, per = 8) {
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
 function saleIncome(c, i, amount, cat, from) {
   const rate = (c.tax[cat] / 100) * (1 - (c.taxBreakK || 0)); // nhà đầu tư được miễn một phần thuế (council.js)
-  if (from) world(c, from, amount); // người trả ở ngoài thành phố: xem ledger.js
+  if (from) { amount *= worldK(c); world(c, from, amount); } // người trả ở ngoài thành phố: thế giới nghèo đi thì trả ít đi (ledger.js)
   c.biz.money[i] += amount * (1 - rate);
   if (c.biz.rev) c.biz.rev[i] += amount;
   c.hourInc[cat] += amount * rate; // thuế thật: ngân sách nhận đúng phần bị trừ
+}
+
+/** Dân trả chung một khoản (phí đường, vé tàu thuỷ...): trừ theo tỉ lệ ví dương, tiền vào ngân sách. Trả về số đã thu. */
+export function householdPay(c, amount, key = 'fare') {
+  const pp = c.pp;
+  if (!(amount > 0)) return 0;
+  let purse = 0;
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id] && pp.money[id] > 0) purse += pp.money[id];
+  if (purse <= 0) return 0;
+  const f = Math.min(1, amount / purse);
+  let paid = 0;
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id] && pp.money[id] > 0) { const b = pp.money[id]; pp.money[id] = b - b * f; paid += b - pp.money[id]; }
+  cityTake(c, key, paid);
+  return paid;
 }
 
 /** Doanh nghiệp trong thành phố đang hoạt động (cập nhật mỗi giờ) để nhận thầu. */

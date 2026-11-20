@@ -1967,8 +1967,14 @@ test('city: sổ cái tiền — mọi đồng tiền vào / ra đều ghi sổ,
   for (const k of ['wage', 'tax', 'rent', 'procure', 'shop']) assert.ok(inn[k] > 0, `vòng tiền bên trong: ${k}`); // thuế, tiền nhà, thầu bảo trì đều chảy trong thành phố
   assert.ok(!keys.includes('upkeep') || -sum.rows.find((r) => r.key === 'upkeep').v < inn.procure, 'bảo trì phần lớn trả cho doanh nghiệp trong thành phố');
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(Math.abs(LG.worldReserve(back) - LG.worldReserve(c)) < 2, 'số dư thế giới bên ngoài lưu lại, không nạp lại đầy');
   run(back, 24);
   assert.ok(near(LG.checkLedger(back)), 'bản lưu nạp lại vẫn bảo toàn');
+  assert.ok(back.ledger.issued > 0, 'mỗi ngày phát hành thêm một ít vào ví thế giới');
+  // thế giới cạn tiền: không cho vay, sức mua giảm
+  back.ledger.world = -back.ledger.r0 * 0.95; back.loans = [];
+  assert.equal(S.takeLoan(back, 0).ok, false, 'ngân hàng hết tiền cho vay');
+  assert.ok(LG.worldK(back) < 0.5, 'thế giới nghèo thì mua ít, khách tiêu ít');
 });
 
 test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài nguyên cạn dần, báo cáo ngày, thế giới bên ngoài thay được, chạy bù', () => {

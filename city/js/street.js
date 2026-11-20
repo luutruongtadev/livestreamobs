@@ -74,7 +74,7 @@ export function countTrip(c, choice) {
   const day = c.street && c.street.day;
   if (!day) return;
   if (choice.kind === 'moto') day.moto++;
-  else if (choice.kind === 'car') { day.car++; if (choice.taxi) day.taxi++; if (choice.fee) { day.fee += choice.fee; cityGet(c, 'fare', choice.fee); } }
+  else if (choice.kind === 'car') { day.car++; if (choice.taxi) day.taxi++; if (choice.fee) { day.fee += choice.fee; const paid = c.fn && c.fn.householdPay ? c.fn.householdPay(c, choice.fee) : 0; if (choice.fee - paid > 0) cityGet(c, 'fare', choice.fee - paid); } }
   else if (choice.kind === 'transit' || choice.kind === 'walk') day.shift++;
 }
 
