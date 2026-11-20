@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -113,8 +113,11 @@ function pointAt(pts, cum, s) {
 }
 
 // biển hiệu chữ cho cửa hàng kiểu Việt Nam (từ chung chung, không phải thương hiệu)
-const SIGN_WORDS = ['PHỞ', 'CÀ PHÊ', 'TẠP HOÁ', 'BÁNH MÌ', 'SỬA XE', 'BÚN CHẢ', 'CƠM TẤM', 'ĐIỆN THOẠI'];
-const SIGN_BG = ['#d8262e', '#1f6fc8', '#f2c200', '#16935a', '#e8681f', '#d8262e', '#7a3fb0', '#1f6fc8'];
+const SIGN_WORDS = ['PHỞ', 'CÀ PHÊ', 'TẠP HOÁ', 'BÁNH MÌ', 'SỬA XE', 'BÚN CHẢ', 'CƠM TẤM', 'ĐIỆN THOẠI', 'NHÀ THUỐC', 'TIỆN LỢI', 'SIÊU THỊ'];
+const SIGN_BG = ['#d8262e', '#1f6fc8', '#f2c200', '#16935a', '#e8681f', '#d8262e', '#7a3fb0', '#1f6fc8', '#16a34a', '#2f7fd0', '#d8262e'];
+const UNIT_WORDS = 10; // chữ trên biển các căn nhà ống (SIÊU THỊ chỉ dùng cho siêu thị)
+// biển tên công trình công kiểu Việt Nam (cổng có bảng tên trên hai cột): [chữ, nền, màu chữ]
+const SVC_SIGNS = { school: ['TRƯỜNG TIỂU HỌC', '#c8102e', '#ffd200'], highschool: ['TRƯỜNG THPT', '#c8102e', '#ffd200'], university: ['TRƯỜNG ĐẠI HỌC', '#1f4fa0', '#ffffff'], clinic: ['TRẠM Y TẾ PHƯỜNG', '#1f6fc8', '#ffffff'], hospital: ['BỆNH VIỆN', '#ffffff', '#c8102e'], police: ['CÔNG AN PHƯỜNG', '#c8102e', '#ffd200'], fire: ['CẢNH SÁT PCCC', '#c8102e', '#ffffff'] };
 function signAtlas() {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64 * SIGN_WORDS.length;
   const g = cv.getContext('2d');
@@ -165,6 +168,19 @@ function hull2(pts) {
   for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
   for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
   return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+
+/** Biển tên công trình công (một texture cho mỗi loại, dựng khi cần). */
+const SVC_TEX = {};
+function svcSignTexture(type) {
+  if (SVC_TEX[type]) return SVC_TEX[type];
+  const [txt, bg, fg] = SVC_SIGNS[type], cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+  const g = cv.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 96); g.strokeStyle = fg; g.lineWidth = 4; g.strokeRect(6, 6, 500, 84);
+  g.fillStyle = fg; g.font = 'bold 46px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(txt, 256, 50, 480);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return (SVC_TEX[type] = t);
 }
 
 /** Đốm sáng tròn mờ dần ra mép (vệt đèn đường, đèn pha trên mặt đường). */
@@ -2515,7 +2531,7 @@ export class View {
       if (vnGeo && t >= 1 && (c.zone[i] === 2 || c.zone[i] === 7 || c.zone[i] === 17)) { // chữ trên biển hiệu từng căn nhà ống
         const nh = L >= 4 ? 3 : 2, w = 9.4 / nh;
         for (let k = 0; k < nh; k++) {
-          const wd = (hash2(x * 3 + k, y, 41) * SIGN_WORDS.length) | 0;
+          const wd = (hash2(x * 3 + k, y, 41) * UNIT_WORDS) | 0;
           if (sc[wd] >= 2000) continue;
           sl.makeTranslation(-4.7 + w * (k + 0.5), 3.32, 4.6 + 0.16).scale(_v3.set(w - 0.7, 0.72, 1));
           this.signMeshes[wd].setMatrixAt(sc[wd]++, sm.multiplyMatrices(m, sl));
@@ -2523,6 +2539,10 @@ export class View {
           if (fm && fc[fk] < fm.userData.cap) fm.setMatrixAt(fc[fk]++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // đồ bày ra vỉa hè theo loại quán
           if (bc < this.bikeMesh.userData.cap && hash2(x * 3 + k, y, 43) < 0.7) this.bikeMesh.setMatrixAt(bc++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // xe máy khách đỗ trước cửa
         }
+      }
+      if (vnGeo && t >= 1 && c.zone[i] === 5 && L <= 2 && sc[10] < 2000) { // chữ SIÊU THỊ trên mặt tiền siêu thị
+        sl.makeTranslation(MALL_SIGN.x, MALL_SIGN.y, MALL_SIGN.z).scale(_v3.set(MALL_SIGN.w, MALL_SIGN.h, 1));
+        this.signMeshes[10].setMatrixAt(sc[10]++, sm.multiplyMatrices(m, sl));
       }
       col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
@@ -2627,6 +2647,12 @@ export class View {
         mesh.position.set(k % 2 ? o : -o, 0.14, k < 2 ? -o : o); mesh.castShadow = mesh.receiveShadow = true;
         grp.add(mesh);
       });
+      if (c.style === 'vn' && SVC_SIGNS[s.type]) { // cổng có bảng tên kiểu Việt Nam ở mép trước lô đất
+        const L = def.size * 10, zf = L / 2 - 0.6, post = this._svcPost || (this._svcPost = (() => { const g = new GB(); for (const x of [-2.1, 2.1]) g.box(x, 0, 0, 0.22, 3.1, 0.22, 0xd9d4c8); g.box(0, 2.25, -0.06, 4.6, 0.9, 0.1, 0x8d887e); return g.build(); })());
+        const pm = new THREE.Mesh(post, this.matBuilding); pm.position.set(0, 0.14, zf); pm.castShadow = true; grp.add(pm);
+        const sg = new THREE.Mesh(this._svcPlane || (this._svcPlane = new THREE.PlaneGeometry(4.4, 0.78)), (this._svcMats || (this._svcMats = {}))[s.type] || (this._svcMats[s.type] = new THREE.MeshBasicMaterial({ map: svcSignTexture(s.type) })));
+        sg.position.set(0, 2.84, zf + 0.01); grp.add(sg);
+      }
       grp.updateMatrixWorld(true);
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
@@ -2834,7 +2860,7 @@ export class View {
       if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : look === 'shipper' ? col.set(v.color < 0.5 ? 0x1fae54 : 0xee5a2d) : col.setHSL(v.color, 0.6, 0.5)); // shipper: xanh lá hoặc cam
       else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
       else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
-      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
+      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, c.style === 'vn' ? col.set(v.color < 0.5 ? 0xf2b705 : 0x1f9e55) : col.setHSL(v.color, 0.75, 0.52)); } } // kiểu Việt Nam: xe buýt vàng hoặc xanh lá
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
       else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
       else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));

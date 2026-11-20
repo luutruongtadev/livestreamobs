@@ -274,8 +274,31 @@ Tất cả chỉ hiện ở kiểu nhà 🇻🇳; bản lưu không thêm trư�
 
 Nghiệm thu: test gộp `Việt Nam hoá P0` qua, toàn bộ test qua (trừ 4 test TikTok hỏng sẵn trên máy dev Node 19). Đã xem trên trình duyệt ở thành phố thử ngày Tết. Bản lưu cũ không đổi định dạng.
 
-**Bước tiếp theo đề xuất:** Phase 2, nhóm P1:
-- chung cư hiện đại, biệt thự, nhà trọ, nhà trong hẻm;
-- tiệm thuốc, cửa hàng tiện lợi, siêu thị;
-- biển và màu Việt Nam cho trường, y tế, công an;
-- xe máy điện, xe buýt màu Việt Nam.
+### Phase 2, nhóm P1: xong
+Chỉ hiện ở kiểu nhà 🇻🇳; bản lưu không thêm trường mới.
+- **Chung cư khu đô thị mới:** khu cao tầng cấp 3+ (`aptVN`).
+  - Khối đế thương mại, tháp trắng – kính, ban công kính so le có cây, lam đứng.
+  - Vườn và khung chữ dự án trên mái.
+- **Biệt thự:** nhà riêng cấp 4–5, variant 0 (`villa`).
+  - Mái Thái, khối nhô mặt tiền, ban công lan can trắng, cột sảnh.
+  - Hàng rào, cổng sắt, ô tô trong sân, sân cỏ.
+- **Dãy nhà trọ:** liền kề cấp 1–2, variant 0 (`nhaTro`).
+  - Hai dãy phòng đối diện, cửa sắt có số phòng, mái tôn che hành lang.
+  - Quần áo phơi giữa lối đi, xe máy, cổng có bảng "phòng trọ".
+- **Siêu thị:** thương mại lớn cấp 1–2 (`sieuThi`).
+  - Hộp lớn, dải màu có chữ SIÊU THỊ, mái đón, xe đẩy, bãi xe máy có mái tôn.
+  - Cấp 3+ giữ tháp như cũ.
+- **Nhà thuốc** (hộp đèn chữ thập xanh, tủ kính) và **cửa hàng tiện lợi** (cửa kính sáng, kệ, thùng đá).
+  - Thêm chữ NHÀ THUỐC, TIỆN LỢI vào biển các căn nhà ống.
+- **Công trình công:** cổng có bảng tên đỏ chữ vàng (hoặc theo màu ngành) ở mép trước lô:
+  - TRƯỜNG TIỂU HỌC, TRƯỜNG THPT, TRƯỜNG ĐẠI HỌC;
+  - TRẠM Y TẾ PHƯỜNG, BỆNH VIỆN;
+  - CÔNG AN PHƯỜNG, CẢNH SÁT PCCC.
+  - Chưa đổi màu tường của các công trình này: đổi màu sẽ ảnh hưởng cả kiểu nhà cũ, để Phase 5 làm theo vùng.
+- **Xe máy điện:** khoảng 8% số xe máy.
+- **Xe buýt kiểu Việt Nam:** vàng hoặc xanh lá.
+- Chưa làm **nhà trong hẻm**: chính sách hẻm đã cho nhà ống mọc sâu; cần một biến thể riêng khi biết ô nào nằm trong hẻm, để sau.
+
+Nghiệm thu: test gộp `Việt Nam hoá` qua; toàn bộ test qua (trừ 4 test TikTok hỏng sẵn trên máy dev Node 19); đã xem trên trình duyệt.
+
+**Bước tiếp theo đề xuất:** Phase 3 (đời sống): khách ngồi quán, đông người ở chợ, học sinh tan trường, tập thể dục ở công viên, giờ cao điểm.
