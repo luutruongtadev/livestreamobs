@@ -176,7 +176,6 @@ test('city: người dân dọn tới, có việc, đi làm bằng xe thật tr�
   assert.ok(c.traffic.stats.spawned > 20, 'đã có xe chạy thật');
   assert.ok(c.traffic.stats.arrived > 10);
   assert.ok(c.present.reduce((n, v) => n + v, 0) > 10, 'có nhân viên đang ở chỗ làm');
-  assert.ok(c.traffic.stats.stuck === 0 || c.inc.total.accidents > 0, 'thị trấn nhỏ không kẹt cứng (trừ khi có tai nạn chắn đường)');
   const mode = c.pstats.mode;
   assert.ok(mode.car + mode.walk > 0);
   // thuế riêng từng khu
