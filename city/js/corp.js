@@ -17,6 +17,8 @@ export const CORP = {
   subCells: 5, subCool: 12, maxSubs: 3, // công ty con: mẹ có ≥ 5 nhà máy, nghỉ 12 ngày giữa hai lần lập, tối đa 3 con
   acqCool: 15, monoShare: 0.6, depShare: 0.25, // mua lại: nghỉ 15 ngày; độc quyền khi ≥ 60% một sản phẩm; phụ thuộc khi nhóm giữ ≥ 25% việc làm
   loanMK: 60, loanRate: 0.004, payUp: 1.15, // vay: 60 MK mỗi nhà máy, lãi 0.4%/ngày; tăng lương 15% để giành lao động
+  hubMin: 6, hubBoost: 1.1, hotPrice: 1.2, // cụm kinh tế: ≥ 6 nhà máy liền nhau (cách ≤ 2 ô) chạy nhanh hơn 10%; giá thế giới ≥ 1.2 thì đẩy xuất sớm
+  retailMin: 3, // chuỗi bán lẻ: từ bậc 3
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
@@ -58,10 +60,12 @@ export function effOf(c, q) {
   const l = cellsBuilt(c, q);
   return l.length ? l.reduce((s, i) => s + c.biz.eff[i], 0) / l.length : 0.5;
 }
+/** Tín hiệu thị trường: giá thế giới hiện tại của một loại hàng (1 = giá gốc; cao = đáng đầu tư). */
+export const signalOf = (c, p) => (c.market && c.market.p[p]) || 1;
 /** Thành phẩm chính: loại có nhiều ô nhất trong các ô công ty. */
 export function corpSector(c, q) {
   const n = {};
-  for (const [i] of q.cells) { const p = productAt(i, c.zone[i] === 21 ? 21 : 3); n[p] = (n[p] || 0) + 1; }
+  for (const [i] of q.cells) { if (ZDEF[c.zone[i]].biz !== 'ind') continue; const p = productAt(i, c.zone[i] === 21 ? 21 : 3); n[p] = (n[p] || 0) + 1; } // cửa hàng của chuỗi bán lẻ không tính
   let best = q.sector;
   for (const k in n) if (!best || n[k] > (n[best] || 0)) best = k;
   return best;
@@ -89,7 +93,7 @@ export function influence(c, q) {
 }
 export function corpStats(c, q) {
   const mine = cellsBuilt(c, q);
-  return { cells: mine.length, pending: q.cells.length - mine.length, jobs: jobsOf(c, q), eff: effOf(c, q), cash: q.cash, stage: q.stage, influence: influence(c, q), sector: corpSector(c, q), group: groupOf(c, q), debt: Math.round(q.debt || 0), share: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, mono: monopolyOf(c, rootOf(c, q.id)), export: q.export, intern: Math.round(q.intern), xunits: Math.round(q.xunits) };
+  return { cells: mine.length, pending: q.cells.length - mine.length, jobs: jobsOf(c, q), eff: effOf(c, q), cash: q.cash, stage: q.stage, influence: influence(c, q), sector: corpSector(c, q), retail: cellsBuilt(c, q).filter((i) => ZDEF[c.zone[i]].biz === 'shop').length, signal: Math.round(signalOf(c, corpSector(c, q)) * 100) / 100, group: groupOf(c, q), debt: Math.round(q.debt || 0), share: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, mono: monopolyOf(c, rootOf(c, q.id)), export: q.export, intern: Math.round(q.intern), xunits: Math.round(q.xunits) };
 }
 
 // ───────────────────────── khởi tạo, lưu ─────────────────────────
@@ -138,7 +142,7 @@ const homesNear = (c, i) => { let n = 0; near(c, i, 2)((k) => { if (c.level[k] &
 /** Chấm điểm một ô làm nhà máy cho công ty: đúng sản phẩm, gần cụm cũ, xa nhà dân, đất rẻ. */
 function siteScore(c, q, i, centre) {
   const x = i % N, y = (i / N) | 0;
-  let s = (productAt(i, 3) === corpSector(c, q) ? 4 : 0) - homesNear(c, i) * 1.5 - c.landValue[i] * 0.02;
+  let s = (productAt(i, 3) === corpSector(c, q) ? 4 : 0) + (signalOf(c, productAt(i, 3)) - 1) * 6 - homesNear(c, i) * 1.5 - c.landValue[i] * 0.02; // giá thế giới cao: đáng xây hơn
   if (centre) s -= Math.hypot(x - centre.x, y - centre.y) * 0.12;
   return s;
 }
@@ -224,7 +228,7 @@ export function corpAct(c, q, act) {
     }
     q.cash -= p.price; if (!toResidents(c, p.price)) world(c, 'dividend', -p.price); // tiền bán về tay chủ cũ (dân trong thành phố)
     claim(c, q, p.cell);
-    corpLog(c, q, 'acquire', { kind: 'sme', n: 1, cost: Math.round(p.price) });
+    corpLog(c, q, 'acquire', { kind: ZDEF[c.zone[p.cell]].biz === 'shop' ? 'shop' : 'sme', n: 1, cost: Math.round(p.price) });
     return { ok: true, cell: p.cell };
   }
   if (act.type === 'loan') {
@@ -352,7 +356,7 @@ export const OPTS = {
 /** Lập công ty con: chuyển 2 nhà máy (ưu tiên khác ngành chính) và vốn khởi đầu từ quỹ mẹ; mẹ phải còn ít nhất 3 nhà máy. */
 function subsidiaryPlan(c, q) {
   if (q.parent || q.partners || q.stage < 2 || c.day < (q.cool.sub || 0) || subsOf(c, q).length >= CORP.maxSubs) return null;
-  const mine = cellsBuilt(c, q);
+  const mine = cellsBuilt(c, q).filter((i) => ZDEF[c.zone[i]].biz === 'ind');
   if (mine.length < CORP.subCells) return null;
   const seed = feeOf(2);
   if (q.cash < seed + CORP.reserve * MK) return null;
@@ -401,7 +405,7 @@ export function corpBrief(c, q) {
   const g = groupOf(c, q), ceo = CEOS[q.ceo], st = corpStats(c, q);
   return {
     name: corpTitle(q), stage: q.stage, ceo: ceo.name, philosophy: ceo.philosophy, invest: ceo.invest, nego: ceo.nego, risk: ceo.risk, sector: PRODUCTS[st.sector] ? PRODUCTS[st.sector].name : '',
-    cells: st.cells, pending: st.pending, jobs: st.jobs, eff: Math.round(st.eff * 100), cashMK: Math.round(q.cash / MK), debtMK: Math.round((q.debt || 0) / MK), jobShare: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, monopoly: monopolyOf(c, rootOf(c, q.id)) || '', partners: q.partners ? 1 : 0, goalJobs: q.goal.jobs, subs: g.subs, groupCells: g.n, groupJobs: g.jobs,
+    cells: st.cells, pending: st.pending, jobs: st.jobs, eff: Math.round(st.eff * 100), cashMK: Math.round(q.cash / MK), worldPrice: Math.round(signalOf(c, corpSector(c, q)) * 100) / 100, hubs: (c.corp.hubs || []).length, debtMK: Math.round((q.debt || 0) / MK), jobShare: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, monopoly: monopolyOf(c, rootOf(c, q.id)) || '', partners: q.partners ? 1 : 0, goalJobs: q.goal.jobs, subs: g.subs, groupCells: g.n, groupJobs: g.jobs,
     export: q.export, internUnits: Math.round(q.intern), exportUnits: Math.round(q.xunits), trust: q.trust, influence: st.influence, city: { pop: c.pp ? c.pp.count : 0, powerUsePct: c.stats && c.stats.powerCap ? Math.round((100 * c.stats.powerUse) / c.stats.powerCap) : 0 },
   };
 }
@@ -441,7 +445,7 @@ function found(c, opt = {}) {
   const C = c.corp, roots = C.list.filter((q) => !q.parent).length;
   if (!opt.force && (C.off || c.pp.count < CORP.foundMin || roots >= maxCorps(c) || c.day - C.foundAt < CORP.foundEvery)) return null;
   let seed = -1, bm = opt.force ? 0 : 20 * MK;
-  for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind' && c.biz.money[i] > bm && (!opt.avoid || prodOf(c, i) !== opt.avoid)) { bm = c.biz.money[i]; seed = i; }
+  for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind' && c.biz.money[i] * (0.5 + signalOf(c, prodOf(c, i))) > bm && (!opt.avoid || prodOf(c, i) !== opt.avoid)) { bm = c.biz.money[i] * (0.5 + signalOf(c, prodOf(c, i))); seed = i; } // ưu tiên ngành đang được giá
   if (seed < 0) return null;
   C.foundAt = c.day;
   const id = C.nextId, ceo = CEO_KEYS[(hash2(id, 5, 17) * CEO_KEYS.length) | 0];
@@ -499,7 +503,8 @@ function exportCheck(c, q) {
   if (!l.length) return;
   const avg = l.reduce((s, i) => s + c.biz.sout[i], 0) / l.length;
   if (c.day < (q.xAt || 0)) return; // đổi cờ xong thì giữ ít nhất 6 ngày, đỡ bật tắt liên tục
-  if (!q.export && avg >= CORP.expOn) { q.xAt = c.day + 6; q.export = 1; corpLog(c, q, 'exportOn', { stock: Math.round(avg) }); }
+  const hot = signalOf(c, corpSector(c, q)) >= CORP.hotPrice; // giá thế giới đang cao: xuất sớm hơn
+  if (!q.export && avg >= (hot ? CORP.expOn * 0.6 : CORP.expOn)) { q.xAt = c.day + 6; q.export = 1; corpLog(c, q, 'exportOn', { stock: Math.round(avg) }); }
   else if (q.export && avg < CORP.expOff) { q.xAt = c.day + 6; q.export = 0; corpLog(c, q, 'exportOff', { stock: Math.round(avg) }); }
 }
 
@@ -511,7 +516,7 @@ function daily(c) {
     if (q.parent && !corpById(c, q.parent)) q.parent = 0; // mẹ đã giải thể: công ty con thành độc lập
   }
   rebuildGroups(c);
-  marketScan(c);
+  marketScan(c); hubScan(c);
   for (const q of C.list) {
     const st = stageOf(c, q);
     if (st !== q.stage) { corpLog(c, q, 'stage', { from: q.stage, to: st }); if (st > q.stage) news(c, `📈 ${corpTitle({ ...q, stage: st })} lên bậc "${STAGES[st]}"`); q.stage = st; }
@@ -587,7 +592,7 @@ export function monopolyOf(c, root) {
 /** Mua thêm các ô này thì nhóm có vượt ngưỡng độc quyền không (luật chống độc quyền của thành phố). */
 function monopolizes(c, root, cells) {
   const m = mkt(c), n = {};
-  for (const i of cells) { const p = prodOf(c, i); n[p] = (n[p] || 0) + 1; }
+  for (const i of cells) { if (ZDEF[c.zone[i]].biz !== 'ind') continue; const p = prodOf(c, i); n[p] = (n[p] || 0) + 1; }
   for (const p in n) { const mine = ((m.by[root] && m.by[root][p]) || 0) + n[p]; if (mine >= 4 && m.tot[p] && mine / m.tot[p] > CORP.monoShare) return true; }
   return false;
 }
@@ -609,9 +614,12 @@ function acquirePlan(c, q) {
   if ((c.corp.sme ?? -1) >= c.day) return null; // doanh nghiệp nhỏ đang được thành phố bảo hộ
   const centre = centreOf(c, q);
   if (!centre) return null;
-  let pick = -1, pd = 10;
+  const retail = q.stage >= CORP.retailMin && !q.parent && cellsBuilt(c, q).filter((i) => ZDEF[c.zone[i]].biz === 'ind').length >= 2; // chuỗi bán lẻ: tập đoàn lớn mua cửa hàng để bán hàng của chính mình
+  let pick = -1, pd = retail ? 14 : 10;
   for (let i = 0; i < N * N; i++) {
-    if (!c.level[i] || c.owner[i] || ZDEF[c.zone[i]].biz !== 'ind') continue;
+    if (!c.level[i] || c.owner[i]) continue;
+    const kind = ZDEF[c.zone[i]].biz;
+    if (kind !== 'ind' && !(retail && kind === 'shop')) continue;
     const d = Math.hypot((i % N) - centre.x, ((i / N) | 0) - centre.y);
     if (d < pd) { pd = d; pick = i; }
   }
@@ -709,4 +717,47 @@ export function inviteRival(c) {
   for (const q of c.corp.list) if (!q.parent) { const m = monopolyOf(c, q.id), s = jobShare(c, q.id); if (m ? 2 + s > ts : s > ts && !top) { top = m; ts = m ? 2 + s : s; } }
   const q = found(c, { force: true, avoid: top });
   return q ? { ok: true, corp: q } : { ok: false, reason: 'Không còn xưởng độc lập nào để lập công ty' };
+}
+
+// ───────────────────────── Phase 4: kinh tế tự vận hành — cụm kinh tế, tín hiệu thị trường ─────────────────────────
+
+/**
+ * Cụm kinh tế: các nhà máy / cửa hàng của công ty cách nhau ≤ 2 ô liên thông thành một cụm; từ 6 ô trở lên là một trung tâm,
+ * chạy nhanh hơn 10% (đông đúc, chung nhà cung cấp, lao động). Tính mỗi ngày, không lưu (c.hub đánh dấu ô trong cụm).
+ */
+export function hubScan(c) {
+  const N2 = N * N, seen = new Uint8Array(N2), hub = new Uint8Array(N2), hubs = [];
+  const own = (i) => c.owner[i] && c.level[i];
+  for (let s0 = 0; s0 < N2; s0++) {
+    if (seen[s0] || !own(s0)) continue;
+    const comp = [s0]; seen[s0] = 1;
+    for (let k = 0; k < comp.length; k++) {
+      const x = comp[k] % N, y = (comp[k] / N) | 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const X = x + dx, Y = y + dy;
+        if (X < 0 || Y < 0 || X >= N || Y >= N) continue;
+        const j = Y * N + X;
+        if (!seen[j] && own(j)) { seen[j] = 1; comp.push(j); }
+      }
+    }
+    if (comp.length < CORP.hubMin) continue;
+    const prod = {}, owners = new Set();
+    let jobs = 0, sx = 0, sy = 0;
+    for (const i of comp) {
+      hub[i] = 1; jobs += jobCap(c.zone[i], c.level[i]); sx += i % N; sy += (i / N) | 0;
+      owners.add(c.corpGroup ? c.corpGroup[c.owner[i]] | 0 : c.owner[i]);
+      if (ZDEF[c.zone[i]].biz === 'ind') { const p = prodOf(c, i); prod[p] = (prod[p] || 0) + 1; }
+    }
+    const top = Object.keys(prod).sort((a, b) => prod[b] - prod[a])[0] || null;
+    hubs.push({ n: comp.length, jobs, x: Math.round(sx / comp.length), y: Math.round(sy / comp.length), owners: owners.size, sector: top, key: `${top}:${Math.round(sx / comp.length / 8)}:${Math.round(sy / comp.length / 8)}` });
+  }
+  const prev = c.corp.hubs;
+  if (prev) for (const h of hubs) if (!prev.some((p) => p.key === h.key)) news(c, `🏭 Hình thành cụm kinh tế ${h.sector ? PRODUCTS[h.sector].name.toLowerCase() : 'hỗn hợp'}: ${h.n} cơ sở của ${h.owners} nhóm, ${h.jobs} việc làm (chạy nhanh hơn 10%)`);
+  c.hub = hub; c.corp.hubs = hubs;
+  return hubs;
+}
+/** Bảng tín hiệu: giá thế giới từng thành phẩm và số nhà máy trong thành phố (để thấy vốn đi theo giá). */
+export function signals(c) {
+  const m = mkt(c);
+  return Object.keys(PRODUCTS).map((p) => ({ p, price: signalOf(c, p), plants: m.tot[p] || 0 }));
 }

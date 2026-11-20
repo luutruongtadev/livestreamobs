@@ -189,3 +189,11 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - **Công cụ thị trưởng** (bảng 🏢): 🛡️ bảo hộ doanh nghiệp nhỏ 30 ngày (tốn ngân sách, chia vốn, không bị mua lại), 🎯 mời đối thủ mới.
 - AI chọn thêm các hành động mua lại, liên doanh, vay (vẫn chỉ trong danh sách hợp lệ).
 - Chưa làm: logistics / kho bãi, bán lẻ, biển hiệu logo, giá thị trường theo cung cầu từng công ty (Phase 4).
+
+## 15. Tiến độ — Phase 4 đã làm
+
+- **Vốn đi theo giá**: giá thế giới từng thành phẩm (`market.p`, đã có sẵn, trôi ngẫu nhiên + tin sốc) là tín hiệu. Ô đất làm ra thứ đang được giá được chấm điểm cao hơn khi công ty chọn chỗ xây; công ty mới ưu tiên ngành đang được giá; giá ≥ 1.2 thì công ty bật xuất khẩu sớm hơn (ngưỡng tồn kho 60%).
+- **Cụm kinh tế**: các cơ sở của công ty cách nhau ≤ 2 ô liên thông, từ 6 cơ sở trở lên thành một cụm: sản xuất nhanh hơn 10%, đậm hơn trên lớp bản đồ Tập đoàn, có tin khi cụm mới hình thành, hiện trong bảng 🏢.
+- **Chuỗi bán lẻ**: tập đoàn bậc 3 (gốc, ≥ 2 nhà máy) mua thêm cửa hàng độc lập quanh cụm; cửa hàng cùng nhóm nhận hàng từ nhà máy của nhóm theo ưu tiên giao nội bộ.
+- **Bảng thị trường** trong 🏢: giá thế giới từng sản phẩm, số nhà máy, các cụm kinh tế.
+- Chưa làm: kho bãi / logistics là công trình riêng, biển hiệu logo, giá bán theo cung cầu nội địa từng công ty, liên thành phố.

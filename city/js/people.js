@@ -541,7 +541,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   for (const i of companies) {
     const kind = bizKind(c, i), pres = c.present[i], cap = jobCap(c.zone[i], c.level[i]);
     b.money[i] -= 0.12 * MK * c.level[i]; fixed += 0.12 * MK * c.level[i]; // chi phí cố định
-    const prod = (1 + 0.12 * (c.level[i] - 1)) * (kind === 'raw' || kind === 'factory' ? fest : 1) * (c.flood && c.flood[i] >= 1.5 ? 0.2 : 1); // ngập: gần như đứng máy
+    const prod = (1 + 0.12 * (c.level[i] - 1)) * (kind === 'raw' || kind === 'factory' ? fest : 1) * (c.hub && c.hub[i] ? 1.1 : 1) * (c.flood && c.flood[i] >= 1.5 ? 0.2 : 1); // ngập: gần như đứng máy
     let active = pres > 0;
     if (kind === 'raw') {
       const rk = ZDEF[c.zone[i]].raw;
