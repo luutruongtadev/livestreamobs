@@ -2078,6 +2078,10 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
   assert.ok(lg.rural < 20000 && a.good.pool >= a.good.migrants, 'dân lấy từ nông thôn chung của nhóm');
   const glut = { ...lg, members: { x: { owner: 'x', joinDay: 0, report: rep({ offer: { food: { qty: 5000 } } }), reportAt: t0 } } };
   assert.ok(LEAGUE.settle(glut, 1, t0).x.prices.food < a.good.prices.food, 'bán nhiều thì giá chợ chung rớt');
+  const mp = (o) => LEAGUE.marketPrices([{ report: rep(o) }]);
+  assert.equal(mp({ offer: {} }).oil, 1, 'không ai mua, không ai bán: giá 100%');
+  assert.ok(mp({ offer: {}, trade: { need: { oil: 300 } } }).oil > 1.5, 'cần mà không ai bán: giá vọt');
+  assert.ok(mp({ offer: { oil: { qty: 0 } }, trade: { sold: { oil: 400 } } }).oil < 0.7, 'xuất đều (kho trống) vẫn tính là có hàng');
   assert.deepEqual(LEAGUE.standings(lg, t0).map((r) => r.owner)[0], 'good', 'xếp hạng theo điểm thịnh vượng');
   // API qua gateway (FileStore, DEV token)
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-league-')), DEV = 'dev-token-lg';

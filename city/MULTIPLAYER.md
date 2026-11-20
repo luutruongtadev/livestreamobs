@@ -115,7 +115,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
   - dân chuyển đến: nông thôn chung của nhóm (4.000 người mỗi thành phố khi vào, mỗi ngày kéo ra tối đa 70 người / thành phố đang chơi, tự tăng chậm) + người vừa rời các thành phố + người hôm trước chưa có chỗ; chia theo căn bậc hai sức hút nhà ở (hài lòng, việc trống, lương, thuế dân cư, giá đất, ô nhiễm), tối đa bằng nhà trống; người mới vào được ×1,5 trong 6 ngày giải;
   - du khách: theo căn bậc hai sức hút du lịch;
   - đầu tư mới: hệ số nhu cầu thương mại / công nghiệp / văn phòng 0,5–1,5 theo môi trường kinh doanh (thuế doanh nghiệp, người chờ việc, giá đất);
-  - giá chợ chung: theo tổng hàng chào bán so với nhu cầu của cả nhóm.
+  - giá chợ chung: ((nhu cầu nhập hôm qua + độ sâu thị trường) / (hàng chào bán + độ sâu)) ^ 0,35, trong 45–190%; hàng chào bán = lớn hơn giữa hàng trong kho và lượng đã bán hôm qua; không ai mua, không ai bán thì 100%.
 - Thành phố offline dùng bản tóm tắt cuối; bỏ quá 7 ngày thật thì không nhận gì, mỗi ngày mất 2% dân về nguồn chung (áp khi chủ quay lại).
 - Bảng xếp hạng theo điểm thịnh vượng (`world.js prosperity`, bản thử: chưa tính theo mức cải thiện trong mùa như mục 4.1).
 

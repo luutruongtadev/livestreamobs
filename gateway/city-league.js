@@ -120,6 +120,21 @@ export function clearTrades(pairs, usage, day) {
   return out;
 }
 
+/**
+ * Giá chợ chung từng loại hàng: ((nhu cầu nhập hôm qua + độ sâu) / (hàng chào bán + độ sâu)) ^ 0,35, trong khoảng 45–190%.
+ * Hàng chào bán = lớn hơn giữa hàng đang chờ trong kho và lượng đã bán hôm qua (thành phố xuất đều thì kho gần như trống);
+ * độ sâu = phần mua bán của thế giới bên ngoài theo số thành phố. Không ai mua cũng không ai bán thì giá 100%.
+ */
+export function marketPrices(active) {
+  const prices = {}, n = Math.max(1, active.length);
+  for (const k of KINDS) {
+    const supply = active.reduce((a, m) => a + Math.max(m.report.offer[k].qty, m.report.trade.sold[k]), 0);
+    const need = active.reduce((a, m) => a + m.report.trade.need[k], 0), depth = DEMAND[k] * 0.5 * n;
+    prices[k] = Math.round(clamp(Math.pow((need + depth) / (supply + depth), 0.35), 0.45, 1.9) * 1000) / 1000;
+  }
+  return prices;
+}
+
 /** Sức hút nhà ở (0..1): hài lòng, việc làm còn trống, lương, thuế, giá đất, ô nhiễm. */
 export function homeAttract(r) {
   if (!r) return 0;
@@ -170,12 +185,7 @@ export function settle(lg, day, now) {
   const [tour] = waterFill(LEAGUE.touristsPerCity * active.length, tw, active.map((m) => (m.report.tourism ? Math.max(20, m.report.tourism.perDay * 3) : 0)));
   // đầu tư: hệ số nhu cầu thương mại / công nghiệp quanh 1, ai môi trường kinh doanh tốt hơn trung bình thì cao hơn
   const bw = active.map((m) => bizAttract(m.report)), bMean = bw.reduce((a, b) => a + b, 0) / Math.max(1, bw.length);
-  // giá chợ chung: tổng hàng chào bán so với nhu cầu của cả nhóm (bán nhiều thì rớt giá)
-  const prices = {};
-  for (const k of KINDS) {
-    const supply = active.reduce((a, m) => a + m.report.offer[k].qty, 0), demand = DEMAND[k] * Math.max(1, active.length);
-    prices[k] = Math.round(clamp(Math.pow(demand / Math.max(demand * 0.2, supply), 0.35), 0.45, 1.9) * 1000) / 1000;
-  }
+  const prices = marketPrices(active);
   const allocs = {}, trade = matchTrade(active, prices);
   if (trade.pairs.length) (lg.contracts || (lg.contracts = {}))[day] = trade.pairs;
   active.forEach((m, k) => {
