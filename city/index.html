@@ -172,6 +172,17 @@
   .side.win.show { animation: none; }
   .side.win.peek { display: none; }
   .side.win h3 span { display: flex; gap: 2px; }
+  .lgtab { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .lgtab th, .lgtab td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .lgtab th:nth-child(2), .lgtab td:nth-child(2) { text-align: left; white-space: normal; }
+  .lgtab tr.me td { color: var(--acc); font-weight: 600; }
+  .fbar { display: grid; grid-template-columns: 1fr 90px; gap: 2px 8px; align-items: center; font-size: 12.5px; margin: 3px 0; font-variant-numeric: tabular-nums; }
+  .fbar .b { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .fbar .b i { display: block; height: 100%; }
+  .fbar .v { text-align: right; }
+  .wallets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .wallets > div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+  .wallets b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; } .wallets small { color: var(--dim); }
   .dover { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
   .dover th { text-align: left; font-weight: 500; color: var(--dim); font-size: 11px; padding: 3px 6px; border-bottom: 1px solid var(--line); }
   .dover td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, .05); white-space: nowrap; }
@@ -239,6 +250,7 @@
   </div>
   <div class="panel btns">
     <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
+    <button id="bFlows" title="Dòng tiền: tiền vào / ra thành phố, vòng tiền bên trong, ví của ngân sách, dân, doanh nghiệp và thế giới bên ngoài">💸</button>
     <button id="bCity" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe">👥</button>
     <button id="bDev" title="Phát triển: tiêu điểm để mở khu tài nguyên, module, công trình biểu tượng">🔬<sup id="devPts"></sup></button>
     <button id="bLayer" title="Lớp xem (phím L): quy hoạch, giao thông, giá đất, ô nhiễm, rác, dịch vụ, tội phạm, tài nguyên, điện, nước">🗺️</button>
@@ -304,8 +316,9 @@
   <h4>Tốn nhiều nhất</h4>
   <div id="expTop"></div>
   <div id="buildBox"></div>
-  <h4 title="Sổ cái tiền: mọi khoản tiền đi vào / ra khỏi thành phố hôm qua, kể cả tiền của dân và doanh nghiệp">Dòng tiền hôm qua</h4>
+  <h4>Dòng tiền</h4>
   <div id="flowBox"></div>
+  <button class="mini acc" id="bFlowsOpen">💸 Mở cửa sổ dòng tiền</button>
   <h4>Mức chi theo ngành</h4>
   <div id="sectors"></div>
   <h4>Du lịch</h4>
@@ -354,9 +367,13 @@
   <div id="devBody"></div>
 </div>
 
-<div class="panel side" id="league">
-  <h3>🏆 Nhóm cạnh tranh <button data-close>✕</button></h3>
+<div class="panel side win" id="league">
+  <h3>🏆 Nhóm cạnh tranh <span><button data-peek title="Thu cửa sổ lại để xem bản đồ (bấm 🏆 để mở lại)">▁</button> <button data-close>✕</button></span></h3>
   <div id="leagueBody"></div>
+</div>
+<div class="panel side win" id="flows">
+  <h3>💸 Dòng tiền <span><button data-peek title="Thu cửa sổ lại để xem bản đồ (bấm 💸 để mở lại)">▁</button> <button data-close>✕</button></span></h3>
+  <div id="flowsBody"></div>
 </div>
 
 <div class="panel side" id="saves">

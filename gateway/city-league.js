@@ -8,7 +8,7 @@
 // Store cần getLeague(id) / putLeague(league) / openLeagues(season) / leagueOf(owner) / setLeagueOf(owner, id | null).
 import crypto from 'node:crypto';
 import { prosperity } from '../city/js/world.js';
-import { PRICE } from '../city/js/base.js';
+import { PRICE, priceOf } from '../city/js/base.js';
 
 export const LEAGUE = {
   dayMs: 3600_000, // 1 ngày giải = 1 giờ thật
@@ -60,8 +60,9 @@ function perKind(o, lo, hi, d = 0) { const out = {}; for (const k of KINDS) out[
  * Trả về { [owner]: { buy: { k: { qty, price, tariff, from } }, sell: { k: { qty, price, to } } } } (price: hệ số giá).
  */
 export function matchTrade(active, prices) {
-  const out = {};
+  const out = {}, deals = [];
   for (const m of active) out[m.owner] = { buy: {}, sell: {} };
+  Object.defineProperty(out, 'pairs', { value: deals, enumerable: false }); // từng cặp mua / bán: để thanh toán (clearTrades)
   for (const k of KINDS) {
     const P = prices[k] || 1, world = P * importMult(k), pairs = [];
     const cap = new Map(active.map((m) => [m.owner, Math.floor(Math.max(m.report.offer[k].qty, m.report.trade.sold[k]))]));
@@ -76,6 +77,7 @@ export function matchTrade(active, prices) {
       const q = Math.min(need.get(p.b.owner), cap.get(p.s.owner));
       if (q <= 0) continue;
       need.set(p.b.owner, need.get(p.b.owner) - q); cap.set(p.s.owner, cap.get(p.s.owner) - q);
+      deals.push({ b: p.b.owner, s: p.s.owner, k, qty: q, price: Math.round(p.ask * 1000) / 1000 });
       const bu = out[p.b.owner].buy[k] || (out[p.b.owner].buy[k] = { qty: 0, value: 0, tariff: p.b.report.trade.tariff[k], from: [] });
       bu.qty += q; bu.value += q * p.ask; if (!bu.from.includes(p.s.name)) bu.from.push(p.s.name);
       const se = out[p.s.owner].sell[k] || (out[p.s.owner].sell[k] = { qty: 0, value: 0, to: [] });
@@ -83,6 +85,37 @@ export function matchTrade(active, prices) {
     }
   }
   for (const o of Object.values(out)) for (const side of ['buy', 'sell']) for (const d of Object.values(o[side])) { d.price = Math.round((d.value / d.qty) * 1000) / 1000; delete d.value; }
+  return out;
+}
+
+/**
+ * Thanh toán hợp đồng của ngày giải `day` theo số hàng hai bên thật sự mua / bán (usage[owner] = { buy: { k: { qty, paid } },
+ * sell: { k: { qty } } }). Tiền đi thẳng từ bên mua sang bên bán qua máy chủ: bên mua đã trả trước vào quỹ của nhóm (paid),
+ * phần khớp với hàng bên bán đã giao chuyển cho bên bán, phần còn lại trả lại bên mua. Không chạm ví thế giới; tổng khớp tuyệt đối.
+ * Trả về { [owner]: { day, receive: {k}, refund: {k}, unmatchedBuy: {k}, unmatchedSell: {k} } } (tiền theo đơn vị của game).
+ */
+export function clearTrades(pairs, usage, day) {
+  const out = {}, get = (o) => out[o] || (out[o] = { day, receive: {}, refund: {}, unmatchedBuy: {}, unmatchedSell: {} });
+  const total = (o, side, k) => pairs.filter((p) => (side === 'buy' ? p.b : p.s) === o && p.k === k).reduce((a, p) => a + p.qty, 0);
+  const used = (o, side, k) => Math.max(0, +usage[o]?.[side]?.[k]?.qty || 0);
+  const matched = new Map();
+  for (const p of pairs) {
+    const fb = Math.min(1, used(p.b, 'buy', p.k) / Math.max(1, total(p.b, 'buy', p.k))), fs = Math.min(1, used(p.s, 'sell', p.k) / Math.max(1, total(p.s, 'sell', p.k)));
+    const q = Math.floor(p.qty * Math.min(fb, fs)), money = q * priceOf(p.k) * p.price;
+    matched.set(p, q);
+    const S = get(p.s); S.receive[p.k] = (S.receive[p.k] || 0) + money;
+  }
+  for (const o of Object.keys(usage)) for (const k of KINDS) {
+    const b = usage[o]?.buy?.[k];
+    if (b && b.qty > 0) {
+      const mq = pairs.filter((p) => p.b === o && p.k === k).reduce((a, p) => a + matched.get(p), 0);
+      const spent = pairs.filter((p) => p.b === o && p.k === k).reduce((a, p) => a + matched.get(p) * priceOf(k) * p.price, 0);
+      const B = get(o); B.refund[k] = Math.max(0, (+b.paid || 0) - spent); B.unmatchedBuy[k] = Math.max(0, b.qty - mq);
+    }
+    const sl = usage[o]?.sell?.[k];
+    if (sl && sl.qty > 0) { const mq = pairs.filter((p) => p.s === o && p.k === k).reduce((a, p) => a + matched.get(p), 0); get(o).unmatchedSell[k] = Math.max(0, sl.qty - mq); }
+  }
+  for (const o of Object.values(out)) for (const f of ['receive', 'refund']) for (const k in o[f]) o[f][k] = Math.round(o[f][k] * 100) / 100;
   return out;
 }
 
@@ -143,6 +176,7 @@ export function settle(lg, day, now) {
     prices[k] = Math.round(clamp(Math.pow(demand / Math.max(demand * 0.2, supply), 0.35), 0.45, 1.9) * 1000) / 1000;
   }
   const allocs = {}, trade = matchTrade(active, prices);
+  if (trade.pairs.length) (lg.contracts || (lg.contracts = {}))[day] = trade.pairs;
   active.forEach((m, k) => {
     allocs[m.owner] = { day, migrants: mig[k], tourists: tour[k], invest: Math.round(clamp(0.6 + 0.4 * (bMean ? bw[k] / bMean : 1), 0.5, 1.5) * 100) / 100, prices, leave: 0, pool, fromRural, trade: trade[m.owner] };
   });
@@ -169,11 +203,19 @@ export function createCityLeague({ store, now = Date.now } = {}) {
     lg.settled = lg.settled || {};
     for (let d = Math.max(lg.lastSettled ?? -1, today - LEAGUE.keepDays) + 1; d <= today; d++) { lg.settled[d] = settle(lg, d, t); lg.lastSettled = d; }
     for (const d of Object.keys(lg.settled)) if (+d < today - LEAGUE.keepDays) delete lg.settled[d];
+    // thanh toán hợp đồng: khi mọi bên đã báo số hàng thật sự mua / bán, hoặc đã quá 3 ngày giải
+    lg.cleared = lg.cleared || {}; lg.usage = lg.usage || {};
+    for (const d of Object.keys(lg.contracts || {})) {
+      if (+d >= today || lg.cleared[d]) continue;
+      const pairs = lg.contracts[d], parties = new Set(pairs.flatMap((p) => [p.b, p.s])), use = lg.usage[d] || {};
+      if ([...parties].every((o) => use[o]) || today - d >= 3) lg.cleared[d] = clearTrades(pairs, use, +d);
+    }
+    for (const d of Object.keys(lg.contracts || {})) if (+d < today - 2 * LEAGUE.keepDays) { delete lg.contracts[d]; delete lg.usage[d]; delete lg.cleared[d]; }
     return today;
   }
   const view = (lg, owner, t) => {
     const today = dayOf(lg, t), m = lg.members[owner];
-    return { ok: true, league: { id: lg.id, season: lg.season, start: lg.start, day: today, dayMs: LEAGUE.dayMs, nextAt: lg.start + (today + 1) * LEAGUE.dayMs, members: Object.keys(lg.members).length, rural: lg.rural }, me: m ? { name: m.name, joinDay: m.joinDay, joinedAt: m.joinedAt } : null, alloc: lg.settled?.[today]?.[owner] || null, standings: standings(lg, t) };
+    return { ok: true, league: { id: lg.id, season: lg.season, start: lg.start, day: today, dayMs: LEAGUE.dayMs, nextAt: lg.start + (today + 1) * LEAGUE.dayMs, members: Object.keys(lg.members).length, rural: lg.rural }, me: m ? { name: m.name, joinDay: m.joinDay, joinedAt: m.joinedAt } : null, alloc: lg.settled?.[today]?.[owner] || null, standings: standings(lg, t), clear: Object.values(lg.cleared || {}).map((c) => c[owner]).filter((c) => c && !c.acked) };
   };
 
   async function handle(req, res, head, pathname) {
@@ -211,6 +253,14 @@ export function createCityLeague({ store, now = Date.now } = {}) {
         if (!rep) return send(res, head, 400, { ok: false, error: 'Bản tóm tắt không hợp lệ' });
         const m = lg.members[user.id];
         m.report = rep; m.reportAt = t; m.drained = 0; m.leftTaken = false;
+        lg.usage = lg.usage || {}; lg.cleared = lg.cleared || {};
+        for (const [d, u] of Object.entries(b.used && typeof b.used === 'object' ? b.used : {})) { // số hàng thật sự mua / bán theo hợp đồng của từng ngày giải đã qua
+          if (!lg.contracts?.[d] || lg.cleared[d] || +d >= dayOf(lg, t)) continue;
+          const cu = { buy: {}, sell: {} };
+          for (const k of KINDS) { if (u?.buy?.[k]) cu.buy[k] = { qty: num(u.buy[k].qty, 0, 1e6), paid: num(u.buy[k].paid, 0, 1e9) }; if (u?.sell?.[k]) cu.sell[k] = { qty: num(u.sell[k].qty, 0, 1e6) }; }
+          (lg.usage[d] || (lg.usage[d] = {}))[user.id] = cu;
+        }
+        for (const d of Array.isArray(b.ack) ? b.ack.slice(0, 50) : []) if (lg.cleared[d]?.[user.id]) lg.cleared[d][user.id].acked = true; // đã nhận tiền thanh toán
         if (b.name) m.name = String(b.name).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 40) || m.name;
         catchUp(lg, t);
         if (!lg.settled[dayOf(lg, t)][user.id]) lg.settled[dayOf(lg, t)][user.id] = { day: dayOf(lg, t), migrants: 0, tourists: 0, invest: 1, prices: Object.values(lg.settled[dayOf(lg, t)])[0]?.prices || null, leave: 0, late: true }; // vào sau lúc chia: hôm nay chưa có phần

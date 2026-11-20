@@ -103,10 +103,11 @@ async function leagueSync(force) {
   if (!force && !city.league.outbox && now - lgNet.at < 30000) return;
   lgNet.busy = true; lgNet.at = now;
   const c = city, rep = c.league.outbox, token = await Cloud.getToken();
-  const r = rep ? await Lg.leagueReport(token, c.name, rep) : await Lg.leagueStatus(token);
+  const ack = [...(c.league.ackOut || [])];
+  const r = rep ? await Lg.leagueReport(token, c.name, rep, Lg.pendingUsed(c), ack) : await Lg.leagueStatus(token);
   lgNet.busy = false;
   if (c !== city || !c.league) return;
-  if (r.ok && r.league && r.league.id === c.league.id) { if (rep && c.league.outbox === rep) c.league.outbox = null; Lg.applyServer(c, r); lgNet.err = ''; }
+  if (r.ok && r.league && r.league.id === c.league.id) { if (rep && c.league.outbox === rep) { c.league.outbox = null; c.league.ackOut = (c.league.ackOut || []).filter((d) => !ack.includes(d)); for (const d of ack) if (c.league.used) delete c.league.used[d]; } Lg.applyServer(c, r); lgNet.err = ''; }
   else if ((r.ok && !r.league) || r.status === 404) { Lg.detachLeague(c); toast('🏆 Thành phố không còn trong nhóm (đã rời hoặc sang mùa mới): chơi tự do như trước'); }
   else lgNet.err = r.error || 'Không đồng bộ được với máy chủ';
   if ($('league').classList.contains('show')) renderLeague();
@@ -123,6 +124,55 @@ async function leagueLeave() {
   await Lg.leagueLeave(await Cloud.getToken());
   Lg.detachLeague(city); autosave(); toast('Đã rời nhóm: thành phố chơi tự do như trước'); renderLeague();
 }
+/** Cửa sổ 💸 Dòng tiền: ví (ngân sách, dân, doanh nghiệp, thế giới bên ngoài), tiền vào / ra hôm qua, vòng tiền bên trong, 14 ngày gần đây. */
+function renderFlows() {
+  const box = $('flowsBody');
+  if (!box || !city) return;
+  box.textContent = '';
+  const c = city, pp = c.pp, sum = ledgerSummary(c);
+  let hh = 0, bz = 0, rich = 0;
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id]) { hh += pp.money[id]; if (pp.money[id] > 0) rich++; }
+  for (let i = 0; i < c.biz.money.length; i++) bz += c.biz.money[i];
+  const cols = el('div', 'dcols'), c1 = el('div'), c2 = el('div'), c3 = el('div');
+  const wallet = (icon, name, v, note) => { const d = el('div'); d.append(el('small', null, `${icon} ${name}`), el('b', v < 0 ? 'neg' : '', `${fmt(Math.round(v))} ₫`), ...(note ? [el('small', null, note)] : [])); return d; };
+  // cột 1: các ví
+  const w = el('div', 'wallets');
+  w.append(wallet('🏛️', 'Ngân sách', c.money), wallet('👥', 'Ví của dân', hh, `${fmt(pp.count)} người · TB ${fmt(Math.round(hh / Math.max(1, pp.count)))} ₫`), wallet('🏢', 'Ví doanh nghiệp, chủ nhà', bz));
+  if (c.ledger && !c.sandbox) w.append(wallet('🌏', 'Thế giới bên ngoài', worldReserve(c), worldK(c) < 1 ? `sức mua ×${worldK(c).toFixed(2)}` : `phát hành thêm hôm qua ${fmt(Math.round(c.ledger.lastIssue || 0))} ₫`));
+  c1.append(el('h4', null, 'Tiền đang nằm ở đâu'), w, el('small', null, 'Kinh tế khép kín: tiền chỉ chuyển giữa các ví, không tự sinh ra hay mất đi. Thế giới bên ngoài có hạn, mỗi ngày phát hành thêm khoảng 2% mỗi mùa.'));
+  // cột 2: vào / ra thành phố hôm qua
+  const bars = (rows, total) => rows.map((r) => { const d = el('div', 'fbar'), b = el('div', 'b'), f = el('i'); f.style.width = `${Math.min(100, (Math.abs(r.v) / Math.max(1, total)) * 100)}%`; f.style.background = r.v >= 0 ? 'var(--good)' : 'var(--bad)'; b.append(f); d.append(el('span', null, r.name), el('span', `v ${r.v > 0 ? 'pos' : r.v < 0 ? 'neg' : ''}`, r.v ? `${r.v > 0 ? '+' : '−'}${fmt(Math.abs(r.v))}` : '0'), b); return d; });
+  c2.append(el('h4', null, 'Vào / ra thành phố hôm qua'));
+  if (!sum.rows.length) c2.append(el('div', 'row', 'Chưa đủ một ngày để chốt sổ'));
+  else {
+    const big = Math.max(...sum.rows.map((r) => Math.abs(r.v)));
+    c2.append(el('div', 'row', ''), ...bars([{ name: 'Tổng vào', v: sum.inflow }, { name: 'Tổng ra', v: sum.outflow }], Math.max(sum.inflow, -sum.outflow)));
+    c2.append(el('h4', null, 'Từng khoản'), ...bars(sum.rows.map((r) => ({ name: `${r.group === 'city' ? '🏛️' : '👥'} ${r.name}`, v: r.v })), big));
+  }
+  // cột 3: vòng tiền bên trong + 14 ngày
+  c3.append(el('h4', null, 'Vòng tiền bên trong (hôm qua)'));
+  if (sum.inner.length) { const big = Math.max(...sum.inner.map((r) => r.v)); c3.append(...bars(sum.inner.map((r) => ({ name: `🔄 ${r.name}`, v: r.v })), big)); }
+  else c3.append(el('div', 'row', 'Chưa có'));
+  const hist = (c.reports || []).slice(-14);
+  if (hist.length > 1) {
+    c3.append(el('h4', null, `${hist.length} ngày gần đây: vào / ra, ngân sách`));
+    const cv = el('canvas'); cv.width = 320; cv.height = 130; cv.style.width = '100%';
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, n = hist.length, bw = W / n;
+    const top = Math.max(1, ...hist.map((r) => Math.max(r.flows?.inflow || 0, -(r.flows?.outflow || 0))));
+    hist.forEach((r, k) => {
+      const inH = ((r.flows?.inflow || 0) / top) * (H / 2 - 8), outH = (-(r.flows?.outflow || 0) / top) * (H / 2 - 8);
+      g.fillStyle = 'rgba(98,217,139,.8)'; g.fillRect(k * bw + 2, H / 2 - inH, bw - 4, inH);
+      g.fillStyle = 'rgba(255,107,91,.8)'; g.fillRect(k * bw + 2, H / 2, bw - 4, outH);
+    });
+    const ms = hist.map((r) => r.money), lo = Math.min(...ms), hi = Math.max(...ms);
+    g.strokeStyle = '#f2b33d'; g.lineWidth = 2; g.beginPath();
+    ms.forEach((m, k) => { const x = k * bw + bw / 2, y = H - 6 - ((m - lo) / Math.max(1, hi - lo)) * (H - 12); if (k) g.lineTo(x, y); else g.moveTo(x, y); });
+    g.stroke();
+    c3.append(cv, el('small', null, 'Xanh: tiền vào từ bên ngoài · đỏ: tiền ra · vàng: ngân sách'));
+  }
+  cols.append(c1, c2, c3); box.append(cols);
+}
+
 function renderLeague() {
   const box = $('leagueBody');
   if (!box) return;
@@ -131,35 +181,47 @@ function renderLeague() {
   if (!Cloud.cloudMode()) { box.append(el('div', 'row', 'Mở game qua máy chủ của nền tảng để vào nhóm cạnh tranh')); return; }
   const L = city.league;
   if (!L) {
-    box.append(el('p', 'small', 'Thi với thành phố của người chơi khác. Không ai đụng được vào thành phố của bạn: dân chuyển đến, du khách, đầu tư mới và giá chợ được máy chủ chia chung cho cả nhóm theo sức hút (việc làm, hài lòng, thuế, giá đất, du lịch). Từ lúc vào nhóm, 1 ngày game = 1 giờ thật, không tua nhanh được; vắng mặt thì mở lại sẽ chạy bù tối đa 7 ngày.'));
+    box.append(el('p', 'small', 'Thi với thành phố của người chơi khác. Không ai đụng được vào thành phố của bạn: dân chuyển đến, du khách, đầu tư mới và giá chợ được máy chủ chia chung cho cả nhóm theo sức hút (việc làm, hài lòng, thuế, giá đất, du lịch). Các thành phố mua bán với nhau theo hợp đồng giá mỗi ngày, mỗi nơi tự đặt giá chào và thuế nhập khẩu. Từ lúc vào nhóm, 1 ngày game = 1 giờ thật, không tua nhanh được; vắng mặt thì mở lại sẽ chạy bù tối đa 7 ngày.'));
     if (!cloud.user) { box.append(el('div', 'row', 'Đăng nhập ở 💾 Lưu và tải → ☁️ Đám mây trước')); return; }
     const b = el('button', 'mini acc', '🏆 Vào nhóm'); b.addEventListener('click', leagueJoin); box.append(b);
     return;
   }
   const dayNow = Lg.leagueDayNow(L), ms = Math.max(0, L.start + (dayNow + 1) * L.dayMs - Date.now()), a = L.alloc;
   if (lgNet.err) box.append(el('div', 'row neg', lgNet.err));
-  box.append(row('Ngày giải · mùa', `${dayNow + 1} · ${L.season}`), row('Ngày mới sau', `${Math.ceil(ms / 60000)} phút`), row('Thành phố trong nhóm', fmt(L.members || L.standings.length)), row('Nông thôn chung còn', L.rural != null ? `${fmt(L.rural)} người` : '–'));
-  box.append(el('h4', null, 'Phần được chia hôm nay'));
-  if (a) box.append(row('Dân chuyển đến (tối đa bằng nhà trống)', fmt(a.migrants)), row('Du khách', fmt(a.tourists)), row('Đầu tư mới', `×${a.invest}`), row('Giá chợ chung', Object.entries(a.prices || {}).map(([k, v]) => `${S.MKT_NAME[k].split(' ')[0]} ${Math.round(v * 100)}%`).join(' · ')));
-  else box.append(el('div', 'row', 'Chưa có: gửi bản tóm tắt ngày đầu tiên lúc 0 giờ'));
-  // buôn bán với thành phố khác: hợp đồng hôm nay + chính sách giá chào, thuế nhập khẩu (áp từ ngày giải sau)
-  box.append(el('h4', null, 'Buôn bán với thành phố khác'));
+  const cols = el('div', 'dcols'), c1 = el('div'), c2 = el('div'), c3 = el('div');
+  // cột 1: hôm nay
+  c1.append(el('h4', null, 'Hôm nay'), row('Ngày giải · mùa', `${dayNow + 1} · ${L.season}`), row('Ngày mới sau', `${Math.ceil(ms / 60000)} phút`), row('Thành phố trong nhóm', fmt(L.members || L.standings.length)), row('Nông thôn chung còn', L.rural != null ? `${fmt(L.rural)} người` : '–'));
+  c1.append(el('h4', null, 'Phần được chia'));
+  if (a) c1.append(row('Dân chuyển đến (tối đa bằng nhà trống)', fmt(a.migrants)), row('Du khách', fmt(a.tourists)), row('Đầu tư mới', `×${a.invest}`), el('h4', null, 'Giá chợ chung'), ...Object.entries(a.prices || {}).map(([k, v]) => row(S.MKT_NAME[k], `${Math.round(v * 100)}%`)));
+  else c1.append(el('div', 'row', 'Chưa có: gửi bản tóm tắt ngày đầu tiên lúc 0 giờ'));
+  const out = el('button', 'mini', 'Rời nhóm'); out.addEventListener('click', leagueLeave); out.style.marginTop = '10px'; c1.append(out);
+  // cột 2: buôn bán với thành phố khác
+  c2.append(el('h4', null, 'Hợp đồng hôm nay'));
   const tr = a && a.trade, deals = [];
   if (tr) for (const [side, verb, who] of [['buy', 'Mua', 'from'], ['sell', 'Bán', 'to']]) for (const [k, d] of Object.entries(tr[side] || {})) deals.push(row(`${verb} ${S.MKT_NAME[k]} ${side === 'buy' ? 'của' : 'cho'} ${(d[who] || []).slice(0, 3).join(', ')}`, `${fmt(d.qty)} · giá ${Math.round(d.price * 100)}%${side === 'buy' && d.tariff ? ` + thuế ${Math.round(d.tariff * 100)}%` : ''}${d.left != null && d.left < d.qty ? ` · còn ${fmt(Math.round(d.left))}` : ''}`));
-  if (deals.length) box.append(...deals); else box.append(el('div', 'row', 'Hôm nay chưa có hợp đồng (cần nhập / xuất khẩu hôm qua và giá rẻ hơn thế giới máy)'));
-  const P = Lg.policyOf(city), tbl = el('div', 'policy');
-  box.append(el('small', null, 'Giá chào bán: phần của giá chợ chung khi bán cho thành phố khác. Thuế nhập khẩu: đánh vào hàng mua của thành phố khác, tiền vào ngân sách; thuế cao thì dân, doanh nghiệp mua của thế giới máy. Mỗi loại đổi được một lần mỗi ngày.'));
+  if (deals.length) c2.append(...deals); else c2.append(el('div', 'row', 'Chưa có hợp đồng (cần nhập / xuất khẩu hôm qua và giá rẻ hơn thế giới máy)'));
+  const P = Lg.policyOf(city), tbl = el('table', 'lgtab policy');
+  c2.append(el('h4', null, 'Giá chào bán · thuế nhập khẩu'));
   const step = (field, k, d) => { const r = Lg.setPolicy(city, field, k, P[field][k] + d); if (!r.ok) toast(r.reason); renderLeague(); };
+  const hd = el('tr'); for (const t of ['', 'Hàng', 'Giá chào', 'Thuế NK']) hd.append(el('th', null, t)); tbl.append(hd);
   for (const k of S.MKT_KINDS) {
-    const line = el('div', 'row');
-    const ctl = (field, lab) => { const g = el('span'), m = el('button', 'mini', '−'), p = el('button', 'mini', '+'); m.addEventListener('click', () => step(field, k, -0.05)); p.addEventListener('click', () => step(field, k, 0.05)); g.append(lab, m, el('b', null, ` ${Math.round(P[field][k] * 100)}% `), p); return g; };
-    line.append(el('span', null, S.MKT_NAME[k]), ctl('ask', 'chào '), ctl('tariff', ' thuế '));
-    tbl.append(line);
+    const tr2 = el('tr'), ctl = (field) => { const td = el('td'), m = el('button', 'mini', '−'), p = el('button', 'mini', '+'); m.addEventListener('click', () => step(field, k, -0.05)); p.addEventListener('click', () => step(field, k, 0.05)); td.append(m, el('b', null, ` ${Math.round(P[field][k] * 100)}% `), p); return td; };
+    tr2.append(el('td', null, S.MKT_NAME[k].split(' ')[0]), el('td', null, S.MKT_NAME[k].split(' ').slice(1).join(' ')), ctl('ask'), ctl('tariff'));
+    tbl.append(tr2);
   }
-  box.append(tbl);
-  box.append(el('h4', null, 'Bảng xếp hạng (điểm thịnh vượng)'));
-  L.standings.slice(0, 30).forEach((s, k) => box.append(row(`${k + 1}. ${s.name}${s.owner === cloud.user?.id ? ' (bạn)' : ''}${s.abandoned ? ' 🏚️' : s.online ? '' : ' 💤'}`, `${fmt(s.score)} điểm · ${fmt(s.pop)} dân`)));
-  const out = el('button', 'mini', 'Rời nhóm'); out.addEventListener('click', leagueLeave); box.append(out);
+  c2.append(tbl, el('small', null, 'Giá chào: phần của giá chợ chung khi bán cho thành phố khác. Thuế nhập khẩu đánh vào hàng mua của thành phố khác, tiền vào ngân sách; thuế cao thì doanh nghiệp mua của thế giới máy. Mỗi loại đổi được một lần mỗi ngày, áp từ ngày giải sau.'));
+  // cột 3: bảng xếp hạng
+  c3.append(el('h4', null, 'Bảng xếp hạng (điểm thịnh vượng)'));
+  const rank = el('table', 'lgtab'), h3 = el('tr');
+  for (const t of ['#', 'Thành phố', 'Điểm', 'Dân', 'Vui']) h3.append(el('th', null, t));
+  rank.append(h3);
+  L.standings.slice(0, 30).forEach((s, k) => {
+    const r = el('tr', s.owner === cloud.user?.id ? 'me' : '');
+    for (const v of [k + 1, `${s.name}${s.owner === cloud.user?.id ? ' (bạn)' : ''}${s.abandoned ? ' 🏚️' : s.online ? '' : ' 💤'}`, fmt(s.score), fmt(s.pop), `${s.happy ?? '–'}%`]) r.append(el('td', null, String(v)));
+    rank.append(r);
+  });
+  c3.append(rank, el('small', null, '💤 lâu không vào · 🏚️ bỏ quá 7 ngày (dân dần chuyển đi)'));
+  cols.append(c1, c2, c3); box.append(cols);
 }
 
 // ───────────────────────── lưu đám mây (cloud.js) ─────────────────────────
@@ -1132,14 +1194,12 @@ function renderExpenses(force) {
       bb.append(expRow({ icon: d.icon, name: d.name, note: `${Math.round(done * 100)}% · xong sau ${sv.build} giờ · đã chi ${money(d.cost)}`, cost: d.upkeep * S.RATE, x: (sv.x + d.size / 2) * S.T - S.HALF, z: (sv.y + d.size / 2) * S.T - S.HALF }, pg));
     }
   }
-  // sổ cái: tiền vào / ra khỏi thành phố hôm qua (ngân sách, dân, doanh nghiệp), và tiền chảy bên trong
+  // dòng tiền: tóm tắt ngắn, chi tiết ở cửa sổ 💸
   const fb = $('flowBox'), sum = ledgerSummary(city); fb.textContent = '';
-  if (city.ledger && !city.sandbox) { const r = el('div', 'row'), k = worldK(city); r.title = 'Tiền của ngân hàng, nhà đầu tư, khách nước ngoài, nông thôn: có hạn, mỗi ngày phát hành thêm khoảng 2% mỗi mùa. Còn dưới một nửa thì thế giới mua ít hàng, khách tiêu ít, vốn đầu tư mới ít đi'; r.append(el('span', null, '🌏 Thế giới bên ngoài còn'), el('span', k < 1 ? 'neg' : '', `${fmt(Math.round(worldReserve(city)))} ₫${k < 1 ? ` · sức mua ×${k.toFixed(2)}` : ''}`)); fb.append(r); }
-  if (!sum.rows.length) { fb.append(el('div', 'exi', 'Chưa đủ một ngày để chốt sổ')); return; }
-  const line = (name, v, cls) => { const r = el('div', 'row'); r.append(el('span', null, name), el('span', cls ?? (v >= 0 ? 'pos' : 'neg'), `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`)); return r; };
-  fb.append(line('Vào từ bên ngoài', sum.inflow), line('Ra bên ngoài', sum.outflow));
-  for (const r of sum.rows.slice(0, 14)) fb.append(line(`${r.group === 'city' ? '🏛️' : '👥'} ${r.name}`, r.v));
-  for (const r of sum.inner) fb.append(line(`🔄 ${r.name}`, r.v, ''));
+  const line = (name, v, cls) => { const r = el('div', 'row'); r.append(el('span', null, name), el('span', cls ?? (v >= 0 ? 'pos' : 'neg'), `${v >= 0 ? '+' : '−'}${fmt(Math.abs(Math.round(v)))}`)); return r; };
+  if (sum.rows.length) fb.append(line('Hôm qua vào từ bên ngoài', sum.inflow), line('Hôm qua ra bên ngoài', sum.outflow));
+  if (city.ledger && !city.sandbox) fb.append(line('🌏 Thế giới bên ngoài còn', worldReserve(city), worldK(city) < 1 ? 'neg' : ''));
+  if ($('flows').classList.contains('show') && !$('flows').classList.contains('peek')) renderFlows();
 }
 
 function renderLoans() {
@@ -1534,9 +1594,11 @@ function bindMinimap() {
 function peekDist() { $('dist').classList.add('peek'); toast('Bấm 🏙️ để mở lại bảng điều hành quận'); }
 
 function openSide(id) {
+  if ((id === 'league' || id === 'flows') && $(id).classList.contains('peek') && $(id).classList.contains('show')) { $(id).classList.remove('peek'); if (id === 'league') renderLeague(); else renderFlows(); return; }
+  if (id === 'flows') renderFlows();
   if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
   if (id === 'league') { renderLeague(); leagueSync(true); }
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'league']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
@@ -1552,6 +1614,9 @@ function bindUi() {
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
   $('bLeague').addEventListener('click', () => openSide('league'));
+  $('bFlows').addEventListener('click', () => openSide('flows'));
+  $('bFlowsOpen').addEventListener('click', () => openSide('flows'));
+  for (const b of document.querySelectorAll('[data-peek]')) b.addEventListener('click', () => { const p = b.closest('.side'); p.classList.add('peek'); toast(`Bấm ${p.id === 'league' ? '🏆' : '💸'} để mở lại cửa sổ`); });
   $('moneyStat').addEventListener('click', () => openSide('budget')); // bấm ô 💰 tiền cũng mở bảng ngân sách
   $('moneyStat').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSide('budget'); } });
   $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
@@ -2072,6 +2137,7 @@ function frame(now) {
     else if (ev.type === 'built') toast(`🏗️ Đã xây xong ${ev.icon} ${ev.name}`);
     else if (ev.type === 'depleted') toast(ev.text);
     else if (ev.type === 'league') toast(ev.text);
+    else if (ev.type === 'leagueClear' && (ev.receive || ev.refund)) toast(`🏆 Thanh toán hợp đồng ngày giải ${ev.day + 1}: nhận ${fmt(Math.round(ev.receive))} ₫${ev.refund ? `, hoàn lại ${fmt(Math.round(ev.refund))} ₫` : ''}`);
     else if (ev.type === 'leagueDay') { const a = ev.alloc; toast(`🏆 Ngày giải mới: ${fmt(a.migrants)} người được chia về thành phố, ${fmt(a.tourists)} du khách, đầu tư ×${a.invest}`); }
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');

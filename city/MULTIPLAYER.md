@@ -121,8 +121,10 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 
 - **Mua bán giữa các thành phố và thuế nhập khẩu (việc 12b, xong):** hợp đồng giá theo ngày giải. Máy chủ (`matchTrade`) ghép bên mua (thành phố có nhập khẩu hôm qua) với bên bán (hàng đang chào hoặc đã bán hôm qua), giá = giá chợ chung × giá chào của người bán (80–120%), giá tới tay = giá × (1 + thuế nhập khẩu của bên mua, tối đa 50%); chỉ mua khi rẻ hơn nhập từ thế giới máy, rẻ nhất trước. Trong ngày, xe nhập / xuất của thành phố tính theo giá hợp đồng tới hết số lượng; thuế nhập khẩu vào ngân sách bên mua. Bảng 🏆 hiện hợp đồng hôm nay và chỉnh giá chào, thuế từng loại hàng (mỗi loại một lần mỗi ngày, áp từ ngày giải sau).
 
+- **Tiền mua bán đi thẳng giữa các thành phố (xong):** bên mua trả trước vào quỹ thanh toán của nhóm khi xe nhập hàng hợp đồng về; ngày giải sau mỗi bên báo số hàng thật sự mua / bán, máy chủ (`clearTrades`) đối chiếu từng cặp, chuyển phần khớp cho doanh nghiệp đã giao của bên bán, hoàn phần còn lại cho bên mua; hàng bên mua đã nhận mà bên bán không giao thì trả thêm cho đủ giá thế giới, hàng bên bán đã giao mà bên mua không nhận thì bán cho thế giới máy. Không chạm ví thế giới; tổng tiền của nhóm khớp tuyệt đối (sổ cái có thêm vị thế với quỹ nhóm `ledger.group`).
+
 **Chưa làm trong giai đoạn C:**
-- Hàng vẫn đi bằng xe nhập / xuất với "bên ngoài" như cũ: hợp đồng chỉ đổi giá, chưa có xe chạy giữa hai thành phố; tiền mua bán vẫn qua ví thế giới riêng của mỗi thành phố (khép theo nhóm ở giai đoạn D).
+- Hàng vẫn đi bằng xe nhập / xuất với "bên ngoài" như cũ: hợp đồng chỉ đổi giá, chưa có xe chạy giữa hai thành phố.
 - Sổ `trades`; nguồn chung chưa khép với tiền (người chuyển đến mang tiền từ ví thế giới của mỗi thành phố, chưa từ thành phố cũ).
 - Thông báo qua `/ws`, giao diện chia bậc hạng (Làng … Siêu đô thị), thưởng cuối mùa: để giai đoạn E.
 

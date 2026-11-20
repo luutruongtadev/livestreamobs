@@ -3,7 +3,9 @@
 // lấy từ phần máy chủ chia mỗi ngày giải (1 giờ thật); mỗi 0 giờ thành phố gửi bản tóm tắt ngày lên.
 // Đồng hồ thật: thành phố không chạy quá ngày giải hiện tại (1 ngày game / 1 giờ thật), vắng mặt thì chạy bù có giới hạn.
 import { registerWorld, AI_WORLD } from './world.js';
-import { MKT_KINDS } from './econ.js';
+import { MKT_KINDS, mkt } from './econ.js';
+import { PRICE, priceOf } from './base.js';
+import { world, groupFlow } from './ledger.js';
 
 export const CATCHUP_MAX_DAYS = 7;
 /** Giá chào bán (phần của giá chợ chung) và thuế nhập khẩu hàng của thành phố khác (khớp gateway/city-league.js TRADE). */
@@ -83,6 +85,65 @@ registerWorld('league', {
   },
 });
 
+/**
+ * Ghi số hàng thật sự mua / bán theo hợp đồng trong ngày giải (gửi lên máy chủ để thanh toán). Bên mua đã trả trước
+ * qty × unit vào quỹ nhóm (ra khỏi thành phố); bên bán chờ máy chủ chuyển tiền. cell: doanh nghiệp mua / bán.
+ */
+export function tradeUse(c, side, kind, qty, unit, cell) {
+  const L = c.league, D = L && L.alloc ? L.alloc.day : null;
+  if (D == null || !(qty > 0)) return;
+  const U = (L.used || (L.used = {}))[D] || (L.used[D] = { buy: {}, sell: {}, cells: { buy: {}, sell: {} } });
+  const t = U[side][kind] || (U[side][kind] = side === 'buy' ? { qty: 0, paid: 0 } : { qty: 0 });
+  t.qty += qty;
+  const cs = U.cells[side][kind] || (U.cells[side][kind] = {}), e = cs[cell] || (cs[cell] = { qty: 0, value: 0 });
+  e.qty += qty; e.value += qty * unit;
+  if (side === 'buy') { t.paid += qty * unit; groupFlow(c, 'tradeOut', -qty * unit); }
+}
+
+/**
+ * Nhận kết quả thanh toán của một ngày giải: bên bán nhận tiền phần khớp (chia cho doanh nghiệp đã giao theo giá trị),
+ * phần bên mua không nhận thì bán cho thế giới máy theo giá xuất khẩu; bên mua được hoàn phần trả trước không khớp,
+ * hàng đã nhận mà bên bán không giao thì trả thêm cho đủ giá nhập từ thế giới máy.
+ */
+export function applyClear(c, e) {
+  const L = c.league;
+  if (!L || !e || (L.applied && L.applied[e.day])) return false;
+  const U = (L.used && L.used[e.day]) || { cells: { buy: {}, sell: {} } }, b = c.biz;
+  const sale = c.fn && c.fn.saleIncome;
+  for (const k of MKT_KINDS) {
+    const sc = U.cells.sell[k] || {}, sVal = Object.values(sc).reduce((a, x) => a + x.value, 0), sQty = Object.values(sc).reduce((a, x) => a + x.qty, 0);
+    const got = +(e.receive && e.receive[k]) || 0, uq = Math.min(sQty, +(e.unmatchedSell && e.unmatchedSell[k]) || 0);
+    for (const [cell, x] of Object.entries(sc)) {
+      const share = sVal > 0 ? (got * x.value) / sVal : 0;
+      if (!c.level[cell] || !sale) { if (share > 0) { c.money += share; groupFlow(c, 'tradeIn', share); } continue; } // doanh nghiệp đã dỡ: tiền về ngân sách
+      if (share > 0) sale(c, +cell, share, 'i', 'group:tradeIn');
+      if (uq > 0 && sQty > 0) sale(c, +cell, ((uq * x.qty) / sQty) * priceOf(k) * PRICE.exportMult * mkt(c, k), 'i', 'export');
+    }
+    if (got > 0 && !sVal) { c.money += got; groupFlow(c, 'tradeIn', got); } // không còn ghi nhận giao hàng (bản lưu cũ): tiền về ngân sách
+    const bc = U.cells.buy[k] || {}, bQty = Object.values(bc).reduce((a, x) => a + x.qty, 0);
+    const refund = +(e.refund && e.refund[k]) || 0, ub = Math.min(bQty, +(e.unmatchedBuy && e.unmatchedBuy[k]) || 0);
+    const paid = U.buy[k] ? U.buy[k].paid : 0, avg = U.buy[k] && U.buy[k].qty ? paid / U.buy[k].qty : 0;
+    const extraUnit = Math.max(0, priceOf(k) * (k === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, k) - avg);
+    for (const [cell, x] of Object.entries(bc)) {
+      const share = bQty ? x.qty / bQty : 0;
+      if (refund > 0) { b.money[cell] += refund * share; groupFlow(c, 'tradeRefund', refund * share); }
+      if (ub > 0 && extraUnit > 0) { const extra = ub * share * extraUnit; b.money[cell] -= extra; world(c, 'import', -extra); }
+    }
+  }
+  (L.applied || (L.applied = {}))[e.day] = true;
+  (L.ackOut || (L.ackOut = [])).push(e.day);
+  if (c.events) c.events.push({ type: 'leagueClear', day: e.day, receive: Object.values(e.receive || {}).reduce((a, v) => a + v, 0), refund: Object.values(e.refund || {}).reduce((a, v) => a + v, 0) });
+  return true;
+}
+
+/** Số hàng đã mua / bán theo hợp đồng của các ngày giải đã qua, chưa thanh toán (gửi kèm bản tóm tắt). */
+export function pendingUsed(c) {
+  const L = c.league, out = {};
+  if (!L || !L.used) return out;
+  for (const [d, U] of Object.entries(L.used)) if ((!L.alloc || +d !== L.alloc.day) && !(L.applied && L.applied[d])) out[d] = { buy: U.buy, sell: U.sell };
+  return out;
+}
+
 /** Hệ số nhu cầu thương mại / công nghiệp / văn phòng theo phần đầu tư được chia (1 = như khi chơi một mình). */
 export const investK = (c) => (c.league && c.league.alloc && Number.isFinite(+c.league.alloc.invest) ? +c.league.alloc.invest : 1);
 
@@ -101,10 +162,10 @@ export function attachLeague(c, server) {
 export function detachLeague(c) { delete c.league; c.outside = null; }
 
 /** Lưu / nạp phần nhóm của thành phố (bản lưu). */
-export const packLeague = (c) => (c.league ? { id: c.league.id, start: c.league.start, dayMs: c.league.dayMs, joinDay: c.league.joinDay, cityHour0: c.league.cityHour0, drainedApplied: c.league.drainedApplied || 0, season: c.league.season, policy: c.league.policy ? { ask: c.league.policy.ask, tariff: c.league.policy.tariff } : undefined } : undefined);
+export const packLeague = (c) => (c.league ? { used: c.league.used, applied: c.league.applied, ackOut: c.league.ackOut, id: c.league.id, start: c.league.start, dayMs: c.league.dayMs, joinDay: c.league.joinDay, cityHour0: c.league.cityHour0, drainedApplied: c.league.drainedApplied || 0, season: c.league.season, policy: c.league.policy ? { ask: c.league.policy.ask, tariff: c.league.policy.tariff } : undefined } : undefined);
 export function unpackLeague(c, o) {
   if (!o || !o.id || !(o.dayMs > 0)) return;
-  c.league = { id: String(o.id), start: +o.start || 0, dayMs: +o.dayMs, joinDay: o.joinDay | 0, cityHour0: o.cityHour0 | 0, drainedApplied: o.drainedApplied | 0, season: o.season | 0, alloc: null, outbox: null, standings: [] };
+  c.league = { id: String(o.id), start: +o.start || 0, dayMs: +o.dayMs, joinDay: o.joinDay | 0, cityHour0: o.cityHour0 | 0, drainedApplied: o.drainedApplied | 0, season: o.season | 0, alloc: null, outbox: null, standings: [], used: o.used && typeof o.used === 'object' ? o.used : {}, applied: o.applied && typeof o.applied === 'object' ? o.applied : {}, ackOut: Array.isArray(o.ackOut) ? o.ackOut.slice(-50) : [] };
   c.outside = { kind: 'league' };
   if (o.policy) { const P = policyOf(c); for (const k of MKT_KINDS) { if (+o.policy.ask?.[k] > 0) P.ask[k] = Math.min(TRADE.askMax, Math.max(TRADE.askMin, +o.policy.ask[k])); if (+o.policy.tariff?.[k] >= 0) P.tariff[k] = Math.min(TRADE.tariffMax, +o.policy.tariff[k]); } }
 }
@@ -133,7 +194,7 @@ async function call(token, method, path, body) {
 }
 export const leagueStatus = (token) => call(token, 'GET', '');
 export const leagueJoin = (token, name) => call(token, 'POST', '/join', { name });
-export const leagueReport = (token, name, report) => call(token, 'POST', '/report', { name, report });
+export const leagueReport = (token, name, report, used, ack) => call(token, 'POST', '/report', { name, report, used, ack });
 export const leagueLeave = (token) => call(token, 'POST', '/leave', {});
 
 /** Nhận phản hồi máy chủ: cập nhật phần chia (ngày mới thì phần mới, chưa dùng), bảng xếp hạng. */
@@ -145,4 +206,5 @@ export function applyServer(c, r) {
     L.alloc = { ...r.alloc, used: false };
     if (L.alloc.trade) for (const side of ['buy', 'sell']) for (const d of Object.values(L.alloc.trade[side] || {})) d.left = d.qty; // hợp đồng trong ngày: dùng dần
   }
+  for (const e of r.clear || []) applyClear(c, e); // thanh toán hợp đồng các ngày trước
 }

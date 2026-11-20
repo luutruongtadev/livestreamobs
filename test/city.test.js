@@ -2028,6 +2028,7 @@ test('city: lưu đám mây — cần đăng nhập, lưu / liệt kê / tải /
   const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
   let clock = 1e6;
   const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityCloud: createCityCloud({ store, now: () => clock }) }));
+  server.keepAliveTimeout = 120_000;
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}/api/city/saves`;
   const call = async (method, slot = '', body, token = DEV) => { const res = await fetch(base + (slot ? `/${slot}` : ''), { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) }); return { status: res.status, ...(await res.json()) }; };
@@ -2083,6 +2084,7 @@ test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, gi�
   const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
   let clock = t0;
   const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityLeague: LEAGUE.createCityLeague({ store, now: () => clock }) }));
+  server.keepAliveTimeout = 120_000; // giữa hai lần gọi test chạy mô phỏng vài giây: đừng đóng kết nối giữ sẵn
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const call = async (method, p = '', body, token = DEV) => { const res = await fetch(`http://127.0.0.1:${server.address().port}/api/city/league${p}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, ...(await res.json()) }; };
   try {
@@ -2148,4 +2150,30 @@ test('city: mua bán giữa các thành phố trong nhóm — ghép theo giá sa
   assert.ok(c.league.outbox && c.league.outbox.trade.tariff.goods === 0.5 && 'need' in c.league.outbox.trade);
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(LgC.policyOf(back).tariff.goods, 0.5, 'chính sách lưu lại');
+  // thanh toán: tiền đi thẳng từ bên mua sang bên bán qua máy chủ, tổng khớp tuyệt đối
+  const pairs = [{ b: 'A', s: 'B', k: 'goods', qty: 100, price: 0.9 }, { b: 'A', s: 'C', k: 'goods', qty: 50, price: 1 }];
+  const paidA = 120 * unit * ((100 * 0.9 + 50 * 1) / 150); // A nhận 120 / 150, trả trước theo giá trung bình
+  const cl = LEAGUE.clearTrades(pairs, { A: { buy: { goods: { qty: 120, paid: paidA } } }, B: { sell: { goods: { qty: 100 } } }, C: { sell: { goods: { qty: 10 } } } }, 3);
+  const sum = (o) => Object.values(o || {}).reduce((x, v) => x + v, 0);
+  assert.ok(Math.abs(paidA - (sum(cl.A.refund) + sum(cl.B.receive) + sum(cl.C.receive))) < 0.05, 'bên mua trả = bên bán nhận + hoàn lại');
+  assert.ok(cl.C.receive.goods < cl.B.receive.goods && cl.C.unmatchedSell.goods === 0, 'C giao ít thì nhận ít');
+  assert.ok(cl.A.refund.goods > 0, 'bên mua được hoàn phần bên bán không giao');
+  const none = LEAGUE.clearTrades(pairs, { B: { sell: { goods: { qty: 100 } } } }, 3);
+  assert.equal(sum(none.B.receive), 0, 'bên mua không nhận hàng thì bên bán không được trả');
+  // phía game: bên bán nhận tiền qua quỹ nhóm vào đúng doanh nghiệp đã giao, sổ cái vẫn khớp
+  const s2 = town(); run(s2, 24);
+  LgC.attachLeague(s2, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 3, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 3, prices: { goods: 1 }, trade: { buy: {}, sell: { goods: { qty: 40, price: 1.1, to: ['A'] } } } }, standings: [] });
+  s2.league.alloc.trade.sell.goods.left = 40;
+  let fac = -1; for (let i = 0; i < S.N * S.N && fac < 0; i++) if (s2.level[i] && S.jobCap(s2.zone[i], s2.level[i])) fac = i;
+  LG.resetLedger(s2);
+  const m0 = s2.biz.money[fac];
+  P2.onArrive(s2, { t: 'export', from: fac, kind: 'goods', qty: 40 });
+  assert.equal(s2.biz.money[fac], m0, 'bán theo hợp đồng: tiền chưa về ngay');
+  assert.deepEqual(LgC.pendingUsed(s2), {}, 'ngày giải hôm nay chưa gửi');
+  s2.league.alloc = { day: 4, prices: { goods: 1 } };
+  assert.equal(LgC.pendingUsed(s2)[3].sell.goods.qty, 40, 'ngày đã qua: gửi số hàng đã giao');
+  LgC.applyServer(s2, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 4 }, alloc: { day: 4, prices: { goods: 1 } }, clear: [{ day: 3, receive: { goods: 40 * unit * 1.1 }, refund: {}, unmatchedBuy: {}, unmatchedSell: {} }] });
+  assert.ok(Math.abs(s2.biz.money[fac] - m0 - 40 * unit * 1.1 * (1 - s2.tax.i / 100)) < 1e-3, 'tiền hợp đồng về doanh nghiệp đã giao (trừ thuế)');
+  assert.ok(Math.abs(LG.checkLedger(s2).drift) < 1e-3 && s2.ledger.group < 0, 'sổ cái khớp, tiền đến từ quỹ nhóm chứ không phải ví thế giới');
+  assert.equal(LgC.applyClear(s2, { day: 3, receive: { goods: 999 } }), false, 'không nhận hai lần');
 });

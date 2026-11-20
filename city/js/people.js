@@ -12,7 +12,7 @@ import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
 import { distFx } from './districts.js';
 import { fisheryMul } from './fishery.js';
-import { world, inner, cityGet, cityTake, worldK, popIn, popOut, ruralLeft } from './ledger.js';
+import { world, inner, cityGet, cityTake, worldK, groupFlow, popIn, popOut, ruralLeft } from './ledger.js';
 import { extract } from './reserve.js';
 
 export const ST = { HOME: 0, TO_WORK: 1, WORK: 2, TO_HOME: 3, OUT: 4, TO_OUT: 5 };
@@ -224,7 +224,7 @@ export function onArrive(c, cb, v) {
         const unit = price * deal.price, tariff = deal.qty * unit * deal.tariff, rest = cb.qty - deal.qty;
         cost = deal.qty * unit + tariff + rest * price * (cb.kind === 'goods' ? PRICE.importMult : PRICE.rawImportMult) * mkt(c, cb.kind);
         b.money[to] -= tariff; c.money += tariff; inner(c, 'tariff', tariff); cost -= tariff;
-        world(c, 'importCity', -deal.qty * unit); cost -= deal.qty * unit; b.money[to] -= deal.qty * unit;
+        c.fn.tradeUse(c, 'buy', cb.kind, deal.qty, unit, to); cost -= deal.qty * unit; b.money[to] -= deal.qty * unit; // trả trước vào quỹ nhóm, máy chủ chuyển cho bên bán
       }
       if (cb.imp) { const ik = c.econ.day.impK || (c.econ.day.impK = {}); ik[cb.kind] = (ik[cb.kind] || 0) + cb.qty; }
       b.sin[to] += cb.qty; b.money[to] -= cost;
@@ -234,7 +234,7 @@ export function onArrive(c, cb, v) {
     }
     case 'export': {
       const deal = c.fn && c.fn.contract ? c.fn.contract(c, 'sell', cb.kind, cb.qty) : null, rest = cb.qty - (deal ? deal.qty : 0); // nhóm cạnh tranh: bán cho thành phố khác theo hợp đồng
-      if (deal && c.level[cb.from]) saleIncome(c, cb.from, deal.qty * priceOf(cb.kind) * deal.price, 'i', 'exportCity');
+      if (deal && c.level[cb.from]) c.fn.tradeUse(c, 'sell', cb.kind, deal.qty, priceOf(cb.kind) * deal.price, cb.from); // tiền về khi máy chủ thanh toán (ngày giải sau)
       if (rest > 0 && c.level[cb.from]) saleIncome(c, cb.from, rest * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0) + (c.railExport || 0)) * mkt(c, cb.kind), 'i', 'export');
       { const ek = c.econ.day.expK || (c.econ.day.expK = {}); ek[cb.kind] = (ek[cb.kind] || 0) + cb.qty; }
       c.econ.day.exportValue = (c.econ.day.exportValue || 0) + cb.qty * priceOf(cb.kind) * mkt(c, cb.kind);
@@ -316,9 +316,10 @@ export function touristSpend(c, n, per = 8) {
 }
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
-function saleIncome(c, i, amount, cat, from) {
+export function saleIncome(c, i, amount, cat, from) {
   const rate = (c.tax[cat] / 100) * (1 - (c.taxBreakK || 0)); // nhà đầu tư được miễn một phần thuế (council.js)
-  if (from) { amount *= worldK(c); world(c, from, amount); } // người trả ở ngoài thành phố: thế giới nghèo đi thì trả ít đi (ledger.js)
+  if (from && from.startsWith('group:')) groupFlow(c, from.slice(6), amount); // thành phố khác trả qua máy chủ nhóm: đúng số, không qua ví thế giới
+  else if (from) { amount *= worldK(c); world(c, from, amount); } // người trả ở ngoài thành phố: thế giới nghèo đi thì trả ít đi (ledger.js)
   c.biz.money[i] += amount * (1 - rate);
   if (c.biz.rev) c.biz.rev[i] += amount;
   c.hourInc[cat] += amount * rate; // thuế thật: ngân sách nhận đúng phần bị trừ

@@ -31,8 +31,9 @@ export const FLOWS = {
   office: ['Dịch vụ văn phòng bán ra ngoài', 'private'],
   export: ['Xuất khẩu', 'private'],
   import: ['Nhập khẩu', 'private'],
-  importCity: ['Mua hàng của thành phố khác trong nhóm', 'private'],
-  exportCity: ['Bán hàng cho thành phố khác trong nhóm', 'private'],
+  tradeOut: ['Trả trước hàng mua của thành phố khác (qua máy chủ nhóm)', 'group'],
+  tradeIn: ['Tiền bán hàng cho thành phố khác (máy chủ nhóm chuyển)', 'group'],
+  tradeRefund: ['Hoàn tiền hợp đồng bên bán không giao đủ', 'group'],
   tourist: ['Du khách chi tiêu', 'private'],
   arrive: ['Người mới đến, trẻ sinh ra (tiền mang theo)', 'private'],
   leave: ['Người mất, người bỏ đi (tiền mang theo)', 'private'],
@@ -74,7 +75,8 @@ export const WORLD = { start: 4000000, issueDay: 0.02 / 14, floor: 0.2 };
  */
 export function resetLedger(c, keep = null) {
   const w = keep && Number.isFinite(+keep.world) ? +keep.world : 0;
-  c.ledger = { world: w, base: totalMoney(c) + w, r0: keep && +keep.r0 > 0 ? +keep.r0 : WORLD.start, issued: keep && +keep.issued > 0 ? +keep.issued : 0, day: {}, inner: {}, last: null, lastInner: null };
+  const g = keep && Number.isFinite(+keep.group) ? +keep.group : 0;
+  c.ledger = { world: w, group: g, base: totalMoney(c) + w + g, r0: keep && +keep.r0 > 0 ? +keep.r0 : WORLD.start, issued: keep && +keep.issued > 0 ? +keep.issued : 0, day: {}, inner: {}, last: null, lastInner: null };
   return c.ledger;
 }
 /** Số dư của thế giới bên ngoài (ngân hàng, nhà đầu tư, khách nước ngoài, nông thôn). */
@@ -96,7 +98,14 @@ export function issueDay(c) {
   L.lastIssue = amt;
   return amt;
 }
-export const packLedger = (c) => (c.ledger ? { world: Math.round(c.ledger.world), r0: c.ledger.r0, issued: Math.round(c.ledger.issued) } : undefined);
+export const packLedger = (c) => (c.ledger ? { world: Math.round(c.ledger.world), group: Math.round(c.ledger.group || 0), r0: c.ledger.r0, issued: Math.round(c.ledger.issued) } : undefined);
+/** Tiền đi qua quỹ thanh toán của nhóm cạnh tranh (thẳng giữa các thành phố, không qua ví thế giới): amt > 0 vào, < 0 ra. */
+export function groupFlow(c, key, amt) {
+  const L = c.ledger;
+  if (!L || !amt) return;
+  L.group = (L.group || 0) - amt;
+  L.day[key] = (L.day[key] || 0) + amt;
+}
 
 /** Tiền đi qua ranh giới thành phố: amt > 0 vào từ bên ngoài, amt < 0 ra bên ngoài. Ví trong thành phố do nơi gọi tự cộng trừ. */
 export function world(c, key, amt) {
@@ -134,7 +143,7 @@ export function ledgerDay(c) {
 /** Kiểm tra bảo toàn: drift ≈ 0 nghĩa là không có đồng nào tự sinh / tự mất ngoài sổ. */
 export function checkLedger(c) {
   const L = c.ledger, total = totalMoney(c);
-  return { total, world: L.world, base: L.base, drift: total + L.world - L.base };
+  return { total, world: L.world, group: L.group || 0, base: L.base, drift: total + L.world + (L.group || 0) - L.base };
 }
 
 // ───────────────────────── sổ dân ─────────────────────────
