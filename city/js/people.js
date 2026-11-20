@@ -10,7 +10,7 @@ import { planRide, board, onBusArrive } from './transit.js';
 import { ferryDay } from './ships.js';
 import { mkt } from './econ.js';
 import { incidentArrive } from './incidents.js';
-import { distFx } from './districts.js';
+import { distFx, noteExport } from './districts.js';
 import { fisheryMul } from './fishery.js';
 import { world, inner, cityGet, cityTake, worldK, groupFlow, popIn, popOut, ruralLeft } from './ledger.js';
 import { extract } from './reserve.js';
@@ -249,6 +249,7 @@ export function onArrive(c, cb, v) {
       if (rest > 0 && c.level[cb.from]) saleIncome(c, cb.from, rest * priceOf(cb.kind) * (PRICE.exportMult + (c.tech.has('customs') ? 0.15 : 0) + (c.railExport || 0)) * mkt(c, cb.kind), 'i', 'export');
       { const ek = c.econ.day.expK || (c.econ.day.expK = {}); ek[cb.kind] = (ek[cb.kind] || 0) + cb.qty; }
       c.econ.day.exportValue = (c.econ.day.exportValue || 0) + cb.qty * priceOf(cb.kind) * mkt(c, cb.kind);
+      if (c.dist && c.dist.on && c.level[cb.from]) noteExport(c, cb.from, cb.kind, cb.qty, cb.qty * priceOf(cb.kind) * mkt(c, cb.kind)); // sổ xuất khẩu của quận
       c.econ.exports += cb.qty; c.econ.day.exports += cb.qty;
       return undefined;
     }

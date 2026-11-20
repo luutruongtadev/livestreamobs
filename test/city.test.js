@@ -1187,6 +1187,8 @@ test('máy chủ AI Phố Mới: không có key thì báo offline; có client th
   assert.equal((await ai.run({ kind: 'district', task: 'pick', q, type: 'vendors' })).id, null);
   assert.equal((await ai.run({ kind: 'district', task: 'report', q, delta: { crime: -3 } })).text, 'Báo cáo');
   await assert.rejects(ai.run({ kind: 'district', task: 'hack', q }));
+  assert.equal((await ai.run({ kind: 'district', task: 'ask', q, text: 'Tồn hàng thế nào?', brief: { stock: { waiting: { oil: 12.4, 'x<y>': 5 } }, people: { pop: 'nhiều <script>' } } })).text, 'Báo cáo');
+  assert.match(calls.at(-1).messages[0].content, /<brief>\{"stock":\{"waiting":\{"oil":12\}\},"people":\{"pop":0\}\}<\/brief>\n<mayor>Tồn hàng thế nào\?<\/mayor>/, 'hồ sơ quận chỉ giữ số, câu hỏi nằm trong thẻ');
   // HTTP: giới hạn 12 lượt / phút / máy
   const { Readable } = await import('node:stream');
   const hit = () => new Promise((resolve) => {
@@ -1240,10 +1242,22 @@ test('quận: chia quận, chương trình có tác dụng và tốn tiền, t�
   const it = { id: 4242, kind: 'dilemma', type: 'karaoke', day: c.day, expires: c.day + 3, status: 'pending', title: 'Loa kéo', story: 's', options: S.DILEMMAS.karaoke.options.map((o) => ({ id: o.id, label: o.label })), district: 2, chairAt: c.hour };
   c.council.inbox.push(it); run(c, 1);
   assert.equal(it.status, 'done'); assert.match(it.by, /Quận 3/); assert.ok(S.DILEMMAS.karaoke.options.some((o) => o.id === it.chose));
+  // hồ sơ quận: dân các quận cộng lại đúng số dân có nhà; sổ xuất khẩu 7 ngày; chủ tịch trả lời theo chủ đề câu hỏi
+  const briefs = D.list.map((q, d) => S.districtBrief(c, d));
+  let housed = 0; for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] >= 0) housed++;
+  assert.equal(briefs.reduce((a, b) => a + b.people.pop, 0), housed);
+  assert.ok(briefs.every((b) => b.people.kids + b.people.adults + b.people.seniors === b.people.pop && b.jobs.total >= 0));
+  S.noteExport(c, i0, 'oil', 30, 900); c.hour = Math.ceil(c.hour / 24) * 24 - 1; run(c, 2);
+  const bx = S.districtBrief(c, 0).exports; assert.ok(bx.k.oil >= 30 && bx.value >= 900, 'xuất khẩu ghi vào sổ quận, sang ngày thì vào sổ 7 ngày');
+  assert.deepEqual([S.askTopics('Tuần qua xuất khẩu được gì?'), S.askTopics('kho còn tồn hàng không'), S.askTopics('chào anh'), S.askTopics('Hàng tồn, sản xuất trong quận thế nào?'), S.askTopics('Tuần qua xuất khẩu được bao nhiêu tiền?')], [['exports'], ['stock'], ['overview'], ['stock'], ['exports']]);
+  assert.match(S.askFallback(c, 0, 'xuất khẩu thế nào?'), /dầu[^,.]*\d/);
+  assert.match(S.askFallback(c, 0, 'văn hoá ra sao'), /chương trình văn hoá/i);
+  S.noteAsk(c, 0, 'Dân cư?', 'Dạ có 100 dân', false);
   // lưu / nạp: giữ quận, chủ tịch, chế độ, chương trình; bản đồ quận dựng lại
   const o = JSON.parse(JSON.stringify(S.serialize(c))), d2 = S.deserialize(o);
   assert.deepEqual(d2.dist.list.map((q) => [q.chair, q.mode, q.prog.green]), D.list.map((q) => [q.chair, q.mode, q.prog.green]));
   assert.equal(S.districtOf(d2, i0), 0); assert.equal(S.distFx(d2, i0, 'green'), 3);
+  assert.deepEqual([d2.dist.list[0].asks.at(-1).a, d2.dist.list[0].xDays.some((x) => x.k.oil >= 30)], ['Dạ có 100 dân', true], 'giữ hỏi – đáp và sổ xuất khẩu');
   assert.ok(S.moveSeat(c, 0, D.list[2].x, D.list[2].y).ok === false, 'không trùng trụ sở');
   // phá toà UBND thì quận xây lại; giải thể thì dỡ hết
   c.services = c.services.filter((s) => s.uid !== D.list[1].hall); run(c, 1);

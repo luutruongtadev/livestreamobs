@@ -48,7 +48,7 @@ export { FALLS, fallsOk, fallsInfo, fallsAttract, fallsCount, cellMid } from './
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
-export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild } from './districts.js';
+export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';

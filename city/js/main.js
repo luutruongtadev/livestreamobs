@@ -1852,10 +1852,42 @@ async function sendOrder(d, text) {
   S.recalc(c); updateHud(true); renderDist(true);
 }
 
+const ASK_CHIPS = [['👥 Dân cư', 'Dân cư trong quận thế nào: bao nhiêu người, già trẻ, nhà còn trống không?'], ['💼 Việc làm', 'Việc làm và doanh nghiệp trong quận ra sao, có ai thất nghiệp, ai làm ăn lỗ không?'], ['📦 Tồn hàng', 'Hàng tồn, sản xuất trong quận thế nào, nhà máy có thiếu nguyên liệu không?'], ['🚢 Xuất khẩu', 'Tuần qua quận xuất khẩu được những gì, bao nhiêu tiền?'], ['🎭 Văn hoá', 'Đời sống văn hoá, vui chơi, du lịch của quận thế nào?'], ['🏫 Trường, y tế', 'Trường học, y tế, công an trong quận phủ tới dân được bao nhiêu?']];
+
+/** Thị trưởng hỏi chủ tịch quận: AI trả lời từ hồ sơ quận (số do game tính); không có AI thì trả lời theo chủ đề. */
+async function sendAsk(d, text) {
+  const c = city, q = c.dist.list[d];
+  if (!q || q.askWait) return;
+  q.askWait = text; renderDist(true);
+  const B = S.districtBrief(c, d), r = await aiCall('district', { city: citySummary(c, S), q: S.distSummary(c, d), task: 'ask', text, brief: B });
+  q.askWait = null;
+  if (city !== c) return;
+  S.noteAsk(c, d, text, r && r.text ? r.text : S.askFallback(c, d, text, B), !!(r && r.text));
+  renderDist(true);
+}
+
+/** Hồ sơ quận gọn: các con số chủ tịch dùng để trả lời. */
+function distBriefCard(c, d) {
+  const B = S.districtBrief(c, d), p = B.people, j = B.jobs, x = B.exports, cu = B.culture, sv = B.services, s = B.stock;
+  const kinds = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${(S.RAW[k] || S.PRODUCTS[k] || { icon: k }).icon} ${fmt(v)}`).join(' ') || '—';
+  const box = el('details', 'card'), sum = el('summary', null, '📊 Hồ sơ quận');
+  box.append(sum);
+  for (const [ic, t] of [
+    ['👥', `${fmt(p.pop)} dân · ${fmt(p.kids)} trẻ, ${fmt(p.adults)} lao động tuổi, ${fmt(p.seniors)} già · nhà trống ${fmt(B.housing.vacant)}/${fmt(B.housing.homes)}`],
+    ['💼', `${fmt(p.employed)}/${fmt(p.workers)} có việc (thất nghiệp ${p.joblessPct}%) · ${fmt(j.vacant)} chỗ trống · ${j.losing} doanh nghiệp lỗ`],
+    ['📦', `chờ chở: ${kinds(s.waiting)} · kệ hàng ${fmt(s.shopShelf)}${s.emptyShops ? ` · ${s.emptyShops} cửa hàng hết hàng` : ''}${s.factoriesNoInput ? ` · ${s.factoriesNoInput} nhà máy thiếu nguyên liệu` : ''}`],
+    ['🚢', x.days ? `xuất ${x.days} ngày: ${kinds(x.k)} · ${money(x.value)} (hôm qua ${money(x.yesterday)})` : 'chưa có sổ xuất khẩu (ghi từ hôm nay)'],
+    ['🎭', `văn hoá mức ${cu.program} · ${cu.parks} công viên (${cu.parkCoverPct}% dân gần) · ${cu.attractions} điểm tham quan · ${cu.hotels} khách sạn · ${cu.leisure} quán xá`],
+    ['🏫', `${sv.schools} trường (${sv.eduCoverPct}% dân) · ${sv.clinics} y tế (${sv.healthCoverPct}%) · công an ${sv.policeCoverPct}%`],
+  ]) { const r = el('div', 'row'); r.append(el('span', null, ic), el('span', null, t)); r.style.justifyContent = 'flex-start'; r.style.gap = '6px'; box.append(r); }
+  box.open = !!distBriefCard.open; box.addEventListener('toggle', () => { distBriefCard.open = box.open; });
+  return box;
+}
+
 function renderDist(force) { keepFocus(() => renderDist0(force)); }
 function renderDist0(force) {
   const c = city, D = c.dist;
-  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length + q.build + q.bcap + (q.prop ? q.prop.status + q.prop.type : '') + (q.builds || []).length).join('|')}|${Math.round(c.money / 5000)}`;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + (q.askWait ? 1 : 0) + (q.asks || []).length + q.chair + (q.note || '').length + q.build + q.bcap + (q.prop ? q.prop.status + q.prop.type : '') + (q.builds || []).length).join('|')}|${Math.round(c.money / 5000)}`;
   if (!force && renderDist.key === key) return;
   renderDist.key = key;
   $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, chọn công trình để xây, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : `🤖 ${aiEnabled() ? 'AI chưa sẵn sàng' : 'AI đang tắt (bật lại trong 📨 Hộp thư)'}: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.`;
@@ -1911,6 +1943,7 @@ function renderDist0(force) {
   const swap = el('button', 'mini', '🔄 Thay chủ tịch'); swap.onclick = () => { const r = S.replaceChair(c, d); if (!r.ok) toast(r.reason); renderDist(true); };
   nav.append(look, mv, swap); head.append(nav);
   body.append(head);
+  body.append(distBriefCard(c, d));
   // chế độ
   body.append(el('h4', null, 'Cách điều hành'));
   const seg = el('div', 'seg');
@@ -1937,6 +1970,24 @@ function renderDist0(force) {
   body = col2;
   renderDistBuild(c, d, q, body);
   body = col3;
+  // hỏi chủ tịch
+  body.append(el('h4', null, '❓ Hỏi chủ tịch'));
+  const chips = el('div'); chips.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px';
+  for (const [lb, t] of ASK_CHIPS) { const b = el('button', 'mini', lb); b.title = t; b.disabled = !!q.askWait; b.onclick = () => sendAsk(d, t); chips.append(b); }
+  body.append(chips);
+  if ((q.asks || []).length || q.askWait) {
+    const ch = el('div', 'chat');
+    for (const a of (q.asks || []).slice(q.askWait ? -1 : -2)) ch.append(el('div', 'us', a.q), el('div', 'them', `${q.chair}: ${a.a}`));
+    if (q.askWait) ch.append(el('div', 'us', q.askWait), el('div', 'them', '… chủ tịch đang xem sổ sách'));
+    body.append(ch);
+  }
+  const ain = el('input'), asend = el('button', 'mini acc', 'Hỏi'), arow = el('div');
+  arow.style.cssText = 'display:flex;gap:6px'; ain.style.flex = '1'; ain.maxLength = 300; ain.placeholder = 'VD: quận mình tồn hàng gì nhiều nhất?';
+  draft(ain, `ask${d}`);
+  const ask = () => { const t = ain.value.trim(); if (t) { delete drafts[`ask${d}`]; sendAsk(d, t); } };
+  asend.onclick = ask; ain.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ask(); });
+  asend.disabled = !!q.askWait;
+  arow.append(ain, asend); body.append(arow, el('small', null, 'Chủ tịch trả lời bằng số liệu thật của quận: dân cư, việc làm, tồn hàng, xuất khẩu, văn hoá, trường, y tế, môi trường, ngân sách.'));
   // giao việc
   body.append(el('h4', null, '📋 Giao việc'));
   const o = q.order;
