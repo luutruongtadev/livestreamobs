@@ -1,6 +1,7 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
 import { ledgerSummary, worldReserve, worldK } from './ledger.js';
+import * as Cloud from './cloud.js';
 import { View, DCOL } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
@@ -91,6 +92,61 @@ function writeSlot(name) {
   try { localStorage.setItem(KEY + name, JSON.stringify(data)); return true; } catch (e) { toast('Không lưu được: ' + e.message); return false; }
 }
 function autosave() { if (city && !city.over) writeSlot('auto'); lastSave = performance.now(); }
+
+// ───────────────────────── lưu đám mây (cloud.js) ─────────────────────────
+const cloud = { user: null, slots: [], busy: false, at: 0, err: '' };
+const cloudData = () => ({ name: city.name, pop: city.stats.pop, day: city.day, city: S.serialize(city) });
+async function cloudRefresh() {
+  if (!Cloud.cloudMode()) return;
+  const r = await Cloud.listSaves();
+  cloud.user = r.ok ? r.user : null; cloud.slots = r.ok ? r.slots : []; cloud.err = r.ok || r.status === 401 ? '' : r.error;
+  renderCloud();
+}
+async function cloudSave(slot, quiet) {
+  if (!city || city.over || cloud.busy) return;
+  cloud.busy = true;
+  const r = await Cloud.putSave(slot, cloudData());
+  cloud.busy = false; cloud.at = performance.now();
+  if (!quiet) toast(r.ok ? `☁️ Đã lưu lên mây (${(r.size / 1024).toFixed(1)} KB)` : `Không lưu lên mây được: ${r.error}`);
+  if (r.ok) cloudRefresh(); else if (r.status === 401) { cloud.user = null; renderCloud(); }
+}
+async function cloudLoad(slot) {
+  const r = await Cloud.getSave(slot);
+  if (!r.ok) { toast(`Không tải được: ${r.error}`); return; }
+  try { startCity(S.deserialize(r.city)); toast(`☁️ Đã tải "${r.name}" từ mây`); $('over').classList.remove('show'); } catch (e) { toast('Bản lưu trên mây không đọc được: ' + e.message); }
+}
+function renderCloud() {
+  const box = $('cloud');
+  if (!box) return;
+  box.textContent = '';
+  const mode = Cloud.cloudMode();
+  if (!mode) { box.append(el('div', 'row', 'Mở game qua máy chủ của nền tảng để lưu lên mây')); return; }
+  if (cloud.err) box.append(el('div', 'row neg', cloud.err));
+  if (!cloud.user) {
+    const f = el('form', 'cloudLogin'), u = el('input'), p = el('input'), go = el('button', 'mini acc', 'Đăng nhập'), reg = el('button', 'mini', 'Đăng ký');
+    u.placeholder = mode === 'dev' ? 'DEV token của máy chủ chạy thử' : 'Tên đăng nhập'; u.autocomplete = 'username'; u.type = mode === 'dev' ? 'password' : 'text';
+    p.placeholder = 'Mật khẩu'; p.type = 'password'; p.autocomplete = 'current-password';
+    reg.type = 'button';
+    const run = async (signup) => { const r = await Cloud.login(u.value, p.value, signup); if (!r.ok) toast(r.error); else { toast('Đã đăng nhập'); cloudRefresh(); } };
+    f.addEventListener('submit', (e) => { e.preventDefault(); run(false); });
+    reg.addEventListener('click', () => run(true));
+    f.append(u, ...(mode === 'dev' ? [] : [p]), go, ...(mode === 'dev' ? [] : [reg]));
+    box.append(f, el('small', null, mode === 'dev' ? 'Máy chủ chạy thử: dùng DEV token như dashboard.' : 'Dùng chung tài khoản với dashboard của nền tảng.'));
+    return;
+  }
+  const head = el('div', 'row'), out = el('button', 'mini', 'Đăng xuất');
+  out.addEventListener('click', async () => { await Cloud.logout(); cloud.user = null; renderCloud(); });
+  head.append(el('span', null, `👤 ${Cloud.displayName(cloud.user.email)} · tự lưu 5 phút một lần`), out);
+  box.append(head);
+  for (const [slot, label] of Cloud.CLOUD_SLOTS) {
+    const d = cloud.slots.find((s) => s.slot === slot), row = el('div', 'slot'), info = el('div');
+    info.append(el('b', null, label), el('small', null, d ? `${d.name} · ${fmt(d.pop)} dân · ngày ${d.day + 1} · ${new Date(d.updated_at).toLocaleString('vi-VN')}` : 'Trống'));
+    row.append(info);
+    if (slot !== 'auto') { const b = el('button', 'mini acc', 'Lưu'); b.addEventListener('click', () => cloudSave(slot)); row.append(b); }
+    const b = el('button', 'mini', 'Tải'); b.disabled = !d; b.addEventListener('click', () => cloudLoad(slot)); row.append(b);
+    box.append(row);
+  }
+}
 function loadSlot(name) {
   const d = readSlot(name);
   if (!d) return false;
@@ -1415,7 +1471,7 @@ function openSide(id) {
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
   if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
-  if (id === 'saves') renderSlots();
+  if (id === 'saves') { renderSlots(); renderCloud(); cloudRefresh(); }
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
   if (id === 'budget') { renderLoans.sig = ''; renderExpenses.at = 0; updateHud(true); }
@@ -1962,6 +2018,7 @@ function frame(now) {
   updateHud(false);
   drawMinimap(now);
   if (now - lastSave > 20000) autosave();
+  if (cloud.user && !cloud.busy && now - cloud.at > Cloud.CLOUD_EVERY_MS) cloudSave('auto', true); // tự lưu lên mây
   requestAnimationFrame(frame);
 }
 
@@ -1982,6 +2039,7 @@ window.__newCity = (seed, opts) => startCity(S.newCity(seed, opts || { size: vie
 window.__loadCity = (o) => startCity(S.deserialize(o)); // tiện thử nghiệm: nạp bản lưu (JSON)
 bindUi();
 startCity(first);
+cloudRefresh(); // đã đăng nhập (dashboard cùng tên miền) thì tự lưu lên mây ngay
 if (bootErr) toast('Không đọc được bản lưu: ' + bootErr.message);
 bindInput();
 let seen = false;

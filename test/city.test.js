@@ -5,7 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as S from '../city/js/sim.js';
 import * as LG from '../city/js/ledger.js';
-import { resolveStatic } from '../gateway/index.js';
+import { resolveStatic, createHttpHandler } from '../gateway/index.js';
+import { FileStore } from '../gateway/store.js';
+import { createCityCloud } from '../gateway/city-cloud.js';
+import http from 'node:http';
+import os from 'node:os';
+import fs from 'node:fs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const W = S.cellCenter;
@@ -2014,4 +2019,41 @@ test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài n
     assert.ok(got.length >= 1 && got[0].pop > 0 && got[0].offer.goods && 'vacHomes' in got[0] && got[0].want, 'provider nhận bản tóm tắt ngày');
     assert.ok(back.reports.length >= 1 && S.prosperity(back.reports.at(-1)) > 0);
   });
+});
+
+test('city: lưu đám mây — cần đăng nhập, lưu / liệt kê / tải / xoá theo ô, giới hạn tần suất và kích thước, nạp lại đúng thành phố', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-cloud-')), DEV = 'dev-token-123';
+  const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
+  let clock = 1e6;
+  const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityCloud: createCityCloud({ store, now: () => clock }) }));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}/api/city/saves`;
+  const call = async (method, slot = '', body, token = DEV) => { const res = await fetch(base + (slot ? `/${slot}` : ''), { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) }); return { status: res.status, ...(await res.json()) }; };
+  try {
+    assert.equal((await call('GET', '', undefined, '')).status, 401, 'chưa đăng nhập');
+    assert.equal((await call('GET', '', undefined, 'sai')).status, 401);
+    assert.deepEqual((await call('GET')).slots, []);
+    const c = town(); run(c, 24);
+    const put = await call('PUT', 'slot1', { name: 'Phố <b>Thử</b>', pop: c.stats.pop, day: c.day, city: S.serialize(c) });
+    assert.ok(put.ok && put.size > 0 && put.size < 200000, 'lưu nén gọn');
+    assert.equal(put.name, 'Phố bThử/b', 'tên được làm sạch');
+    assert.equal((await call('PUT', 'slot2', { city: S.serialize(c) })).status, 429, 'lưu quá nhanh');
+    clock += 11_000;
+    assert.equal((await call('PUT', 'slot9', { city: S.serialize(c) })).status, 404, 'ô lưu lạ');
+    assert.equal((await call('PUT', 'slot2', { city: { hello: 1 } })).status, 400, 'không phải bản lưu Phố Mới');
+    clock += 11_000;
+    assert.equal((await call('PUT', 'slot2', 'x'.repeat(4.5 * 1024 * 1024))).status, 413, 'quá lớn');
+    const list = await call('GET');
+    assert.deepEqual(list.slots.map((s) => [s.slot, s.pop]), [['slot1', c.stats.pop]]);
+    const got = await call('GET', 'slot1');
+    const back = S.deserialize(got.city);
+    assert.equal(back.pp.count, c.pp.count); assert.equal(Math.round(back.money), Math.round(c.money));
+    assert.equal((await call('DELETE', 'slot1')).ok, true);
+    assert.equal((await call('GET', 'slot1')).status, 404, 'đã xoá');
+    // máy chủ không bật lưu đám mây
+    const off = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: {} }));
+    await new Promise((r) => off.listen(0, '127.0.0.1', r));
+    assert.equal((await fetch(`http://127.0.0.1:${off.address().port}/api/city/saves`)).status, 503);
+    off.close();
+  } finally { server.close(); }
 });

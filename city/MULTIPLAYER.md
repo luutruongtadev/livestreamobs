@@ -96,6 +96,13 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 
 ### Giai đoạn B — tài khoản và lưu đám mây
 
+**Tiến độ: xong (2026-11-20).**
+
+- Dùng chung tài khoản của nền tảng (Supabase Auth như dashboard: tên đăng nhập + mật khẩu, đăng ký được, Google nếu bật; máy chủ chạy thử dùng DEV token). Một tài khoản cho cả streamer lẫn người chơi thường, nên câu hỏi 1 ở mục 7 không còn chặn.
+- API `gateway/city-cloud.js`: `GET/PUT/DELETE /api/city/saves[/<ô>]`, 4 ô (`auto`, `slot1`..`slot3`), bản lưu nén gzip (vài chục KB), giới hạn 4 MB và một lần lưu mỗi 10 giây cho mỗi tài khoản.
+- Lưu trong bảng `city_saves` (migration `20261120000000_city_cloud.sql`, RLS chủ tài khoản chỉ đọc) thay vì Supabase Storage: bản lưu nhỏ nên một bảng là đủ và đơn giản hơn. Chạy thử thì lưu trong file của FileStore.
+- Game (`js/cloud.js`): bảng 💾 có mục "☁️ Đám mây" (đăng nhập / đăng ký, lưu, tải các ô mây); đã đăng nhập thì tự lưu ô `auto` lên mây 5 phút một lần.
+
 8. Đăng nhập bằng Supabase Auth có sẵn; thêm bảng `profiles`.
 9. Lưu thành phố lên Supabase Storage (nén), khoảng 5 phút một lần; mở được trên máy khác. Bảng `cities` giữ thông tin thành phố và đường dẫn tới bản lưu.
 

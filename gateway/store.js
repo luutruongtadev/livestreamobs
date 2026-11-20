@@ -41,7 +41,7 @@ export class FileStore {
   constructor({ file = null, devToken = '' } = {}) {
     this.file = file;
     this.devToken = devToken;
-    this.db = { channels: {}, rounds: [], leaderboard: {} };
+    this.db = { channels: {}, rounds: [], leaderboard: {}, citySaves: {} };
     try { if (file) this.db = { ...this.db, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* chưa có */ }
     this.points = new PointsBuffer(async (rows) => { for (const r of rows) { const k = `${r.channelId}|${r.gameId}|${r.week}|${r.viewer}`; const o = this.db.leaderboard[k] || { ...r, points: 0, wins: 0 }; o.points += r.points; o.wins += r.wins; o.name = r.name; this.db.leaderboard[k] = o; } this.save(); });
   }
@@ -88,6 +88,11 @@ export class FileStore {
   }
   async startSession(id) { return { id: `${id}:${Date.now()}`, started: Date.now() }; }
   async endSession() {}
+  // Phố Mới: bản lưu đám mây (data: JSON nén gzip, base64)
+  async listCitySaves(owner) { return Object.entries(this.db.citySaves?.[owner] || {}).map(([slot, r]) => ({ slot, name: r.name, pop: r.pop, day: r.day, size: r.size, updated_at: r.updated_at })); }
+  async getCitySave(owner, slot) { return this.db.citySaves?.[owner]?.[slot] || null; }
+  async putCitySave(owner, slot, meta, data) { const row = { ...meta, data, updated_at: new Date().toISOString() }; ((this.db.citySaves ||= {})[owner] ||= {})[slot] = row; this.save(); return row; }
+  async deleteCitySave(owner, slot) { if (this.db.citySaves?.[owner]) { delete this.db.citySaves[owner][slot]; this.save(); } }
   async close() { await this.points.stop(); this.save(); }
 }
 
@@ -179,6 +184,15 @@ export class SupabaseStore {
     return (await this.rest('GET', 'leaderboard', `channel_id=eq.${id}&week=eq.${week}&game_id=eq.${encodeURIComponent(gameId || '')}&order=points.desc&limit=50&select=viewer_id,name,avatar,points,wins,game_id`)) || [];
   }
   async startSession(id) { const [s] = await this.rest('POST', 'live_sessions', '', { channel_id: id }, 'return=representation'); return { id: s.id, started: Date.now() }; }
+  // Phố Mới: bản lưu đám mây (bảng city_saves, migration 20261120000000_city_cloud.sql)
+  async listCitySaves(owner) { return (await this.rest('GET', 'city_saves', `owner_id=eq.${encodeURIComponent(owner)}&select=slot,name,pop,day,size,updated_at&order=slot`)) || []; }
+  async getCitySave(owner, slot) { const rows = await this.rest('GET', 'city_saves', `owner_id=eq.${encodeURIComponent(owner)}&slot=eq.${encodeURIComponent(slot)}&select=*`); return rows?.[0] || null; }
+  async putCitySave(owner, slot, meta, data) {
+    await this.rest('POST', 'profiles', 'on_conflict=id', { id: owner }, 'resolution=ignore-duplicates');
+    const [row] = await this.rest('POST', 'city_saves', 'on_conflict=owner_id,slot', { owner_id: owner, slot, ...meta, data, updated_at: new Date().toISOString() }, 'resolution=merge-duplicates,return=representation');
+    return row || null;
+  }
+  async deleteCitySave(owner, slot) { await this.rest('DELETE', 'city_saves', `owner_id=eq.${encodeURIComponent(owner)}&slot=eq.${encodeURIComponent(slot)}`); }
   async endSession(s) { if (s?.id) await this.rest('PATCH', 'live_sessions', `id=eq.${s.id}`, { ended_at: new Date().toISOString(), minutes: Math.round((Date.now() - s.started) / 60_000) }); }
   async close() { await this.points.stop(); }
 }

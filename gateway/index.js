@@ -95,7 +95,7 @@ export function resolveStatic(urlPath, root = ROOT) {
   return null;
 }
 
-export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig, cityAi = null }) {
+export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicConfig, cityAi = null, cityCloud = null }) {
   const catalogJson = JSON.stringify(catalog);
   const widgetsJson = JSON.stringify(widgets);
   const configJs = `window.PLATFORM = ${JSON.stringify(publicConfig)};\n`;
@@ -106,6 +106,10 @@ export function createHttpHandler({ root = ROOT, catalog, widgets = [], publicCo
       if (req.method !== 'POST') { res.writeHead(405, head); return res.end(); }
       if (!cityAi) { res.writeHead(200, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"offline":true}'); }
       return cityAi.handle(req, res, head);
+    }
+    if (url.pathname === '/api/city/saves' || url.pathname.startsWith('/api/city/saves/')) { // Phố Mới: lưu đám mây
+      if (!cityCloud) { res.writeHead(503, { ...head, 'Content-Type': TYPES['.json'] }); return res.end('{"ok":false,"error":"Máy chủ chưa bật lưu đám mây"}'); }
+      return cityCloud.handle(req, res, head, url.pathname);
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, head); return res.end(); }
     if (url.pathname === '/health') { res.writeHead(200, { ...head, 'Content-Type': 'application/json' }); return res.end('{"ok":true}'); }
@@ -144,7 +148,9 @@ async function main() {
   const publicConfig = { brand: env.BRAND_NAME || 'Game Live', supabaseUrl: env.SUPABASE_URL || null, supabaseKey: env.SUPABASE_PUBLISHABLE_KEY || null, store: store.kind, usernameDomain, memes: memes.enabled, soundSearch: sounds.enabled };
   const { createCityAi } = await import('./city-ai.js');
   const cityAi = createCityAi({ env });
-  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig, cityAi }));
+  const { createCityCloud } = await import('./city-cloud.js');
+  const cityCloud = createCityCloud({ store });
+  const server = http.createServer(createHttpHandler({ catalog, widgets, publicConfig, cityAi, cityCloud }));
   gw.attach(server);
   const port = Number(env.GATEWAY_PORT || env.PORT || 8787);
   server.listen(port, env.HOST || '0.0.0.0', () => {
