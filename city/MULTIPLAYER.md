@@ -17,6 +17,7 @@ Trạng thái: **đang bàn, chưa làm**. Ghi lại các quyết định và vi
 - **Máy chủ chia nguồn chung** (dân chuyển nhà, doanh nghiệp mới, du khách, nhu cầu của chợ) theo sức hút của từng thành phố. Máy chủ chỉ đóng vai những người muốn chuyển đi, mỗi người tự chọn nơi đến theo chính sách của thành phố.
 
 - **Thuế nhập khẩu theo loại hàng** do mỗi thành phố tự đặt, áp lên hàng từ thành phố khác (xem mục 3, việc 12b).
+- **Mô hình kinh tế** thật nhất mà vẫn là game, chia ba nhóm ưu tiên A, B, C (xem mục 5).
 - **Cuối game** (đất đã kín, công trình đã đủ), xem mục 4:
   - điểm mùa tính theo mức cải thiện và chất lượng sống, không theo tổng dân;
   - thêm nhà cấp 6–7 và cải tạo đô thị để tăng mật độ;
@@ -173,7 +174,60 @@ Giới hạn hiện có: bản đồ cố định (96, 128 hoặc 160 ô mỗi c
 3. Xuống cấp cho ống nước, cầu, công trình; dân già đi; tiêu chuẩn hài lòng tăng theo mùa.
 4. Đại công trình và lập thành phố mới mang theo điểm danh tiếng (để sau, khi đã có máy chủ).
 
-## 5. Luật cân bằng cần có từ đầu
+## 5. Mô hình kinh tế: thật nhất mà vẫn là game
+
+Mục tiêu: mỗi đồng tiền và mỗi người đều có nguồn gốc và lý do rõ ràng, nhưng người chơi chỉ điều khiển bằng chính sách, không quản lý từng người.
+
+### 5.1 Nhóm A — bắt buộc để kinh tế khép kín chạy được (làm cùng giai đoạn A)
+
+1. **Ngân sách hộ gia đình.**
+   - Thu: lương, lương hưu, trợ cấp thất nghiệp (nếu thành phố chi).
+   - Chi: tiền nhà, ăn uống, đi lại, điện nước, giải trí, thuế; phần còn lại là tiết kiệm.
+   - Tiền chi tiêu của dân là doanh thu của cửa hàng, nhà hàng, xe buýt; dân nghèo đi thì thương mại co lại.
+   - Đã có tiền từng người (`pp.money`); cần thêm phần chi tiêu.
+2. **Lãi lỗ doanh nghiệp.**
+   - Thu: bán cho dân, cho doanh nghiệp khác, xuất khẩu.
+   - Chi: lương, thuê mặt bằng, nguyên liệu, điện nước, thuế, vận chuyển.
+   - Có lãi thì mở rộng hoặc lên cấp; lỗ lâu thì phá sản.
+   - Đã có `biz.money`, `biz.eff`; cần đủ các khoản chi thật.
+3. **Thị trường lao động.** Lương theo cung và cầu từng nhóm học vấn. Lương cao hút dân từ thành phố khác (gắn với máy chủ chia dân) nhưng làm doanh nghiệp tốn kém hơn.
+4. **Giá cả và lạm phát trong thành phố.** Mức giá chung theo lượng tiền lưu thông so với lượng hàng có sẵn. Ngân sách tiêu nhiều mà hàng không tăng thì giá tăng, lương thực tế giảm, dân bất mãn. Đây là cái phanh tự nhiên cho việc tiêu tiền ngân sách bừa bãi.
+5. **Thị trường nhà đất.** Tiền thuê nhà theo cung và cầu: thiếu nhà thì thuê đắt, dân nghèo bị đẩy đi. Khả năng chi trả tiền nhà là một yếu tố của sức hút dân cư.
+6. **Dịch vụ công cần người làm thật.**
+   - Bệnh viện, trường học, công an cần nhân viên lấy từ dân của thành phố, trả lương từ ngân sách; thiếu người thì dịch vụ yếu đi.
+   - Chi bảo trì là lương công chức, tiền quay lại vòng kinh tế.
+7. **Chi phí vận chuyển.** Hàng đi xa, qua cổng, qua cảng đều tốn tiền và có giới hạn công suất; kẹt xe làm hàng đến chậm và tăng giá. Gắn vào xe tải chạy thật đã có.
+
+### 5.2 Nhóm B — nên có, làm cho chính sách có nhiều lựa chọn (sau khi chợ chung chạy)
+
+8. **Nhiều loại thuế, mỗi loại tác động khác nhau:**
+   - thuế thu nhập: đánh vào dân;
+   - thuế doanh nghiệp: ảnh hưởng mở rộng và việc doanh nghiệp mới chọn đến;
+   - thuế tiêu dùng (VAT): làm giá tăng;
+   - thuế đất / bất động sản: khuyến khích dùng đất hiệu quả, chống bỏ đất trống;
+   - thuế nhập khẩu: xem việc 12b.
+9. **Tín dụng và lãi suất.**
+   - Doanh nghiệp vay để mở rộng; lãi suất cao thì kinh tế chậm lại, thấp thì dễ nóng lên.
+   - Thành phố phát hành **trái phiếu** cho thành phố khác mua: vay mượn giữa người chơi mà tổng tiền vẫn khớp.
+10. **Năng suất.** Sản lượng mỗi lao động theo học vấn, công nghệ đã mở, thời gian đi làm, sức khoẻ. Đây là cách thành phố đã đầy đất vẫn tăng GDP.
+11. **Chuỗi cung ứng có tồn kho.** Nguyên liệu, chế biến, hàng hoá, bán lẻ, mỗi khâu có kho. Thiếu một khâu thì cả chuỗi chậm lại; gián đoạn (thiên tai, chiến tranh thuế) lan dần qua chuỗi, không xảy ra tức thì.
+
+### 5.3 Nhóm C — để sau, làm sâu thêm (mùa sau)
+
+12. **Chu kỳ kinh tế:** tín dụng dễ dẫn tới bùng nổ rồi suy thoái; cú sốc giá lan sang thành phố khác.
+13. **Bất bình đẳng (chỉ số Gini):** khoảng cách giàu nghèo cao thì tội phạm và bất mãn tăng; chính sách phân phối lại có tác dụng thật.
+14. **Thị trường cổ phần:** dân và thành phố khác đầu tư vào doanh nghiệp, cổ tức chảy về chủ sở hữu.
+
+### 5.4 Nguyên tắc để vẫn là game
+
+- **Tính theo nhóm, không theo từng người:** gom theo ô, theo loại doanh nghiệp, theo nhóm học vấn. Máy chạy nổi, và máy chủ tính lại để đối chiếu được.
+- **Mỗi chỉ số có lý do đọc được**, ví dụ "Giá tăng 8% vì ngân sách chi nhiều hơn sản xuất".
+- **Người chơi chỉ điều khiển chính sách:** thuế, chi tiêu, quy hoạch, lãi suất. Không điều khiển từng doanh nghiệp.
+- **Trễ có kiểm soát:** chính sách có hiệu lực sau vài ngày game, nhưng không chậm tới mức không thấy kết quả.
+- **Kết quả tính chắc chắn:** cùng đầu vào thì cùng kết quả; ngẫu nhiên lấy từ seed để máy chủ tính lại được.
+- **Bảng chỉ số kinh tế:** GDP, lạm phát, thất nghiệp, cán cân thương mại, nợ công, lương trung bình, giá nhà, kèm biểu đồ.
+
+## 6. Luật cân bằng cần có từ đầu
 
 - **Không đua hạ thuế xuống đáy:** thuế thấp thì thu ít, không đủ nuôi dịch vụ, mức hài lòng giảm. Thuế 0% không được là cách thắng.
 - **Không để giàu càng giàu:** lợi thế giảm dần trong công thức chia; thành phố to thì đông đúc, đất đắt, kẹt xe nên sức hút giảm.
@@ -182,7 +236,7 @@ Giới hạn hiện có: bản đồ cố định (96, 128 hoặc 160 ô mỗi c
 - **Khởi đầu không buồn tẻ:** nhóm dân khởi đầu (lấy từ nông thôn) và khoản vay khởi nghiệp phải đủ để vài giờ đầu vẫn vui.
 - **Nhịp mùa:** đầu mùa nông thôn đông người, ai cũng lớn được; cuối mùa nguồn chính là người rời từ thành phố khác, cạnh tranh gay gắt hơn.
 
-## 6. Còn cần quyết
+## 7. Còn cần quyết
 
 | # | Câu hỏi | Đề xuất |
 |---|---|---|
@@ -195,7 +249,7 @@ Giới hạn hiện có: bản đồ cố định (96, 128 hoặc 160 ô mỗi c
 | 7 | Thành phố bị bỏ: dân và tiền tự chảy đi sau bao lâu | khoảng 7 ngày |
 | 8 | Cỡ nhóm cạnh tranh | 20–50 thành phố, ghép theo điểm |
 
-## 7. Ước lượng
+## 8. Ước lượng
 
 - **Bản lưu:** khoảng 100–300 KB mỗi thành phố (chưa đo). Gói miễn phí của Supabase đủ cho vài chục người chơi.
 - **Phần nặng nhất:** giai đoạn A (viết lại dòng tiền và dòng người trong toàn bộ mô phỏng). Nên làm trước, vì không cần máy chủ và chế độ chơi một mình cũng được lợi.
