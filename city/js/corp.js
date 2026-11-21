@@ -22,6 +22,7 @@ export const CORP = {
   storeCap: 16, storeMax: 64, wareMax: 3, wareFee: 0.5, // kho bãi: mỗi kho thêm 16 chỗ chứa cho mỗi nhà máy của nhóm (tối đa 64), tối đa 3 kho; phí lưu kho 0.5 MK mỗi người làm mỗi giờ
   dpMin: 0.8, dpMax: 1.3, mkMin: 0.9, mkMax: 1.2, priceMax: 1.35, // giá nội địa: chỉ số cung cầu 0.8–1.3, hệ số bán của từng công ty 0.9–1.2, tổng không quá 1.35
   retailMin: 3, // chuỗi bán lẻ: từ bậc 3
+  divHolders: 0.35, divLeak: 0.2, divLeakStage: 3, // cổ tức: ~35% người lớn nắm cổ phần mỗi công ty (cố định theo id), 20% lãi của công ty từ bậc 3 chảy ra nước ngoài; phần còn lại chịu thuế thu nhập
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
@@ -536,7 +537,25 @@ function toResidents(c, amount) {
   inner(c, 'dividend', amount);
   return amount;
 }
-/** Chia lãi dư: công ty con chuyển lên công ty mẹ (nội bộ nhóm), công ty gốc chia cho dân. */
+/**
+ * Cổ tức công ty gốc: một phần lãi chảy ra nước ngoài (cổ đông ngoài thành phố, chỉ công ty từ bậc 3), phần còn lại chịu thuế thu nhập
+ * (ngân sách thu) rồi chia cho cổ đông trong thành phố: khoảng 35% người lớn (cố định theo id người và công ty), không có ai thì chia đều.
+ * Trả về số tiền công ty đã chi (0 nếu chưa có người lớn nào).
+ */
+export function payDividend(c, q, gross) {
+  const pp = c.pp;
+  if (!pp || !(gross > 0)) return 0;
+  const holders = [], all = [];
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id] && pp.age[id] >= 18) { all.push(id); if (hash2(id, q.id, 83) < CORP.divHolders) holders.push(id); }
+  if (!all.length) return 0;
+  const leak = q.stage >= CORP.divLeakStage ? gross * CORP.divLeak : 0, tax = (gross - leak) * (c.tax.r / 100), net = gross - leak - tax, who = holders.length ? holders : all;
+  for (const id of who) pp.money[id] += net / who.length;
+  inner(c, 'dividend', net);
+  if (tax > 0) c.hourInc.r += tax; // thuế thu nhập từ cổ tức: ngân sách nhận khi chốt giờ (đã nằm trong tổng tiền)
+  if (leak > 0) world(c, 'dividend', -leak);
+  return gross;
+}
+/** Chia lãi dư: công ty con chuyển lên công ty mẹ (nội bộ nhóm), công ty gốc chia cổ tức (payDividend). */
 function payout(c, q) {
   const ceo = CEOS[q.ceo], chest = (CORP.cellFee * 3 + CORP.reserve) * MK, over = q.cash - chest;
   if (!(over > 0) || q.debt > 0) return;
@@ -545,7 +564,7 @@ function payout(c, q) {
   if (q.partners) { const ps = q.partners.map((x) => corpById(c, x)).filter(Boolean); if (ps.length) { q.cash -= d; for (const p of ps) p.cash += d / ps.length; return; } }
   const mom = q.parent ? corpById(c, q.parent) : null;
   if (mom) { q.cash -= d; mom.cash += d; return; }
-  if (toResidents(c, d)) q.cash -= d;
+  if (payDividend(c, q, d)) q.cash -= d;
 }
 
 /** Bật / tắt đẩy xuất khẩu theo tồn kho thành phẩm ở các nhà máy của công ty. */

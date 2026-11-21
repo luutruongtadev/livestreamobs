@@ -244,7 +244,7 @@ export function onArrive(c, cb, v) {
       }
       b.money[to] -= cost;
       if (cb.imp) world(c, 'import', -cost); else if (c.level[cb.from]) inner(c, 'supply', cost); else world(c, 'import', -cost); // bên bán đã dỡ: coi như trả ra ngoài
-      if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cost, 'i'); // người bán nhận đúng số người mua trả
+      if (cb.imp) { c.econ.imports += cb.qty; c.econ.day.imports += cb.qty; } else if (c.level[cb.from]) saleIncome(c, cb.from, cost, 'i', undefined, ZDEF[c.zone[cb.from]].biz === 'res'); // người bán nhận đúng số người mua trả; nông, lâm, ngư, khoáng, dầu bán trong thành phố không bị thuế doanh thu (vẫn đóng thuế lương, xuất khẩu vẫn chịu thuế)
       return undefined;
     }
     case 'export': {
@@ -333,8 +333,8 @@ export function touristSpend(c, n, per = 8) {
 }
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
-export function saleIncome(c, i, amount, cat, from) {
-  const rate = (c.tax[cat] / 100) * (1 - (c.taxBreakK || 0)); // nhà đầu tư được miễn một phần thuế (council.js)
+export function saleIncome(c, i, amount, cat, from, free) {
+  const rate = free ? 0 : (c.tax[cat] / 100) * (1 - (c.taxBreakK || 0)); // nhà đầu tư được miễn một phần thuế (council.js); free: bán nguyên liệu thô trong thành phố được miễn thuế doanh thu (tránh đánh thuế chồng nhiều tầng nông → nhà máy → cửa hàng)
   if (from && from.startsWith('group:')) groupFlow(c, from.slice(6), amount); // thành phố khác trả qua máy chủ nhóm: đúng số, không qua ví thế giới
   else if (from) { amount *= worldK(c); world(c, from, amount); } // người trả ở ngoài thành phố: thế giới nghèo đi thì trả ít đi (ledger.js)
   c.biz.money[i] += amount * (1 - rate);

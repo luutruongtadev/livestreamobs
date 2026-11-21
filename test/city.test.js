@@ -2353,6 +2353,47 @@ test('city: tập đoàn — cam kết phụ là phí hạ tầng (cống, cây 
   } finally { Object.assign(S.CORP, keep); }
 });
 
+test('city: cổ tức công ty — thuế thu nhập về ngân sách, chỉ cổ đông nhận, công ty lớn rò ra ngoài; nguyên liệu thô bán trong thành phố miễn thuế doanh thu; sổ tiền khớp', () => {
+  const c = town(); run(c, 120); LG.resetLedger(c);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 12);
+    const q = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(q);
+    const adults = [...Array(c.pp.n).keys()].filter((id) => c.pp.alive[id] && c.pp.age[id] >= 18);
+    assert.ok(adults.length > 40, 'đủ người lớn để thử');
+    const gross = 200 * S.MK, rate = c.tax.r / 100;
+    const snap = () => adults.map((id) => c.pp.money[id]);
+    // công ty nhỏ: không rò ra ngoài; phần sau thuế chia cho một phần dân (cổ đông)
+    q.stage = 2; q.cash = 5000 * S.MK; LG.resetLedger(c);
+    let before = snap(), tax0 = c.hourInc.r;
+    assert.equal(S.payDividend(c, q, gross), gross); q.cash -= gross;
+    let got = snap().map((v, k) => v - before[k]), rich = got.filter((v) => v > 1e-9).length;
+    assert.ok(Math.abs((c.hourInc.r - tax0) - gross * rate) < 1e-6, 'thuế thu nhập từ cổ tức về ngân sách');
+    assert.ok(Math.abs(got.reduce((s, v) => s + v, 0) - gross * (1 - rate)) < gross * 1e-3, 'công ty nhỏ: không rò rỉ');
+    assert.ok(rich > 0 && rich < adults.length * 0.7, `chỉ cổ đông nhận cổ tức (${rich}/${adults.length})`);
+    let k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+    // công ty bậc 3: một phần lãi chảy ra nước ngoài (thế giới nhận)
+    q.stage = 3; const w0 = LG.worldReserve(c); before = snap(); tax0 = c.hourInc.r;
+    S.payDividend(c, q, gross); q.cash -= gross;
+    got = snap().map((v, i) => v - before[i]);
+    const leak = gross * S.CORP.divLeak;
+    assert.ok(Math.abs((LG.worldReserve(c) - w0) - leak) < gross * 1e-3, 'thế giới nhận phần lãi chảy ra nước ngoài');
+    assert.ok(Math.abs((c.hourInc.r - tax0) - (gross - leak) * rate) < 1e-6);
+    assert.ok(Math.abs(got.reduce((s, v) => s + v, 0) - (gross - leak) * (1 - rate)) < gross * 1e-3);
+    k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+    // không có người lớn nào: không chi
+    assert.equal(S.payDividend({ ...c, pp: { n: 0, alive: [], age: [], money: [] } }, q, gross), 0);
+    // nguyên liệu thô bán trong thành phố: miễn thuế doanh thu; bán thường vẫn chịu thuế
+    const i = [...c.level.keys()].find((x) => c.level[x] && S.ZDEF[c.zone[x]].biz === 'ind');
+    const t1 = c.hourInc.i, m1 = c.biz.money[i];
+    c.fn.saleIncome(c, i, 100, 'i', undefined, true);
+    assert.equal(c.hourInc.i, t1, 'miễn thuế'); assert.equal(c.biz.money[i] - m1, 100);
+    c.fn.saleIncome(c, i, 100, 'i');
+    assert.ok(c.hourInc.i - t1 > 0, 'bán thường vẫn có thuế');
+  } finally { Object.assign(S.CORP, keep); }
+});
+
 test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {
   const c = town(); run(c, 120);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });

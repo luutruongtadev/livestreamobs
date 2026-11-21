@@ -258,3 +258,12 @@ Công ty không tự xây được hạ tầng, nên ngoài việc làm, một �
 | 🔥 Phòng cháy chữa cháy | Sản xuất từ bậc 3; công ty bán lẻ mọi bậc | 15 MK mỗi ô |
 
 Quỹ công ty phải đủ cả phí xây (80 MK/ô), phí đất (30 MK/ô), các khoản trên và quỹ dự phòng thì mới gửi được đề xuất (liên doanh: mỗi bên một nửa). Công ty nghèo xin ít ô hơn hoặc chưa xin được. Chỉ **việc làm** còn được đo sau 40 ngày: đạt thì uy tín +1, không đạt thì −1,5 và bị tạm dừng xin dự án 30 ngày. Hợp đồng cũ (không có cam kết phụ) vẫn chạy như trước.
+
+## Cổ tức và thuế
+
+- **Cổ tức công ty gốc** (công ty con chuyển lên mẹ, liên doanh chia cho hai bên như cũ): `payDividend` trong `corp.js`.
+  - Công ty từ bậc 3: 20% lãi chảy ra nước ngoài (cổ đông ngoài thành phố; thế giới nhận).
+  - Phần còn lại chịu **thuế thu nhập** (`tax.r`) thu về ngân sách.
+  - Phần sau thuế chia cho **cổ đông**: khoảng 35% người lớn, cố định theo id người và công ty (không ai thì chia đều).
+- **Nguyên liệu thô** (nông, lâm, ngư, khoáng, dầu) bán trong thành phố được **miễn thuế doanh thu**, để chuỗi nông → nhà máy → cửa hàng không bị thuế chồng ba tầng. Xuất khẩu vẫn chịu thuế; công nhân vẫn đóng thuế thu nhập qua lương.
+- Cổ tức của doanh nghiệp độc lập (không thuộc công ty) giữ nguyên như trước.
