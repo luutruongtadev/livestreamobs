@@ -2259,7 +2259,8 @@ function renderMaps(previews) {
   const sz = $('mapSizes'); sz.textContent = '';
   for (const [n, d] of Object.entries(S.MAP_SIZES)) { const b = el('button', 'mini' + (+n === mapPick.size ? ' acc' : ''), d.name); b.title = d.desc; b.onclick = () => { mapPick.size = +n; renderMaps(true); }; sz.append(b); }
   const m = S.MAPS[mapPick.kind];
-  $('mapDesc').innerHTML = `<b>${m.icon} ${m.name}</b> · ${S.MAP_SIZES[mapPick.size].desc}<br>${m.desc}`;
+  const K = S.CLIMATES[m.climate] || S.CLIMATES.default;
+  $('mapDesc').innerHTML = `<b>${m.icon} ${m.name}</b>${m.region ? ` · 📍 ${m.region}` : ''} · ${S.MAP_SIZES[mapPick.size].desc}<br>${m.desc}<br>🌦️ <b>Khí hậu ${K.name}:</b> ${K.desc}`;
 }
 function bindMaps() {
   $('mapReroll').addEventListener('click', () => { mapPick.seed = (Math.random() * 1e9) | 0; renderMaps(true); });

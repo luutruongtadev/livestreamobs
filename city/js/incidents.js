@@ -1,12 +1,12 @@
 // Phố Mới — sự cố và thiên tai: thời tiết, mặt đường xuống cấp, tai nạn giao thông (có thể liên hoàn, bốc cháy),
 // cướp giật, cháy rừng, bão đá, lốc xoáy. Công an, xe cứu hộ, cứu hoả phải chạy tới hiện trường bằng xe thật.
-import { MK, N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
+import { MK, N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap, climateOf } from './base.js';
 import { trip, reroute, cellPos } from './traffic.js';
 import { seasonWeather, lunar } from './seasons.js';
 import { world } from './ledger.js';
 
 /** Mùa nóng (tháng 4–7 âm lịch): có thể có những đợt nắng nóng gay gắt. */
-export const hotSeason = (c) => { const m = lunar(c.day).month; return m >= 4 && m <= 7; };
+export const hotSeason = (c) => climateOf(c).hotMonths.includes(lunar(c.day).month); // các tháng nóng theo vùng (mặc định tháng 4–7 âm)
 /** Hệ số điện, nước dùng theo thời tiết (nắng nóng: máy lạnh, quạt, tưới, tắm nhiều hơn). */
 export const heatUse = (c) => (c.inc && c.inc.weather === 'heat' ? { power: 1.3, water: 1.15 } : { power: 1, water: 1 });
 
@@ -273,7 +273,8 @@ export function incidentsHour(c) {
   // thời tiết đổi mỗi sáng
   if (c.hour >= inc.wUntil && !(c.season && c.season.storm && c.season.storm.hit)) {
     const r = rng();
-    inc.weather = seasonWeather(c, r) || (r < 0.22 ? 'rain' : r < 0.36 ? 'dry' : r < 0.38 && c.pp.count >= 400 ? 'hail' : r < 0.52 && hotSeason(c) ? 'heat' : 'clear'); // nắng nóng: tháng 4–7 âm
+    const K = climateOf(c), wet = K.wetMonths.includes(lunar(c.day).month), pRain = wet ? K.rainWet : K.rainDry, pDry = pRain + (wet ? K.dryWet : K.dryDry); // mùa mưa / mùa khô theo vùng
+    inc.weather = seasonWeather(c, r) || (r < pRain ? 'rain' : r < pDry ? 'dry' : r < pDry + 0.02 && c.pp.count >= 400 ? 'hail' : r < pDry + 0.02 + 0.14 * K.heat && hotSeason(c) ? 'heat' : 'clear');
     inc.wUntil = c.hour + (inc.weather === 'hail' ? 3 : 24 - h + (inc.weather === 'dry' || inc.weather === 'heat' ? 24 : 0));
     if (inc.weather === 'heat') c.events.push({ type: 'council', text: '🥵 Nắng nóng gay gắt hai ngày: điện, nước dùng tăng mạnh, người già dễ ốm; dân ở gần cây xanh, công viên đỡ khổ hơn' });
     if (inc.weather === 'hail') c.events.push({ type: 'hail' });

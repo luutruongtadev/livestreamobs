@@ -4,7 +4,7 @@ export let T = 10; // cạnh một ô (đơn vị thế giới, mét): 10 với 
 export const CELL_NEW = 8.4;
 export const LAND = 12; // cạnh một ô đất (lưới quản lý đất cũ, tính theo ô lưới)
 /** Cỡ bản đồ chọn được khi chơi mới (số ô mỗi cạnh). 96 là cỡ của các bản lưu cũ. */
-export const MAP_SIZES = { 96: { name: 'Vừa', desc: '96 × 96 ô, gọn, máy yếu chạy mượt' }, 128: { name: 'Lớn', desc: '128 × 128 ô, gần gấp đôi diện tích' }, 160: { name: 'Rất lớn', desc: '160 × 160 ô, gần gấp ba, cần máy khoẻ' } };
+export const MAP_SIZES = { 96: { name: 'Vừa', desc: '96 × 96 ô, gọn, máy yếu chạy mượt' }, 128: { name: 'Lớn', desc: '128 × 128 ô, gần gấp đôi diện tích' }, 160: { name: 'Rất lớn', desc: '160 × 160 ô, gần gấp ba, cần máy khoẻ' }, 256: { name: 'Cực lớn (thử nghiệm)', desc: '256 × 256 ô, gấp bảy lần cỡ vừa: mô phỏng chậm hơn khoảng 3,5 lần, bản lưu lớn hơn, cần máy khoẻ' } };
 // cỡ bản đồ hiện tại: biến "sống" (live binding), đổi bằng setMapSize trước khi tạo / nạp thành phố và trước khi dựng cảnh 3D
 export let N = 96; // bản đồ N x N ô
 export let HALF = (N * T) / 2;
@@ -353,18 +353,35 @@ export function vnoise(x, y, s) {
 
 /** Trường địa hình liên tục theo toạ độ ô: dương = đất liền (xấp xỉ số ô cách bờ), âm = nước. */
 /**
+ * Khí hậu theo vùng Việt Nam (lịch âm): bão (số lần ×, các tháng có bão), mùa mưa / mùa khô (xác suất mưa, khô hạn theo ngày),
+ * nắng nóng (× và các tháng nóng), triều cường (× , 0 = không có biển), lũ do mưa (× nước dâng ở vùng thấp).
+ * `default` giữ đúng số cũ (bản đồ Sông và biển, bản lưu cũ).
+ */
+export const CLIMATES = {
+  default: { name: 'Cân bằng', desc: 'Bão tháng 8–11 âm, mưa vừa, nắng nóng tháng 4–7 âm', storm: 1, stormMonths: [8, 9, 10, 11], wetMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], rainWet: 0.22, rainDry: 0.22, dryWet: 0.14, dryDry: 0.14, hotMonths: [4, 5, 6, 7], heat: 1, tide: 1, flood: 1 },
+  bac: { name: 'Bắc Bộ', desc: 'Bão sớm (tháng 6–9 âm), mưa nhiều hè thu, đồng bằng sông Hồng dễ ngập khi mưa lớn', storm: 0.9, stormMonths: [6, 7, 8, 9], wetMonths: [4, 5, 6, 7, 8, 9], rainWet: 0.3, rainDry: 0.14, dryWet: 0.08, dryDry: 0.2, hotMonths: [4, 5, 6, 7], heat: 1, tide: 0.8, flood: 1.15 },
+  trung: { name: 'Duyên hải miền Trung', desc: 'Bão nhiều và muộn (tháng 9–12 âm), lũ nhanh, nắng nóng gió Lào gay gắt', storm: 1.7, stormMonths: [9, 10, 11, 12], wetMonths: [9, 10, 11, 12], rainWet: 0.34, rainDry: 0.1, dryWet: 0.06, dryDry: 0.26, hotMonths: [3, 4, 5, 6, 7], heat: 1.6, tide: 1.1, flood: 1.3 },
+  tay: { name: 'Tây Nguyên', desc: 'Hai mùa rõ: mưa tháng 4–9 âm, khô hạn kéo dài mùa còn lại; ít bão, không có triều', storm: 0.25, stormMonths: [7, 8, 9], wetMonths: [4, 5, 6, 7, 8, 9], rainWet: 0.34, rainDry: 0.04, dryWet: 0.05, dryDry: 0.4, hotMonths: [2, 3, 4, 5], heat: 0.9, tide: 0, flood: 1 },
+  nam: { name: 'Nam Bộ', desc: 'Mùa mưa tháng 4–10 âm, mùa khô nắng gắt; ít bão, triều cường mạnh gây ngập vùng thấp', storm: 0.45, stormMonths: [9, 10, 11], wetMonths: [4, 5, 6, 7, 8, 9, 10], rainWet: 0.32, rainDry: 0.05, dryWet: 0.05, dryDry: 0.3, hotMonths: [1, 2, 3, 4], heat: 1.1, tide: 1.7, flood: 1 },
+  dao: { name: 'Hải đảo', desc: 'Gió bão và nước dâng mạnh, mưa rào nhanh, triều cường cao quanh đảo', storm: 1.3, stormMonths: [8, 9, 10, 11], wetMonths: [4, 5, 6, 7, 8, 9, 10], rainWet: 0.28, rainDry: 0.1, dryWet: 0.08, dryDry: 0.2, hotMonths: [4, 5, 6, 7], heat: 1, tide: 1.3, flood: 1 },
+  tayBac: { name: 'Tây Bắc', desc: 'Thung lũng núi: mưa lớn gây lũ quét ở đất thấp ven suối, ít bão, nắng nóng nhẹ', storm: 0.5, stormMonths: [6, 7, 8, 9], wetMonths: [5, 6, 7, 8, 9], rainWet: 0.34, rainDry: 0.08, dryWet: 0.06, dryDry: 0.24, hotMonths: [4, 5, 6], heat: 0.7, tide: 0, flood: 1.4 },
+};
+/** Khí hậu của thành phố (theo kiểu bản đồ); không rõ thì `default`. */
+export const climateOf = (c) => CLIMATES[(MAPS[c && c.map] || {}).climate] || CLIMATES.default;
+
+/**
  * Các kiểu bản đồ. hills: độ cao đồi thoải (×), mount: độ cao núi (×); mask(gx, gy, ctx) = vùng có núi 0..1
  * (mặc định: xa điểm xuất phát). ctx = { N, sx, sy, seed }.
  */
 const valleyX = (y, seed) => N * 0.5 + Math.sin(y * 0.045 + hash2(11, 12, seed) * 6.283) * N * 0.06 + (vnoise(1.1, y * 0.04, seed + 21) - 0.5) * 8;
 export const MAPS = {
-  river: { name: 'Sông và biển', icon: '🏞️', desc: 'Một con sông uốn khúc ra biển phía nam, một hồ nhỏ, núi ở xa. Cân bằng, dễ chơi', hills: 1, mount: 1 },
-  delta: { name: 'Đồng bằng châu thổ', icon: '🌾', desc: 'Sông lớn chia nhiều nhánh đổ ra biển, đất phẳng màu mỡ: nhiều cầu, nông nghiệp, cảng cá', hills: 0.35, mount: 0 },
-  bay: { name: 'Vịnh và đảo', icon: '🏝️', desc: 'Bờ biển dài phía đông, vịnh sâu, nhiều đảo nhỏ ngoài khơi: du lịch biển, cảng, cầu ra đảo', hills: 1, mount: 0.8 },
-  highland: { name: 'Cao nguyên', icon: '⛰️', desc: 'Đồi núi trập trùng, hồ thuỷ điện, suối nhỏ, không có biển: đất dốc khó xây, khoáng sản, rừng', hills: 1.6, mount: 1.5, cover: 0.2, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.sx, gy - k.sy) - k.N * 0.22) / 24, 0, 1) },
-  lakes: { name: 'Hồ lớn', icon: '💧', desc: 'Một hồ lớn có đảo giữa hồ, sông thoát ra biển ở góc nam: thành phố quanh hồ, bến tàu du ngoạn', hills: 0.9, mount: 0.8 },
-  island: { name: 'Đảo', icon: '🌊', desc: 'Một hòn đảo lớn giữa biển, nối đất liền bằng đường dẫn phía bắc: đất có hạn, biển bao quanh', hills: 1.1, mount: 0.9, cover: 0.15, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.N * 0.52, gy - k.N * 0.58) < k.N * 0.2 ? 1 : 0) * clamp((Math.hypot(gx - k.sx, gy - k.sy) - 28) / 14, 0, 1), 0, 1) },
-  valley: { name: 'Thung lũng', icon: '🏔️', desc: 'Sông chảy giữa thung lũng hẹp, hai bên là dãy núi cao: đất bằng ít, phải mở đường đèo, đào đắp', hills: 0.8, mount: 1.7, cover: 0.35, mask: (gx, gy, k) => { const d = Math.abs(gx - valleyX(gy, k.seed)) - k.N * 0.16; return clamp(d / (k.N * 0.08), 0, 1); } },
+  river: { name: 'Sông và biển', region: 'Cửa sông ven biển', climate: 'default', icon: '🏞️', desc: 'Một con sông uốn khúc ra biển phía nam, một hồ nhỏ, núi ở xa. Cân bằng, dễ chơi', hills: 1, mount: 1 },
+  delta: { name: 'Đồng bằng châu thổ', region: 'Đồng bằng sông Cửu Long', climate: 'nam', icon: '🌾', desc: 'Sông lớn chia nhiều nhánh đổ ra biển, đất phẳng màu mỡ: nhiều cầu, nông nghiệp, cảng cá', hills: 0.35, mount: 0 },
+  bay: { name: 'Vịnh và đảo', region: 'Duyên hải miền Trung', climate: 'trung', icon: '🏝️', desc: 'Bờ biển dài phía đông, vịnh sâu, nhiều đảo nhỏ ngoài khơi: du lịch biển, cảng, cầu ra đảo', hills: 1, mount: 0.8 },
+  highland: { name: 'Cao nguyên', region: 'Tây Nguyên', climate: 'tay', icon: '⛰️', desc: 'Đồi núi trập trùng, hồ thuỷ điện, suối nhỏ, không có biển: đất dốc khó xây, khoáng sản, rừng', hills: 1.6, mount: 1.5, cover: 0.2, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.sx, gy - k.sy) - k.N * 0.22) / 24, 0, 1) },
+  lakes: { name: 'Hồ lớn', region: 'Đồng bằng Bắc Bộ (vùng hồ)', climate: 'bac', icon: '💧', desc: 'Một hồ lớn có đảo giữa hồ, sông thoát ra biển ở góc nam: thành phố quanh hồ, bến tàu du ngoạn', hills: 0.9, mount: 0.8 },
+  island: { name: 'Đảo', region: 'Hải đảo (kiểu Phú Quốc, Cô Tô)', climate: 'dao', icon: '🌊', desc: 'Một hòn đảo lớn giữa biển, nối đất liền bằng đường dẫn phía bắc: đất có hạn, biển bao quanh', hills: 1.1, mount: 0.9, cover: 0.15, mask: (gx, gy, k) => clamp((Math.hypot(gx - k.N * 0.52, gy - k.N * 0.58) < k.N * 0.2 ? 1 : 0) * clamp((Math.hypot(gx - k.sx, gy - k.sy) - 28) / 14, 0, 1), 0, 1) },
+  valley: { name: 'Thung lũng', region: 'Tây Bắc', climate: 'tayBac', icon: '🏔️', desc: 'Sông chảy giữa thung lũng hẹp, hai bên là dãy núi cao: đất bằng ít, phải mở đường đèo, đào đắp', hills: 0.8, mount: 1.7, cover: 0.35, mask: (gx, gy, k) => { const d = Math.abs(gx - valleyX(gy, k.seed)) - k.N * 0.16; return clamp(d / (k.N * 0.08), 0, 1); } },
 };
 
 /**

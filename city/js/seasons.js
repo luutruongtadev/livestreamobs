@@ -1,6 +1,6 @@
 // Phố Mới — lịch âm, lễ hội Việt Nam và mùa mưa bão (bão, ngập lụt, triều cường).
 // Lịch rút gọn: 10 ngày game = 1 tháng âm, 120 ngày = 1 năm. Mỗi ngày game ứng với ngày âm 1, 4, 7, ... 28 của tháng.
-import { N, SERVICES, idx, inMap, clamp, cellOf } from './base.js';
+import { N, SERVICES, idx, inMap, clamp, cellOf, climateOf } from './base.js';
 import { cityPay } from './ledger.js';
 import { distFx } from './districts.js';
 
@@ -117,7 +117,7 @@ export function organize(c, id, start, scale) {
 // ───────────────────────── mùa mưa bão ─────────────────────────
 
 export const STORM_MONTHS = [8, 9, 10, 11];
-export const stormSeason = (c) => STORM_MONTHS.includes(lunar(c.day).month);
+export const stormSeason = (c) => climateOf(c).stormMonths.includes(lunar(c.day).month); // tháng có bão theo vùng (khí hậu Việt Nam, base.js CLIMATES)
 const hasSvc = (c, k) => c.services.some((s) => SERVICES[s.type][k] && !(s.build > 0));
 
 /**
@@ -159,7 +159,7 @@ export function seasonWeather(c, r) {
 /** Triều cường: những chiều tối giữa tháng 9–11 âm (ngày rằm), nước dâng ở vùng thấp ven sông biển. */
 export function tideNow(c) {
   const L = lunar(c.day), h = c.hour % 24;
-  return [9, 10, 11].includes(L.month) && (L.k === 4 || L.k === 5) && h >= 16 && h <= 21;
+  return climateOf(c).tide > 0 && [9, 10, 11].includes(L.month) && (L.k === 4 || L.k === 5) && h >= 16 && h <= 21; // vùng không có biển / sông thuỷ triều (Tây Nguyên, Tây Bắc) thì không có triều cường
 }
 
 /**
@@ -169,7 +169,7 @@ export function tideNow(c) {
 export function seasonHour(c) {
   const s = c.season, inc = c.inc, rng = c.rng || Math.random, h = c.hour % 24, ews = hasSvc(c, 'ews');
   // bão: mỗi sáng trong mùa có thể có bão hình thành ngoài khơi; có trạm cảnh báo sớm thì biết trước lâu hơn
-  if (!s.storm && stormSeason(c) && h === 8 && rng() < 0.11) {
+  if (!s.storm && stormSeason(c) && h === 8 && rng() < 0.11 * climateOf(c).storm) { // số cơn bão theo vùng: miền Trung nhiều, Tây Nguyên ít
     const lead = ews ? 30 : 12, power = 1 + ((rng() * 3) | 0);
     s.count++;
     s.storm = { at: c.hour + lead, power, name: `Bão số ${s.count}`, hit: false };
@@ -197,11 +197,11 @@ export function seasonHour(c) {
   // ngập: nước dâng theo mưa / bão / triều cường ở ô có nguy cơ, rút dần khi tạnh; trạm bơm hút nhanh, kè chắn nước dâng
   const risk = floodRisk(c), tideOn = tideNow(c), rain = inc.weather === 'rain' ? 0.3 : storm ? 0.75 + 0.3 * (s.storm ? s.storm.power : 1) : 0;
   if (!c.flood || c.flood.length !== N * N) { c.flood = new Float32Array(N * N); c.floodHours = new Uint16Array(N * N); }
-  const fl = c.flood, pump = c.cover.flood, levee = c.cover.levee;
+  const fl = c.flood, pump = c.cover.flood, levee = c.cover.levee, K = climateOf(c);
   let wet = 0, houses = 0;
   for (let i = 0; i < N * N; i++) {
     if (c.water[i]) { fl[i] = 0; continue; }
-    let add = rain * risk[i] + (tideOn && c.floodTide[i] ? 1.3 : 0);
+    let add = rain * risk[i] * K.flood + (tideOn && c.floodTide[i] ? 1.3 * K.tide : 0); // lũ quét (Tây Bắc, miền Trung), triều cường mạnh (Nam Bộ)
     if (levee[i] > 0.05) add *= 0.15;
     if (pump[i] > 0.05) add *= 0.4;
     const dd = distFx(c, i, 'drain'); // nạo vét cống của quận

@@ -396,8 +396,8 @@ test('city: không còn mua đất — cả bản đồ mở từ đầu; bản 
   assert.equal(c3.edges.size, c.edges.size);
 });
 
-test('bản đồ: 7 kiểu, 3 cỡ; mỗi kiểu có lối vào phía bắc, đúng đặc trưng; lưu / nạp giữ cỡ và kiểu, bản lưu cũ là 96', () => {
-  assert.deepEqual(Object.keys(S.MAP_SIZES).map(Number), [96, 128, 160]);
+test('bản đồ: 7 kiểu, 4 cỡ; mỗi kiểu có lối vào phía bắc, đúng đặc trưng; lưu / nạp giữ cỡ và kiểu, bản lưu cũ là 96', () => {
+  assert.deepEqual(Object.keys(S.MAP_SIZES).map(Number), [96, 128, 160, 256]);
   const stat = {};
   for (const map of Object.keys(S.MAPS)) {
     const c = newCity(77, { size: 128, map });
@@ -2436,6 +2436,48 @@ test('city: tầng lớp dân cư — ngưỡng lương, mức giá nhà, chọn
   // sổ tiền vẫn khớp
   LG.resetLedger(c); run(c, 24 * 5);
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
+test('khí hậu Việt Nam theo vùng: mỗi kiểu bản đồ có vùng và khí hậu; bão, triều cường, mùa nóng theo vùng; cỡ 256 tạo, chạy, lưu / nạp được', () => {
+  for (const [k, m] of Object.entries(S.MAPS)) assert.ok(m.region && S.CLIMATES[m.climate], `kiểu ${k} có vùng và khí hậu`);
+  // khí hậu mặc định giữ đúng số cũ (bản đồ Sông và biển, bản lưu cũ)
+  const D = S.CLIMATES.default;
+  assert.equal(S.MAPS.river.climate, 'default');
+  assert.deepEqual([D.storm, D.rainWet, D.dryWet, D.heat, D.tide, D.flood, D.stormMonths.join()], [1, 0.22, 0.14, 1, 1, 1, '8,9,10,11']);
+  // đặc trưng từng vùng
+  const K = S.CLIMATES;
+  assert.ok(K.trung.storm > K.bac.storm && K.bac.storm >= K.default.storm * 0.8 && K.tay.storm < 0.5 && K.nam.storm < 0.6, 'miền Trung nhiều bão nhất, Tây Nguyên, Nam Bộ ít');
+  assert.ok(K.nam.tide > 1.5 && K.tay.tide === 0 && K.tayBac.tide === 0, 'Nam Bộ triều mạnh, vùng núi không có triều');
+  assert.ok(K.tayBac.flood > 1.3 && K.trung.flood > 1.2 && K.tay.dryDry > K.default.dryDry * 2, 'lũ quét miền núi, miền Trung; Tây Nguyên khô hạn dài');
+  // tháng bão theo vùng: tháng 12 âm là mùa bão miền Trung, không phải mặc định; tháng 6 âm là mùa bão miền Bắc
+  const river = newCity(1, { map: 'river' }), trung = newCity(1, { map: 'bay' }), bac = newCity(1, { map: 'lakes' }), tay = newCity(1, { map: 'highland' }), nam = newCity(1, { map: 'delta' });
+  const dayOf = (month, k) => { for (let d = 0; d < 800; d++) { const L = S.lunar(d); if (L.month === month && (k == null || L.k === k)) return d; } return -1; };
+  river.day = trung.day = dayOf(12); assert.ok(river.day >= 0);
+  assert.equal(S.stormSeason(river), false); assert.equal(S.stormSeason(trung), true);
+  river.day = bac.day = dayOf(6); assert.equal(S.stormSeason(river), false); assert.equal(S.stormSeason(bac), true);
+  // triều cường: có ở sông biển và đồng bằng, không có ở cao nguyên
+  const td = [9, 10, 11].map((m) => dayOf(m, 4)).find((d) => d >= 0);
+  assert.ok(td >= 0);
+  for (const c of [river, nam, tay]) { c.day = td; c.hour = 18; }
+  assert.equal(S.tideNow(river), true); assert.equal(S.tideNow(nam), true); assert.equal(S.tideNow(tay), false, 'Tây Nguyên không có triều cường');
+  // mùa nóng theo vùng: miền Trung nóng sớm (tháng 3 âm), mặc định thì chưa
+  river.day = trung.day = dayOf(3); assert.equal(S.hotSeason(river), false); assert.equal(S.hotSeason(trung), true);
+  // chạy thử mọi vùng trong mùa bão và mùa khô: không lỗi, thời tiết hợp lệ
+  for (const map of Object.keys(S.MAPS)) for (const month of [2, 10]) {
+    const c = newCity(3, { size: 96, map }); c.owned.fill(1); c.own.fill(1); c.day = dayOf(month); c.hour = c.day * 24 + 6;
+    run(c, 24 * 3);
+    assert.ok(S.WEATHER[c.inc.weather], `thời tiết hợp lệ ở ${map}, tháng ${month} âm`);
+  }
+  // cỡ 256: tạo, chạy, lưu / nạp, bản lưu vẫn trong giới hạn của máy chủ
+  const big = newCity(5, { size: 256, map: 'highland' });
+  assert.equal(S.N, 256); assert.equal(big.zone.length, 256 * 256);
+  big.owned.fill(1); big.own.fill(1); run(big, 24);
+  const json = JSON.stringify(S.serialize(big));
+  assert.ok(json.length < 4 * 1024 * 1024, `bản lưu 256 dưới giới hạn máy chủ (${(json.length / 1024).toFixed(0)} KB)`);
+  const back = S.deserialize(JSON.parse(json));
+  assert.equal(S.N, 256); assert.equal(back.map, 'highland'); assert.equal(back.zone.length, 256 * 256);
+  newCity(1, { size: 96 }); // trả cỡ toàn cục về 96 cho các test sau
+  assert.equal(S.N, 96);
 });
 
 test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {

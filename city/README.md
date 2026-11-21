@@ -211,6 +211,22 @@ Mỗi người lớn thuộc một trong ba tầng, tính từ lương chỗ là
 - **Bảng 👥 → "Tầng lớp dân cư":** tỷ lệ từng tầng, độ vui, chỗ trống của nhà rẻ / vừa / cao cấp, số hộ bị tiền nhà đè nặng, số hộ dọn xuống / dọn lên hôm qua. Cảnh báo khi nhà rẻ cạn mà nhiều hộ bị đè nặng, khi thiếu nhà cao cấp cho người khá giả, hoặc khi nhà cao cấp ế.
 - Mọi thứ suy ra từ lương, học vấn, tiền nhà hiện tại nên không thêm gì vào bản lưu; bản lưu cũ chơi tiếp bình thường. Tham số ở `city/js/tiers.js` (`TIER_CFG`).
 
+## Khí hậu theo vùng Việt Nam và bản đồ cỡ 256
+
+Mỗi kiểu bản đồ gắn với một vùng và một khí hậu (lịch âm), hiện trong màn chọn bản đồ. Khí hậu quyết định số cơn bão và tháng có bão, mùa mưa / mùa khô, tháng nóng và độ nóng, triều cường, lũ do mưa ở đất thấp (`CLIMATES` trong `city/js/base.js`):
+
+| Bản đồ | Vùng | Khí hậu |
+|---|---|---|
+| Sông và biển | Cửa sông ven biển | Cân bằng (giữ đúng số cũ) |
+| Đồng bằng châu thổ | Đồng bằng sông Cửu Long | Nam Bộ: mùa mưa tháng 4–10, mùa khô nắng gắt, ít bão, triều cường mạnh (×1,7) |
+| Vịnh và đảo | Duyên hải miền Trung | Bão nhiều và muộn (×1,7, tháng 9–12), lũ nhanh (×1,3), nắng nóng gay gắt (×1,6) |
+| Cao nguyên | Tây Nguyên | Mưa tháng 4–9, khô hạn dài, ít bão (×0,25), không có triều cường |
+| Hồ lớn | Đồng bằng Bắc Bộ (vùng hồ) | Bão sớm (tháng 6–9), mưa nhiều hè thu, dễ ngập (×1,15) |
+| Đảo | Hải đảo (kiểu Phú Quốc, Cô Tô) | Gió bão, nước dâng, triều cường cao quanh đảo |
+| Thung lũng | Tây Bắc | Lũ quét ở đất thấp ven suối (×1,4), ít bão, nắng nóng nhẹ |
+
+Cỡ **256 × 256** (thử nghiệm) gấp bảy lần cỡ vừa. Đo trên máy chủ thử, thành phố trống: tạo bản đồ khoảng 0,3 giây, mỗi giờ game mô phỏng khoảng 27 ms (cỡ 96: 8 ms, cỡ 160: 12 ms), bản lưu trống khoảng 430 KB (giới hạn của máy chủ là 4 MB). Phần vẽ (GPU) chưa đo. Bản đồ vẫn tạo toàn bộ một lần lúc bắt đầu; chưa có tải theo vùng khi mở rộng.
+
 ## Kinh tế mở rộng
 
 - **Ngân sách theo ngành** (bảng 📊): giáo dục, y tế, an ninh (công an, cứu hoả, trại giam), giao thông chỉnh 50–150%. Chi ít thì phí duy trì giảm nhưng công trình yếu đi (bán kính nhỏ hơn, ít xe, ít chỗ học, đường xuống cấp nhanh, điểm phát triển ra chậm) và dân kém vui; chi nhiều thì ngược lại. Mức vui / buồn theo độ lớn của ngành so với dân số (chỉ một tháp canh lửa thì gần như không ai để ý).
