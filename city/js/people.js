@@ -535,7 +535,7 @@ function landlordDay(c) {
  * theo số chỗ làm) ảnh hưởng độ hài lòng của dân (sim.js cellHappy).
  */
 export const RETAIL = { min: 0.8, max: 1.4, target: 10, hi: 1.15, lo: 0.92 };
-function retailDay(c, companies) {
+export function retailDay(c, companies) {
   const b = c.biz;
   let w = 0, s = 0;
   for (const i of companies) {

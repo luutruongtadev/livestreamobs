@@ -166,6 +166,19 @@ export function resetPop(c, rural = c.popl ? c.popl.rural : RURAL.start, abroad 
   c.popl.base = (c.pp ? c.pp.count : 0) + c.popl.rural + abroad;
   return c.popl;
 }
+/**
+ * Trả lại nguồn dân nông thôn cho thành phố chơi tự do: trong nhóm cạnh tranh nguồn dân chỉ là phần máy chủ chia mỗi ngày (có khi
+ * còn vài người), rời nhóm mà không trả lại thì thành phố hết người chuyển đến, dân không tăng nữa. Đặt về số ban đầu trừ dân đang
+ * ở thành phố (chỉnh mốc base để sổ dân vẫn khớp). Trả về số người được thêm vào nguồn.
+ */
+export function restoreRural(c) {
+  const P = c.popl;
+  if (!P) return 0;
+  const want = Math.max(P.rural, RURAL.start - (c.pp ? c.pp.count : 0));
+  const add = want - P.rural;
+  if (add > 0) { P.base += add; P.rural = want; }
+  return Math.max(0, add);
+}
 /** Một người vào thành phố từ đâu (rural / abroad / born / load: nạp bản lưu, không tính). */
 export function popIn(c, from) {
   const P = c.popl;

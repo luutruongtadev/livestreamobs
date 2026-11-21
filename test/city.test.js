@@ -2024,7 +2024,7 @@ test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài n
     assert.ok(S.reserveLeft(c, w, 'wood') > 1 - 1000 / R.wood.cap, 'rừng tự hồi');
     const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
     assert.equal(back.res[P.i], 0, 'mỏ cạn vẫn cạn sau khi nạp lại');
-    assert.equal(back.popl.rural, c.popl.rural, 'nông thôn lưu lại');
+    assert.ok(back.popl.rural === c.popl.rural || (c.popl.rural + c.pp.count < S.RURAL.start * 0.5 && back.popl.rural >= S.RURAL.start - back.pp.count), 'nông thôn lưu lại (nguồn dân cạn bất thường khi dân còn nhỏ thì được trả lại)');
     // báo cáo ngày và provider: thay thế giới máy bằng provider khác nhận bản tóm tắt
     const got = [];
     S.registerWorld('test', { report: (city, rep) => got.push(rep) });
@@ -2420,9 +2420,12 @@ test('city: tập đoàn Phase 4 — vốn đi theo giá thế giới, cụm kin
     S.hubScan(c);
     // giá thế giới cao: xuất khẩu bật sớm hơn (ngưỡng tồn kho 60%)
     while (c.hour % 24 !== 5) run(c, 1);
+    c.hour++; // sang 6h sáng (giờ công ty ra quyết định); gọi thẳng corpHour để xe giao hàng không lấy mất tồn kho đặt tay
     c.market.p[S.corpSector(c, q)] = 1.6; q.export = 0; q.xAt = 0;
-    for (const [i] of q.cells) c.biz.sout[i] = 47; // đủ cao để xe giao hàng lấy bớt vẫn còn trên ngưỡng (ngưỡng khi giá cao là 10.8, thường 18)
-    assert.ok(S.signalOf(c, S.corpSector(c, q)) >= S.CORP.hotPrice); run(c, 2); assert.equal(q.export, 1, "giá cao: xuất sớm");
+    for (const [i] of q.cells) c.biz.sout[i] = 12; // dưới ngưỡng thường (18), trên ngưỡng khi giá cao (10.8)
+    assert.ok(S.signalOf(c, S.corpSector(c, q)) >= S.CORP.hotPrice);
+    S.corpHour(c); assert.equal(q.export, 1, 'giá cao: xuất sớm');
+    run(c, 2);
     // chuỗi bán lẻ: tập đoàn bậc 3 mua cửa hàng độc lập gần cụm
     q.stage = 3; q.cash = 8000 * S.MK; q.cool.acq = 0; c.corp.sme = -1;
     for (const x of c.corp.list) if (x !== q) { x.cash = 5000 * S.MK; for (const [i] of x.cells) c.biz.eff[i] = 0.9; }
@@ -2481,9 +2484,8 @@ test('city: giá bán lẻ theo cung cầu — kệ cạn thì giá lên, hàng 
   assert.ok(shops.length >= 2, 'có cửa hàng');
   const [a, b] = shops;
   // chỉ số giá là kệ cạn → tăng; hàng ứ → giảm (một ngày một nhịp, trong khung)
-  const day = () => { while (c.hour % 24 !== 23) S.tick(c); S.tick(c); S.tick(c); };
   c.biz.rp[a] = 1; c.biz.rp[b] = 1;
-  for (let d = 0; d < 6; d++) { c.biz.sin[a] = 0; c.biz.sin[b] = 48; c.biz.incoming[a] = 1; c.biz.money[a] = 5000; c.biz.money[b] = 5000; day(); } // tiền đặt tay để cửa hàng không phá sản giữa chừng (sổ tính lại gốc ở dưới)
+  for (let d = 0; d < 6; d++) { c.biz.sin[a] = 0; c.biz.sin[b] = 48; S.retailDay(c, [a, b]); } // gọi thẳng nhịp giá mỗi ngày (xe giao hàng ngẫu nhiên không làm lệch)
   assert.ok(c.biz.rp[a] > 1.05 && c.biz.rp[b] < 0.95, `cạn ${c.biz.rp[a]}, ứ ${c.biz.rp[b]}`);
   for (const i of shops) assert.ok(c.biz.rp[i] >= S.RETAIL.min && c.biz.rp[i] <= S.RETAIL.max);
   // mặt bằng giá cao: dân kém vui và có nhu cầu "giá đắt đỏ"; thấp thì vui hơn một chút
@@ -2536,4 +2538,21 @@ test('city: công ty thương mại — lập từ cửa hàng độc lập, xâ
     LG.resetLedger(c); run(c, 24 * 8);
     const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
   } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: rời nhóm hoặc nạp bản lưu hỏng thì trả lại nguồn dân nông thôn (không thì dân đứng yên), sổ dân vẫn khớp', () => {
+  const c = town(); run(c, 48);
+  // nhóm chỉ chia vài người mỗi ngày: nguồn dân còn 1; rời nhóm thì được trả lại gần đủ (trừ dân đang ở thành phố)
+  c.popl.base += 1 - c.popl.rural; c.popl.rural = 1;
+  assert.equal(LG.checkPop(c).drift, 0);
+  c.league = { id: 'x' }; c.outside = { kind: 'league' };
+  LgC.detachLeague(c);
+  assert.ok(c.popl.rural >= LG.RURAL.start - c.pp.count && LG.checkPop(c).drift === 0 && !c.league);
+  // bản lưu hỏng từ trước (không có nhóm, nguồn dân 1, dân thành phố nhỏ): nạp lại thì tự trả nguồn dân
+  const o = JSON.parse(JSON.stringify(S.serialize(c))); o.rural = 1;
+  const back = S.deserialize(o);
+  assert.ok(back.popl.rural > 11000 && LG.checkPop(back).drift === 0);
+  // thành phố đang ở trong nhóm (có league) thì giữ nguyên phần máy chủ chia
+  const o2 = JSON.parse(JSON.stringify(S.serialize(c))); o2.rural = 1; o2.league = { id: 'abc', start: Date.now(), dayMs: 3600000, joinDay: 0, cityHour0: 0 };
+  assert.equal(S.deserialize(o2).popl.rural, 1);
 });

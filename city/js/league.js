@@ -5,7 +5,7 @@
 import { registerWorld, AI_WORLD } from './world.js';
 import { MKT_KINDS, mkt } from './econ.js';
 import { PRICE, priceOf, importMultOf } from './base.js';
-import { world, groupFlow } from './ledger.js';
+import { world, groupFlow, restoreRural } from './ledger.js';
 
 export const CATCHUP_MAX_DAYS = 7;
 /** Giá chào bán (phần của giá chợ chung) và thuế nhập khẩu hàng của thành phố khác (khớp gateway/city-league.js TRADE). */
@@ -159,7 +159,7 @@ export function attachLeague(c, server) {
   c.outside = { kind: 'league' };
   applyServer(c, server); // số thành viên, nông thôn chung, giờ ngày mới
 }
-export function detachLeague(c) { delete c.league; c.outside = null; }
+export function detachLeague(c) { delete c.league; c.outside = null; restoreRural(c); } // chơi tự do: trả lại nguồn dân nông thôn (nhóm chỉ chia mỗi ngày vài người)
 
 /** Lưu / nạp phần nhóm của thành phố (bản lưu). */
 export const packLeague = (c) => (c.league ? { used: c.league.used, applied: c.league.applied, ackOut: c.league.ackOut, id: c.league.id, start: c.league.start, dayMs: c.league.dayMs, joinDay: c.league.joinDay, cityHour0: c.league.cityHour0, drainedApplied: c.league.drainedApplied || 0, season: c.league.season, policy: c.league.policy ? { ask: c.league.policy.ask, tariff: c.league.policy.tariff } : undefined } : undefined);
