@@ -765,7 +765,7 @@ function peopleDay(c) {
     { const m0 = pp.money[id]; pp.money[id] = clamp(m0, -200 * MK, 3000 * MK); world(c, 'clamp', pp.money[id] - m0); }
     // gánh nặng tiền nhà: quá sức thì tìm nhà rẻ hơn, người khá giả ở nhà rẻ thì dọn lên nhà tốt hơn (nhường nhà rẻ)
     let bd = 0;
-    if (pp.home[id] >= 0 && age >= 18 && !whoOf(c, pp.home[id])) {
+    if (pp.home[id] >= 0 && age >= 18 && pp.work[id] >= 0 && c.level[pp.work[id]] && !whoOf(c, pp.home[id])) { // chỉ tính cho người đang đi làm: người chưa có việc đã có luật thất nghiệp riêng
       const inc = incomeOf(c, id), cur = rentDay(c, pp.home[id]);
       bd = burden(cur, inc);
       if (bd > TIER_CFG.strain && vac.home.length && rng() < 0.2) {
