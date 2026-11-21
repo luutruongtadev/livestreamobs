@@ -4,6 +4,7 @@
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
 import { MK, N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, PRODUCTS, PRODUCT_KINDS, SHOP_KINDS, productAt, recipeAt, importMultOf, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
 import { festMul } from './seasons.js';
+import { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, pickHome } from './tiers.js';
 import { chooseVehicle, countTrip, inCenter, aqiSick } from './street.js';
 import { trip, later, walk, cellPos, reroute } from './traffic.js';
 import { planRide, board, onBusArrive } from './transit.js';
@@ -33,7 +34,7 @@ export function initPeople(c) {
   c.dead = new Uint8Array(N * N); c.hearseTo = new Uint8Array(N * N); // người mất chờ xe tang ở từng nhà; nhà đã có xe tang đang tới
   c.biz = { money: F32(), sin: F32(), sin2: F32(), sinK: F32().fill(1), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N), rev: F32(), rp: F32().fill(1), rs: F32(), sh: F32(), nh: 0 }; // rev: doanh thu cộng dồn (không lưu); rp: hệ số giá bán lẻ (lưu); rs, sh, nh: lượng bán, tổng kệ hàng, số giờ trong ngày (retailDay)
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
-  c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
+  c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, tier: [0, 0, 0], tierHappy: [0, 0, 0], burdenShare: 0, burdenN: 0, homeTier: { cap: [0, 0, 0], free: [0, 0, 0] }, mode: { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
   c.carSample = 1; c.gbusy = new Set();
 }
 
@@ -104,6 +105,17 @@ export const rentAt = (c, i) => MK * (1.5 + c.landValue[i] * 0.05 + (c.level[i] 
 /** Nhà trọ: dãy phòng liền kề cấp 1–2 (một phần ba số ô, theo variant, khớp hình nhà trọ ở kiểu nhà Việt Nam) — tiền thuê rẻ hơn hẳn. */
 export const TRO_RENT = 0.65;
 export const isTro = (c, i) => c.zone[i] === 14 && c.level[i] >= 1 && c.level[i] <= 2 && c.variant[i] % 3 === 0;
+// ── tầng lớp dân cư (tiers.js): suy ra từ lương, học vấn, tiền nhà hiện tại; không lưu thêm gì ──
+/** Lương mỗi giờ (MK) dùng tính thu nhập của người id: lương chỗ làm hiện tại; chưa có việc thì tạm tính theo học vấn. */
+const wageOfPerson = (c, id) => { const w = c.pp.work[id]; return w >= 0 && c.level[w] ? wageAt(c, w) / MK : TIER_CFG.eduWage[c.pp.edu[id]] * TIER_CFG.jobless; };
+/** Thu nhập trung bình mỗi ngày (MK) của người id, sau thuế thu nhập. */
+export const incomeOf = (c, id) => dayIncome(wageOfPerson(c, id), c.tax.r);
+/** Tầng lớp của người id: 0 thu nhập thấp, 1 trung lưu, 2 khá giả (theo lương chỗ làm, chưa có việc thì theo học vấn). */
+export const tierOf = (c, id) => { const w = c.pp.work[id]; return w >= 0 && c.level[w] ? tierByWage(wageAt(c, w) / MK) : tierByEdu(c.pp.edu[id]); };
+/** Tiền nhà mỗi ngày (MK) của nhà ở ô h (ký túc xá rẻ hơn). */
+export const rentDay = (c, h) => (rentAt(c, h) / MK) * (ZDEF[c.zone[h]].who === 'student' ? 0.4 : 1);
+/** Nhà ở ô h còn chỗ không. */
+const homeOpen = (c, h) => c.level[h] > 0 && c.resCount[h] < resCap(c.zone[h], c.level[h]);
 const spots = (c, i) => (c.occ[i] ? svcVal(c.services[c.occ[i] - 1], 'spots') || 12 : 2 + Math.ceil((resCap(c.zone[i], c.level[i]) + jobCap(c.zone[i], c.level[i])) * 0.3));
 const isShop = (c, i) => c.level[i] > 0 && (ZDEF[c.zone[i]].biz === 'shop' || ZDEF[c.zone[i]].biz === 'market');
 /** Nguyên liệu một nhà máy / xưởng / chợ cần: xưởng và chợ chỉ nhận vài loại, nhà máy lớn nhận loại gán theo vị trí. */
@@ -184,10 +196,10 @@ function settle(c, id, cb) {
     pp.state[id] = ST.OUT; pp.until[id] = c.hour + 2;
     if (isShop(c, dest)) { // mua sắm trực tiếp
       const price = ZDEF[c.zone[dest]].biz === 'market' ? PRICE.market : PRICE.retail; // đi chợ rẻ hơn
-      const spend = Math.min(Math.max(0, pp.money[id]), 9 * MK), units = Math.min(c.biz.sin[dest], spend / price);
+      const spend = Math.min(Math.max(0, pp.money[id]), 9 * MK * TIERS[tierOf(c, id)].shop), units = Math.min(c.biz.sin[dest], spend / price);
       pp.money[id] -= units * price; c.biz.sin[dest] -= units; inner(c, 'shop', units * price); saleIncome(c, dest, units * price, 'c');
     } else if (isLeisure(c, dest)) { // ăn uống, xem phim: trả tiền dịch vụ, không cần hàng
-      const spend = Math.min(Math.max(0, pp.money[id]), 7 * MK);
+      const spend = Math.min(Math.max(0, pp.money[id]), 7 * MK * TIERS[tierOf(c, id)].fun); // người khá giả chi nhiều hơn cho ăn uống, giải trí
       pp.money[id] -= spend; inner(c, 'shop', spend); saleIncome(c, dest, spend, 'c');
       pp.until[id] = c.hour + 3;
     }
@@ -405,8 +417,10 @@ export function peopleHour(c) {
     const hasHS = c.services.some((s) => s.type === 'highschool'), hasU = c.services.some((s) => s.type === 'university');
     let arrive = Math.min(40, Math.ceil(c.pull * (1.5 + (housing - pp.count) * 0.035)));
     while (arrive-- > 0 && vacHomes.length && ruralLeft(c)) { // dân mới đến từ nông thôn: nông thôn hết người thì thôi
-      const k = (rng() * vacHomes.length) | 0, hcell = vacHomes[k];
       const r = rng(), edu = r < 0.05 + (hasU ? 0.12 : 0) ? 3 : r < 0.22 + (hasHS ? 0.2 : 0) ? 2 : r < 0.6 ? 1 : 0;
+      let k = pickHome(vacHomes, dayIncome(TIER_CFG.eduWage[edu], c.tax.r), (h) => (homeOpen(c, h) ? rentDay(c, h) : -1), rng); // người mới đến chọn nhà hợp túi tiền (tầng lớp theo học vấn)
+      if (k < 0) k = (rng() * vacHomes.length) | 0;
+      const hcell = vacHomes[k];
       addCitizen(c, 20 + rng() * 25, edu, hcell, 30 + rng() * 60);
       if (rng() < 0.3 && ruralLeft(c) && c.resCount[hcell] < resCap(c.zone[hcell], c.level[hcell])) addCitizen(c, rng() * 16, 0, hcell, 0);
       if (c.resCount[hcell] >= resCap(c.zone[hcell], c.level[hcell])) vacHomes.splice(k, 1);
@@ -433,7 +447,7 @@ export function peopleHour(c) {
     const age = pp.age[id], st = pp.state[id], adult = age >= 18 && age < 65;
     const hlist = age >= 65 && vacSenior.length ? vacSenior : fits(pp, id, 'student') && pp.enrolled[id] && vacDorm.length ? vacDorm : vacHomes;
     if (pp.home[id] < 0 && hlist.length) { // vô gia cư tìm được nhà
-      const hcell = hlist[(rng() * hlist.length) | 0];
+      const hk = pickHome(hlist, incomeOf(c, id), (h) => (homeOpen(c, h) ? rentDay(c, h) : -1), rng), hcell = hk >= 0 ? hlist[hk] : hlist[(rng() * hlist.length) | 0];
       if (c.resCount[hcell] < resCap(c.zone[hcell], c.level[hcell])) { pp.home[id] = hcell; c.resCount[hcell]++; if (pp.loc[id] < 0) pp.loc[id] = hcell; pp.idle[id] = 0; }
     }
     if (adult && pp.work[id] < 0 && !pp.enrolled[id] && matched < 60 && vacJobs.length) { // tìm việc: thử vài chỗ, lấy chỗ gần nhất đủ trình độ
@@ -714,6 +728,15 @@ function peopleDay(c) {
   const count = { kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, homeless: 0, sick: 0, students: 0 }, edu = [0, 0, 0, 0];
   let hs = 0, cs = 0, cn = 0;
   const pumpDirty = c.dirtyWater ? 0.03 : 0;
+  const tierN = [0, 0, 0], tierHp = [0, 0, 0], homeCap = [0, 0, 0], homeFree = [0, 0, 0];
+  let burdenN = 0, homedAdults = 0;
+  for (let i = 0; i < N * N; i++) { // nhà ở theo mức giá: tổng chỗ và chỗ trống (không tính nhà dưỡng lão, ký túc xá)
+    if (!c.level[i]) continue;
+    const rc = resCap(c.zone[i], c.level[i]);
+    if (!rc || ZDEF[c.zone[i]].who) continue;
+    const t = homeTier(rentAt(c, i) / MK);
+    homeCap[t] += rc; homeFree[t] += Math.max(0, rc - c.resCount[i]);
+  }
   for (let id = 0; id < pp.n; id++) {
     if (!pp.alive[id]) continue;
     const age = ++pp.age[id], home = pp.home[id], ya = Math.floor(age); // tuổi lẻ (dân nhập cư, sinh viên): xét theo năm tròn vừa qua
@@ -740,22 +763,38 @@ function peopleDay(c) {
     const adult = age >= 18 && age < 65;
     if (pp.home[id] >= 0 && age >= 18) { const rent = rentAt(c, pp.home[id]) * (whoOf(c, pp.home[id]) === 'student' ? 0.4 : 1); pp.money[id] -= rent; c.biz.money[pp.home[id]] += rent; inner(c, 'rent', rent); } // tiền nhà về chủ nhà (ví của toà nhà)
     { const m0 = pp.money[id]; pp.money[id] = clamp(m0, -200 * MK, 3000 * MK); world(c, 'clamp', pp.money[id] - m0); }
+    // gánh nặng tiền nhà: quá sức thì tìm nhà rẻ hơn, người khá giả ở nhà rẻ thì dọn lên nhà tốt hơn (nhường nhà rẻ)
+    let bd = 0;
+    if (pp.home[id] >= 0 && age >= 18 && !whoOf(c, pp.home[id])) {
+      const inc = incomeOf(c, id), cur = rentDay(c, pp.home[id]);
+      bd = burden(cur, inc);
+      if (bd > TIER_CFG.strain && vac.home.length && rng() < 0.2) {
+        const j = pickHome(vac.home, inc, (h) => { if (!homeOpen(c, h) || h === pp.home[id]) return -1; const r = rentDay(c, h); return r < cur * 0.85 ? r : -1; }, rng);
+        if (j >= 0) { moveTo(id, vac.home[j]); bd = burden(rentDay(c, pp.home[id]), inc); day.downsized = (day.downsized || 0) + 1; }
+      } else if (bd < TIER_CFG.upBurden && tierOf(c, id) >= 1 && vac.home.length && rng() < 0.03) {
+        const j = pickHome(vac.home, inc, (h) => (homeOpen(c, h) && h !== pp.home[id] && rentDay(c, h) > cur * TIER_CFG.upGain ? rentDay(c, h) : -1), rng);
+        if (j >= 0 && burden(rentDay(c, vac.home[j]), inc) <= TIER_CFG.afford) { moveTo(id, vac.home[j]); bd = burden(rentDay(c, pp.home[id]), inc); day.upsized = (day.upsized || 0) + 1; }
+      }
+    }
     let hpy = pp.home[id] >= 0 ? c.fn.cellHappy(c, pp.home[id]).happy : 15;
+    if (bd > TIER_CFG.strain) hpy -= Math.min(16, (bd - TIER_CFG.strain) * 40); // tiền nhà quá nặng: bức bối
     if (adult && pp.work[id] < 0 && !pp.enrolled[id]) { hpy -= 14; if (pp.idle[id] < 250) pp.idle[id]++; }
     if (pp.commute[id] > 5) hpy -= Math.min(20, (pp.commute[id] - 5) * 4);
     if (pp.sick[id]) hpy -= 12;
     if (pp.money[id] > 120 * MK) hpy += 4; else if (pp.money[id] < -40 * MK) hpy -= 10;
     hpy = clamp(hpy, 0, 100); pp.happy[id] = hpy;
     if (pp.home[id] < 0) { count.homeless++; if (pp.idle[id] < 250) pp.idle[id]++; }
-    if ((pp.home[id] < 0 && pp.idle[id] > 3) || (age >= 18 && ((hpy < 22 && rng() < 0.12) || (pp.money[id] < -120 * MK && rng() < 0.2) || (adult && pp.work[id] < 0 && pp.idle[id] > 6 && rng() < 0.15)))) {
+    if ((pp.home[id] < 0 && pp.idle[id] > 3) || (age >= 18 && ((hpy < 22 && rng() < 0.12) || (pp.money[id] < -120 * MK && rng() < 0.2) || (adult && pp.work[id] < 0 && pp.idle[id] > 6 && rng() < 0.15) || (bd > TIER_CFG.crush && rng() < 0.08)))) {
       removeCitizen(c, id); c.econ.movedOut++; day.movedOut++; continue;
     }
     if (age < 18) count.kids++; else if (age < 65) { count.adults++; if (!pp.enrolled[id]) { count.workers++; if (pp.work[id] >= 0) count.employed++; } } else count.seniors++;
     if (pp.sick[id]) count.sick++;
     if (age >= 18) edu[pp.edu[id]]++;
     hs += hpy;
+    if (age >= 18) { const t = tierOf(c, id); tierN[t]++; tierHp[t] += hpy; if (pp.home[id] >= 0 && !whoOf(c, pp.home[id])) { homedAdults++; if (bd > TIER_CFG.strain) burdenN++; } }
     if (pp.work[id] >= 0 && pp.commute[id]) { cs += pp.commute[id]; cn++; }
   }
+  Object.assign(ps, { tier: tierN, tierHappy: tierN.map((n, k) => (n ? tierHp[k] / n : 0)), burdenN, burdenShare: homedAdults ? burdenN / homedAdults : 0, homeTier: { cap: homeCap, free: homeFree } });
   Object.assign(ps, count, { pop: pp.count, edu, unemployed: count.workers - count.employed, happy: pp.count ? hs / pp.count : 55, commute: cn ? cs / cn : 0 });
   crimeDay(c);
   researchDay(c);

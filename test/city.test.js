@@ -2394,6 +2394,46 @@ test('city: cổ tức công ty — thuế thu nhập về ngân sách, chỉ c�
   } finally { Object.assign(S.CORP, keep); }
 });
 
+test('city: tầng lớp dân cư — ngưỡng lương, mức giá nhà, chọn nhà theo túi tiền, gánh nặng tiền nhà, thống kê, không lệch sổ', () => {
+  // hàm thuần
+  const T = S.TIER_CFG;
+  assert.deepEqual([0.9, 1.24, 1.25, 1.89, 1.9, 3].map(S.tierByWage), [0, 0, 1, 1, 2, 2]);
+  assert.deepEqual([0, 1, 2, 3].map(S.tierByEdu), [0, 0, 1, 2]);
+  assert.deepEqual([1, 2.19, 2.2, 3.49, 3.5, 6].map(S.homeTier), [0, 0, 1, 1, 2, 2]);
+  assert.ok(Math.abs(S.dayIncome(2, 10) - 9 * 2 * (5 / 7) * 0.9) < 1e-9);
+  assert.equal(S.burden(2, 0), 2); assert.equal(S.burden(0, 0), 0); assert.ok(Math.abs(S.burden(2, 5) - 0.4) < 1e-9);
+  assert.ok(S.canAfford(2, 5) && !S.canAfford(2.1, 5));
+  assert.ok(S.TIERS[0].shop < S.TIERS[1].shop && S.TIERS[1].shop < S.TIERS[2].shop && S.TIERS[0].fun < S.TIERS[2].fun, 'giàu chi nhiều hơn');
+  // chọn nhà: trong số nhà chịu được lấy nhà đắt nhất; không nhà nào chịu được thì lấy nhà ít gánh nặng nhất; ô hết chỗ (-1) bị bỏ qua
+  const rents = { 10: 1.6, 11: 2.4, 12: 3.8, 13: -1 }, rentOf = (h) => rents[h], list = [10, 11, 12, 13], rng = (() => { let i = 0; return () => ((i++ * 0.37) % 1); })();
+  assert.equal(list[S.pickHome(list, 10, rentOf, rng, 40)], 12, 'khá giả: nhà đắt nhất chịu được');
+  assert.equal(list[S.pickHome(list, 7, rentOf, rng, 40)], 11, 'trung bình: nhà vừa (3,8 vượt 40% thu nhập)');
+  assert.equal(list[S.pickHome(list, 1, rentOf, rng, 40)], 10, 'thu nhập thấp: không chịu được cái nào thì lấy nhà rẻ nhất');
+  assert.equal(S.pickHome([13], 5, rentOf, rng, 8), -1, 'chỉ còn ô hết chỗ: không chọn');
+  // mô phỏng: thống kê tầng lớp, nhà theo mức giá, hộ bị đè nặng
+  const c = town(); run(c, 24 * 25);
+  const ps = c.pstats, adults = [...Array(c.pp.n).keys()].filter((id) => c.pp.alive[id] && c.pp.age[id] >= 18).length;
+  assert.ok(Math.abs(ps.tier.reduce((a, b) => a + b, 0) - adults) <= adults * 0.15 + 2, 'thống kê tầng lớp theo ngày, khớp số người lớn (lệch chút vì dân đến, lớn lên sau lần chốt)');
+  assert.ok(ps.homeTier.cap.reduce((a, b) => a + b, 0) > 0 && ps.homeTier.cap.every((v, k) => ps.homeTier.free[k] <= v));
+  assert.ok(ps.burdenShare >= 0 && ps.burdenShare <= 1 && ps.burdenN <= adults);
+  for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id]) assert.ok(S.tierOf(c, id) >= 0 && S.tierOf(c, id) <= 2 && S.incomeOf(c, id) > 0);
+  // sức chứa nhà không bị lệch sau khi dân dọn nhà
+  const cnt = new Map(); for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] >= 0) cnt.set(c.pp.home[id], (cnt.get(c.pp.home[id]) || 0) + 1);
+  for (const [h, n] of cnt) assert.equal(c.resCount[h], n, `resCount ô ${h}`);
+  // tiền nhà quá sức làm dân bỏ đi: cùng một bản lưu, ngưỡng "quá sức" thấp thì mất nhiều dân hơn
+  const snap = JSON.parse(JSON.stringify(S.serialize(c)));
+  const a = S.deserialize(JSON.parse(JSON.stringify(snap))), b = S.deserialize(JSON.parse(JSON.stringify(snap)));
+  const keep = { ...T };
+  try {
+    run(a, 24 * 10);
+    Object.assign(T, { crush: 0.02 }); run(b, 24 * 10);
+  } finally { Object.assign(T, keep); }
+  assert.ok(b.pp.count < a.pp.count, `tiền nhà đè nặng làm dân bỏ đi (${b.pp.count} < ${a.pp.count})`);
+  // sổ tiền vẫn khớp
+  LG.resetLedger(c); run(c, 24 * 5);
+  const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
 test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {
   const c = town(); run(c, 120);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });

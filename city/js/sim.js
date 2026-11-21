@@ -37,7 +37,7 @@ export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './wor
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
-export { bizKind, wageAt, rentAt, isTro, TRO_RENT, RETAIL, retailDay, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
+export { bizKind, wageAt, rentAt, incomeOf, tierOf, rentDay, isTro, TRO_RENT, RETAIL, retailDay, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
@@ -50,6 +50,7 @@ export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
+export { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, canAfford, pickHome } from './tiers.js';
 export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend } from './corp.js';
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
@@ -2230,7 +2231,7 @@ export function recalc(c) {
   // tổng việc cần mở ≈ 1,07 × người lao động + 18: luôn dư chút việc để thành phố còn hút người tới
   const needO = (ps.edu[2] + ps.edu[3]) * 0.5, needC = workers * 0.45 + 8, needI = Math.max(10, workers * 0.62 + 10 - jo * 0.7);
   // pull: sức hút người tới ở (có việc, sống ổn); nhu cầu xây thêm nhà = pull trừ phần nhà đang bỏ trống
-  c.pull = clamp(early + clamp((vacJobs - unemployed) / Math.max(40, workers * 0.3), -1, 0.6) + (ps.happy - 45) / 80 + tm(c.tax.r) + bonus.pull, -1, 1);
+  c.pull = clamp(early + clamp((vacJobs - unemployed) / Math.max(40, workers * 0.3), -1, 0.6) + (ps.happy - 45) / 80 - (ps.burdenShare || 0) * 0.3 + tm(c.tax.r) + bonus.pull, -1, 1); // tiền nhà quá nặng với nhiều hộ: bớt người muốn đến
   c.demand.x = clamp(0.7 + tm(c.tax.i) * 2 - short * 2, -1, 1); // khu chuyên biệt bán ra ngoài được nên chỉ cần có người làm
   c.demand.r = clamp(c.pull - spare, -1, 1);
   c.demand.c = clamp((needC - jc) / Math.max(30, needC) + tm(c.tax.c) - short, -1, 1);

@@ -1290,6 +1290,15 @@ function renderCity(force) {
         ...(rep ? [row('Muốn rời đi: thất nghiệp · vô gia cư · bất mãn · nợ', `${rep.want.unemployed} · ${rep.want.homeless} · ${rep.want.unhappy} · ${rep.want.broke}`), row('Điểm thịnh vượng', `${S.prosperity(rep)}`)] : []),
       ];
     })(),
+    '<h4>Tầng lớp dân cư (người lớn)</h4>',
+    ...(() => {
+      const T = ps.tier || [0, 0, 0], tot = T[0] + T[1] + T[2], H = ps.homeTier || { cap: [0, 0, 0], free: [0, 0, 0] }, hp = ps.tierHappy || [0, 0, 0];
+      return [
+        ...S.TIERS.map((t, k) => row(`${t.icon} ${t.name}`, `${pct(T[k], tot)} · vui ${Math.round(hp[k])} · nhà ${t.key === 'low' ? 'rẻ' : t.key === 'mid' ? 'vừa' : 'cao cấp'} trống ${fmt(H.free[k])}/${fmt(H.cap[k])}`)),
+        row('Hộ bị tiền nhà đè nặng (trên 50% thu nhập)', `${fmt(ps.burdenN || 0)} (${Math.round((ps.burdenShare || 0) * 100)}%)${(ps.burdenShare || 0) > 0.2 ? ' <span class="neg">· cao</span>' : ''}`),
+        row('Hôm qua: dọn xuống nhà rẻ · dọn lên nhà tốt', `${last.downsized || 0} · ${last.upsized || 0}`),
+      ];
+    })(),
     '<h4>Học vấn người lớn</h4>',
     row('Chưa học · tiểu học', `${pct(ps.edu[0], adults)} · ${pct(ps.edu[1], adults)}`),
     row('Trung học · đại học', `${pct(ps.edu[2], adults)} · ${pct(ps.edu[3], adults)}`),
@@ -1410,6 +1419,13 @@ function updateHud(force) {
   if (deadWait > 4) al.push([`⚱️ ${deadWait} người mất chưa được đưa đi: ${s.graves + s.cremate ? (s.graves && s.gravesUsed >= s.graves && !s.cremate ? 'nghĩa trang đã đầy, xây thêm hoặc làm đài hoá thân' : 'thêm xe tang (nghĩa trang, đài hoá thân) hoặc gỡ kẹt xe') : 'xây một nghĩa trang (nhóm 🏥 Y tế)'}`, 1]);
   if (ps.crime > 0.35) al.push([`🚨 Tội phạm cao (${Math.round(ps.crime * 100)}%): thêm đồn công an, tạo việc làm${s.prisonCap ? '' : ', xây trại giam'}`, 1]);
   else if (s.prisonCap && s.prisoners >= s.prisonCap - 1) al.push(['⛓️ Trại giam đã đầy: công an trấn áp kém hẳn, xây thêm trại giam', 1]);
+  { const H = ps.homeTier, T = ps.tier;
+    if (s.pop > 120 && H && T) {
+      const lowTot = T[0] || 0;
+      if ((ps.burdenShare || 0) > 0.2 && H.free[0] < Math.max(4, lowTot * 0.03)) al.push([`🏚️ ${Math.round(ps.burdenShare * 100)}% hộ bị tiền nhà đè nặng, nhà giá rẻ gần hết chỗ: quy hoạch thêm nhà trọ, nhà liền kề cấp thấp`, 1]);
+      if (T[2] > 10 && H.cap[2] < T[2] * 0.3) al.push(['🏡 Người khá giả ở nhà vừa, thiếu nhà cao cấp: nâng giá đất, trồng cây xanh, mở công viên để lên cấp']);
+      if (H.cap[2] > 20 && H.free[2] > H.cap[2] * 0.6 && (T[2] || 0) < H.cap[2] * 0.25) al.push(['Nhà cao cấp ế (ít người khá giả): tạo việc làm lương cao, mở trường đại học']);
+    } }
   if (s.pop > 60 && s.unemployed > s.workers * 0.15) al.push(['Thiếu việc làm: quy hoạch thêm 🏬 thương mại, 🏭 công nghiệp']);
   if (s.pop > 60 && s.vacJobs > s.workers * 0.25 + 20) al.push(['Doanh nghiệp thiếu người: quy hoạch thêm nhà ở, mở trường để có lao động trình độ']);
   if (s.pop > 60 && c.demand.c > 0.5) al.push(['Nhu cầu thương mại đang cao']);

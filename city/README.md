@@ -200,6 +200,17 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 28. **Nhóm cạnh tranh** (nút 🏆, cần đăng nhập): thi với thành phố của người chơi khác mà không ai đụng được vào thành phố của mình. Mỗi ngày giải (1 giờ thật) máy chủ chia dân chuyển đến, du khách, đầu tư mới và giá chợ chung theo sức hút của từng thành phố; bảng xếp hạng theo điểm thịnh vượng. Mua bán giữa các thành phố theo hợp đồng giá mỗi ngày: tự đặt giá chào bán và thuế nhập khẩu từng loại hàng (thuế vào ngân sách; thuế cao thì doanh nghiệp mua của thế giới máy). Tiền mua bán đi thẳng giữa các thành phố qua máy chủ (trả trước, đối chiếu ngày giải sau, hoàn phần không giao). 🏆 và 💸 Dòng tiền là cửa sổ riêng (3 cột, thu nhỏ được để xem bản đồ). Trong nhóm, 1 ngày game = 1 giờ thật (không tua nhanh), mở lại thì chạy bù tối đa 7 ngày (`js/league.js`, `gateway/city-league.js`, migration `20261121000000_city_league.sql`).
 29. **Chuỗi sản xuất nhiều tầng**: nhà máy làm một thành phẩm cố định theo vị trí (bấm vào để xem): tầng 1 🥫 thực phẩm (nông sản / cá), 👕 quần áo (nông sản), 🪑 nội thất (gỗ), 🔩 thép (khoáng sản), 🧪 nhựa (dầu); tầng 2 cần đủ hai nguyên liệu: 🚗 máy móc (thép + nhựa), 💻 điện tử (khoáng sản + nhựa). Xưởng chế biến chỉ làm thực phẩm, quần áo, nội thất. Cửa hàng bán hàng tiêu dùng theo giá từng loại (hàng đắt bán được giá hơn), thép và nhựa chỉ bán cho nhà máy khác hoặc xuất khẩu. Mỗi thành phẩm có giá chợ riêng (biểu đồ trong 📊, chợ chung và hợp đồng trong 🏆). Máy móc có lãi khi có thép, nhựa làm ngay trong thành phố.
 
+## Tầng lớp dân cư
+
+Mỗi người lớn thuộc một trong ba tầng, tính từ lương chỗ làm (chưa có việc thì theo học vấn): 🏚️ **thu nhập thấp** (lương dưới 1,25 MK/giờ), 🏠 **trung lưu** (dưới 1,9), 🏡 **khá giả** (từ 1,9). Nhà ở cũng chia ba mức theo tiền nhà mỗi ngày: rẻ (dưới 2,2 MK, kiểu nhà trọ), vừa, cao cấp (từ 3,5 MK; giá đất và cấp công trình càng cao thì tiền nhà càng cao).
+
+- **Chọn nhà theo túi tiền:** người mới đến, người vô gia cư xem vài căn trống, lấy căn đắt nhất vẫn chịu được (tiền nhà tối đa 40% thu nhập), không căn nào chịu được thì lấy căn rẻ nhất.
+- **Gánh nặng tiền nhà** (tiền nhà / thu nhập mỗi ngày): trên 50% thì giảm hài lòng (tối đa −16), mỗi ngày có 20% cơ hội dọn xuống căn rẻ hơn ít nhất 15% nếu còn chỗ; trên 90% thì có thể bỏ đi (8% mỗi ngày). Nhiều hộ bị đè nặng làm thành phố bớt hút người (tối đa −0,3 sức hút).
+- **Dọn lên:** người trung lưu, khá giả ở nhà quá rẻ so với thu nhập (tiền nhà dưới 18%) thỉnh thoảng dọn lên nhà đắt hơn ít nhất 25%, nhường nhà rẻ lại cho người khác.
+- **Chi tiêu theo tầng:** người khá giả chi nhiều hơn khi mua sắm (×1,35) và ăn uống, giải trí (×1,5); người thu nhập thấp chi ít hơn (×0,75 và ×0,7).
+- **Bảng 👥 → "Tầng lớp dân cư":** tỷ lệ từng tầng, độ vui, chỗ trống của nhà rẻ / vừa / cao cấp, số hộ bị tiền nhà đè nặng, số hộ dọn xuống / dọn lên hôm qua. Cảnh báo khi nhà rẻ cạn mà nhiều hộ bị đè nặng, khi thiếu nhà cao cấp cho người khá giả, hoặc khi nhà cao cấp ế.
+- Mọi thứ suy ra từ lương, học vấn, tiền nhà hiện tại nên không thêm gì vào bản lưu; bản lưu cũ chơi tiếp bình thường. Tham số ở `city/js/tiers.js` (`TIER_CFG`).
+
 ## Kinh tế mở rộng
 
 - **Ngân sách theo ngành** (bảng 📊): giáo dục, y tế, an ninh (công an, cứu hoả, trại giam), giao thông chỉnh 50–150%. Chi ít thì phí duy trì giảm nhưng công trình yếu đi (bán kính nhỏ hơn, ít xe, ít chỗ học, đường xuống cấp nhanh, điểm phát triển ra chậm) và dân kém vui; chi nhiều thì ngược lại. Mức vui / buồn theo độ lớn của ngành so với dân số (chỉ một tháp canh lửa thì gần như không ai để ý).
