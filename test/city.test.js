@@ -14,6 +14,8 @@ import http from 'node:http';
 import os from 'node:os';
 import fs from 'node:fs';
 
+// Mô phỏng dùng Math.random ở giao thông, đi lại: đặt hạt giống cố định để kết quả test lặp lại được giữa các lần chạy (không thất thường theo tải máy).
+{ let st = 0x9e3779b9; Math.random = () => { st = (st + 0x6d2b79f5) | 0; let t = Math.imul(st ^ (st >>> 15), 1 | st); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const W = S.cellCenter;
 const road = (c, x0, y0, x1, y1, type = 'small', ctrl = null) => S.buildRoad(c, {
@@ -2424,11 +2426,13 @@ test('city: tầng lớp dân cư — ngưỡng lương, mức giá nhà, chọn
   const snap = JSON.parse(JSON.stringify(S.serialize(c)));
   const a = S.deserialize(JSON.parse(JSON.stringify(snap))), b = S.deserialize(JSON.parse(JSON.stringify(snap)));
   const keep = { ...T };
+  const out0 = a.econ.movedOut;
   try {
     run(a, 24 * 10);
     Object.assign(T, { crush: 0.02 }); run(b, 24 * 10);
   } finally { Object.assign(T, keep); }
-  assert.ok(b.pp.count < a.pp.count, `tiền nhà đè nặng làm dân bỏ đi (${b.pp.count} < ${a.pp.count})`);
+  const outA = a.econ.movedOut - out0, outB = b.econ.movedOut - out0;
+  assert.ok(outB > outA + 10, `tiền nhà đè nặng làm nhiều dân bỏ đi hơn (${outB} > ${outA})`);
   // sổ tiền vẫn khớp
   LG.resetLedger(c); run(c, 24 * 5);
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
