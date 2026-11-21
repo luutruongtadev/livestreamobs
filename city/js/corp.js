@@ -5,14 +5,13 @@
 // Mọi chuyển tiền là chuyển nội bộ trong thành phố hoặc đi qua procure / inner / world, nên sổ cái vẫn khớp.
 import { N, MK, ZDEF, PRODUCTS, RAW_KINDS, PRODUCT_KINDS, productAt, jobCap, hash2, clamp } from './base.js';
 import { inner, world, worldCan } from './ledger.js';
-import { decorFx } from './decor.js';
 
 /** Bảng tham số cân bằng (đơn vị: MK). */
 export const CORP = {
   sweepFrom: 150, sweepRate: 0.35, // cuối ngày: ô sở hữu có quá 150 MK thì 35% phần dư về quỹ công ty
   cellFee: 80, reserve: 40, // phí phát triển một ô (thuê doanh nghiệp xây); quỹ tối thiểu giữ lại
   landFee: 30, // phí đất nộp ngân sách mỗi ô khi dự án được duyệt
-  infraFee: 25, // phí hạ tầng xử lý nước thải: công ty sản xuất nộp ngân sách mỗi ô khi được duyệt (thay cho việc đo cống: công ty không tự xây được hạ tầng)
+  infra: { sewage: 25, green: 15, safe: 15 }, // phí hạ tầng nộp ngân sách mỗi ô khi được duyệt: cống xả thải, cây xanh / công viên, phòng cháy (công ty không tự xây được hạ tầng, thị trưởng dùng tiền này)
   askDays: 8, askCool: 15, breachCool: 30, actCool: 3, // hạn trả lời, nghỉ sau khi bị từ chối / sai cam kết, nhịp hành động
   commitDays: 40, jobsPerCell: 7, pendDays: 40, maxLog: 120,
   foundEvery: 6, foundMin: 300, // lập công ty mới: mỗi 6 ngày, thành phố từ 300 dân
@@ -23,7 +22,6 @@ export const CORP = {
   storeCap: 16, storeMax: 64, wareMax: 3, wareFee: 0.5, // kho bãi: mỗi kho thêm 16 chỗ chứa cho mỗi nhà máy của nhóm (tối đa 64), tối đa 3 kho; phí lưu kho 0.5 MK mỗi người làm mỗi giờ
   dpMin: 0.8, dpMax: 1.3, mkMin: 0.9, mkMax: 1.2, priceMax: 1.35, // giá nội địa: chỉ số cung cầu 0.8–1.3, hệ số bán của từng công ty 0.9–1.2, tổng không quá 1.35
   retailMin: 3, // chuỗi bán lẻ: từ bậc 3
-  termGreen: 0.3, termFire: 2, // cam kết phụ: độ xanh quanh ô ≥ 30%; tối đa 2 ngày có cháy trong hạn
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
@@ -41,33 +39,16 @@ const BASES = ['Đại Việt', 'Hồng Hà', 'Phương Nam', 'Sông Hương', '
 const prefix = (st) => (st >= 4 ? 'Tập đoàn' : st === 3 ? 'Tổng công ty' : 'Công ty');
 export const corpTitle = (q) => `${prefix(q.stage)} ${q.name}`;
 
-/** Cam kết phụ (ngoài việc làm), đều đo được từ dữ liệu game. */
+/** Cam kết phụ (ngoài việc làm): công ty không tự xây được hạ tầng, nên mỗi loại là một khoản phí nộp ngân sách khi được duyệt, thị trưởng dùng tiền đó xây cống, trồng cây, lập trạm cứu hoả. Không đo sau đó. */
 export const TERM_KEYS = ['sewage', 'green', 'safe'];
-export const TERMS = { sewage: 'Phí hạ tầng nước thải', green: 'Xanh hoá quanh nhà máy', safe: 'An toàn phòng cháy' };
-export const termLine = (k) => ({
-  sewage: `nộp phí hạ tầng nước thải ${CORP.infraFee} MK mỗi ô`,
-  green: `độ xanh quanh nhà máy từ ${Math.round(CORP.termGreen * 100)}%`,
-  safe: `không quá ${CORP.termFire} ngày có cháy ở ô dự án`,
-}[k] || k);
-/** Cam kết phụ theo loại và bậc công ty: sản xuất nộp phí hạ tầng nước thải (không đo, nộp ngay khi duyệt), bậc 3 trở lên thêm xanh hoá và phòng cháy; bán lẻ chỉ phòng cháy. */
+export const TERMS = { sewage: 'Phí hạ tầng nước thải', green: 'Phí cây xanh, công viên', safe: 'Phí phòng cháy chữa cháy' };
+export const termLine = (k) => (CORP.infra[k] ? `nộp ${TERMS[k].toLowerCase()} ${CORP.infra[k]} MK mỗi ô` : k);
+/** Cam kết phụ theo loại và bậc công ty: sản xuất nộp phí nước thải, bậc 3 trở lên thêm phí cây xanh và phòng cháy; bán lẻ chỉ phí phòng cháy. */
 export function termsFor(c, q) {
   if (q.kind === 'trade') return ['safe'];
   const t = ['sewage'];
   if (q.stage >= 3) t.push('green', 'safe');
   return t;
-}
-/** Độ xanh một ô (cùng công thức lọc không khí: cây quanh, công viên, trang trí). */
-function greenOf(c, i) {
-  const x = i % N, y = (i / N) | 0;
-  let g = 0;
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < N && Y < N && c.tree[Y * N + X]) g++; }
-  const fx = decorFx(c).green[i];
-  return clamp(g * 0.055 + ((c.cover && c.cover.park[i]) || 0) * 0.3 + fx * 0.35, 0, 1);
-}
-/** Các ô dự án còn của nhóm và đã xây xong (đo cam kết phụ). */
-function dealCells(c, q, d) {
-  const g = c.corpGroup;
-  return (d.ids || []).filter((i) => c.level[i] > 0 && c.owner[i] && (g ? g[c.owner[i]] === g[q.id] : c.owner[i] === q.id));
 }
 
 const cur = (c) => (c.corp ? c.corp : null);
@@ -150,7 +131,7 @@ export function initCorp(c, o = {}) {
       partners: Array.isArray(r.partners) ? r.partners.slice(0, 2).map((x) => x | 0) : undefined, intern: Math.max(0, num(r.intern)), xunits: Math.max(0, num(r.xunits)),
       goal: r.goal && r.goal.jobs > 0 ? { jobs: r.goal.jobs | 0 } : { jobs: 40 },
       cells: (Array.isArray(r.cells) ? r.cells : []).filter((p) => Array.isArray(p) && p[0] >= 0 && p[0] < N * N).map((p) => [p[0] | 0, p[1] | 0]),
-      deals: (Array.isArray(r.deals) ? r.deals : []).slice(0, 6).map((d) => ({ id: d.id | 0, cells: d.cells | 0, jobs: d.jobs | 0, base: d.base | 0, due: d.due | 0, status: ['open', 'met', 'breach'].includes(d.status) ? d.status : 'open', ids: (Array.isArray(d.ids) ? d.ids : []).filter((x) => x >= 0 && x < N * N).slice(0, 8).map((x) => x | 0), terms: (Array.isArray(d.terms) ? d.terms : []).filter((k) => TERM_KEYS.includes(k)), st: { n: num(d.st && d.st.n), sw: num(d.st && d.st.sw), gr: num(d.st && d.st.gr), fd: num(d.st && d.st.fd) } })),
+      deals: (Array.isArray(r.deals) ? r.deals : []).slice(0, 6).map((d) => ({ id: d.id | 0, cells: d.cells | 0, jobs: d.jobs | 0, base: d.base | 0, due: d.due | 0, status: ['open', 'met', 'breach'].includes(d.status) ? d.status : 'open', terms: (Array.isArray(d.terms) ? d.terms : []).filter((k) => TERM_KEYS.includes(k)) })),
       log: (Array.isArray(r.log) ? r.log : []).slice(-CORP.maxLog).map((e) => ({ ...e, text: typeof e.text === 'string' ? e.text.replace(/[<>]/g, '').slice(0, 200) : undefined })),
     };
     q.cells = q.cells.filter(([i]) => !c.owner[i]);
@@ -210,8 +191,8 @@ function projectSites(c, q, n) {
 // ───────────────────────── cổng hành động ─────────────────────────
 
 const feeOf = (n) => n * CORP.cellFee * MK;
-/** Quỹ cần có cho dự án n ô: phí xây + phí đất + phí hạ tầng (nếu có cam kết nước thải) + quỹ dự phòng. */
-const infraOf = (terms, n) => ((terms || []).includes('sewage') ? CORP.infraFee * MK * n : 0);
+/** Quỹ cần có cho dự án n ô: phí xây + phí đất + phí hạ tầng của các cam kết phụ + quỹ dự phòng. */
+const infraOf = (terms, n) => (terms || []).reduce((sum, k) => sum + (CORP.infra[k] || 0) * MK * n, 0);
 const projNeed = (terms, n) => feeOf(n) + CORP.landFee * MK * n + infraOf(terms, n) + CORP.reserve * MK;
 /** Khu quy hoạch công ty xây: công ty thương mại xây cửa hàng (khu 2), công ty sản xuất xây nhà máy (khu 3). */
 const buildZone = (q) => (q.kind === 'trade' ? 2 : 3);
@@ -329,10 +310,10 @@ export function approveAsk(c, id) {
   if (!r.ok) { corpLog(c, q, 'askFailed', { text: r.reason }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return r; }
   const land = CORP.landFee * MK * r.n; // phí đất theo số ô thật sự được giao
   q.cash -= land; c.money += land; inner(c, 'corpLand', land); // phí đất: quỹ công ty → ngân sách (trong thành phố)
-  const infra = infraOf(a.terms, r.n); // phí hạ tầng nước thải: quỹ công ty → ngân sách, để thị trưởng xây cống, trạm xử lý
+  const infra = infraOf(a.terms, r.n); // phí hạ tầng (cống, cây xanh, phòng cháy): quỹ công ty → ngân sách, để thị trưởng xây
   if (infra > 0) { q.cash -= infra; c.money += infra; inner(c, 'corpInfra', infra); }
   const jobs = Math.round(a.jobs * (r.n / a.sites.length));
-  q.deals.push({ id: a.id, cells: r.n, jobs, base, due: c.day + a.days, status: 'open', ids: a.sites.filter((i) => c.owner[i] === q.id), terms: (a.terms || []).filter((k) => TERM_KEYS.includes(k)), st: { n: 0, sw: 0, gr: 0, fd: 0 } });
+  q.deals.push({ id: a.id, cells: r.n, jobs, base, due: c.day + a.days, status: 'open', terms: (a.terms || []).filter((k) => TERM_KEYS.includes(k)) });
   q.trust = clamp(q.trust + 0.5, -3, 5);
   corpLog(c, q, 'approved', { n: r.n, jobs, due: c.day + a.days, infra: Math.round(infra) });
   c.corp.asks = c.corp.asks.filter((x) => x !== a);
@@ -536,32 +517,12 @@ function found(c, opt = {}) {
   return q;
 }
 
-/** Mỗi ngày đo các cam kết phụ của cam kết đang mở: nối cống, độ xanh (trung bình theo ngày); ngày cháy đếm theo từng giờ ở corpHour. */
-function sampleDeal(c, q, d) {
-  if (!d.terms || !d.terms.length) return;
-  const ids = dealCells(c, q, d);
-  if (!ids.length) return;
-  const st = d.st || (d.st = { n: 0, sw: 0, gr: 0, fd: 0 });
-  st.n++;
-  if (d.terms.includes('green')) st.gr += ids.reduce((s, i) => s + greenOf(c, i), 0) / ids.length;
-}
 function evalDeals(c, q) {
   for (const d of q.deals) {
-    if (d.status !== 'open') continue;
-    sampleDeal(c, q, d);
-    if (c.day < d.due) continue;
-    const got = jobsOf(c, q) - d.base, st = d.st || { n: 0, sw: 0, gr: 0, fd: 0 }, terms = d.terms || [], fails = [];
-    if (st.n > 0) {
-      if (terms.includes('green') && st.gr / st.n < CORP.termGreen) fails.push('green');
-    }
-    if (terms.includes('safe') && st.fd > CORP.termFire) fails.push('safe');
-    const jobsOk = got >= d.jobs, extra = fails.map((k) => TERMS[k].toLowerCase()).join(', ');
-    if (jobsOk && !fails.length) { d.status = 'met'; q.trust = clamp(q.trust + 1, -3, 5); corpLog(c, q, 'dealMet', { jobs: got, want: d.jobs, terms: terms.length }); news(c, `✅ ${corpTitle(q)} đạt cam kết: thêm ${got} việc làm${terms.length ? ` và ${terms.length} cam kết phụ` : ''}`); }
-    else {
-      d.status = 'breach'; q.trust = clamp(q.trust - (jobsOk ? 0 : 1.5) - Math.min(1.5, fails.length), -3, 5); q.cool.ask = c.day + CORP.breachCool;
-      corpLog(c, q, 'dealBreach', { jobs: got, want: d.jobs, fails });
-      news(c, `⚠️ ${corpTitle(q)} chưa đạt cam kết${jobsOk ? '' : ` việc làm (${got}/${d.jobs})`}${extra ? `${jobsOk ? '' : ';'} chưa đạt: ${extra}` : ''}, bị tạm dừng xin dự án ${CORP.breachCool} ngày`);
-    }
+    if (d.status !== 'open' || c.day < d.due) continue;
+    const got = jobsOf(c, q) - d.base;
+    if (got >= d.jobs) { d.status = 'met'; q.trust = clamp(q.trust + 1, -3, 5); corpLog(c, q, 'dealMet', { jobs: got, want: d.jobs }); news(c, `✅ ${corpTitle(q)} đạt cam kết: thêm ${got} việc làm`); }
+    else { d.status = 'breach'; q.trust = clamp(q.trust - 1.5, -3, 5); q.cool.ask = c.day + CORP.breachCool; corpLog(c, q, 'dealBreach', { jobs: got, want: d.jobs }); news(c, `⚠️ ${corpTitle(q)} chưa đạt cam kết việc làm (${got}/${d.jobs}), bị tạm dừng xin dự án ${CORP.breachCool} ngày`); }
   }
   q.deals = q.deals.filter((d) => d.status === 'open' || c.day < d.due + 30).slice(-6);
 }
@@ -644,11 +605,6 @@ export function corpHour(c) {
     if (!built(c, i)) continue;
     const ex = c.biz.money[i] - CORP.sweepFrom * MK;
     if (ex > 0) { const d = ex * CORP.sweepRate; c.biz.money[i] -= d; q.cash += d; }
-  }
-  for (const q of C.list) for (const d of q.deals) { // ngày có cháy ở ô dự án: mỗi ngày tính một lần dù cháy nhiều giờ
-    if (d.status !== 'open' || !d.terms || !d.terms.includes('safe') || !d.ids) continue;
-    const st = d.st || (d.st = { n: 0, sw: 0, gr: 0, fd: 0 });
-    if (st.fl !== c.day && dealCells(c, q, d).some((i) => c.fire[i])) { st.fl = c.day; st.fd++; }
   }
   for (const q of C.list) if (q.pend) settle(c, q);
   if (h === 6) daily(c);

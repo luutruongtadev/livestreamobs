@@ -1749,7 +1749,7 @@ const CORP_LOG = {
   crisis: (e) => `Khủng hoảng: quỹ ${money(e.cash)}, nhà máy chạy ${e.eff}% công suất`, payUp: (e) => `Thiếu người (${e.fill}% chỗ làm có người): tăng lương 15% để giành lao động`, payDown: (e) => `Hạ lương về mức cũ (${e.fill}% chỗ có người)`,
   monopoly: (e) => `Nắm quá 60% ${S.PRODUCTS[e.product] ? S.PRODUCTS[e.product].name.toLowerCase() : ''} của thành phố: độc quyền`, monopolyEnd: () => 'Hết độc quyền', dependence: (e) => `Giữ ${e.share}% việc làm của thành phố`, shock: (e) => `Sụp đổ, thành phố mất ${e.share}% việc làm`,
   warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`,
-  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm${e.terms ? ` và ${e.terms} cam kết phụ` : ''}`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm${e.fails && e.fails.length ? `; chưa đạt: ${e.fails.map((k) => (S.TERMS[k] || k).toLowerCase()).join(', ')}` : ''}`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
+  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
 };
 /** AI (Claude) đóng vai CEO: chọn một trong các hành động game đã kiểm tra; quá hạn game tự dùng lựa chọn của luật. */
 function corpPump() {
@@ -1820,11 +1820,7 @@ function renderCorp0(force) {
   const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''}${st.wares ? ` · 🏗️ ${st.wares} kho (chứa thêm ${st.store} mỗi nhà máy)` : ''} · 💱 Giá thế giới ${st.signal} · 🏷️ Hệ số bán ${st.markup}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
   card.append(tr2, el('br'));
   { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono] ? S.PRODUCTS[st.mono].name.toLowerCase() : 'bán lẻ'}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
-  for (const d of q.deals) {
-    const st = d.st || { n: 0, sw: 0, gr: 0, fd: 0 }, prog = [];
-    if (d.status === 'open' && d.terms) for (const k of d.terms) prog.push(k === 'sewage' ? '🚰 đã nộp phí hạ tầng' : k === 'green' ? `🌳 xanh ${st.n ? Math.round((100 * st.gr) / st.n) : 0}%/${Math.round(S.CORP.termGreen * 100)}%` : `🔥 cháy ${st.fd}/${S.CORP.termFire} ngày`);
-    card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}${prog.length ? ` · ${prog.join(' · ')}` : d.terms && d.terms.length ? ` · ${d.terms.map((k) => S.TERMS[k]).join(', ')}` : ''}`), el('br'));
-  }
+  for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}${d.terms && d.terms.length ? ` · đã nộp: ${d.terms.map((k) => S.TERMS[k]).join(', ')}` : ''}`), el('br'));
   card.append(el('h4', null, 'Lịch sử'));
   const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';
   for (const e of q.log.slice(-40).reverse()) ul.append(el('div', null, `Ngày ${e.day + 1}: ${CORP_LOG[e.type] ? CORP_LOG[e.type](e) : e.type}`));

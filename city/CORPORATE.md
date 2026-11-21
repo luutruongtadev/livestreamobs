@@ -249,12 +249,12 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 
 ## Cam kết phụ khi xin dự án
 
-Ngoài việc làm, một đề xuất có thể kèm các cam kết phụ, đo bằng dữ liệu game trong 40 ngày (không dựa vào lời CEO):
+Công ty không tự xây được hạ tầng, nên ngoài việc làm, một đề xuất kèm các **khoản phí hạ tầng** nộp thẳng vào ngân sách khi được duyệt. Thị trưởng dùng tiền đó xây cống, trồng cây, lập trạm cứu hoả. Phí không đo lại sau đó.
 
-| Cam kết | Ai phải có | Đo bằng | Ngưỡng |
-|---|---|---|---|
-| 🚰 Phí hạ tầng nước thải | Công ty sản xuất | Không đo: nộp ngay khi duyệt, 25 MK mỗi ô, thẳng vào ngân sách để thị trưởng xây cống, trạm xử lý | cần đủ quỹ lúc xin |
-| 🌳 Xanh hoá | Công ty sản xuất từ bậc 3 | Độ xanh ô dự án = cây quanh + công viên + trang trí (cùng công thức lọc không khí) | từ 30% |
-| 🔥 An toàn phòng cháy | Sản xuất từ bậc 3; công ty bán lẻ mọi bậc | Số ngày có cháy ở ô dự án (mỗi ngày tính một lần) | tối đa 2 ngày |
+| Khoản phí | Ai phải nộp | Mức |
+|---|---|---|
+| 🚰 Hạ tầng nước thải | Công ty sản xuất | 25 MK mỗi ô |
+| 🌳 Cây xanh, công viên | Sản xuất từ bậc 3 | 15 MK mỗi ô |
+| 🔥 Phòng cháy chữa cháy | Sản xuất từ bậc 3; công ty bán lẻ mọi bậc | 15 MK mỗi ô |
 
-Đạt tất cả: uy tín +1. Không đạt việc làm: −1,5; mỗi cam kết phụ đo được mà hỏng (xanh hoá, phòng cháy): −1 (tối đa −1,5), tạm dừng xin dự án 30 ngày. Công ty không tự xây được hạ tầng, nên thay vì đo cống, họ nộp phí hạ tầng cho ngân sách và thị trưởng dùng tiền đó xây cống, trạm xử lý. Quỹ phải đủ cả phí này lúc xin dự án. Hợp đồng cũ (không có cam kết phụ) vẫn chạy như trước.
+Quỹ công ty phải đủ cả phí xây (80 MK/ô), phí đất (30 MK/ô), các khoản trên và quỹ dự phòng thì mới gửi được đề xuất (liên doanh: mỗi bên một nửa). Công ty nghèo xin ít ô hơn hoặc chưa xin được. Chỉ **việc làm** còn được đo sau 40 ngày: đạt thì uy tín +1, không đạt thì −1,5 và bị tạm dừng xin dự án 30 ngày. Hợp đồng cũ (không có cam kết phụ) vẫn chạy như trước.

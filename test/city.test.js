@@ -2306,21 +2306,22 @@ test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, m�
   } finally { Object.assign(S.CORP, keep); }
 });
 
-test('city: tập đoàn — cam kết phụ (cống xả thải, xanh hoá, phòng cháy): theo loại và bậc, đo được, đạt / không đạt, lưu và nạp', () => {
+test('city: tập đoàn — cam kết phụ là phí hạ tầng (cống, cây xanh, phòng cháy): theo loại và bậc, nộp ngân sách khi duyệt, lưu và nạp, sổ tiền khớp', () => {
   const c = town(); run(c, 120); LG.resetLedger(c);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
   try {
     run(c, 24 * 12);
     const q = c.corp.list.find((x) => x.kind !== 'trade');
     assert.ok(q);
-    // cam kết theo loại và bậc
+    // cam kết phụ theo loại và bậc
     assert.deepEqual(S.termsFor(c, { kind: 'trade', stage: 4 }), ['safe']);
     assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 1 }), ['sewage']);
     assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 3 }), ['sewage', 'green', 'safe']);
-    assert.ok(S.CORP.infraFee > 0 && !('termSewage' in S.CORP), 'cống xả thải là phí hạ tầng, không đo công suất');
-    // xin, duyệt: cam kết ghi vào đề xuất và vào hợp đồng, có danh sách ô để đo
+    assert.ok(Object.keys(S.CORP.infra).every((k) => S.TERM_KEYS.includes(k) && S.CORP.infra[k] > 0) && S.TERM_KEYS.every((k) => S.CORP.infra[k] > 0 && S.TERMS[k] && S.termLine(k).includes('MK')));
+    // xin, duyệt: cam kết ghi vào đề xuất và hợp đồng, các khoản phí về ngân sách
     q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = []; q.stage = 3; q.ceo = 'bold';
-    const site = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
+    const free = () => [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && !c.owner[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]);
+    const site = free().slice(0, 2);
     const ask = S.corpAct(c, q, { type: 'ask', sites: site });
     assert.ok(ask.ok, ask.reason);
     assert.deepEqual(ask.ask.terms, ['sewage', 'green', 'safe']);
@@ -2329,45 +2330,26 @@ test('city: tập đoàn — cam kết phụ (cống xả thải, xanh hoá, ph�
     assert.ok(S.approveAsk(c, ask.ask.id).ok);
     const d = q.deals[q.deals.length - 1];
     assert.deepEqual(d.terms, ['sewage', 'green', 'safe']);
-    const nBuilt = d.cells, infra = S.CORP.infraFee * S.MK * nBuilt, land = S.CORP.landFee * S.MK * nBuilt;
-    assert.ok(Math.abs((c.money - m0) - (land + infra)) < 1e-6, 'phí đất và phí hạ tầng nước thải về ngân sách');
-    assert.ok(q.log.some((e) => e.type === 'approved' && e.infra === Math.round(infra)), 'nhật ký ghi phí hạ tầng');
-    assert.ok(cash0 - q.cash >= land + infra, 'quỹ công ty trả đủ phí');
-    // quỹ không đủ phí hạ tầng thì không xin được
+    const perCell = (S.CORP.landFee + S.CORP.infra.sewage + S.CORP.infra.green + S.CORP.infra.safe) * S.MK, fee = perCell * d.cells;
+    assert.ok(Math.abs((c.money - m0) - fee) < 1e-6, 'phí đất và phí hạ tầng về ngân sách');
+    assert.ok(q.log.some((e) => e.type === 'approved' && e.infra === Math.round((S.CORP.infra.sewage + S.CORP.infra.green + S.CORP.infra.safe) * S.MK * d.cells)), 'nhật ký ghi phí hạ tầng');
+    assert.ok(cash0 - q.cash >= fee, 'quỹ công ty trả đủ phí');
+    // quỹ đủ phí xây + đất nhưng thiếu phí hạ tầng thì không xin được
     q.cash = (S.CORP.cellFee + S.CORP.landFee) * S.MK * 2 + S.CORP.reserve * S.MK; q.cool.ask = 0; c.corp.asks = [];
-    const fresh = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && !c.owner[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
-    assert.equal(fresh.length, 2);
-    const poor = S.corpAct(c, q, { type: 'ask', sites: fresh });
-    assert.equal(poor.ok, false, 'đủ phí xây + đất nhưng thiếu phí hạ tầng thì không xin được');
-    assert.equal(poor.reason, 'Quỹ không đủ cho dự án');
-    q.cash = 5000 * S.MK;
-    assert.ok(d.ids.length >= 1 && d.ids.every((i) => c.owner[i] === q.id), 'ô dự án được ghi lại để đo');
-    // lưu / nạp giữ cam kết phụ và số đo đã tích luỹ
-    d.st = { n: 3, sw: 1.5, gr: 0.6, fd: 1 };
+    const poor = S.corpAct(c, q, { type: 'ask', sites: free().slice(0, 2) });
+    assert.equal(poor.ok, false); assert.equal(poor.reason, 'Quỹ không đủ cho dự án');
+    // lưu / nạp giữ cam kết phụ
     const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
     const bd = back.corp.list.find((x) => x.id === q.id).deals.find((x) => x.id === d.id);
-    assert.deepEqual(bd.terms, d.terms); assert.deepEqual(bd.ids, d.ids); assert.equal(bd.st.n, 3); assert.equal(bd.st.fd, 1);
-    // không đạt: nhiều ngày có cháy → vi phạm, ghi đúng cam kết nào hỏng
-    d.terms = ['safe']; d.st = { n: 5, sw: 0, gr: 0, fd: 9 }; d.due = c.day; d.base = -99999;
-    const t0 = q.trust; run(c, 24);
-    assert.equal(d.status, 'breach');
-    const ev = q.log.filter((e) => e.type === 'dealBreach').pop();
-    assert.deepEqual(ev.fails, ['safe']); assert.ok(q.trust < t0, 'uy tín giảm');
-    // đạt: không cháy → đạt cam kết, uy tín tăng
-    q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = [];
-    const a2 = S.corpAct(c, q, { type: 'ask', sites: [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2) });
-    if (a2.ok && S.approveAsk(c, a2.ask.id).ok) {
-      const d2 = q.deals[q.deals.length - 1];
-      d2.terms = ['safe']; d2.st = { n: 0, sw: 0, gr: 0, fd: 0 }; d2.due = c.day; d2.base = -99999;
-      const t1 = q.trust; run(c, 24);
-      assert.equal(d2.status, 'met'); assert.ok(q.trust > t1);
-    }
-    // cháy ở ô dự án: mỗi ngày chỉ đếm một lần dù cháy nhiều giờ
-    const d3 = { id: 9999, cells: 1, jobs: 1, base: 0, due: c.day + 99, status: 'open', ids: [q.cells[0][0]], terms: ['safe'], st: { n: 0, sw: 0, gr: 0, fd: 0 } };
-    q.deals.push(d3); c.fire[q.cells[0][0]] = 1;
-    S.corpHour(c); S.corpHour(c);
-    assert.equal(d3.st.fd, 1, 'một ngày cháy dù đo nhiều giờ');
-    c.fire[q.cells[0][0]] = 0;
+    assert.deepEqual(bd.terms, d.terms);
+    // công ty bán lẻ: chỉ phí phòng cháy
+    q.cash = 5000 * S.MK;
+    // đạt cam kết việc làm thì uy tín tăng, không đạt thì giảm (cam kết phụ đã nộp phí, không đo lại)
+    d.due = c.day; d.base = -99999; const t0 = q.trust; run(c, 24);
+    assert.equal(d.status, 'met'); assert.ok(q.trust > t0);
+    // sổ tiền khớp sau khi nộp phí
+    LG.resetLedger(c); run(c, 24 * 5);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
   } finally { Object.assign(S.CORP, keep); }
 });
 
@@ -2503,7 +2485,10 @@ test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá n
     assert.ok(q, 'có công ty');
     // kho bãi: công ty xây kho trên ô mới; ô có cờ kho, nhóm có thêm chỗ chứa
     q.stage = 2; q.cash = 4000 * S.MK; c.stats.powerCap = 1e9;
-    const site = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]);
+    c.money += 200000; for (let k = 0; k < 12; k++) S.placeService(c, 'wind', c.start.x + (k % 2 ? 4 : -4), 17 + k); // thêm điện: nhà máy mới của công ty có thể làm quá tải mạng
+    run(c, 3);
+    const site = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i] && c.pOk[i] === 1 && c.wOk[i] === 1); // ô đã có điện nước (nếu không, kho không xây được dù đã trả tiền)
+    assert.ok(site != null, 'có ô trống đã có điện nước');
     LG.resetLedger(c);
     const r = S.corpAct(c, q, { type: 'build', cells: [site], ware: true });
     assert.ok(r.ok, JSON.stringify(r));
