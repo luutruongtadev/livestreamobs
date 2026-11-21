@@ -230,3 +230,10 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - Lập công ty con không làm mẹ bị tính sai cam kết việc làm (việc làm chuyển sang con được trừ khỏi mốc).
 - Tên công ty không trùng (công ty con thương mại, công ty con, liên doanh).
 - Nợ không trả nổi phình quá 2 lần hạn mức thì vỡ nợ: ngân hàng xoá nợ, công ty mất uy tín, bị cấm vay 60 ngày.
+
+## 20. Rà soát giá bán lẻ (sửa)
+
+- Cạnh tranh bằng giá thật: nhu cầu của dân chia giữa các cửa hàng, sạp chợ theo số người đứng quầy × giá^-2 (rẻ hơn thì đông khách hơn, khách bỏ chỗ đắt sang chỗ rẻ); tổng lượng mua cả thành phố chỉ giảm theo mặt bằng giá chung (^-0.6).
+- Giá chỉnh theo kệ hàng trung bình cả ngày, không chỉ ảnh chụp lúc nửa đêm (một chuyến xe hàng tới sớm hay muộn không còn quyết định giá).
+- Chỉ số giá chung tính theo lượng bán (giá dân thật sự trả); chưa ai mua gì thì theo số chỗ làm. Cửa hàng kệ trống không bán được không kéo chỉ số lên nữa.
+- Giá từng cửa hàng và chỉ số giá được lưu vào bản lưu, nạp lại không nhảy về ×1.

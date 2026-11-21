@@ -2517,7 +2517,7 @@ test('city: giá bán lẻ theo cung cầu — kệ cạn thì giá lên, hàng 
   assert.ok(shops.length >= 2, 'có cửa hàng');
   const [a, b] = shops;
   // chỉ số giá là kệ cạn → tăng; hàng ứ → giảm (một ngày một nhịp, trong khung)
-  c.biz.rp[a] = 1; c.biz.rp[b] = 1;
+  c.biz.rp[a] = 1; c.biz.rp[b] = 1; c.biz.nh = 0;
   for (let d = 0; d < 6; d++) { c.biz.sin[a] = 0; c.biz.sin[b] = 48; S.retailDay(c, [a, b]); } // gọi thẳng nhịp giá mỗi ngày (xe giao hàng ngẫu nhiên không làm lệch)
   assert.ok(c.biz.rp[a] > 1.05 && c.biz.rp[b] < 0.95, `cạn ${c.biz.rp[a]}, ứ ${c.biz.rp[b]}`);
   for (const i of shops) assert.ok(c.biz.rp[i] >= S.RETAIL.min && c.biz.rp[i] <= S.RETAIL.max);
@@ -2527,9 +2527,15 @@ test('city: giá bán lẻ theo cung cầu — kệ cạn thì giá lên, hàng 
   c.retailIdx = 1.4; const hi = S.cellHappy(c, home);
   assert.ok(hi.happy <= h0 && (h0 <= 5 || hi.happy < h0) && hi.needs.some((n) => n.includes("×1.40")), `vui ${h0} → ${hi.happy}`); // vui chạm sàn 0 thì chỉ cần không tăng
   c.retailIdx = 0.85; assert.ok(S.cellHappy(c, home).happy >= h0);
-  // lưu / nạp rồi chạy tiếp vẫn khớp sổ tiền (giá thay đổi nhưng người mua trả đúng bằng người bán nhận)
+  // cạnh tranh bằng giá: cửa hàng rẻ đông khách hơn cửa hàng đắt (tính theo người đứng quầy)
+  while (c.hour % 24 !== 9) run(c, 1);
+  let pa = 0, pb = 0; c.biz.rs[a] = 0; c.biz.rs[b] = 0;
+  for (let h = 0; h < 6; h++) { c.biz.rp[a] = 0.8; c.biz.rp[b] = 1.4; c.biz.sin[a] = c.biz.sin[b] = 40; run(c, 1); pa += c.present[a]; pb += c.present[b]; }
+  assert.ok(pa && pb && c.biz.rs[a] / pa > c.biz.rs[b] / pb, `rẻ ${c.biz.rs[a]}/${pa}, đắt ${c.biz.rs[b]}/${pb}`);
+  // lưu / nạp giữ giá từng cửa hàng và chỉ số giá; chạy tiếp vẫn khớp sổ tiền (người mua trả đúng bằng người bán nhận)
+  c.biz.rp[a] = 1.3; c.retailIdx = 1.2;
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-  assert.ok(back.biz.rp && back.biz.rp.length === c.biz.rp.length);
+  assert.ok(Math.abs(back.biz.rp[a] - 1.3) < 1e-3 && Math.abs(back.retailIdx - 1.2) < 1e-3);
   LG.resetLedger(c); run(c, 24 * 8);
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
 });

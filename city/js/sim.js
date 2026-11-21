@@ -2466,13 +2466,19 @@ const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s +=
 const unb64 = (str, n) => { const s = atob(str || ''), u = new Uint8Array(n ?? s.length); for (let i = 0; i < u.length && i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
 const r1 = (v) => Math.round(v * 10) / 10;
 
+/** Giá bán lẻ: chỉ lưu các ô khác giá gốc, [ô, hệ số]. */
+function packRetail(c) {
+  const rp = [];
+  for (let i = 0; i < N * N; i++) if (c.level[i] && Math.abs((c.biz.rp[i] || 1) - 1) > 0.005) rp.push([i, Math.round(c.biz.rp[i] * 1000) / 1000]);
+  return { idx: Math.round((c.retailIdx || 1) * 1000) / 1000, rp };
+}
 export function serialize(c) {
   const pack = (k) => b64(c[k]), pp = packPeople(c), terra = [];
   for (let k = 0; k < c.terra.length; k++) if (c.terra[k]) terra.push(k, c.terra[k]);
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural, abroad: c.popl.abroad } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), retail: packRetail(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2570,6 +2576,10 @@ function deserializeAt(o) {
     c.nextId = Math.max(keep, id + 1);
   }
   for (let i = 0; i < N * N; i++) if (c.level[i]) c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0;
+  if (o.retail) { // giá bán lẻ từng cửa hàng và chỉ số giá chung: nạp lại không bị nhảy về ×1
+    for (const p of Array.isArray(o.retail.rp) ? o.retail.rp : []) if (Array.isArray(p) && p[0] >= 0 && p[0] < N * N && c.level[p[0]]) c.biz.rp[p[0] | 0] = clamp(+p[1] || 1, RETAIL.min, RETAIL.max);
+    c.retailIdx = clamp(+o.retail.idx || 1, RETAIL.min, RETAIL.max);
+  }
   unpackBld(c, o.bld && o.bld.age ? o.bld : null, lv0);
   roadsChanged(c);
   if (o.people && o.people.n) {
