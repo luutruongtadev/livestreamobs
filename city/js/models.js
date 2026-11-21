@@ -727,6 +727,16 @@ export function pedGeometry() {
   return g.build();
 }
 
+/** Người ngồi ghế nhựa thấp (quán phở, cà phê vỉa hè): mặt hướng +z, gốc ở mặt đất dưới ghế. */
+export function sitGeometry() {
+  const g = new GB();
+  g.box(0, 0.34, 0.12, 0.4, 0.16, 0.5, 0x3a4350); // đùi
+  g.box(0, 0, 0.34, 0.38, 0.36, 0.14, 0x3a4350); // cẳng chân
+  g.box(0, 0.48, -0.06, 0.46, 0.64, 0.3, 0xffffff); // thân (màu áo theo từng người)
+  g.cyl(0, 1.12, -0.04, 0.19, 0.17, 0.32, 0xf0d9b5, 6, 0x3b2a1e);
+  return g.build();
+}
+
 export function carGeometry() {
   const g = new GB();
   g.box(0, 0.25, 0, 1.5, 0.6, 3.4, 0xffffff);
@@ -760,6 +770,19 @@ export function vehicleGeometry(look) {
       g.box(0, 0.8, -0.15, 0.48, 0.72, 0.38, 0x4a5560); g.cyl(0, 1.52, -0.1, 0.21, 0.19, 0.34, 0xf0d9b5, 6, 0x333333); // người lái
       if (look === 'duo') { g.box(0, 0.8, -0.62, 0.46, 0.7, 0.36, 0x8a5a7a); g.cyl(0, 1.5, -0.6, 0.2, 0.18, 0.32, 0xf0d9b5, 6, 0x3b2a1e); }
       if (look === 'cargomoto') { g.box(0, 0.75, -0.95, 0.9, 0.7, 0.9, 0xb38a4f); g.box(0, 1.45, -0.95, 0.7, 0.5, 0.7, 0xd9b98a); } // chở hàng cồng kềnh
+      break;
+    }
+    case 'shipper': { // xe giao hàng: áo, thùng vuông sau yên theo màu hãng (màu từng xe), thân xe tối
+      g.box(0, 0.3, 0, 0.5, 0.55, 1.6, 0x2a2a2a); g.box(0, 0.62, -0.25, 0.46, 0.18, 0.8, 0x1a1a1a);
+      g.box(0, 0, 0.7, 0.14, 0.48, 0.48, TYRE); g.box(0, 0, -0.68, 0.14, 0.48, 0.48, TYRE); g.box(0, 0.8, 0.6, 0.62, 0.07, 0.07, 0x222222);
+      g.box(0, 0.8, -0.15, 0.48, 0.72, 0.38, 0xffffff); g.cyl(0, 1.52, -0.1, 0.21, 0.19, 0.34, 0xffffff, 6, 0xffffff); // áo, mũ bảo hiểm cùng màu hãng
+      g.box(0, 0.78, -0.72, 0.7, 0.7, 0.62, 0xffffff); g.box(0, 1.1, -0.405, 0.5, 0.18, 0.02, 0xf4f4f4); // thùng giao hàng
+      break;
+    }
+    case 'ebike': { // xe máy điện: thân tròn liền khối, không ống xả, sàn để chân phẳng
+      g.box(0, 0.25, 0.1, 0.48, 0.5, 1.5, 0xffffff); g.box(0, 0.6, 0.62, 0.42, 0.55, 0.3, 0xffffff); g.box(0, 0.62, -0.3, 0.44, 0.16, 0.75, 0x2a2a2a);
+      g.box(0, 0, 0.66, 0.12, 0.46, 0.46, TYRE); g.box(0, 0, -0.62, 0.12, 0.46, 0.46, TYRE); g.box(0, 0.95, 0.68, 0.6, 0.06, 0.06, 0x222222);
+      g.box(0, 0.8, -0.2, 0.46, 0.7, 0.36, 0x5a6470); g.cyl(0, 1.5, -0.15, 0.21, 0.19, 0.34, 0xf0d9b5, 6, 0xd8262e);
       break;
     }
     case 'motorbike': g.box(0, 0.35, 0, 0.42, 0.45, 1.8, 0xffffff); g.box(0, 0.7, 0.15, 0.5, 0.35, 0.6, 0xffffff); g.box(0, 0, 0.78, 0.16, 0.6, 0.6, TYRE); g.box(0, 0, -0.75, 0.16, 0.6, 0.6, TYRE); g.box(0, 0.85, -0.2, 0.48, 0.7, 0.38, 0x2d3640); g.cyl(0, 1.55, -0.15, 0.23, 0.21, 0.36, 0x222222, 6, 0x222222); g.box(0, 1, 0.65, 0.66, 0.07, 0.07, 0x222222); break;
@@ -1370,15 +1393,201 @@ function tubeHouse(g, r, x, w, d, floors, shopSign) {
   if (r() > 0.5) g.at(new THREE.Matrix4().makeTranslation(x - w * 0.2, top + 0.5, zf - 1.2).multiply(new THREE.Matrix4().makeRotationX(-0.55))).box(0, 0, 0, 1.4, 0.08, 1.1, 0x23365e).at(null);
 }
 
+/**
+ * Chung cư cũ (khu tập thể) 4–6 tầng: tường vôi vàng ố, vệt mốc dưới mái, "chuồng cọp" khung sắt cơi nới ra mặt tiền
+ * mỗi hộ một kiểu, dây phơi quần áo, cục nóng điều hoà, bồn nước, mái tôn cơi nới trên sân thượng, cầu thang lộ ở đầu hồi.
+ */
+function kttt(g, r, level) {
+  const floors = 4 + level + ((r() * 2) | 0), h = floors * FLOOR, w = 9, d = 6.4, z0 = -0.6, zf = z0 + d / 2;
+  const wall = pick(r, [0xe8cf8a, 0xdcc49a, 0xe3d3b0, 0xcfc6a8]), stain = 0x9c937c;
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xa9a59a); // sân xi măng
+  g.box(0, 0.14, z0, w, h, d, wall, true);
+  for (let f = 1; f <= floors; f++) g.box(0, 0.14 + f * FLOOR - 0.12, z0, w + 0.06, 0.12, d + 0.06, 0xcdbf98); // gờ sàn
+  g.box(0, 0.14 + h - 0.9, zf + 0.01, w, 0.9, 0.04, stain); // vệt mốc dưới mái
+  g.box(0, 0.14 + h, z0, w + 0.2, 0.3, d + 0.2, 0x8d887e); // mái bằng
+  // cầu thang lộ ở đầu hồi
+  g.box(-w / 2 - 0.7, 0.14, z0 + 1, 1.4, h + 1.2, 2.2, 0xcfc6a8, true);
+  // chuồng cọp: mỗi tầng 3 hộ, hộ nào cũng cơi nới khác nhau
+  const bays = [-3, 0, 3];
+  for (let f = 1; f < floors; f++) for (const bx of bays) {
+    const y = 0.14 + f * FLOOR, k = r();
+    if (k < 0.2) continue; // hộ này chưa cơi
+    const out = 0.6 + r() * 0.7, bw = 2 + r() * 0.6, bh = FLOOR - 0.5;
+    g.box(bx, y - 0.1, zf + out / 2, bw, 0.12, out, 0x8d887e); // sàn đúc thêm
+    const cage = k < 0.6;
+    if (cage) { // khung sắt sơn xanh / đỏ / gỉ
+      const cc = pick(r, [0x2f6f6a, 0x7a3b30, 0x5c5248, 0x3b5a7a]);
+      for (let s = 0; s <= 4; s++) g.box(bx - bw / 2 + (bw * s) / 4, y, zf + out, 0.05, bh, 0.05, cc);
+      g.box(bx, y + bh, zf + out / 2, bw, 0.06, out, cc); g.box(bx, y + bh * 0.45, zf + out, bw, 0.05, 0.05, cc);
+    } else { // xây kín bằng gạch, cửa sổ nhôm kính
+      g.box(bx, y, zf + out / 2, bw, bh, out, pick(r, [0xf1e3c2, 0xe6d6c6, wall]));
+      g.box(bx, y + 0.9, zf + out + 0.01, bw * 0.6, 1, 0.04, 0x7fa3bf);
+    }
+    if (r() < 0.55) for (let s = 0; s < 4; s++) g.box(bx - 0.75 + s * 0.5, y + 1.3 + (s % 2) * 0.12, zf + out + 0.1, 0.36, 0.55, 0.03, pick(r, [0xd8262e, 0x1f6fc8, 0xf2c200, 0xffffff, 0x16935a, 0xe58fb1])); // quần áo phơi
+    if (r() < 0.5) g.box(bx + bw / 2 - 0.4, y + 0.4, zf + out + 0.25, 0.7, 0.5, 0.3, 0xe6e8ea); // cục nóng điều hoà
+    if (r() < 0.35) g.box(bx - bw / 2 + 0.35, y, zf + out - 0.1, 0.35, 0.45, 0.35, 0x4f9440); // chậu cây
+  }
+  // tầng trệt: cửa hàng cóc, ki-ốt, cửa sắt
+  for (const bx of bays) {
+    if (r() < 0.5) { g.box(bx, 0.14, zf + 0.02, 2.4, 2.4, 0.06, 0x3a3f46); g.box(bx, 2.55, zf + 0.08, 2.6, 0.55, 0.12, pick(r, VN_SIGN)); }
+    else g.box(bx, 0.14, zf + 0.02, 2, 2.3, 0.06, 0x7f8a78);
+  }
+  // sân thượng: bồn nước, mái tôn cơi nới, ăng-ten
+  const top = 0.44 + h;
+  for (let k = 0; k < 2 + level; k++) g.at(new THREE.Matrix4().makeTranslation(-3 + k * 2.2, top + 0.6, z0 - 1.6).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2))).cyl(0, -0.6, 0, 0.5, 0.5, 1.2, 0xd7dde2, 8, 0xe9eef2).at(null);
+  if (r() < 0.7) { g.box(2.4, top, z0 + 1, 3.2, 2, 2.6, 0xb8b0a0); g.box(2.4, top + 2, z0 + 1, 3.6, 0.1, 3, pick(r, [0x3f6fa8, 0x8a949c, 0x6d7a5a])); }
+  g.cyl(-3.6, top, z0 + 2, 0.04, 0.04, 2.4, 0x777777, 4);
+  // xe máy dựng dưới sân, bồn hoa
+  for (let k = 0; k < 4; k++) g.box(-3.6 + k * 0.8, 0.14, 4.2, 0.4, 0.95, 1.5, pick(r, [0x2a2a2a, 0xd8262e, 0x1f6fc8, 0xe9e9e9]));
+  g.tree(3.8, 0.14, 4, 0.9, 0x4f9440);
+}
+
+/** Nhà cấp 4: một tầng, hiên có cột, mái ngói đỏ (variant 0) hoặc mái tôn (variant 1), sân trước có tường rào, cổng sắt. */
+function cap4(g, r, variant) {
+  const wall = pick(r, [0xf2e2b3, 0xe9d8c4, 0xd9e6d0, 0xf1d1a8, 0xcfe0ea]), tile = variant === 0;
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x9fa08a); // sân đất, gạch
+  g.box(0, 0.14, -1.6, 8, 3.4, 5.6, wall, true);
+  if (tile) g.gable(0, 3.54, -1.6, 8.8, 2.1, 6.6, pick(r, [0xa8503a, 0xb4453a, 0x8e4a3c]), true, wall);
+  else { g.gable(0, 3.54, -1.6, 8.6, 1.1, 6.4, pick(r, [0x3f6fa8, 0x8a949c, 0x5a8a5a, 0xb4453a]), true, wall); g.box(0, 3.54, -1.6, 8.6, 0.06, 6.4, 0x6d7278); }
+  // hiên trước: mái hiên, hai cột, cửa gỗ
+  g.box(0, 0.14, 1.75, 8, 0.2, 1.3, 0xc9c2ae);
+  g.box(0, 3.1, 1.85, 8.2, 0.12, 1.5, tile ? 0x9c4a3a : 0x6d7a88);
+  for (const x of [-3.6, 3.6]) g.box(x, 0.34, 2.4, 0.25, 2.76, 0.25, 0xe8e2d6);
+  g.box(0, 0.34, 1.21, 1.8, 2.3, 0.08, 0x7a4f2e); g.box(-2.5, 1.2, 1.21, 1.2, 1.1, 0.06, 0x6a8fae); g.box(2.5, 1.2, 1.21, 1.2, 1.1, 0.06, 0x6a8fae);
+  // tường rào, cổng sắt
+  g.box(-2.9, 0.14, 4.5, 3.6, 1.2, 0.2, wall); g.box(2.9, 0.14, 4.5, 3.6, 1.2, 0.2, wall);
+  g.box(0, 0.14, 4.5, 2.2, 1.5, 0.08, 0x3b5a7a);
+  // sân: cây, chậu cảnh, xe máy, dây phơi
+  g.tree(-3.4, 0.14, 3.2, 0.9, pick(r, [0x3f7f3a, 0x4f9440]));
+  for (let k = 0; k < 3; k++) g.cyl(2 + k * 0.8, 0.14, 3.4, 0.25, 0.2, 0.4, 0x8a5a3a, 6, 0x4f9440);
+  if (r() < 0.7) g.box(1.2, 0.14, 2.9, 0.4, 0.95, 1.5, pick(r, [0x2a2a2a, 0xd8262e, 0x1f6fc8]));
+  if (r() < 0.5) g.box(4.3, 0.14, -4.3, 1, 1.3, 1, 0x8b6b4a); // bể nước, chum
+}
+
+/**
+ * Chung cư hiện đại kiểu khu đô thị mới (khu cao tầng cấp 3+): khối đế thương mại, tháp trắng – kính, ban công kính
+ * so le có cây xanh, khung lam đứng, mái có vườn và khung chữ dự án, đèn viền.
+ */
+function aptVN(g, r, level) {
+  const floors = [0, 0, 0, 14, 20, 28][level] + ((r() * 4) | 0), w = 7.4, d = 7, base = 4.4, h = floors * FLOOR;
+  const wall = pick(r, [0xf3f1ec, 0xe9ecef, 0xefe7da]), glass = pick(r, [0x6f93b0, 0x7aa0a8, 0x8098b8]), accent = pick(r, [0xb8875a, 0x5c6f82, 0xa63d33, 0x3f6b5a]);
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xbab6ab);
+  g.box(0, 0.14, 0, 9.2, base, 8.8, 0xd8d2c6); // khối đế: cửa hàng, sảnh
+  g.box(0, 0.14, 4.41, 8.6, 3.2, 0.06, 0x33424f); g.box(0, 3.4, 4.5, 9, 0.5, 0.3, accent); // mặt kính khối đế + dải bảng hiệu
+  g.box(0, 0.14 + base, 0, 9.4, 0.3, 9, 0x8d887e);
+  const y0 = 0.44 + base, zc = -0.3;
+  g.box(0, y0, zc, w, h, d, wall, true);
+  g.box(-w / 2 + 0.6, y0, zc + d / 2 + 0.02, 1.2, h, 0.06, glass); g.box(w / 2 - 0.6, y0, zc + d / 2 + 0.02, 1.2, h, 0.06, glass); // dải kính hai góc
+  for (let f = 1; f < floors; f++) { // ban công kính so le, có chậu cây
+    const y = y0 + f * FLOOR, x = f % 2 ? -1.4 : 1.4;
+    g.box(x, y - 0.12, zc + d / 2 + 0.6, 3.2, 0.14, 1.2, 0xe2ded6);
+    g.box(x, y + 0.02, zc + d / 2 + 1.18, 3.2, 1, 0.04, 0x9fc3d6);
+    if (f % 3 === 0) g.box(x - 1.1, y + 0.02, zc + d / 2 + 0.8, 0.6, 0.7, 0.5, 0x4f9440);
+  }
+  for (const x of [-2.4, 0, 2.4]) g.box(x, y0, zc + d / 2 + 0.08, 0.16, h, 0.16, accent); // lam đứng
+  const top = y0 + h;
+  g.box(0, top, zc, w + 0.3, 0.4, d + 0.3, 0x8d887e);
+  g.box(-1.5, top + 0.4, zc - 1, 3, 0.6, 3, 0x4f9440); g.tree(-1.5, top + 1, zc - 1, 0.8, 0x3f7f3a); // vườn trên mái
+  g.box(2, top + 0.4, zc, 0.12, 3.2, 3.6, accent); g.box(2, top + 3.6, zc, 0.3, 0.3, 3.8, accent); // khung chữ dự án
+}
+
+/** Biệt thự khu đô thị mới: hai – ba tầng, mái Thái dốc, ban công lan can trắng, cổng sắt, sân vườn, ô tô trong sân. */
+function villa(g, r) {
+  const wall = pick(r, [0xf6f1e6, 0xf2e6cf, 0xe9eef0, 0xf0dcc8]), roof = pick(r, [0x8e3b2f, 0x4a5560, 0x6b4a3a]), fl = 2 + ((r() * 2) | 0), h = fl * FLOOR;
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0x6fa34f); // cỏ
+  g.box(0, 0.14, -1.4, 7.4, h, 5.6, wall, true);
+  g.gable(0, 0.14 + h, -1.4, 8.2, 2.4, 6.4, roof, true, wall); // mái Thái
+  g.box(-2, 0.14, 1.9, 3, h - FLOOR + 0.2, 1.2, wall); g.gable(-2, 0.34 + h - FLOOR, 1.9, 3.4, 1.2, 1.6, roof, false, wall); // khối nhô ra mặt tiền
+  for (let f = 1; f < fl; f++) { const y = 0.14 + f * FLOOR; g.box(1.6, y - 0.1, 2, 3.4, 0.14, 1.4, 0xe9e4da); for (let k = 0; k < 7; k++) g.box(0.1 + k * 0.5, y + 0.04, 2.66, 0.08, 0.9, 0.08, 0xffffff); g.box(1.6, y + 0.9, 2.66, 3.4, 0.08, 0.1, 0xffffff); }
+  for (const x of [0.2, 3]) g.cyl(x, 0.14, 2.5, 0.14, 0.14, FLOOR - 0.2, 0xffffff, 8); // cột sảnh
+  g.box(1.6, 0.34, 1.41, 1.4, 2.4, 0.06, 0x5a3a24); // cửa chính gỗ
+  g.box(-4.6, 0.14, 4.6, 0.3, 1.6, 0.3, wall); g.box(4.6, 0.14, 4.6, 0.3, 1.6, 0.3, wall);
+  for (let k = 0; k < 15; k++) g.box(-3.5 + k * 0.5, 0.14, 4.6, 0.06, 1.5, 0.06, 0x2a2a2a); // cổng, hàng rào sắt
+  g.box(0, 1.5, 4.6, 8.6, 0.08, 0.08, 0x2a2a2a);
+  parkedCar(g, 2.6, 0.14, 3.4, pick(r, CARS), Math.PI / 2);
+  g.tree(-3.8, 0.14, 3.4, 1, 0x3f7f3a); g.tree(4, 0.14, -4, 1.1, 0x4f9440);
+}
+
+/** Dãy nhà trọ một tầng gần khu công nghiệp: phòng nhỏ chung tường, cửa sắt đánh số, hành lang có mái tôn, dây phơi, xe máy. */
+function nhaTro(g, r) {
+  const wall = pick(r, [0xe9dfc4, 0xd9e2d0, 0xf0d9b8]), n = 5;
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xa9a59a);
+  for (const zr of [-2.6, 2.2]) { // hai dãy phòng đối diện, lối đi giữa
+    const face = zr < 0 ? 1 : -1;
+    g.box(0, 0.14, zr, 9.2, 3, 2.6, wall, true);
+    g.box(0, 3.14, zr, 9.4, 0.08, 2.8 + 1.2, pick(r, [0x3f6fa8, 0x8a949c, 0x6d7a5a])); // mái tôn kéo ra che hành lang
+    for (let k = 0; k < n; k++) {
+      const x = -3.7 + k * 1.85;
+      g.box(x, 0.34, zr + face * 1.31, 0.9, 2.1, 0.06, pick(r, [0x3b5a7a, 0x6b3a2e, 0x3d6b4a])); // cửa sắt
+      g.box(x + 0.62, 1.4, zr + face * 1.31, 0.12, 0.12, 0.04, 0xffffff); // biển số phòng
+      if (r() < 0.55) g.box(x - 0.6, 0.14, zr + face * 1.9, 0.38, 0.95, 1.4, pick(r, [0x2a2a2a, 0xd8262e, 0x1f6fc8, 0xe9e9e9])); // xe máy
+    }
+  }
+  for (let k = 0; k < 6; k++) g.box(-3 + k * 1.1, 1.7, -0.2, 0.5, 0.6, 0.03, pick(r, [0xd8262e, 0x1f6fc8, 0xf2c200, 0xffffff, 0x16935a])); // quần áo phơi giữa lối đi
+  g.box(0, 2.3, -0.2, 8, 0.03, 0.03, 0x333333);
+  g.box(-4.4, 0.14, 4.5, 1, 2.2, 0.15, 0x6e6a66); g.box(-4.4, 2.2, 4.6, 1.2, 0.5, 0.08, 0x1f6fc8); // cổng, bảng "phòng trọ"
+}
+
+/** Vị trí bảng chữ SIÊU THỊ trên mặt tiền siêu thị (render.js dán chữ vào đây), khung 10 m của ô. */
+export const MALL_SIGN = { x: -0.6, y: 4.85, z: 3.22, w: 6.4, h: 1.3 };
+/** Siêu thị (thương mại lớn cấp 1–2): hộp lớn một tầng cao, mái che lối vào, xe đẩy, bãi xe máy có mái tôn bên hông. */
+function sieuThi(g, r) {
+  const wall = pick(r, [0xf0eee8, 0xe6e9ec]), band = pick(r, [0xd8262e, 0x16935a, 0x1f6fc8, 0xe8681f]);
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xbab6ab);
+  g.box(-0.6, 0.14, -0.8, 8.4, 5.6, 7.8, wall);
+  g.box(-0.6, 3.9, 3.12, 8.4, 1.9, 0.12, band); // dải màu hãng, chữ SIÊU THỊ dán lên
+  g.box(-0.6, 0.14, 3.12, 6.4, 3, 0.06, 0x33424f); // mặt kính
+  g.box(-0.6, 3.1, 3.9, 5, 0.14, 1.6, 0xd9d4c8); for (const x of [-2.9, 1.7]) g.box(x, 0.14, 4.5, 0.14, 3, 0.14, 0x9aa3aa); // mái đón
+  for (let k = 0; k < 4; k++) g.box(-2.4 + k * 0.6, 0.14, 4.2, 0.5, 0.9, 0.8, 0xc9d1d6); // xe đẩy
+  g.box(4.3, 2.6, 0, 1, 0.08, 7, 0x8a949c); for (const z of [-3, 3]) g.box(4.3, 0.14, z, 0.1, 2.5, 0.1, 0x6e6a66); // bãi xe máy có mái tôn
+  for (let k = 0; k < 8; k++) g.box(4.3, 0.14, -3 + k * 0.85, 0.36, 0.9, 1.3, pick(r, [0x2a2a2a, 0xd8262e, 0x1f6fc8, 0xe9e9e9, 0x8a949c]));
+}
+
+/** Kho bãi, logistics của công ty (khu công nghiệp có cờ kho): nhà kho dài, cửa xuống hàng, mái đón, container, xe đầu kéo. Mặt trước +z. */
+export function warehouseGeometry(level) {
+  const g = new GB(), r = mulberry32(900 + level * 13), h = 3.2 + level * 0.5;
+  const wall = pick(r, [0xe3e6e8, 0xd9dee2, 0xe8e2d4]), roof = pick(r, [0x6c7a86, 0x5f7f6a, 0x8a5a44]), band = pick(r, [0x1f6fc8, 0xe8681f, 0x16935a]);
+  g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
+  g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xa7a79f);
+  g.box(0, 0.14, -1.3, 8.8, h, 6.2, wall);
+  g.gable(0, 0.14 + h, -1.3, 9.2, 1.1, 6.6, roof, true, wall);
+  g.box(0, 0.14 + h * 0.7, 1.83, 8.8, 0.5, 0.06, band); // dải màu hãng
+  for (let k = 0; k < 4; k++) { // cửa xuống hàng + bệ nâng
+    const x = -3.3 + k * 2.2;
+    g.box(x, 0.64, 1.82, 1.7, 2.3, 0.08, 0x56626b);
+    for (let j = 1; j < 5; j++) g.box(x, 0.64 + j * 0.46, 1.86, 1.7, 0.03, 0.04, 0x434d54);
+    g.box(x, 0.14, 2.25, 1.9, 0.5, 0.9, 0x8a867e);
+  }
+  g.box(0, 3.1, 2.7, 8.8, 0.14, 1.9, 0x8a949c); for (const x of [-4.2, 4.2]) g.box(x, 0.14, 3.55, 0.14, 2.96, 0.14, 0x6e7a82); // mái đón
+  for (let k = 0; k < 2 + level; k++) g.box(-3.8 + (k % 3) * 2.7, 0.14 + ((k / 3) | 0) * 1.25, 4 + ((k / 3) | 0) * 0.1, 2.5, 1.2, 1.1, [0xc0392b, 0x2f6fb0, 0x2f8f5a, 0xe6a01e][k % 4]); // container
+  g.box(3.3, 0.35, 3.9, 1.6, 1.7, 3.2, 0xf1f1ef); g.box(3.3, 0.35, 5.7, 1.4, 1.5, 0.9, 0x2f6fb0); g.box(3.3, 1.2, 6.15, 1.2, 0.6, 0.05, 0x9fc4e8); // xe đầu kéo + rơ moóc
+  for (const x of [3.3 - 0.8, 3.3 + 0.8]) for (const z of [3.1, 4.3, 5.9]) g.box(x, 0.14, z, 0.2, 0.5, 0.5, 0x2a2a2a); // bánh
+  g.box(-2, 0.14 + h + 0.9, -1.3, 1.2, 0.5, 1.2, 0x8d9499); g.box(2, 0.14 + h + 0.9, -1.3, 1.2, 0.5, 1.2, 0x8d9499); // chụp thông gió
+  return g.build();
+}
+/** Cổng nhà máy / kho của công ty: hai cột và xà ngang đỡ biển logo (biển là mặt phẳng riêng, vẽ trong render). Mặt trước +z. */
+export function corpGateGeometry() {
+  const g = new GB();
+  for (const x of [-1.75, 1.75]) g.box(x, 0.14, 4.7, 0.18, 3.1, 0.18, 0x8a949c);
+  g.box(0, 2.5, 4.7, 3.7, 0.65, 0.12, 0xe3e3e0);
+  return g.build();
+}
+
 /** Nhà theo phong cách Việt Nam cho các khu dân cư thấp / trung bình, liền kề, hỗn hợp, cửa hàng, giải trí, ký túc xá. Không hợp thì trả null. */
-const VN_KIND = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop' };
+const VN_KIND = { 1: 'home', 13: 'home', 14: 'home', 16: 'home', 7: 'shop', 2: 'shop', 17: 'shop', 4: 'apt', 5: 'mall' };
 /** Khu này có nhà kiểu Việt Nam không (tra bảng, không dựng hình). */
 export const hasVN = (zone) => !!VN_KIND[zone];
 export function growableVN(zone, level, variant) {
   const vn = VN_KIND[zone];
   if (!vn) return null;
+  if (vn === 'mall' && level > 2) return null; // trung tâm thương mại lớn: giữ tháp như cũ
   const r = mulberry32(zone * 977 + level * 131 + variant * 17 + 3), g = new GB();
   g.box(0, -6, 0, 9.7, 6, 9.7, FOUND);
+  if (vn === 'apt') { if (level <= 2) kttt(g, r, level); else aptVN(g, r, level); return g.build(); } // khu tập thể cũ; cấp 3+: chung cư khu đô thị mới
+  if (vn === 'mall') { sieuThi(g, r); return g.build(); } // siêu thị
+  if (zone === 1 && level === 1 && variant < 2) { cap4(g, r, variant); return g.build(); } // nhà cấp 4 ven đô
+  if (zone === 1 && level >= 4 && variant === 0) { villa(g, r); return g.build(); } // biệt thự
+  if (zone === 14 && level <= 2 && variant === 0) { nhaTro(g, r); return g.build(); } // dãy nhà trọ
   g.box(0, 0, 0, 9.7, 0.14, 9.7, 0xb9b5aa); // sân xi măng trước nhà
   const n = level >= 4 ? 3 : 2, w = 9.4 / n, base = (zone === 1 ? 1 : 2) + Math.min(level, 4);
   for (let k = 0; k < n; k++) {
@@ -1386,7 +1595,81 @@ export function growableVN(zone, level, variant) {
     tubeHouse(g, r, x, w - 0.12, 7.6 + r() * 0.8, floors, vn === 'shop' || (zone === 13 && r() > 0.6) ? pick(r, VN_SIGN) : null);
   }
   if (variant === 0) flagParts(g, -4.4, 3.14, 4.9, 2.6); // cờ treo ở ban công tầng 2
-  if (vn === 'shop') for (let k = 0; k < 4; k++) g.box(-3.6 + k * 2.3, 0.14, 6.1 + (k % 2) * 0.5, 0.45, 0.45, 0.45, [0xd8262e, 0x1f6fc8][k % 2]); // ghế nhựa vỉa hè
+  return g.build();
+}
+
+// ───────────────────────── vỉa hè trước quán, xe máy đỗ, trang trí lễ (vẽ theo từng căn, instanced) ─────────────────────────
+
+/** Loại quán theo chữ trên biển hiệu (thứ tự SIGN_WORDS trong render.js): đồ bày ra vỉa hè khác nhau. */
+export const FRONT_OF_SIGN = ['pho', 'cafe', 'taphoa', 'banhmi', 'suaxe', 'pho', 'pho', null, 'thuoc', 'tienloi', null];
+export const FRONT_KINDS = ['pho', 'cafe', 'taphoa', 'banhmi', 'suaxe', 'thuoc', 'tienloi'];
+const STOOL = [0xd8262e, 0x1f6fc8, 0x16935a, 0xf2c200];
+const stool = (g, x, z, k) => { g.box(x, 0.14, z, 0.34, 0.34, 0.34, STOOL[k % STOOL.length]); };
+
+/**
+ * Đồ bày trước một căn nhà ống mở quán, trên vỉa hè: gốc (0, 0, 0) là giữa mặt tiền căn nhà (mặt tiền ở z = 4.6), vỉa hè hướng +z.
+ * Bề ngang dùng được khoảng ±1,3.
+ */
+export function shopFrontGeometry(kind) {
+  const g = new GB(), z = 4.6;
+  if (kind === 'pho') { // nồi nước dùng to trên bếp than, tủ kính bánh phở, bàn inox thấp, ghế nhựa
+    g.box(-1, 0.14, z + 0.45, 0.9, 0.8, 0.6, 0x8a949c); g.cyl(-1, 0.94, z + 0.45, 0.36, 0.38, 0.6, 0xc9d1d6, 10, 0x9aa3aa); // bếp + nồi
+    g.box(0.3, 0.14, z + 0.4, 0.9, 1.1, 0.5, 0xc7d6de); g.box(0.3, 1.24, z + 0.4, 0.95, 0.06, 0.55, 0xd8262e); // tủ kính
+    for (const tz of [z + 1.4, z + 2.3]) { g.box(0, 0.14, tz, 1.4, 0.55, 0.6, 0xb8c0c6); for (const ox of [-0.85, 0.85]) stool(g, ox, tz, tz > z + 2 ? 1 : 0); stool(g, 0, tz + 0.55, 2); }
+  } else if (kind === 'cafe') { // ghế nhựa xếp hàng ngang quay ra đường, bàn con, ô che
+    for (let k = 0; k < 4; k++) { const x = -1.2 + k * 0.8; g.box(x, 0.14, z + 1.6, 0.4, 0.3, 0.4, STOOL[k % 2]); g.box(x, 0.44, z + 1.42, 0.4, 0.4, 0.05, STOOL[k % 2]); }
+    for (const x of [-0.8, 0.8]) g.box(x, 0.14, z + 2.15, 0.45, 0.45, 0.45, 0xd9d4c8);
+    g.cyl(1.25, 0.14, z + 0.6, 0.04, 0.04, 2.2, 0x3a3f46, 4); g.cyl(1.25, 2.1, z + 0.6, 1.2, 0.05, 0.45, 0x6b3e26, 8);
+    g.box(-1.1, 0.14, z + 0.3, 0.5, 0.9, 0.06, 0x2f3b45); // bảng menu
+  } else if (kind === 'taphoa') { // két nước ngọt xếp chồng, bao gạo, kệ hàng tràn ra cửa
+    for (let k = 0; k < 3; k++) for (let s = 0; s < 3 - (k % 2); s++) g.box(-1.1 + k * 0.5, 0.14 + s * 0.32, z + 0.5, 0.45, 0.3, 0.35, [0xd8262e, 0xf2c200, 0x16935a][(k + s) % 3]);
+    g.box(0.6, 0.14, z + 0.35, 1.1, 1.5, 0.4, 0x8a6b4a); for (let s = 0; s < 3; s++) g.box(0.6, 0.45 + s * 0.42, z + 0.56, 1, 0.25, 0.04, [0x2f7fd0, 0xe8681f, 0xd8d4cc][s]);
+    for (const x of [0.2, 0.75]) g.cyl(x, 0.14, z + 1.1, 0.22, 0.2, 0.5, 0xe9e1c6, 6, 0xd9cfae); // bao gạo
+  } else if (kind === 'banhmi') { // xe bánh mì tủ kính, mái vàng
+    g.box(0, 0.14, z + 0.8, 1.6, 0.9, 0.7, 0x8a949c); g.box(0, 1.04, z + 0.8, 1.6, 0.6, 0.7, 0xcfe0ea); g.box(0, 1.64, z + 0.8, 1.8, 0.08, 0.9, 0xf2c200);
+    for (const x of [-0.6, 0.6]) g.box(x, 0, z + 0.8, 0.12, 0.3, 0.3, TYRE);
+    stool(g, 1.1, z + 1.6, 0);
+  } else if (kind === 'suaxe') { // lốp xe chồng, máy bơm hơi, xe đang sửa
+    for (let s = 0; s < 4; s++) g.cyl(-1, 0.14 + s * 0.16, z + 0.5, 0.36, 0.36, 0.15, TYRE, 10, 0x2a2b2e);
+    g.box(-0.2, 0.14, z + 0.5, 0.5, 0.6, 0.4, 0xd8262e); g.box(0.8, 0.14, z + 1.2, 0.4, 0.8, 1.5, 0x2a2a2a); stool(g, 0.3, z + 1.3, 1);
+  }
+  else if (kind === 'thuoc') { // nhà thuốc: hộp đèn chữ thập xanh, tủ kính thuốc
+    g.box(-1.15, 0.14, z + 0.3, 0.1, 3.2, 0.1, 0x8a949c); g.box(-1.15, 2.6, z + 0.55, 0.12, 0.8, 0.8, 0x16a34a); g.box(-1.15, 2.6, z + 0.55, 0.14, 0.24, 0.6, 0xffffff); g.box(-1.15, 2.6, z + 0.55, 0.14, 0.6, 0.24, 0xffffff);
+    g.box(0.4, 0.14, z + 0.3, 1.6, 1, 0.45, 0xcfe0ea); g.box(0.4, 1.14, z + 0.3, 1.65, 0.06, 0.5, 0x16a34a);
+  } else if (kind === 'tienloi') { // cửa hàng tiện lợi: cửa kính sáng, kệ báo, thùng đá, chỗ để xe
+    g.box(0, 0.14, z + 0.06, 2.4, 2.4, 0.04, 0xe6f2f8); g.box(-0.9, 0.14, z + 0.5, 0.7, 0.9, 0.5, 0x2f7fd0); g.box(0.8, 0.14, z + 0.45, 0.8, 0.8, 0.5, 0xf4f4f4);
+  }
+  return g.build();
+}
+
+/** Hai chiếc xe máy dựng chéo trên vỉa hè trước một căn nhà (gốc như shopFrontGeometry). */
+export function parkedBikesGeometry() {
+  const g = new GB();
+  [[-0.9, 0xd8262e], [0.3, 0x2a2a2a], [1.2, 0xe9e9e9]].forEach(([x, col], k) => {
+    g.at(new THREE.Matrix4().makeTranslation(x, 0.3, 5.6 + (k % 2) * 0.25).multiply(new THREE.Matrix4().makeRotationY(0.55)));
+    g.box(0, 0, 0, 0.42, 0.5, 1.6, col); g.box(0, 0.5, -0.2, 0.4, 0.15, 0.7, 0x222222); g.box(0, -0.3, 0.65, 0.12, 0.44, 0.44, TYRE); g.box(0, -0.3, -0.62, 0.12, 0.44, 0.44, TYRE); g.box(0, 0.7, 0.6, 0.6, 0.06, 0.06, 0x222222);
+    g.at(null);
+  });
+  return g.build();
+}
+
+/** Đèn lồng treo dây (trang trí lễ): gốc ở móc treo, thân treo xuống dưới. */
+export function lanternGeometry() {
+  const g = new GB();
+  g.box(0, -0.35, 0, 0.03, 0.35, 0.03, 0x222222);
+  g.cyl(0, -0.45, 0, 0.14, 0.14, 0.1, 0xe0b23a, 8);
+  g.cyl(0, -1.05, 0, 0.32, 0.32, 0.6, 0xffffff, 10, 0xffffff);
+  g.cyl(0, -1.15, 0, 0.14, 0.14, 0.1, 0xe0b23a, 8);
+  g.box(0, -1.45, 0, 0.04, 0.3, 0.04, 0xe0b23a); // tua
+  return g.build();
+}
+
+/** Cờ đỏ sao vàng cắm chéo trên cột điện (trang trí lễ): gốc ở chỗ gắn vào cột, lá cờ hướng +x. */
+export function poleFlagGeometry() {
+  const g = new GB();
+  g.at(new THREE.Matrix4().makeRotationZ(-0.5));
+  flagParts(g, 0, 0, 0, 1.8, 0.7);
+  g.at(null);
   return g.build();
 }
 

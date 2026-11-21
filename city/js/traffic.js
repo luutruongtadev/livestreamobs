@@ -22,17 +22,17 @@ export const VKIND = {
  */
 export const LOOKS = {
   sedan: { len: 3.4 }, hatch: { len: 3 }, suv: { len: 3.9 }, taxi: { len: 3.4 }, pickup: { len: 4.2 }, minivan: { len: 4.3, vmul: 0.95 },
-  scooter: { len: 1.8 }, motorbike: { len: 2, vmul: 1.08 }, duo: { len: 1.9, vmul: 0.95 }, bicycle: { len: 1.7, vmul: 0.55 }, cargomoto: { len: 2.2, vmul: 0.85 },
+  scooter: { len: 1.8 }, motorbike: { len: 2, vmul: 1.08 }, duo: { len: 1.9, vmul: 0.95 }, bicycle: { len: 1.7, vmul: 0.55 }, cargomoto: { len: 2.2, vmul: 0.85 }, shipper: { len: 1.9, vmul: 1.02 }, ebike: { len: 1.75, vmul: 0.9 },
   boxtruck: { len: 6.4 }, deliveryvan: { len: 4.8, vmul: 1.05 }, container: { len: 11.5, vmul: 0.82 }, tanker: { len: 9.5, vmul: 0.85 }, logtruck: { len: 9.5, vmul: 0.85 }, dump: { len: 7, vmul: 0.9 }, reefer: { len: 7.4 },
 };
 /** Chọn kiểu dáng cho xe theo loại và việc nó đang làm (xe tải chở gì, đi đâu). */
 export function pickLook(kind, cb, r) {
   if (kind === 'car') return r < 0.42 ? 'sedan' : r < 0.6 ? 'hatch' : r < 0.76 ? 'suv' : r < 0.85 ? 'taxi' : r < 0.93 ? 'minivan' : 'pickup';
-  if (kind === 'moto') return r < 0.5 ? 'scooter' : r < 0.72 ? 'motorbike' : r < 0.86 ? 'duo' : r < 0.95 ? 'bicycle' : 'cargomoto';
+  if (kind === 'moto') return r < 0.38 ? 'scooter' : r < 0.46 ? 'ebike' : r < 0.68 ? 'motorbike' : r < 0.82 ? 'duo' : r < 0.9 ? 'bicycle' : r < 0.95 ? 'cargomoto' : 'shipper'; // shipper: xe giao hàng có thùng sau yên
   if (kind !== 'truck') return kind; // xe dịch vụ: mỗi loại một hình riêng
   if (cb && (cb.t === 'export' || cb.imp)) return r < 0.75 ? 'container' : cb.kind === 'oil' ? 'tanker' : 'boxtruck'; // hàng ra vào thành phố
   const k = cb && cb.kind;
-  return k === 'oil' ? 'tanker' : k === 'wood' ? 'logtruck' : k === 'ore' || k === 'agri' ? 'dump' : k === 'fish' ? 'reefer' : r < 0.55 ? 'boxtruck' : 'deliveryvan';
+  return k === 'oil' || k === 'plastic' ? 'tanker' : k === 'wood' ? 'logtruck' : k === 'ore' || k === 'agri' ? 'dump' : k === 'fish' || k === 'food' ? 'reefer' : k === 'steel' ? 'logtruck' : r < 0.55 ? 'boxtruck' : 'deliveryvan';
 }
 
 export const MAX_VEH = 900; // tổng số xe chạy thật cùng lúc

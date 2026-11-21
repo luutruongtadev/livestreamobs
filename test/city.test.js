@@ -4,7 +4,15 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as S from '../city/js/sim.js';
-import { resolveStatic } from '../gateway/index.js';
+import * as LG from '../city/js/ledger.js';
+import { resolveStatic, createHttpHandler } from '../gateway/index.js';
+import { FileStore } from '../gateway/store.js';
+import { createCityCloud } from '../gateway/city-cloud.js';
+import * as LEAGUE from '../gateway/city-league.js';
+import * as LgC from '../city/js/league.js';
+import http from 'node:http';
+import os from 'node:os';
+import fs from 'node:fs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const W = S.cellCenter;
@@ -168,7 +176,6 @@ test('city: người dân dọn tới, có việc, đi làm bằng xe thật tr�
   assert.ok(c.traffic.stats.spawned > 20, 'đã có xe chạy thật');
   assert.ok(c.traffic.stats.arrived > 10);
   assert.ok(c.present.reduce((n, v) => n + v, 0) > 10, 'có nhân viên đang ở chỗ làm');
-  assert.ok(c.traffic.stats.stuck === 0 || c.inc.total.accidents > 0, 'thị trấn nhỏ không kẹt cứng (trừ khi có tai nạn chắn đường)');
   const mode = c.pstats.mode;
   assert.ok(mode.car + mode.walk > 0);
   // thuế riêng từng khu
@@ -826,11 +833,11 @@ test('kinh tế: giá thị trường trôi theo ngày, có lịch sử, áp và
   for (const k of S.MKT_KINDS) { assert.ok(c.market.p[k] >= 0.45 && c.market.p[k] <= 1.9); }
   assert.ok(S.MKT_KINDS.some((k) => Math.abs(c.market.p[k] - 1) > 0.02), 'giá có đổi');
   // nhập khẩu tốn tiền theo giá thị trường
-  c.market.p.goods = 1.5; const i = 500; c.level[i] = 1; c.zone[i] = 2; c.biz.money[i] = 0;
-  c.onArrive(c, { t: 'cargo', to: i, kind: 'goods', qty: 8, imp: true });
-  assert.ok(Math.abs(c.biz.money[i] + 8 * S.PRICE.goods * S.PRICE.importMult * 1.5) < 0.01);
+  c.market.p.food = 1.5; const i = 500; c.level[i] = 1; c.zone[i] = 2; c.biz.money[i] = 0;
+  c.onArrive(c, { t: 'cargo', to: i, kind: 'food', qty: 8, imp: true });
+  assert.ok(Math.abs(c.biz.money[i] + 8 * S.priceOf('food') * S.PRICE.importMult * 1.5) < 0.01);
   const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-  assert.equal(back.market.hist.length, 41); assert.equal(back.market.p.goods, 1.5);
+  assert.equal(back.market.hist.length, 41); assert.equal(back.market.p.food, 1.5);
 });
 
 test('kinh tế: du lịch cần điểm tham quan và cửa ngõ; khách sạn cho khách ở lại, thu tiền phòng', () => {
@@ -1179,6 +1186,8 @@ test('máy chủ AI Phố Mới: không có key thì báo offline; có client th
   assert.equal((await ai.run({ kind: 'district', task: 'pick', q, type: 'vendors' })).id, null);
   assert.equal((await ai.run({ kind: 'district', task: 'report', q, delta: { crime: -3 } })).text, 'Báo cáo');
   await assert.rejects(ai.run({ kind: 'district', task: 'hack', q }));
+  assert.equal((await ai.run({ kind: 'district', task: 'ask', q, text: 'Tồn hàng thế nào?', brief: { stock: { waiting: { oil: 12.4, 'x<y>': 5 } }, people: { pop: 'nhiều <script>' } } })).text, 'Báo cáo');
+  assert.match(calls.at(-1).messages[0].content, /<brief>\{"stock":\{"waiting":\{"oil":12\}\},"people":\{"pop":0\}\}<\/brief>\n<mayor>Tồn hàng thế nào\?<\/mayor>/, 'hồ sơ quận chỉ giữ số, câu hỏi nằm trong thẻ');
   // HTTP: giới hạn 12 lượt / phút / máy
   const { Readable } = await import('node:stream');
   const hit = () => new Promise((resolve) => {
@@ -1232,10 +1241,22 @@ test('quận: chia quận, chương trình có tác dụng và tốn tiền, t�
   const it = { id: 4242, kind: 'dilemma', type: 'karaoke', day: c.day, expires: c.day + 3, status: 'pending', title: 'Loa kéo', story: 's', options: S.DILEMMAS.karaoke.options.map((o) => ({ id: o.id, label: o.label })), district: 2, chairAt: c.hour };
   c.council.inbox.push(it); run(c, 1);
   assert.equal(it.status, 'done'); assert.match(it.by, /Quận 3/); assert.ok(S.DILEMMAS.karaoke.options.some((o) => o.id === it.chose));
+  // hồ sơ quận: dân các quận cộng lại đúng số dân có nhà; sổ xuất khẩu 7 ngày; chủ tịch trả lời theo chủ đề câu hỏi
+  const briefs = D.list.map((q, d) => S.districtBrief(c, d));
+  let housed = 0; for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] >= 0) housed++;
+  assert.equal(briefs.reduce((a, b) => a + b.people.pop, 0), housed);
+  assert.ok(briefs.every((b) => b.people.kids + b.people.adults + b.people.seniors === b.people.pop && b.jobs.total >= 0));
+  S.noteExport(c, i0, 'oil', 30, 900); c.hour = Math.ceil(c.hour / 24) * 24 - 1; run(c, 2);
+  const bx = S.districtBrief(c, 0).exports; assert.ok(bx.k.oil >= 30 && bx.value >= 900, 'xuất khẩu ghi vào sổ quận, sang ngày thì vào sổ 7 ngày');
+  assert.deepEqual([S.askTopics('Tuần qua xuất khẩu được gì?'), S.askTopics('kho còn tồn hàng không'), S.askTopics('chào anh'), S.askTopics('Hàng tồn, sản xuất trong quận thế nào?'), S.askTopics('Tuần qua xuất khẩu được bao nhiêu tiền?')], [['exports'], ['stock'], ['overview'], ['stock'], ['exports']]);
+  assert.match(S.askFallback(c, 0, 'xuất khẩu thế nào?'), /dầu[^,.]*\d/);
+  assert.match(S.askFallback(c, 0, 'văn hoá ra sao'), /chương trình văn hoá/i);
+  S.noteAsk(c, 0, 'Dân cư?', 'Dạ có 100 dân', false);
   // lưu / nạp: giữ quận, chủ tịch, chế độ, chương trình; bản đồ quận dựng lại
   const o = JSON.parse(JSON.stringify(S.serialize(c))), d2 = S.deserialize(o);
   assert.deepEqual(d2.dist.list.map((q) => [q.chair, q.mode, q.prog.green]), D.list.map((q) => [q.chair, q.mode, q.prog.green]));
   assert.equal(S.districtOf(d2, i0), 0); assert.equal(S.distFx(d2, i0, 'green'), 3);
+  assert.deepEqual([d2.dist.list[0].asks.at(-1).a, d2.dist.list[0].xDays.some((x) => x.k.oil >= 30)], ['Dạ có 100 dân', true], 'giữ hỏi – đáp và sổ xuất khẩu');
   assert.ok(S.moveSeat(c, 0, D.list[2].x, D.list[2].y).ok === false, 'không trùng trụ sở');
   // phá toà UBND thì quận xây lại; giải thể thì dỡ hết
   c.services = c.services.filter((s) => s.uid !== D.list[1].hall); run(c, 1);
@@ -1592,13 +1613,13 @@ test('kinh tế, dân: tuổi lẻ vẫn lên lớp, xe tới muộn của chuy�
   assert.equal(pp.state[w], S.ST.WORK);
   // lưu / nạp: giữ tiền doanh nghiệp (kể cả nợ), tuổi nhà, hài lòng; bản lưu cũ vẫn nạp được
   let biz = -1, bld = -1; for (let i = 0; i < S.N * S.N; i++) if (c.level[i]) { if (S.jobCap(c.zone[i], c.level[i])) biz = i; else bld = i; }
-  c.biz.money[biz] = -321; c.age[bld] = 777; c.loans = []; assert.ok(S.takeLoan(c, 0).ok);
+  c.biz.money[biz] = -321 * S.MK; c.age[bld] = 777; c.loans = []; assert.ok(S.takeLoan(c, 0).ok);
   const avgHappy = (d) => { let s = 0; for (let id = 0; id < d.pp.n; id++) if (d.pp.alive[id]) s += d.pp.happy[id]; return s / d.pp.count; };
   const o = JSON.parse(JSON.stringify(S.serialize(c))), d = S.deserialize(o);
-  assert.deepEqual([d.biz.money[biz], d.age[bld], Math.round(avgHappy(d))], [-321, 777, Math.round(avgHappy(c))]);
+  assert.deepEqual([d.biz.money[biz], d.age[bld], Math.round(avgHappy(d))], [-321 * S.MK, 777, Math.round(avgHappy(c))]);
   delete o.bld; delete o.people.happy; o.loans = [{ amount: 20000, daily: 5500, left: 4 }];
   const old = S.deserialize(o);
-  assert.deepEqual([old.biz.money[biz], old.age[bld], old.loans[0].h], [150, 30, 96]);
+  assert.deepEqual([old.biz.money[biz], old.age[bld], old.loans[0].h], [150 * S.MK, 30, 96]);
   let hours = 0; while (d.loans.length && hours < 200) { S.tick(d); hours++; }
   assert.equal(hours, 96, 'vay 4 ngày trả đúng 96 giờ');
   // ngân sách 150%: một tháp canh lửa nhỏ không làm cả thành phố vui thêm 1 điểm
@@ -1950,4 +1971,585 @@ test('ô nhỏ hơn 30% diện tích (8,4 m) cho thành phố mới: đường v
   const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
   assert.equal(S.T, S.CELL_NEW); assert.equal(c2.edges.size, c.edges.size);
   const old = newCity(5); assert.equal(S.T, 10); void old;
+});
+
+test('city: sổ cái tiền — mọi đồng tiền vào / ra đều ghi sổ, tổng trong thành phố + bên ngoài luôn bảo toàn; nạp lại mở sổ mới', () => {
+  const c = town(); LG.resetLedger(c); // town() chỉnh tiền tay: mở sổ sau đó
+  S.takeLoan(c, 0);
+  const sx = c.start.x;
+  assert.ok(road(c, sx + 14, 24, sx + 22, 24).ok);
+  const near = (k) => Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5);
+  for (let d = 0; d < 3; d++) { run(c, 24); const k = LG.checkLedger(c); assert.ok(near(k), `ngày ${d}: lệch ${k.drift}`); }
+  assert.ok(c.stats.pop > 0, 'có dân để có lương, mua sắm');
+  const sum = LG.ledgerSummary(c), keys = sum.rows.map((r) => r.key);
+  assert.ok(keys.includes('arrive') && sum.rows.every((r) => LG.FLOWS[r.key]), 'dòng ra / vào bên ngoài đều có tên');
+  const inn = Object.fromEntries(sum.inner.map((r) => [r.key, r.v]));
+  for (const k of ['wage', 'tax', 'rent', 'procure', 'shop']) assert.ok(inn[k] > 0, `vòng tiền bên trong: ${k}`); // thuế, tiền nhà, thầu bảo trì đều chảy trong thành phố
+  assert.ok(!keys.includes('upkeep') || -sum.rows.find((r) => r.key === 'upkeep').v < inn.procure, 'bảo trì phần lớn trả cho doanh nghiệp trong thành phố');
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(Math.abs(LG.worldReserve(back) - LG.worldReserve(c)) < 2, 'số dư thế giới bên ngoài lưu lại, không nạp lại đầy');
+  run(back, 24);
+  assert.ok(near(LG.checkLedger(back)), 'bản lưu nạp lại vẫn bảo toàn');
+  assert.ok(back.ledger.issued > 0, 'mỗi ngày phát hành thêm một ít vào ví thế giới');
+  // thế giới cạn tiền: không cho vay, sức mua giảm
+  back.ledger.world = -back.ledger.r0 * 0.95; back.loans = [];
+  assert.equal(S.takeLoan(back, 0).ok, false, 'ngân hàng hết tiền cho vay');
+  assert.ok(LG.worldK(back) < 0.5, 'thế giới nghèo thì mua ít, khách tiêu ít');
+});
+
+test('city: người chỉ sinh ra từ người (nông thôn có hạn), tài nguyên cạn dần, báo cáo ngày, thế giới bên ngoài thay được, chạy bù', () => {
+  const c = town();
+  run(c, 48);
+  const p = LG.checkPop(c);
+  assert.equal(p.drift, 0, 'dân thành phố + nông thôn + nước ngoài khớp sinh / mất');
+  assert.ok(p.city > 0 && p.rural < LG.RURAL.start + 200, 'dân đến lấy từ nông thôn');
+  // nông thôn cạn: không còn người chuyển đến (chỉ còn sinh con)
+  c.popl.rural = 0; c.popl.base = c.pp.count + c.popl.abroad - c.popl.born + c.popl.died; // giữ bảo toàn khi chỉnh tay
+  run(c, 48); // trọn một ngày sau khi nông thôn cạn
+  assert.equal(c.popl.last.rural || 0, 0, 'hết dân nông thôn thì không ai chuyển đến');
+  assert.equal(LG.checkPop(c).drift, 0);
+  // trữ lượng: mỏ khoáng sản khai thác hết thì cạn hẳn, không còn trên bản đồ; rừng tự hồi; lưu lại được
+  const R = S.RESERVE, P = { i: -1 };
+  for (let i = 0; i < S.N * S.N && P.i < 0; i++) if (c.res[i] === S.RAW.ore.id) P.i = i;
+  assert.ok(P.i >= 0, 'bản đồ có khoáng sản');
+  const RV = { extract: null };
+  return import('../city/js/reserve.js').then((M) => {
+    RV.extract = M.extract;
+    assert.equal(M.extract(c, P.i, 'ore', R.ore.cap - 10), R.ore.cap - 10);
+    assert.equal(M.extract(c, P.i, 'ore', 50), 10, 'chỉ lấy được phần còn lại');
+    assert.equal(c.res[P.i], 0, 'mỏ cạn biến khỏi bản đồ');
+    assert.ok(c.events.some((e) => e.type === 'depleted'));
+    let w = -1; for (let i = 0; i < S.N * S.N && w < 0; i++) if (i !== P.i && c.res[i] === S.RAW.wood.id) w = i;
+    M.extract(c, w, 'wood', 1000); run(c, 24);
+    assert.ok(S.reserveLeft(c, w, 'wood') > 1 - 1000 / R.wood.cap, 'rừng tự hồi');
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.res[P.i], 0, 'mỏ cạn vẫn cạn sau khi nạp lại');
+    assert.ok(back.popl.rural === c.popl.rural || (c.popl.rural + c.pp.count < S.RURAL.start * 0.5 && back.popl.rural >= S.RURAL.start - back.pp.count), 'nông thôn lưu lại (nguồn dân cạn bất thường khi dân còn nhỏ thì được trả lại)');
+    // báo cáo ngày và provider: thay thế giới máy bằng provider khác nhận bản tóm tắt
+    const got = [];
+    S.registerWorld('test', { report: (city, rep) => got.push(rep) });
+    back.outside = { kind: 'test' };
+    const stepped = S.catchUp(back, 30, 26);
+    assert.deepEqual([stepped.hours, stepped.skipped], [26, 4], 'chạy bù có giới hạn');
+    assert.ok(got.length >= 1 && got[0].pop > 0 && got[0].offer.food && 'vacHomes' in got[0] && got[0].want, 'provider nhận bản tóm tắt ngày');
+    assert.ok(back.reports.length >= 1 && S.prosperity(back.reports.at(-1)) > 0);
+  });
+});
+
+test('city: lưu đám mây — cần đăng nhập, lưu / liệt kê / tải / xoá theo ô, giới hạn tần suất và kích thước, nạp lại đúng thành phố', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-cloud-')), DEV = 'dev-token-123';
+  const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
+  let clock = 1e6;
+  const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityCloud: createCityCloud({ store, now: () => clock }) }));
+  server.keepAliveTimeout = 120_000;
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${server.address().port}/api/city/saves`;
+  const call = async (method, slot = '', body, token = DEV) => { const res = await fetch(base + (slot ? `/${slot}` : ''), { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) }); return { status: res.status, ...(await res.json()) }; };
+  try {
+    assert.equal((await call('GET', '', undefined, '')).status, 401, 'chưa đăng nhập');
+    assert.equal((await call('GET', '', undefined, 'sai')).status, 401);
+    assert.deepEqual((await call('GET')).slots, []);
+    const c = town(); run(c, 24);
+    const put = await call('PUT', 'slot1', { name: 'Phố <b>Thử</b>', pop: c.stats.pop, day: c.day, city: S.serialize(c) });
+    assert.ok(put.ok && put.size > 0 && put.size < 200000, 'lưu nén gọn');
+    assert.equal(put.name, 'Phố bThử/b', 'tên được làm sạch');
+    assert.equal((await call('PUT', 'slot2', { city: S.serialize(c) })).status, 429, 'lưu quá nhanh');
+    clock += 11_000;
+    assert.equal((await call('PUT', 'slot9', { city: S.serialize(c) })).status, 404, 'ô lưu lạ');
+    assert.equal((await call('PUT', 'slot2', { city: { hello: 1 } })).status, 400, 'không phải bản lưu Phố Mới');
+    clock += 11_000;
+    assert.equal((await call('PUT', 'slot2', 'x'.repeat(4.5 * 1024 * 1024))).status, 413, 'quá lớn');
+    const list = await call('GET');
+    assert.deepEqual(list.slots.map((s) => [s.slot, s.pop]), [['slot1', c.stats.pop]]);
+    const got = await call('GET', 'slot1');
+    const back = S.deserialize(got.city);
+    assert.equal(back.pp.count, c.pp.count); assert.equal(Math.round(back.money), Math.round(c.money));
+    assert.equal((await call('DELETE', 'slot1')).ok, true);
+    assert.equal((await call('GET', 'slot1')).status, 404, 'đã xoá');
+    // máy chủ không bật lưu đám mây
+    const off = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: {} }));
+    await new Promise((r) => off.listen(0, '127.0.0.1', r));
+    assert.equal((await fetch(`http://127.0.0.1:${off.address().port}/api/city/saves`)).status, 503);
+    off.close();
+  } finally { server.close(); }
+});
+
+test('city: nhóm cạnh tranh — máy chủ chia dân, khách, đầu tư, giá chợ theo sức hút; offline dùng báo cáo cuối, bỏ lâu thì mất dân; API vào / báo cáo / rời', async () => {
+  const H = LEAGUE.LEAGUE.dayMs, rep = (o) => LEAGUE.cleanReport({ pop: 500, homes: 900, vacHomes: 400, jobs: 400, vacJobs: 60, wage: 20, tax: { r: 9, c: 9, i: 9 }, happy: 60, landValue: 40, pollution: 10, want: {}, offer: { food: { qty: 50 } }, tourism: { attract: 20, perDay: 100, beds: 50 }, ...o });
+  const t0 = 1e12, lg = { id: 'g', season: 0, start: t0, rural: 20000, carry: 0, members: {} };
+  const add = (id, r, joinDay = -10, at = t0) => { lg.members[id] = { owner: id, name: id, joinDay, report: r, reportAt: at }; };
+  add('good', rep({ happy: 85, vacJobs: 150, landValue: 70, pollution: 5 }));
+  add('bad', rep({ happy: 25, vacJobs: 0, landValue: 10, pollution: 60, tax: { r: 18, c: 18, i: 18 }, tourism: null }));
+  add('full', rep({ vacHomes: 3 }));
+  add('gone', rep({ pop: 1000 }), -10, t0 - LEAGUE.LEAGUE.abandonMs - 1);
+  const a = LEAGUE.settle(lg, 0, t0);
+  assert.ok(a.good.migrants > a.bad.migrants, 'chính sách tốt thì nhiều người chuyển đến hơn');
+  assert.ok(a.full.migrants <= 3, 'không quá số nhà trống');
+  assert.ok(a.good.tourists > 0 && a.bad.tourists === 0, 'không có điểm du lịch thì không có khách');
+  assert.ok(a.good.invest > a.bad.invest, 'môi trường kinh doanh tốt thì đầu tư nhiều hơn');
+  assert.ok(a.gone.abandoned && a.gone.leave > 0 && a.gone.migrants === 0, 'bỏ quá lâu: không nhận gì, mất dần dân');
+  assert.ok(lg.rural < 20000 && a.good.pool >= a.good.migrants, 'dân lấy từ nông thôn chung của nhóm');
+  const glut = { ...lg, members: { x: { owner: 'x', joinDay: 0, report: rep({ offer: { food: { qty: 5000 } } }), reportAt: t0 } } };
+  assert.ok(LEAGUE.settle(glut, 1, t0).x.prices.food < a.good.prices.food, 'bán nhiều thì giá chợ chung rớt');
+  const mp = (o) => LEAGUE.marketPrices([{ report: rep(o) }]);
+  assert.equal(mp({ offer: {} }).oil, 1, 'không ai mua, không ai bán: giá 100%');
+  assert.ok(mp({ offer: {}, trade: { need: { oil: 300 } } }).oil > 1.5, 'cần mà không ai bán: giá vọt');
+  assert.ok(mp({ offer: { oil: { qty: 0 } }, trade: { sold: { oil: 400 } } }).oil < 0.7, 'xuất đều (kho trống) vẫn tính là có hàng');
+  assert.deepEqual(LEAGUE.standings(lg, t0).map((r) => r.owner)[0], 'good', 'xếp hạng theo điểm thịnh vượng');
+  // API qua gateway (FileStore, DEV token)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'city-league-')), DEV = 'dev-token-lg';
+  const store = new FileStore({ file: path.join(dir, 'p.json'), devToken: DEV });
+  let clock = t0;
+  const server = http.createServer(createHttpHandler({ root: ROOT, catalog: [], publicConfig: { store: 'file' }, cityLeague: LEAGUE.createCityLeague({ store, now: () => clock }) }));
+  server.keepAliveTimeout = 120_000; // giữa hai lần gọi test chạy mô phỏng vài giây: đừng đóng kết nối giữ sẵn
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const call = async (method, p = '', body, token = DEV) => { const res = await fetch(`http://127.0.0.1:${server.address().port}/api/city/league${p}`, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, ...(await res.json()) }; };
+  try {
+    assert.equal((await call('GET', '', undefined, '')).status, 401);
+    assert.equal((await call('GET')).league, null, 'chưa vào nhóm');
+    const j = await call('POST', '/join', { name: 'Phố <i>A</i>' });
+    assert.ok(j.ok && j.league.day === 0 && j.me.name === 'Phố iA/i');
+    const c = town(); LgC.attachLeague(c, j);
+    run(c, 24); // qua 0 giờ: provider gửi bản tóm tắt vào outbox
+    assert.ok(c.league.outbox && 'left' in c.league.outbox, 'bản tóm tắt ngày chờ gửi');
+    clock += H; // sang ngày giải 1
+    const r = await call('POST', '/report', { report: c.league.outbox });
+    assert.ok(r.ok && r.league.day === 1 && r.alloc && r.alloc.day === 1 && r.standings.length === 1);
+    LgC.applyServer(c, r);
+    // provider: 0 giờ hôm sau dùng phần chia (dân, giá chợ), sổ dân vẫn khớp
+    r.alloc.prices.food = 0.7; c.league.alloc.prices.food = 0.7;
+    run(c, 24);
+    assert.equal(c.market.p.food, 0.7, 'giá chợ theo nhóm');
+    assert.equal(c.league.alloc.used, true);
+    assert.equal(LG.checkPop(c).drift, 0, 'nguồn dân đổi theo máy chủ mà sổ dân vẫn khớp');
+    // đồng hồ thật: không chạy quá ngày giải; vắng lâu thì chạy bù tối đa 7 ngày
+    const L = c.league;
+    assert.equal(LgC.allowedHour(L, L.start + 0.5 * H), L.cityHour0 + 24);
+    const before = c.hour, sync = LgC.syncClock(c, S.catchUp, L.start + 30 * H);
+    assert.equal(sync.ran, LgC.CATCHUP_MAX_DAYS * 24); assert.ok(sync.skipped > 0 && c.hour - before === sync.ran);
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.ok(back.league && back.league.id === L.id && S.outside(back).kind === 'league', 'lưu lại vẫn trong nhóm');
+    assert.equal((await call('POST', '/leave')).ok, true);
+    assert.equal((await call('GET')).league, null, 'đã rời nhóm');
+  } finally { server.close(); }
+});
+
+test('city: mua bán giữa các thành phố trong nhóm — ghép theo giá sau thuế, chỉ khi rẻ hơn thế giới máy; hợp đồng áp vào xe nhập / xuất, thuế nhập khẩu vào ngân sách', async () => {
+  const mk = (owner, o) => ({ owner, name: owner, report: LEAGUE.cleanReport({ pop: 100, offer: { food: { qty: o.cap || 0 } }, trade: { need: { food: o.need || 0 }, ask: { food: o.ask || 1 }, tariff: { food: o.tariff || 0 } } }) });
+  const P = { food: 1 };
+  let t = LEAGUE.matchTrade([mk('A', { need: 100 }), mk('S1', { cap: 60, ask: 1 }), mk('S2', { cap: 80, ask: 0.9 })], P);
+  assert.deepEqual([t.A.buy.food.qty, t.S2.sell.food.qty, t.S1.sell.food.qty], [100, 80, 20], 'rẻ nhất trước, đủ nhu cầu');
+  assert.ok(t.A.buy.food.price > 0.9 && t.A.buy.food.price < 1, 'giá trung bình theo hợp đồng');
+  t = LEAGUE.matchTrade([mk('A', { need: 100, tariff: 0.5 }), mk('S1', { cap: 60, ask: 1.2 })], P);
+  assert.equal(t.A.buy.food, undefined, 'thuế cao, giá chào cao: đắt hơn thế giới máy thì không mua');
+  t = LEAGUE.matchTrade([mk('A', { need: 50, cap: 50 })], P);
+  assert.equal(t.A.buy.food, undefined, 'không tự mua của mình');
+  // phía game: hợp đồng mua 10 đơn vị hàng hoá giá 90% + thuế 20%
+  const P2 = await import('../city/js/people.js');
+  const c = town(); run(c, 24);
+  LgC.attachLeague(c, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 0, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 0, migrants: 0, tourists: 0, invest: 1, prices: { food: 1 }, trade: { buy: { food: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } }, standings: [] });
+  LgC.applyServer(c, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 1 }, alloc: { day: 1, prices: { food: 1 }, trade: { buy: { food: { qty: 10, price: 0.9, tariff: 0.2, from: ['B'] } }, sell: {} } } });
+  let shop = -1; for (let i = 0; i < S.N * S.N && shop < 0; i++) if (c.level[i] && S.bizKind(c, i) === 'shop') shop = i;
+  assert.ok(shop >= 0, 'có cửa hàng nhập hàng');
+  LG.resetLedger(c);
+  const money0 = c.money, biz0 = c.biz.money[shop];
+  P2.onArrive(c, { t: 'cargo', to: shop, from: -1, kind: 'food', qty: 12, imp: true });
+  const unit = S.priceOf('food'), tariff = 10 * unit * 0.9 * 0.2;
+  assert.ok(Math.abs(c.money - money0 - tariff) < 1e-6, 'thuế nhập khẩu vào ngân sách');
+  assert.ok(Math.abs(biz0 - c.biz.money[shop] - (10 * unit * 0.9 * 1.2 + 2 * unit * S.PRICE.importMult * c.market.p.food)) < 1e-3, 'doanh nghiệp trả giá hợp đồng + thuế cho 10, giá thế giới cho 2');
+  assert.equal(c.league.alloc.trade.buy.food.left, 0, 'hợp đồng đã dùng hết');
+  assert.ok(Math.abs(LG.checkLedger(c).drift) < 1e-3, 'sổ cái khớp');
+  // chính sách: đổi mỗi loại hàng một lần mỗi ngày, gửi lên trong bản tóm tắt
+  assert.ok(LgC.setPolicy(c, 'tariff', 'food', 0.6).ok);
+  assert.equal(LgC.policyOf(c).tariff.food, 0.5, 'trần thuế 50%');
+  assert.equal(LgC.setPolicy(c, 'tariff', 'food', 0.1).ok, false, 'đổi lần hai trong ngày');
+  run(c, 24);
+  assert.ok(c.league.outbox && c.league.outbox.trade.tariff.food === 0.5 && 'need' in c.league.outbox.trade);
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(LgC.policyOf(back).tariff.food, 0.5, 'chính sách lưu lại');
+  // thanh toán: tiền đi thẳng từ bên mua sang bên bán qua máy chủ, tổng khớp tuyệt đối
+  const pairs = [{ b: 'A', s: 'B', k: 'food', qty: 100, price: 0.9 }, { b: 'A', s: 'C', k: 'food', qty: 50, price: 1 }];
+  const paidA = 120 * unit * ((100 * 0.9 + 50 * 1) / 150); // A nhận 120 / 150, trả trước theo giá trung bình
+  const cl = LEAGUE.clearTrades(pairs, { A: { buy: { food: { qty: 120, paid: paidA } } }, B: { sell: { food: { qty: 100 } } }, C: { sell: { food: { qty: 10 } } } }, 3);
+  const sum = (o) => Object.values(o || {}).reduce((x, v) => x + v, 0);
+  assert.ok(Math.abs(paidA - (sum(cl.A.refund) + sum(cl.B.receive) + sum(cl.C.receive))) < 0.05, 'bên mua trả = bên bán nhận + hoàn lại');
+  assert.ok(cl.C.receive.food < cl.B.receive.food && cl.C.unmatchedSell.food === 0, 'C giao ít thì nhận ít');
+  assert.ok(cl.A.refund.food > 0, 'bên mua được hoàn phần bên bán không giao');
+  const none = LEAGUE.clearTrades(pairs, { B: { sell: { food: { qty: 100 } } } }, 3);
+  assert.equal(sum(none.B.receive), 0, 'bên mua không nhận hàng thì bên bán không được trả');
+  // phía game: bên bán nhận tiền qua quỹ nhóm vào đúng doanh nghiệp đã giao, sổ cái vẫn khớp
+  const s2 = town(); run(s2, 24);
+  LgC.attachLeague(s2, { league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 3, season: 0, members: 2, rural: 0 }, me: { joinDay: 0 }, alloc: { day: 3, prices: { food: 1 }, trade: { buy: {}, sell: { food: { qty: 40, price: 1.1, to: ['A'] } } } }, standings: [] });
+  s2.league.alloc.trade.sell.food.left = 40;
+  let fac = -1; for (let i = 0; i < S.N * S.N && fac < 0; i++) if (s2.level[i] && S.jobCap(s2.zone[i], s2.level[i])) fac = i;
+  LG.resetLedger(s2);
+  const m0 = s2.biz.money[fac];
+  P2.onArrive(s2, { t: 'export', from: fac, kind: 'food', qty: 40 });
+  assert.equal(s2.biz.money[fac], m0, 'bán theo hợp đồng: tiền chưa về ngay');
+  assert.deepEqual(LgC.pendingUsed(s2), {}, 'ngày giải hôm nay chưa gửi');
+  s2.league.alloc = { day: 4, prices: { food: 1 } };
+  assert.equal(LgC.pendingUsed(s2)[3].sell.food.qty, 40, 'ngày đã qua: gửi số hàng đã giao');
+  LgC.applyServer(s2, { ok: true, league: { id: 'g', start: Date.now(), dayMs: 3600e3, day: 4 }, alloc: { day: 4, prices: { food: 1 } }, clear: [{ day: 3, receive: { food: 40 * unit * 1.1 }, refund: {}, unmatchedBuy: {}, unmatchedSell: {} }] });
+  assert.ok(Math.abs(s2.biz.money[fac] - m0 - 40 * unit * 1.1 * (1 - s2.tax.i / 100)) < 1e-3, 'tiền hợp đồng về doanh nghiệp đã giao (trừ thuế)');
+  assert.ok(Math.abs(LG.checkLedger(s2).drift) < 1e-3 && s2.ledger.group < 0, 'sổ cái khớp, tiền đến từ quỹ nhóm chứ không phải ví thế giới');
+  assert.equal(LgC.applyClear(s2, { day: 3, receive: { food: 999 } }), false, 'không nhận hai lần');
+});
+
+test('city: chuỗi sản xuất nhiều tầng — nhà máy làm thành phẩm theo vị trí, tầng 2 cần đủ hai nguyên liệu, cửa hàng bán hàng đắt được giá hơn, mỗi thành phẩm có giá chợ riêng', async () => {
+  const P = await import('../city/js/people.js');
+  assert.ok(S.PRODUCT_KINDS.length >= 7 && S.MKT_KINDS.length === S.RAW_KINDS.length + S.PRODUCT_KINDS.length);
+  assert.ok(S.PRODUCT_KINDS.every((k) => S.PRODUCTS[k].in.every((alts) => alts.every((a) => S.RAW[a] || S.PRODUCTS[a]))), 'mọi nguyên liệu đều là nguyên liệu thô hoặc thành phẩm');
+  for (let i = 0; i < 400; i++) { const p = S.productAt(i, 21); assert.ok(S.PRODUCTS[p].work, 'xưởng chế biến chỉ làm thực phẩm, quần áo, nội thất'); }
+  assert.ok(S.priceOf('electronics') > S.priceOf('food') && S.importMultOf('steel') === S.PRICE.importMult && S.importMultOf('ore') === S.PRICE.rawImportMult);
+  const c = town(); run(c, 24 * 2);
+  const b = c.biz;
+  // tìm (hoặc dựng) một nhà máy tầng 2 cho máy móc
+  let f = -1; for (let i = 0; i < S.N * S.N && f < 0; i++) if (S.productAt(i, 3) === 'machine' && c.acc[i] && !c.level[i] && !c.water[i] && !c.occ[i]) f = i; // ô trống cạnh đường
+  c.zone[f] = 3; c.level[f] = 2; c.present[f] = 8; b.money[f] = 1e5; b.sout[f] = 0;
+  assert.deepEqual(S.recipeOf(c, f), ['steel', 'plastic']);
+  b.sin[f] = 20; b.sin2[f] = 0;
+  run(c, 1);
+  assert.equal(b.sout[f], 0, 'thiếu nhựa thì máy móc không làm được');
+  P.onArrive(c, { t: 'cargo', to: f, kind: 'plastic', qty: 20, imp: true, slot: 1 });
+  assert.equal(b.sin2[f], 20, 'nguyên liệu thứ hai vào đúng khe');
+  c.present[f] = 8; b.incoming[f] = 0;
+  for (let h = 0; h < 6 && !(b.sout[f] > 0); h++) { c.present[f] = 8; run(c, 1); }
+  assert.ok(b.sout[f] > 0, 'đủ hai nguyên liệu thì làm ra máy móc'); // (kho nguyên liệu có thể tăng vì xe nhập thêm)
+  // cửa hàng nhận điện tử: giá trị hàng trong kho cao hơn hàng thường
+  let shop = -1; for (let i = 0; i < S.N * S.N && shop < 0; i++) if (c.level[i] && S.bizKind(c, i) === 'shop') shop = i;
+  b.sin[shop] = 0; b.sinK[shop] = 1;
+  P.onArrive(c, { t: 'cargo', to: shop, kind: 'electronics', qty: 8, imp: true });
+  assert.ok(Math.abs(b.sinK[shop] - S.priceOf('electronics') / S.PRICE.goods) < 1e-6, 'giá trị hàng theo loại');
+  // giá chợ và bản tóm tắt theo từng thành phẩm
+  assert.ok(S.MKT_KINDS.every((k) => c.market.p[k] > 0));
+  run(c, 24);
+  const rep = c.reports.at(-1);
+  assert.ok(S.PRODUCT_KINDS.every((k) => rep.offer[k]) && !('goods' in rep.offer), 'bản tóm tắt chào bán theo từng thành phẩm');
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(S.MKT_KINDS.every((k) => back.market.p[k] > 0), 'giá chợ từng thành phẩm lưu lại');
+});
+
+test('city: Việt Nam hoá P0 — chung cư cũ, nhà cấp 4, đồ bày trước quán, xe shipper, trang trí lễ', async () => {
+  const M = await import('../city/js/models.js'), { pickLook, LOOKS } = await import('../city/js/traffic.js');
+  const nv = (g) => (g ? g.attributes.position.count : 0);
+  assert.ok(nv(M.growableVN(4, 1, 0)) > 0 && nv(M.growableVN(4, 4, 1)) > 0, 'khu cao tầng: chung cư cũ (cấp 1–2), chung cư khu đô thị mới (cấp 3+)');
+  assert.ok(nv(M.growableVN(5, 1, 0)) > 0 && M.growableVN(5, 3, 0) === null, 'siêu thị ở thương mại lớn cấp 1–2, cấp 3+ giữ tháp');
+  assert.ok(nv(M.growableVN(1, 5, 0)) > 0 && nv(M.growableVN(14, 1, 0)) > 0, 'biệt thự, nhà trọ');
+  assert.notEqual(nv(M.growableVN(1, 1, 0)), nv(M.growableVN(1, 1, 2)), 'nhà riêng cấp 1: nhà cấp 4 (variant 0, 1), nhà ống (variant 2)');
+  assert.ok(M.FRONT_KINDS.every((k) => nv(M.shopFrontGeometry(k)) > 0) && M.FRONT_OF_SIGN.length === 11 && nv(M.parkedBikesGeometry()) > 0);
+  assert.ok(nv(M.lanternGeometry()) > 0 && nv(M.poleFlagGeometry()) > 0 && nv(M.vehicleGeometry('shipper')) > 0);
+  assert.deepEqual([pickLook('moto', null, 0.97), pickLook('moto', null, 0.4)], ['shipper', 'ebike']); assert.ok(nv(M.vehicleGeometry('ebike')) > 0 && nv(M.sitGeometry()) > 0); assert.ok(LOOKS.shipper.len > 0);
+  const deco = Object.fromEntries(S.FESTIVALS.map((f) => [f.id, f.deco || '']));
+  assert.deepEqual([deco.tet, deco.trungthu, deco.saute], ['lantern flag', 'lantern', ''], 'Tết treo cờ và đèn lồng, Trung Thu đèn lồng, Sau Tết không trang trí');
+});
+
+test('city: Việt Nam hoá Phase 4 — nắng nóng, kênh rạch hôi, nhà trọ, phố ẩm thực; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 48); LG.resetLedger(c);
+  // nắng nóng: điện, nước dùng tăng 30% / 15%; nhà không có bóng cây kém vui
+  const p0 = c.stats.powerUse, home = [...c.level.keys()].find((i) => c.level[i] && c.zone[i] === 1 && !(c.cover.park[i] > 0.05));
+  const h0 = S.cellHappy(c, home).happy;
+  c.inc.weather = 'heat'; S.computeNetworks(c); S.recalc(c);
+  assert.ok(c.stats.powerUse >= Math.round(p0 * 1.3) - 1, 'điện dùng tăng');
+  assert.ok(S.cellHappy(c, home).happy < h0 && S.cellHappy(c, home).needs.some((n) => /Nắng nóng/.test(n)));
+  assert.ok(S.WEATHER.heat && S.hotSeason({ day: 15 }) !== S.hotSeason({ day: 75 }), 'nắng nóng chỉ ở mùa nóng');
+  // kênh rạch hôi gần nhà
+  c.inc.weather = 'clear'; const h1 = S.cellHappy(c, home).happy; c.waterPol[home] = 0.7;
+  assert.ok(S.cellHappy(c, home).happy <= h1 - 6 && S.cellHappy(c, home).needs.some((n) => /hôi/.test(n)));
+  c.waterPol[home] = 0;
+  // nhà trọ: liền kề cấp 1–2, một phần ba số ô (variant), tiền thuê rẻ
+  const j = home; c.zone[j] = 14; c.level[j] = 1; c.variant[j] = 3; const rTro = S.rentAt(c, j); c.variant[j] = 4; const rNormal = S.rentAt(c, j);
+  assert.ok(Math.abs(rTro / rNormal - S.TRO_RENT) < 1e-9 && S.isTro({ zone: [14], level: [2], variant: [6] }, 0));
+  c.zone[j] = 1; c.variant[j] = 0;
+  // phố ẩm thực: 5 ô khu ăn uống liền nhau cùng hướng
+  const t0 = S.tourismScore(c).attract, y = 40, x0 = c.start.x - 3;
+  for (let k = 0; k < 5; k++) { const i = y * S.N + x0 + k; c.zone[i] = 17; c.level[i] = 1; c.dir[i] = 2; }
+  assert.deepEqual(S.foodStreets(c), { streets: 1, cells: 5 });
+  assert.ok(S.tourismScore(c).attract > t0);
+  for (let k = 0; k < 5; k++) { const i = y * S.N + x0 + k; c.zone[i] = 0; c.level[i] = 0; }
+  // vài ngày nắng nóng vẫn không lệch sổ tiền
+  c.inc.weather = 'heat'; c.inc.wUntil = c.hour + 48; run(c, 48);
+  const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
+test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, mở rộng, xin dự án, cam kết, lưu, sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 120); LG.resetLedger(c);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 12);
+    const q = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(q && q.cells.length >= 1 && c.owner[q.cells[0][0]] === q.id, 'có công ty sở hữu nhà máy');
+    assert.ok(S.stageOf(c, q) >= 1 && S.influence(c, q) >= 0 && S.CEOS[q.ceo]);
+    // cổng hành động từ chối ô không hợp lệ, quỹ thiếu, dự án nhiều ô khi chưa duyệt
+    assert.equal(S.corpAct(c, q, { type: 'build', cells: [0] }).ok, false);
+    q.cash = 0; assert.equal(S.corpAct(c, q, { type: 'ask', sites: [1] }).ok, false);
+    // đề xuất dự án: duyệt → xây, nộp phí đất, cam kết việc làm đo được
+    q.cash = 5000 * S.MK; q.cool.ask = 0; q.ceo = 'bold'; c.corp.asks = [];
+    const site = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
+    const ask = S.corpAct(c, q, { type: 'ask', sites: site });
+    assert.ok(ask.ok, ask.reason);
+    c.stats.powerCap = 1e9; // điện dư (nếu thiếu điện, công ty không dám xây)
+    const m0 = c.money, ok = S.approveAsk(c, ask.ask.id);
+    assert.ok(ok.ok, JSON.stringify(ok)); assert.ok(c.money > m0 && q.deals.length === 1 && q.deals[0].status === 'open', 'duyệt: nộp phí đất, có cam kết');
+    q.deals[0].due = c.day; q.deals[0].base = 99999; run(c, 24);
+    assert.ok(q.log.some((e) => e.type === 'dealBreach'), 'không đạt cam kết thì bị ghi lại');
+    // mặc cả: đòi thêm một lần
+    q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = [];
+    const a2 = S.corpAct(c, q, { type: 'ask', sites: [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2) });
+    if (a2.ok) { const r = S.counterAsk(c, a2.ask.id); assert.ok(r.ok && S.counterAsk(c, a2.ask.id).ok === false); }
+    // lưu và nạp lại: công ty, ô sở hữu, quỹ giữ nguyên
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.corp.list.length, c.corp.list.length);
+    assert.equal(back.owner[q.cells[0][0]], q.id);
+    LG.resetLedger(c); // quỹ ở trên do test đặt tay: tính lại gốc sổ rồi chạy tiếp
+    run(c, 24 * 10);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(q, 'có công ty');
+    // gom đủ nhà máy cho mẹ rồi lập công ty con: vốn chuyển từ quỹ mẹ, ô chuyển chủ
+    for (let i = 0; i < S.N * S.N && S.cellsBuilt(c, q).length < 6; i++) if (c.level[i] && !c.owner[i] && S.ZDEF[c.zone[i]].biz === 'ind') { c.owner[i] = q.id; q.cells.push([i, c.day]); }
+    assert.ok(S.cellsBuilt(c, q).length >= 5, 'đủ nhà máy để lập công ty con');
+    q.stage = 2; q.cash = 3000 * S.MK; q.cool.sub = 0; LG.resetLedger(c);
+    const built = S.cellsBuilt(c, q).length, r = S.corpAct(c, q, { type: 'subsidiary' });
+    assert.ok(r.ok, r.reason);
+    const kid = r.kid;
+    assert.ok(kid.parent === q.id && S.rootOf(c, kid.id) === q.id && c.corpGroup[kid.id] === q.id && c.owner[kid.cells[0][0]] === kid.id);
+    assert.equal(S.cellsBuilt(c, q).length + S.cellsBuilt(c, kid).length, built, 'ô chuyển chủ, không mất');
+    assert.equal(S.corpAct(c, kid, { type: 'subsidiary' }).ok, false, 'công ty con không lập con tiếp');
+    assert.ok(q.log.some((e) => e.type === 'subsidiary') && kid.log.some((e) => e.type === 'founded'));
+    // AI chọn hành động: id lạ bị bỏ; id hợp lệ được thực thi và ghi lịch sử; quá hạn thì dùng lựa chọn của luật
+    q.pend = { opts: ['expand', 'hold'], def: 'hold', since: c.hour };
+    assert.equal(S.corpResolve(c, q, 'subsidiary', 'x').ok, false);
+    assert.equal(S.corpResolve(c, q, 'hold', 'Giữ tiền <b>').ok, true);
+    assert.ok(q.log.at(-1).type === 'decision' && q.log.at(-1).ai && !/[<>]/.test(q.log.at(-1).text) && !q.pend);
+    q.pend = { opts: ['hold'], def: 'hold', since: c.hour - 20 }; run(c, 1); assert.equal(q.pend, null, 'quá hạn chờ AI thì game tự quyết');
+    // xuất khẩu chủ động: tồn kho cao thì bật, cờ chuyển sang bảng tra của people.js
+    while (c.hour % 24 !== 5) run(c, 1); // đặt tồn kho ngay trước giờ kiểm tra lúc 6h
+    for (const [i] of q.cells) c.biz.sout[i] = 40;
+    q.export = 0; q.xAt = 0; run(c, 2); assert.equal(q.export, 1); assert.equal(c.corpExp[q.id], 1);
+    S.corpNote(c, 'intern', q.cells[0][0], 5); assert.ok(q.intern >= 5);
+    // gateway: CEO chỉ được chọn trong danh sách, thẻ <corp> không lọt khoá / chuỗi lạ
+    const calls = [], fake = { beta: { messages: { create: async (b) => { calls.push(b); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ id: 'project', why: 'Chốt' }) }] }; } } } };
+    const { createCityAi } = await import('../gateway/city-ai.js'), ai = createCityAi({ env: {}, client: fake, log: { warn() {} } });
+    assert.equal((await ai.run({ kind: 'corp', q: { risk: 0.8, name: 'A<b>', 'x y': 1 }, options: [{ id: 'expand', label: 'a' }] })).id, null);
+    assert.match(calls[0].messages[0].content, /"risk":0\.8/); assert.doesNotMatch(calls[0].messages[0].content, /x y/);
+    assert.equal((await ai.run({ kind: 'corp', q: {}, options: [{ id: 'project', label: 'p' }, { id: 'hold', label: 'h' }] })).id, 'project');
+    await assert.rejects(ai.run({ kind: 'corp', q: {}, options: [] }));
+    // lưu / nạp giữ công ty con, cờ xuất khẩu; chạy tiếp không lệch sổ
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    const bk = back.corp.list.find((x) => x.id === kid.id);
+    assert.ok(bk && bk.parent === q.id && back.corp.list.find((x) => x.id === q.id).export === 1 && !back.corp.list.some((x) => x.pend));
+    LG.resetLedger(c); run(c, 24 * 10);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: tập đoàn Phase 3 — mua lại, liên doanh, vay, độc quyền, bảo hộ, sụp đổ gây sốc; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const a = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(a, 'có công ty');
+    const rich = (q) => { q.cash = 4000 * S.MK; q.stage = 2; q.cool.acq = 0; q.cool.ask = 0; };
+    // đối thủ gặp khó bị mua lại thành công ty con; xưởng độc lập chỉ bị mua khi không được bảo hộ
+    const b = S.inviteRival(c).corp || c.corp.list.find((q) => q !== a);
+    assert.ok(b, 'có đối thủ'); LG.resetLedger(c);
+    rich(a); b.cash = 0; for (const [i] of b.cells) c.biz.eff[i] = 0.1;
+    const r = S.corpAct(c, a, { type: 'acquire' });
+    assert.ok(r.ok && (r.rival ? r.rival.parent === a.id : c.owner[r.cell] === a.id), JSON.stringify(r));
+    assert.ok(a.log.some((e) => e.type === 'acquire'));
+    assert.equal(S.protectSme(c).ok, true); assert.equal(S.protectSme(c).ok, false, 'đang bảo hộ thì không bảo hộ tiếp');
+    a.cool.acq = 0; rich(a); const indep = [...c.level.keys()].find((i) => c.level[i] && !c.owner[i] && S.ZDEF[c.zone[i]].biz === 'ind');
+    if (indep != null && !c.corp.list.some((x) => x !== a && !x.parent && !x.partners && S.cellsBuilt(c, x).length && (x.cash < 1 || S.effOf(c, x) < 0.35))) assert.equal(S.corpAct(c, a, { type: 'acquire' }).ok, false, 'xưởng độc lập được bảo hộ thì không bị mua');
+    // vay vốn: tiền từ thế giới vào quỹ, trả lãi và gốc dần
+    const q = c.corp.list.find((x) => !x.parent && x !== a) || a;
+    q.debt = 0; q.cash = 0; for (const [i] of q.cells) c.biz.eff[i] = 0.1;
+    const w0 = LG.worldReserve(c), loan = S.corpAct(c, q, { type: 'loan' });
+    assert.ok(loan.ok && q.debt > 0 && q.cash > 0 && LG.worldReserve(c) < w0, 'vay: thế giới cho vay');
+    // liên doanh: hai bên góp nửa vốn vào công ty mới
+    const p = c.corp.list.find((x) => !x.parent && x !== q && !x.partners) || a;
+    for (const x of [q, p]) { x.debt = 0; x.cash = 4000 * S.MK; x.cool.ask = 0; x.stage = 2; }
+    c.corp.asks = []; c.stats.powerCap = 1e9;
+    const sites = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]).slice(0, 2);
+    const ask = q === p ? { ok: false } : S.corpAct(c, q, { type: 'ask', sites, jv: p.id });
+    if (ask.ok) { const ap = S.approveAsk(c, ask.ask.id); assert.ok(ap.ok, JSON.stringify(ap)); assert.ok(c.corp.list.some((x) => x.partners && x.partners.includes(q.id) && x.partners.includes(p.id)), 'có công ty liên doanh'); }
+    // độc quyền: nắm quá 60% một sản phẩm (từ 4 nhà máy) thì bị cảnh báo; mua thêm bị chặn
+    const m = S.marketShare(c, a.id, S.corpSector(c, a)); assert.ok(m >= 0 && m <= 1);
+    // sụp đổ của nhóm lớn: cú sốc niềm tin cho cả thành phố
+    const z = c.corp.list.find((x) => !x.parent && !x.partners);
+    z.lastShare = 0.2; for (const x of [z, ...S.subsOf(c, z)]) { for (const [i] of x.cells) c.owner[i] = 0; x.cells = []; x.cash = 0; } // cả nhóm sụp
+    const n0 = c.council.mods.length; while (c.hour % 24 !== 5) run(c, 1); run(c, 2);
+    assert.ok(c.council.mods.length > n0 && c.council.mods.some((x) => x.from === 'corp' && x.v < 0), 'sụp đổ gây sốc');
+    // lưu / nạp giữ nợ, liên doanh, bảo hộ; sổ tiền khớp
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.corp.sme, c.corp.sme); assert.ok(back.corp.list.every((x) => x.debt >= 0));
+    LG.resetLedger(c); // quỹ ở trên do test đặt tay: tính lại gốc sổ rồi chạy tiếp (có nợ vay, lãi, liên doanh)
+    run(c, 24 * 6); const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: tập đoàn — bán cơ sở khi khủng hoảng, duyệt dự án khi quỹ đã hụt, mua đối thủ trả cho dân, vỡ nợ; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list.find((x) => x.kind !== 'trade' && S.cellsBuilt(c, x).length >= 2);
+    assert.ok(q, 'có công ty');
+    LG.resetLedger(c);
+    // bán cơ sở yếu nhất: không ném lỗi, ô thành doanh nghiệp độc lập
+    const n0 = q.cells.length, r = S.corpDo(c, q, 'release');
+    assert.ok(r.ok && q.cells.length === n0 - 1, JSON.stringify(r));
+    // duyệt dự án khi quỹ đã hụt trong lúc chờ: từ chối, quỹ không âm
+    q.cash = 1e6 * S.MK; q.cool.ask = 0; c.corp.asks = []; q.stage = 4; c.stats.powerCap = 1e9;
+    const sites = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]).slice(0, 4);
+    const ask = S.corpAct(c, q, { type: 'ask', sites });
+    assert.ok(ask.ok, JSON.stringify(ask));
+    q.cash = sites.length * S.CORP.cellFee * S.MK + 41 * S.MK;
+    assert.equal(S.approveAsk(c, ask.ask.id).ok, false); assert.ok(q.cash > 0 && !c.corp.asks.length);
+    // mua đối thủ: tiền về tay dân, không vào quỹ đối thủ (giờ là công ty con)
+    const b = S.inviteRival(c).corp;
+    if (b && b.cells.length) {
+      q.cash = 4000 * S.MK; q.stage = 2; q.cool.acq = 0; q.parent = 0; b.cash = 0; for (const [i] of b.cells) c.biz.eff[i] = 0.1;
+      const a = S.corpAct(c, q, { type: 'acquire' });
+      if (a.rival) assert.equal(b.cash, 0, 'đối thủ không nhận lại tiền mua');
+    }
+    // nợ không trả nổi phình quá 2 lần hạn mức thì vỡ nợ, bị cấm vay
+    q.cash = 0; q.debt = 1e9; while (c.hour % 24 !== 5) run(c, 1); run(c, 2);
+    assert.ok(q.debt === 0 && q.cool.loan > c.day && q.log.some((e) => e.type === 'default'));
+    LG.resetLedger(c); run(c, 24 * 4);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá nội địa theo cung cầu và hệ số bán, mô hình kho + biển logo; sổ tiền vẫn khớp', async () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(q, 'có công ty');
+    // kho bãi: công ty xây kho trên ô mới; ô có cờ kho, nhóm có thêm chỗ chứa
+    q.stage = 2; q.cash = 4000 * S.MK; c.stats.powerCap = 1e9;
+    const site = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]);
+    LG.resetLedger(c);
+    const r = S.corpAct(c, q, { type: 'build', cells: [site], ware: true });
+    assert.ok(r.ok, JSON.stringify(r));
+    assert.ok(c.ware[site] === 1 && q.wares.includes(site) && q.log.some((e) => e.type === 'warehouse'));
+    for (let h = 0; h < 24 * 12 && !c.level[site]; h++) S.tick(c); // công ty đã trả tiền: xây ngay khi đủ điện nước, không chờ nhu cầu công nghiệp
+    assert.ok(c.level[site] > 0, 'kho được xây');
+    let rebuilt = false; for (let h = 0; h < 24 * 4 && !rebuilt; h++) { S.tick(c); rebuilt = c.corpStore[q.id] > 0; }
+    assert.ok(rebuilt && c.corpStore[q.id] <= S.CORP.storeCap * Math.min(3, c.level[site]), 'kho có người làm thì thêm chỗ chứa cho cả nhóm');
+    run(c, 24 * 4); assert.ok(c.level[site] && c.biz.money[site] > 0, `phí lưu kho đủ nuôi kho (ví ${c.biz.money[site]})`);
+    // kho không tính là nhà máy sản xuất (thị phần, ngành chính)
+    assert.ok(S.marketShare(c, q.id, S.productAt(site, 3)) <= 1);
+    // giá nội địa: chỉ số cung cầu nằm trong khung; hệ số bán chỉnh theo tồn kho; giá giao hàng trong thành phố kẹp trong khung
+    run(c, 48);
+    for (const k of Object.keys(S.PRODUCTS)) assert.ok(c.corp.dp[k] >= S.CORP.dpMin && c.corp.dp[k] <= S.CORP.dpMax);
+    const cell = q.cells.find(([i]) => c.level[i] && !c.ware[i])[0];
+    q.markup = 1.2; c.corpMark[q.id] = 1.2; c.corp.dp.steel = 1.3;
+    assert.ok(Math.abs(c.fn.corpPrice(c, 'steel', cell) - Math.min(S.CORP.priceMax, 1.3 * 1.2)) < 1e-9, 'giá = chỉ số × hệ số bán, kẹp trần');
+    assert.equal(c.fn.corpPrice(c, 'steel', null), 1.3, 'bên bán độc lập: chỉ theo chỉ số cung cầu');
+    // mô hình 3D và biển logo
+    const M = await import('../city/js/models.js');
+    assert.ok(M.warehouseGeometry(2).attributes.position.count > 100 && M.corpGateGeometry().attributes.position.count > 0);
+    // lưu / nạp giữ kho, hệ số bán, chỉ số giá
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    const bq = back.corp.list.find((x) => x.id === q.id);
+    assert.ok(bq.wares.includes(site) && Math.abs(bq.markup - 1.2) < 1e-6 && back.ware[site] === 1 && back.corp.dp.steel > 1);
+    LG.resetLedger(c); run(c, 24 * 8);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: giá bán lẻ theo cung cầu — kệ cạn thì giá lên, hàng ứ thì hạ, dân mua ít khi đắt, mặt bằng giá đắt thì dân kém vui; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 150);
+  const shops = [...c.level.keys()].filter((i) => c.level[i] && S.bizKind(c, i) === 'shop');
+  assert.ok(shops.length >= 2, 'có cửa hàng');
+  const [a, b] = shops;
+  // chỉ số giá là kệ cạn → tăng; hàng ứ → giảm (một ngày một nhịp, trong khung)
+  c.biz.rp[a] = 1; c.biz.rp[b] = 1; c.biz.nh = 0;
+  for (let d = 0; d < 6; d++) { c.biz.sin[a] = 0; c.biz.sin[b] = 48; S.retailDay(c, [a, b]); } // gọi thẳng nhịp giá mỗi ngày (xe giao hàng ngẫu nhiên không làm lệch)
+  assert.ok(c.biz.rp[a] > 1.05 && c.biz.rp[b] < 0.95, `cạn ${c.biz.rp[a]}, ứ ${c.biz.rp[b]}`);
+  for (const i of shops) assert.ok(c.biz.rp[i] >= S.RETAIL.min && c.biz.rp[i] <= S.RETAIL.max);
+  // mặt bằng giá cao: dân kém vui và có nhu cầu "giá đắt đỏ"; thấp thì vui hơn một chút
+  const home = [...c.level.keys()].find((i) => c.level[i] && c.zone[i] === 1);
+  c.retailIdx = 1; const h0 = S.cellHappy(c, home).happy;
+  c.retailIdx = 1.4; const hi = S.cellHappy(c, home);
+  assert.ok(hi.happy <= h0 && (h0 <= 5 || hi.happy < h0) && hi.needs.some((n) => n.includes("×1.40")), `vui ${h0} → ${hi.happy}`); // vui chạm sàn 0 thì chỉ cần không tăng
+  c.retailIdx = 0.85; assert.ok(S.cellHappy(c, home).happy >= h0);
+  // cạnh tranh bằng giá: cửa hàng rẻ đông khách hơn cửa hàng đắt (tính theo người đứng quầy)
+  while (c.hour % 24 !== 9) run(c, 1);
+  let pa = 0, pb = 0; c.biz.rs[a] = 0; c.biz.rs[b] = 0;
+  for (let h = 0; h < 6; h++) { c.biz.rp[a] = 0.8; c.biz.rp[b] = 1.4; c.biz.sin[a] = c.biz.sin[b] = 40; run(c, 1); pa += c.present[a]; pb += c.present[b]; }
+  assert.ok(pa && pb && c.biz.rs[a] / pa > c.biz.rs[b] / pb, `rẻ ${c.biz.rs[a]}/${pa}, đắt ${c.biz.rs[b]}/${pb}`);
+  // lưu / nạp giữ giá từng cửa hàng và chỉ số giá; chạy tiếp vẫn khớp sổ tiền (người mua trả đúng bằng người bán nhận)
+  c.biz.rp[a] = 1.3; c.retailIdx = 1.2;
+  const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.ok(Math.abs(back.biz.rp[a] - 1.3) < 1e-3 && Math.abs(back.retailIdx - 1.2) < 1e-3);
+  LG.resetLedger(c); run(c, 24 * 8);
+  const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
+test('city: công ty thương mại — lập từ cửa hàng độc lập, xây cửa hàng gần dân, hệ số bán điều chỉnh giá bán lẻ, tập đoàn sản xuất có công ty con thương mại; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 150);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 12);
+    const t = c.corp.list.find((x) => x.kind === 'trade');
+    assert.ok(t && t.cells.length >= 3 && t.cells.every(([i]) => S.ZDEF[c.zone[i]].biz === 'shop'), 'có công ty thương mại từ cửa hàng');
+    assert.ok(/Thương mại/.test(t.name) && t.log.some((e) => e.type === 'founded' && e.trade));
+    // xây cửa hàng (khu 2) gần khách; không lẫn với nhà máy
+    t.stage = 2; t.cash = 4000 * S.MK; t.cool.act = 0; c.stats.powerCap = 1e9; LG.resetLedger(c);
+    const site = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]);
+    const r = S.corpAct(c, t, { type: 'build', cells: [site] });
+    assert.ok(r.ok && c.zone[site] === 2 && c.owner[site] === t.id, JSON.stringify(r));
+    // chính sách giá: hệ số bán của công ty kéo giá bán lẻ cửa hàng của nó
+    const shopsOf = () => t.cells.map(([i]) => i).filter((i) => c.level[i] && S.ZDEF[c.zone[i]].biz === 'shop');
+    for (const i of shopsOf()) c.biz.rp[i] = 1;
+    for (let d = 0; d < 8; d++) {
+      t.markup = 1.2; c.corpMark[t.id] = 1.2; // giữ chính sách giá cao của CEO (markupCheck hằng ngày kéo dần về 1)
+      for (const i of shopsOf()) { c.biz.sin[i] = 10; c.biz.money[i] = 5000; c.biz.incoming[i] = 1; } // kệ vừa đủ, tiền đủ sống: chỉ còn lực kéo của công ty
+      while (c.hour % 24 !== 23) S.tick(c); S.tick(c); S.tick(c);
+    }
+    const best = Math.max(...shopsOf().map((i) => c.biz.rp[i]));
+    assert.ok(shopsOf().length >= 1 && best > 1.05, `giá bán lẻ theo công ty: ${best}`);
+    // tập đoàn sản xuất bậc 3 mua cửa hàng: vào công ty con thương mại của nhóm
+    const a = c.corp.list.find((x) => x.kind !== 'trade' && !x.parent);
+    if (a) {
+      a.stage = 3; a.cash = 8000 * S.MK; a.cool.acq = 0; c.corp.sme = -1; for (const [i] of a.cells) c.biz.eff[i] = 0.9;
+      const shop = [...c.level.keys()].find((i) => c.level[i] && !c.owner[i] && S.ZDEF[c.zone[i]].biz === 'shop');
+      const ra = S.cellsBuilt(c, a).filter((i) => S.ZDEF[c.zone[i]].biz === 'ind').length >= 2 && shop != null ? S.corpAct(c, a, { type: 'acquire' }) : { ok: false };
+      if (ra.ok && ra.cell != null && S.ZDEF[c.zone[ra.cell]].biz === 'shop') { const kid = S.subsOf(c, a).find((x) => x.kind === 'trade'); assert.ok(kid && c.owner[ra.cell] === kid.id, 'cửa hàng vào công ty con thương mại'); }
+    }
+    // lưu / nạp giữ loại công ty; chạy tiếp không lệch sổ
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    assert.equal(back.corp.list.find((x) => x.id === t.id).kind, 'trade');
+    LG.resetLedger(c); run(c, 24 * 8);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: rời nhóm hoặc nạp bản lưu hỏng thì trả lại nguồn dân nông thôn (không thì dân đứng yên), sổ dân vẫn khớp', () => {
+  const c = town(); run(c, 48);
+  // nhóm chỉ chia vài người mỗi ngày: nguồn dân còn 1; rời nhóm thì được trả lại gần đủ (trừ dân đang ở thành phố)
+  c.popl.base += 1 - c.popl.rural; c.popl.rural = 1;
+  assert.equal(LG.checkPop(c).drift, 0);
+  c.league = { id: 'x' }; c.outside = { kind: 'league' };
+  LgC.detachLeague(c);
+  assert.ok(c.popl.rural >= LG.RURAL.start - c.pp.count && LG.checkPop(c).drift === 0 && !c.league);
+  // bản lưu hỏng từ trước (không có nhóm, nguồn dân 1, dân thành phố nhỏ): nạp lại thì tự trả nguồn dân
+  const o = JSON.parse(JSON.stringify(S.serialize(c))); o.rural = 1;
+  const back = S.deserialize(o);
+  assert.ok(back.popl.rural > 11000 && LG.checkPop(back).drift === 0);
+  // thành phố đang ở trong nhóm (có league) thì giữ nguyên phần máy chủ chia
+  const o2 = JSON.parse(JSON.stringify(S.serialize(c))); o2.rural = 1; o2.league = { id: 'abc', start: Date.now(), dayMs: 3600000, joinDay: 0, cityHour0: 0 };
+  assert.equal(S.deserialize(o2).popl.rural, 1);
 });

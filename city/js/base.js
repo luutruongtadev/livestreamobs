@@ -64,8 +64,30 @@ export const RAW = {
   fish: { id: 5, name: 'Cá', icon: '🐟', rate: 0.6, rgb: [60, 200, 240], product: 'thuỷ sản đóng hộp' },
 };
 export const RAW_KINDS = Object.keys(RAW);
-/** Mỗi nhà máy chuyên chế biến một loại nguyên liệu, cố định theo vị trí ô. */
-export const factoryNeed = (i) => RAW_KINDS[(hash2(i % N, (i / N) | 0, 91) * RAW_KINDS.length) | 0];
+/**
+ * Thành phẩm (chuỗi sản xuất nhiều tầng). in: các ô nguyên liệu cần, mỗi ô là danh sách thay thế được (lấy một loại
+ * theo vị trí nhà máy); price: giá gốc mỗi đơn vị (nhân MK); shop: phần trong giỏ hàng của dân (0 = hàng trung gian,
+ * chỉ bán cho nhà máy khác hoặc xuất khẩu). work: xưởng chế biến (khu 21) làm được.
+ */
+export const PRODUCTS = {
+  food: { name: 'Thực phẩm', icon: '🥫', in: [['agri', 'fish']], price: 7, shop: 0.35, work: true },
+  clothes: { name: 'Quần áo', icon: '👕', in: [['agri']], price: 8, shop: 0.2, work: true },
+  furniture: { name: 'Nội thất', icon: '🪑', in: [['wood']], price: 9, shop: 0.15, work: true },
+  steel: { name: 'Thép', icon: '🔩', in: [['ore']], price: 9, shop: 0 },
+  plastic: { name: 'Nhựa, hoá chất', icon: '🧪', in: [['oil']], price: 9, shop: 0 },
+  machine: { name: 'Máy móc, xe', icon: '🚗', in: [['steel'], ['plastic']], price: 30, shop: 0.18, tier: 2 },
+  electronics: { name: 'Điện tử', icon: '💻', in: [['ore'], ['plastic']], price: 32, shop: 0.12, tier: 2 },
+};
+export const PRODUCT_KINDS = Object.keys(PRODUCTS);
+export const SHOP_KINDS = PRODUCT_KINDS.filter((k) => PRODUCTS[k].shop > 0);
+export const isProduct = (k) => !!PRODUCTS[k] || k === 'goods';
+const hashPick = (i, arr, salt) => arr[(hash2(i % N, (i / N) | 0, salt) * arr.length) | 0];
+/** Thành phẩm của nhà máy / xưởng ở ô i (cố định theo vị trí). z: khu (21 = xưởng chế biến). */
+export const productAt = (i, z) => hashPick(i, z === 21 ? PRODUCT_KINDS.filter((k) => PRODUCTS[k].work) : PRODUCT_KINDS, 93);
+/** Nguyên liệu nhà máy ở ô i cần cho thành phẩm p: một hoặc hai loại (chọn trong danh sách thay thế theo vị trí). */
+export const recipeAt = (i, p) => PRODUCTS[p].in.map((alts, k) => hashPick(i, alts, 91 + k));
+/** Nguyên liệu chính của nhà máy (ô nguyên liệu đầu tiên), giữ cho mã cũ. */
+export const factoryNeed = (i) => recipeAt(i, productAt(i, 3))[0];
 export const MAX_LEVEL = 5;
 export const resCap = (z, L) => (L && ZDEF[z].res ? ZDEF[z].res[L - 1] : 0);
 export const jobCap = (z, L) => (L && ZDEF[z].jobs ? ZDEF[z].jobs[L - 1] : 0);
@@ -282,8 +304,13 @@ export const DEPOT_FREE = 4; // chưa có bến xe thì các tuyến xe buýt + 
 
 // giá hàng trong chuỗi cung ứng (mỗi đơn vị)
 // load: một xe hàng cho cửa hàng, chợ; loadF: xe nguyên liệu lớn nhất cho nhà máy, xưởng (chở đủ khoảng 8 giờ chạy máy)
-export const PRICE = { raw: 3, goods: 8, retail: 15, market: 10, importMult: 1.4, rawImportMult: 1.1, exportMult: 0.85, load: 8, loadF: 32 };
-export const priceOf = (kind) => (kind === 'goods' ? PRICE.goods : PRICE.raw);
+/** Hệ số tiền của dân và doanh nghiệp so với tiền ngân sách: kinh tế khép kín (ledger.js) cần thuế thu đúng phần trăm
+ * thu nhập thật mà ngân sách vẫn đủ như cũ, nên lương, giá, tiền nhà, ví dân / doanh nghiệp đều nhân MK. */
+export const MK = 14;
+export const PRICE = { raw: 3 * MK, goods: 8 * MK, retail: 15 * MK, market: 10 * MK, importMult: 1.4, rawImportMult: 1.1, exportMult: 0.85, load: 8, loadF: 32 };
+export const priceOf = (kind) => (PRODUCTS[kind] ? PRODUCTS[kind].price * MK : kind === 'goods' ? PRICE.goods : PRICE.raw);
+/** Hệ số nhập khẩu từ thế giới máy: thành phẩm đắt hơn nguyên liệu. */
+export const importMultOf = (kind) => (isProduct(kind) ? PRICE.importMult : PRICE.rawImportMult);
 
 // mua đất: ô đất phải kề phần đã có, càng có nhiều càng đắt
 export const LAND_PRICE = { base: 3000, step: 450 };

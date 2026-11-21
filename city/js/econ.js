@@ -1,5 +1,5 @@
 // Phố Mới — kinh tế mở rộng: ngân sách theo ngành, giá thị trường xuất nhập khẩu, du lịch.
-import { SERVICES, RAW, RAW_KINDS, ZDEF, N, clamp } from './base.js';
+import { SERVICES, RAW, RAW_KINDS, PRODUCTS, PRODUCT_KINDS, productAt, ZDEF, N, clamp } from './base.js';
 import { initIntl, packIntl } from './intl.js';
 import { festMul } from './seasons.js';
 import { councilMod } from './council.js';
@@ -33,8 +33,8 @@ export const budgetK = (c, sector) => (c.budget && sector ? c.budget[sector] / 1
 
 // ───────────────────────── giá thị trường ─────────────────────────
 
-export const MKT_KINDS = [...RAW_KINDS, 'goods'];
-export const MKT_NAME = { ...Object.fromEntries(RAW_KINDS.map((k) => [k, `${RAW[k].icon} ${RAW[k].name}`])), goods: '📦 Hàng hoá' };
+export const MKT_KINDS = [...RAW_KINDS, ...PRODUCT_KINDS];
+export const MKT_NAME = { ...Object.fromEntries(RAW_KINDS.map((k) => [k, `${RAW[k].icon} ${RAW[k].name}`])), ...Object.fromEntries(PRODUCT_KINDS.map((k) => [k, `${PRODUCTS[k].icon} ${PRODUCTS[k].name}`])), goods: '📦 Hàng hoá' };
 const MKT_NEWS = {
   up: { agri: 'Mất mùa ở nơi khác, nông sản lên giá', wood: 'Khan hiếm gỗ, giá gỗ tăng', ore: 'Nhu cầu thép thế giới tăng, khoáng sản lên giá', oil: 'Giá dầu thế giới tăng vọt', fish: 'Mùa biển động, cá lên giá', goods: 'Hàng hoá đang được săn đón' },
   down: { agri: 'Được mùa khắp nơi, nông sản rớt giá', wood: 'Thừa gỗ, giá gỗ giảm', ore: 'Khoáng sản ế ẩm', oil: 'Giá dầu thế giới lao dốc', fish: 'Được mùa cá, giá giảm', goods: 'Thị trường hàng hoá bão hoà' },
@@ -51,7 +51,7 @@ export function marketDay(c) {
   if (rng() < 0.08) { // tin sốc giá
     const k = MKT_KINDS[(rng() * MKT_KINDS.length) | 0], up = rng() < 0.5;
     m.p[k] = clamp(m.p[k] + (up ? 0.35 : -0.3), 0.45, 1.9);
-    m.news = { day: c.day, kind: k, up, text: MKT_NEWS[up ? 'up' : 'down'][k] };
+    m.news = { day: c.day, kind: k, up, text: MKT_NEWS[up ? 'up' : 'down'][k] || `${MKT_NAME[k]}: ${up ? 'nhu cầu thế giới tăng, lên giá' : 'thừa hàng trên thế giới, rớt giá'}` };
     if (c.events) c.events.push({ type: 'market', text: m.news.text, kind: k, up });
   }
   for (const k of MKT_KINDS) m.p[k] = Math.round(m.p[k] * 1000) / 1000;
@@ -62,6 +62,25 @@ export function marketDay(c) {
 // ───────────────────────── du lịch ─────────────────────────
 
 /** Sức hút du lịch của thành phố và các nguồn của nó. */
+/**
+ * Phố ẩm thực: từ 4 ô khu ăn uống, giải trí (khu 17) trở lên liền nhau trên cùng một hàng hoặc một cột, cùng quay ra
+ * một phía đường. Trả về { streets, cells }.
+ */
+export function foodStreets(c) {
+  let streets = 0, cells = 0;
+  const ok = (i) => c.level[i] && c.zone[i] === 17;
+  for (const [dx, dy] of [[1, 0], [0, 1]]) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x;
+    if (!ok(i)) continue;
+    const px = x - dx, py = y - dy;
+    if (px >= 0 && py >= 0 && ok(py * N + px) && c.dir[py * N + px] === c.dir[i]) continue; // không phải đầu dãy
+    let n = 1, ax = x + dx, ay = y + dy;
+    while (ax < N && ay < N && ok(ay * N + ax) && c.dir[ay * N + ax] === c.dir[i]) { n++; ax += dx; ay += dy; }
+    if (n >= 4) { streets++; cells += n; }
+  }
+  return { streets, cells };
+}
+
 export function tourismScore(c) {
   let attract = 0, beds = 0, gates = 0;
   const parts = {};
@@ -73,6 +92,8 @@ export function tourismScore(c) {
   let leisure = 0;
   for (let i = 0; i < N * N; i++) if (c.level[i] && ZDEF[c.zone[i]].biz === 'leisure') leisure += c.level[i];
   attract += Math.min(12, leisure * 0.15);
+  const food = foodStreets(c); // phố ẩm thực: dãy quán liền nhau, vỉa hè càng tự do càng đông khách
+  if (food.cells) { const a = Math.min(12, food.cells * 0.35 * (c.street ? { free: 1.3, license: 1.1, clear: 0.8 }[c.street.sidewalk] || 1 : 1)); attract += a; parts.foodStreet = Math.round(a * 10) / 10; }
   { // đảo có tàu khách ra: mỗi đảo tính một lần
     const seen = new Set(); let isl = 0;
     for (const l of c.ferries || []) for (const x of l.isles || []) if (!seen.has(x.id)) { seen.add(x.id); isl += x.att; }
@@ -87,7 +108,7 @@ export function tourismScore(c) {
   for (const l of c.ferries || []) if (l.out) gates += 1;
   const happy = c.pstats ? c.pstats.happy : 55;
   const k = clamp(0.6 + (happy - 45) / 60, 0.4, 1.4); // thành phố vui vẻ, sạch sẽ thì khách thích
-  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour') * (c.street ? streetBonus(c).tour : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
+  return { attract: Math.round(attract * 10) / 10, beds, gates, leisure, food, foodA: parts.foodStreet || 0, mood: k, perDay: Math.round(attract * 5 * Math.min(4, gates) * k * (c.fest ? festMul(c, 'tour') : 1) * councilMod(c, 'tour') * (c.street ? streetBonus(c).tour : 1)), fest: c.fest ? festMul(c, 'tour') : 1 };
 }
 
 /** Hệ số khách chịu ở lại theo giá phòng: giá 12 ₫ như cũ (×1), rẻ thì đông hơn, đắt thì vắng; tiền phòng lãi nhất quanh 26 ₫. */
@@ -100,10 +121,11 @@ export const feeStay = (fee) => clamp(1.3 - fee / 40, 0.3, 1.2);
 export function tourismHour(c, spend) {
   const t = c.tour, h = c.hour % 24, sc = tourismScore(c), rng = c.rng || Math.random;
   t.score = sc;
-  if (!sc.gates || !sc.perDay) { t.guests = Math.max(0, t.guests - Math.ceil(t.guests / 8)); return 0; }
+  const perDay = c.tourOverride != null ? c.tourOverride : sc.perDay; // nhóm cạnh tranh: số khách máy chủ chia (league.js)
+  if (!sc.gates || !perDay) { t.guests = Math.max(0, t.guests - Math.ceil(t.guests / 8)); return 0; }
   // khách tới rải trong ngày, nhiều nhất buổi sáng và đầu giờ chiều
   const share = h >= 7 && h <= 19 ? (h <= 10 || (h >= 13 && h <= 15) ? 0.11 : 0.06) : 0;
-  const arrive = Math.round(sc.perDay * share * (0.75 + rng() * 0.5));
+  const arrive = Math.round(perDay * share * (0.75 + rng() * 0.5));
   // lưu trú: khách ở lại 1–3 đêm nếu còn phòng; mỗi giờ một phần khách trả phòng
   const leave = Math.ceil(t.guests / 36);
   t.guests = Math.max(0, t.guests - leave);

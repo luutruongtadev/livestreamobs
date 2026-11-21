@@ -2,6 +2,7 @@
 // Kéo chuột tô như quy hoạch, chỉ trên đất trống (không đường, nhà, công trình, bãi biển, nước). Ô đã trang trí không mọc nhà.
 // Hiệu quả: giá đất quanh đó tăng, cây lọc bớt bụi và tiếng ồn, dân cả thành phố vui hơn một chút; mỗi ô có phí chăm sóc.
 import { N, idx, inMap, clamp } from './base.js';
+import { cityPay } from './ledger.js';
 
 // id lưu trong c.decor (0 = không có). val: tăng giá đất, green: lọc bụi / ồn, cost: giá mỗi ô, upkeep: phí mỗi ô mỗi ngày
 export const DECOR = {
@@ -53,7 +54,7 @@ export function decorRect(c, x0, y0, x1, y1, kind, { erase = false, dry = false 
     c.decor[i] = erase ? 0 : D.id;
     if (!erase) { c.zone[i] = 0; c.tree[i] = 0; } // trang trí thay chỗ quy hoạch và cây rừng
   }
-  c.money -= cost;
+  cityPay(c, 'build', cost);
   c.decorFx = null;
   if (c.dirty) Object.assign(c.dirty, { decor: true, trees: true, zones: true });
   return { ok: true, count: cells.length, cost };

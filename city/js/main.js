@@ -1,6 +1,9 @@
 // Phố Mới — khởi động, vòng lặp, chuột / bàn phím, giao diện.
 import * as S from './sim.js';
-import { View, DCOL } from './render.js';
+import { ledgerSummary, worldReserve, worldK } from './ledger.js';
+import * as Cloud from './cloud.js';
+import * as Lg from './league.js';
+import { View, DCOL, corpRGB } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -30,7 +33,7 @@ const GROUPS = [
   { id: 'tools', icon: '🛠️', label: 'Công cụ', items: ['move', 'bulldoze'] },
 ];
 const ROAD_MODES = [['line', '📏', 'Thẳng'], ['curve', '↪️', 'Cong'], ['smooth', '🌀', 'Cong liền'], ['upgrade', '⬆️', 'Nâng cấp'], ['raise', '⏫', 'Nâng tầng'], ['lower', '⏬', 'Hạ tầng'], ['bridge', '🌉', 'Đổi cầu']];
-const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước'], ['district', 'Lớp xem: các quận (mỗi quận một màu, viền đậm là ranh giới; 🏛️ toà UBND là trụ sở quận)', '🏙️', 'Quận']];
+const LAYERS = [['zones', 'Lớp xem: quy hoạch', '🎨', 'Quy hoạch'], ['traffic', 'Lớp xem: giao thông (xanh = thoáng, đỏ = kẹt) và các tuyến xe buýt / metro', '🚗', 'Giao thông'], ['value', 'Lớp xem: giá trị đất (xanh = cao)', '💰', 'Giá đất'], ['air', 'Lớp xem: ô nhiễm không khí', '🌫️', 'Ô nhiễm khí'], ['ground', 'Lớp xem: ô nhiễm đất', '🟤', 'Ô nhiễm đất'], ['noise', 'Lớp xem: tiếng ồn', '🔊', 'Tiếng ồn'], ['waterpol', 'Lớp xem: ô nhiễm nước', '🚱', 'Ô nhiễm nước'], ['garbage', 'Lớp xem: rác tồn ở từng nhà (đỏ = chất đống)', '🗑️', 'Rác'], ['service', 'Lớp xem: vùng phủ dịch vụ công', '🏛️', 'Dịch vụ'], ['crime', 'Lớp xem: tội phạm (tím đậm = nhiều); công an phủ tới và trại giam còn chỗ thì giảm', '🚨', 'Tội phạm'], ['resource', 'Lớp xem: tài nguyên (vàng = đất màu mỡ, lục = rừng, xám = khoáng sản, tím = dầu, lam = vùng nước có cá)', '⛏️', 'Tài nguyên'], ['power', 'Lớp xem: điện (xanh = đủ, cam = thiếu, đỏ = không có)', '⚡', 'Điện'], ['water', 'Lớp xem: nước và thoát nước, hiện cả ống ngầm', '💧', 'Nước'], ['district', 'Lớp xem: các quận (mỗi quận một màu, viền đậm là ranh giới; 🏛️ toà UBND là trụ sở quận)', '🏙️', 'Quận'], ['corp', 'Lớp xem: tập đoàn (mỗi công ty một màu; nhạt = đất đã xin, đang xây)', '🏢', 'Tập đoàn']];
 
 let city, view, tool = 'info', group = 'info', speed = 1, layer = 0, hover = null, drag = null, lastSave = 0, hintOverride = null;
 let seatPick = null, distSel = 0; // đang chọn chỗ đặt trụ sở cho quận nào; quận đang xem trong bảng 🏙️
@@ -56,7 +59,7 @@ function toolInfo(id) {
     const z = S.ZDEF[+arg];
     if (!+arg) return { kind, zone: 0, icon: z.icon, label: 'Bỏ q.hoạch', desc: 'Kéo để bỏ quy hoạch (dỡ luôn nhà trong vùng)' };
     const cap = [z.res && `${z.res[0]}–${z.res[4]} dân`, z.jobs && `${z.jobs[0]}–${z.jobs[4]} chỗ làm`].filter(Boolean).join(', ');
-    const raw = z.raw ? ` · chỉ mọc trên ô có ${S.RAW[z.raw].icon} ${S.RAW[z.raw].name.toLowerCase()}, bán cho nhà máy ${S.RAW[z.raw].product} hoặc xuất khẩu` : '';
+    const raw = z.raw ? ` · chỉ mọc trên ô có ${S.RAW[z.raw].icon} ${S.RAW[z.raw].name.toLowerCase()}, bán cho ${S.PRODUCT_KINDS.filter((k) => S.PRODUCTS[k].in.some((a) => a.includes(z.raw))).map((k) => `${S.PRODUCTS[k].icon} ${S.PRODUCTS[k].name.toLowerCase()}`).join(', ')} hoặc xuất khẩu` : '';
     return { kind, zone: +arg, icon: z.icon, label: z.short, dot: z.color, locked: !S.zoneUnlocked(city, +arg), desc: `<b>${z.name}</b> · ${cap} mỗi ô · ${z.desc}${raw}${S.zoneUnlocked(city, +arg) ? '' : ` · 🔒 ${S.lockText(z)}`}` };
   }
   if (kind === 'transit') { const d = S.TRANSIT[arg], lock = !S.modeUnlocked(city, arg); return { kind, mode: arg, icon: d.icon, label: d.name.replace('Tuyến ', ''), locked: lock, desc: `<b>${d.name}</b> · trạm ${money(d.stopCost)}, xe ${money(d.vehCost)}${d.trackCost ? `, ray ${fmt(d.trackCost * S.T)} ₫ / ô` : ''} · chở ${d.cap} khách · ${d.desc}${lock ? ` · 🔒 mở khi đạt ${fmt(d.unlock)} dân` : ''}` }; }
@@ -90,6 +93,191 @@ function writeSlot(name) {
   try { localStorage.setItem(KEY + name, JSON.stringify(data)); return true; } catch (e) { toast('Không lưu được: ' + e.message); return false; }
 }
 function autosave() { if (city && !city.over) writeSlot('auto'); lastSave = performance.now(); }
+
+// ───────────────────────── nhóm cạnh tranh (league.js) ─────────────────────────
+const lgNet = { at: 0, busy: false, err: '' };
+/** Gửi bản tóm tắt mới (nếu có) hoặc hỏi trạng thái nhóm; 30 giây một lần, ép = ngay. */
+async function leagueSync(force) {
+  if (!city || !city.league || lgNet.busy) return;
+  const now = performance.now();
+  if (!force && !city.league.outbox && now - lgNet.at < 30000) return;
+  lgNet.busy = true; lgNet.at = now;
+  const c = city, rep = c.league.outbox, token = await Cloud.getToken();
+  const ack = [...(c.league.ackOut || [])];
+  const r = rep ? await Lg.leagueReport(token, c.name, rep, Lg.pendingUsed(c), ack) : await Lg.leagueStatus(token);
+  lgNet.busy = false;
+  if (c !== city || !c.league) return;
+  if (r.ok && r.league && r.league.id === c.league.id) { if (rep && c.league.outbox === rep) { c.league.outbox = null; c.league.ackOut = (c.league.ackOut || []).filter((d) => !ack.includes(d)); for (const d of ack) if (c.league.used) delete c.league.used[d]; } Lg.applyServer(c, r); lgNet.err = ''; }
+  else if ((r.ok && !r.league) || r.status === 404) { Lg.detachLeague(c); toast('🏆 Thành phố không còn trong nhóm (đã rời hoặc sang mùa mới): chơi tự do như trước'); }
+  else lgNet.err = r.error || 'Không đồng bộ được với máy chủ';
+  if ($('league').classList.contains('show')) renderLeague();
+}
+async function leagueJoin() {
+  if (city.sandbox) { toast('Thành phố chế độ Open không vào nhóm cạnh tranh được'); return; }
+  const r = await Lg.leagueJoin(await Cloud.getToken(), city.name);
+  if (!r.ok || !r.league) { toast(r.error || 'Không vào nhóm được'); return; }
+  Lg.attachLeague(city, r);
+  autosave(); toast(`🏆 Đã vào nhóm (${r.league.members} thành phố). Từ giờ 1 ngày game = 1 giờ thật`);
+  renderLeague();
+}
+async function leagueLeave() {
+  await Lg.leagueLeave(await Cloud.getToken());
+  Lg.detachLeague(city); autosave(); toast('Đã rời nhóm: thành phố chơi tự do như trước'); renderLeague();
+}
+/** Cửa sổ 💸 Dòng tiền: ví (ngân sách, dân, doanh nghiệp, thế giới bên ngoài), tiền vào / ra hôm qua, vòng tiền bên trong, 14 ngày gần đây. */
+function renderFlows() {
+  const box = $('flowsBody');
+  if (!box || !city) return;
+  box.textContent = '';
+  const c = city, pp = c.pp, sum = ledgerSummary(c);
+  let hh = 0, bz = 0, rich = 0;
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id]) { hh += pp.money[id]; if (pp.money[id] > 0) rich++; }
+  for (let i = 0; i < c.biz.money.length; i++) bz += c.biz.money[i];
+  const cols = el('div', 'dcols'), c1 = el('div'), c2 = el('div'), c3 = el('div');
+  const wallet = (icon, name, v, note) => { const d = el('div'); d.append(el('small', null, `${icon} ${name}`), el('b', v < 0 ? 'neg' : '', `${fmt(Math.round(v))} ₫`), ...(note ? [el('small', null, note)] : [])); return d; };
+  // cột 1: các ví
+  const w = el('div', 'wallets');
+  w.append(wallet('🏛️', 'Ngân sách', c.money), wallet('👥', 'Ví của dân', hh, `${fmt(pp.count)} người · TB ${fmt(Math.round(hh / Math.max(1, pp.count)))} ₫`), wallet('🏢', 'Ví doanh nghiệp, chủ nhà', bz));
+  if (c.ledger && !c.sandbox) w.append(wallet('🌏', 'Thế giới bên ngoài', worldReserve(c), worldK(c) < 1 ? `sức mua ×${worldK(c).toFixed(2)}` : `phát hành thêm hôm qua ${fmt(Math.round(c.ledger.lastIssue || 0))} ₫`));
+  c1.append(el('h4', null, 'Tiền đang nằm ở đâu'), w, el('small', null, 'Kinh tế khép kín: tiền chỉ chuyển giữa các ví, không tự sinh ra hay mất đi. Thế giới bên ngoài có hạn, mỗi ngày phát hành thêm khoảng 2% mỗi mùa.'));
+  // cột 2: vào / ra thành phố hôm qua
+  const bars = (rows, total) => rows.map((r) => { const d = el('div', 'fbar'), b = el('div', 'b'), f = el('i'); f.style.width = `${Math.min(100, (Math.abs(r.v) / Math.max(1, total)) * 100)}%`; f.style.background = r.v >= 0 ? 'var(--good)' : 'var(--bad)'; b.append(f); d.append(el('span', null, r.name), el('span', `v ${r.v > 0 ? 'pos' : r.v < 0 ? 'neg' : ''}`, r.v ? `${r.v > 0 ? '+' : '−'}${fmt(Math.abs(r.v))}` : '0'), b); return d; });
+  c2.append(el('h4', null, 'Vào / ra thành phố hôm qua'));
+  if (!sum.rows.length) c2.append(el('div', 'row', 'Chưa đủ một ngày để chốt sổ'));
+  else {
+    const big = Math.max(...sum.rows.map((r) => Math.abs(r.v)));
+    c2.append(el('div', 'row', ''), ...bars([{ name: 'Tổng vào', v: sum.inflow }, { name: 'Tổng ra', v: sum.outflow }], Math.max(sum.inflow, -sum.outflow)));
+    c2.append(el('h4', null, 'Từng khoản'), ...bars(sum.rows.map((r) => ({ name: `${r.group === 'city' ? '🏛️' : '👥'} ${r.name}`, v: r.v })), big));
+  }
+  // cột 3: vòng tiền bên trong + 14 ngày
+  c3.append(el('h4', null, 'Vòng tiền bên trong (hôm qua)'));
+  if (sum.inner.length) { const big = Math.max(...sum.inner.map((r) => r.v)); c3.append(...bars(sum.inner.map((r) => ({ name: `🔄 ${r.name}`, v: r.v })), big)); }
+  else c3.append(el('div', 'row', 'Chưa có'));
+  const hist = (c.reports || []).slice(-14);
+  if (hist.length > 1) {
+    c3.append(el('h4', null, `${hist.length} ngày gần đây: vào / ra, ngân sách`));
+    const cv = el('canvas'); cv.width = 320; cv.height = 130; cv.style.width = '100%';
+    const g = cv.getContext('2d'), W = cv.width, H = cv.height, n = hist.length, bw = W / n;
+    const top = Math.max(1, ...hist.map((r) => Math.max(r.flows?.inflow || 0, -(r.flows?.outflow || 0))));
+    hist.forEach((r, k) => {
+      const inH = ((r.flows?.inflow || 0) / top) * (H / 2 - 8), outH = (-(r.flows?.outflow || 0) / top) * (H / 2 - 8);
+      g.fillStyle = 'rgba(98,217,139,.8)'; g.fillRect(k * bw + 2, H / 2 - inH, bw - 4, inH);
+      g.fillStyle = 'rgba(255,107,91,.8)'; g.fillRect(k * bw + 2, H / 2, bw - 4, outH);
+    });
+    const ms = hist.map((r) => r.money), lo = Math.min(...ms), hi = Math.max(...ms);
+    g.strokeStyle = '#f2b33d'; g.lineWidth = 2; g.beginPath();
+    ms.forEach((m, k) => { const x = k * bw + bw / 2, y = H - 6 - ((m - lo) / Math.max(1, hi - lo)) * (H - 12); if (k) g.lineTo(x, y); else g.moveTo(x, y); });
+    g.stroke();
+    c3.append(cv, el('small', null, 'Xanh: tiền vào từ bên ngoài · đỏ: tiền ra · vàng: ngân sách'));
+  }
+  cols.append(c1, c2, c3); box.append(cols);
+}
+
+function renderLeague() {
+  const box = $('leagueBody');
+  if (!box) return;
+  box.textContent = '';
+  const row = (k, v) => { const r = el('div', 'row'); r.append(el('span', null, k), el('span', null, v)); return r; };
+  if (!Cloud.cloudMode()) { box.append(el('div', 'row', 'Mở game qua máy chủ của nền tảng để vào nhóm cạnh tranh')); return; }
+  const L = city.league;
+  if (!L) {
+    box.append(el('p', 'small', 'Thi với thành phố của người chơi khác. Không ai đụng được vào thành phố của bạn: dân chuyển đến, du khách, đầu tư mới và giá chợ được máy chủ chia chung cho cả nhóm theo sức hút (việc làm, hài lòng, thuế, giá đất, du lịch). Các thành phố mua bán với nhau theo hợp đồng giá mỗi ngày, mỗi nơi tự đặt giá chào và thuế nhập khẩu. Từ lúc vào nhóm, 1 ngày game = 1 giờ thật, không tua nhanh được; vắng mặt thì mở lại sẽ chạy bù tối đa 7 ngày.'));
+    if (!cloud.user) { box.append(el('div', 'row', 'Đăng nhập ở 💾 Lưu và tải → ☁️ Đám mây trước')); return; }
+    const b = el('button', 'mini acc', '🏆 Vào nhóm'); b.addEventListener('click', leagueJoin); box.append(b);
+    return;
+  }
+  const dayNow = Lg.leagueDayNow(L), ms = Math.max(0, L.start + (dayNow + 1) * L.dayMs - Date.now()), a = L.alloc;
+  if (lgNet.err) box.append(el('div', 'row neg', lgNet.err));
+  const cols = el('div', 'dcols'), c1 = el('div'), c2 = el('div'), c3 = el('div');
+  // cột 1: hôm nay
+  c1.append(el('h4', null, 'Hôm nay'), row('Ngày giải · mùa', `${dayNow + 1} · ${L.season}`), row('Ngày mới sau', `${Math.ceil(ms / 60000)} phút`), row('Thành phố trong nhóm', fmt(L.members || L.standings.length)), row('Nông thôn chung còn', L.rural != null ? `${fmt(L.rural)} người` : '–'));
+  c1.append(el('h4', null, 'Phần được chia'));
+  if (a) c1.append(row('Dân chuyển đến (tối đa bằng nhà trống)', fmt(a.migrants)), row('Du khách', fmt(a.tourists)), row('Đầu tư mới', `×${a.invest}`), el('h4', null, 'Giá chợ chung'), ...Object.entries(a.prices || {}).map(([k, v]) => row(S.MKT_NAME[k], `${Math.round(v * 100)}%`)));
+  else c1.append(el('div', 'row', 'Chưa có: gửi bản tóm tắt ngày đầu tiên lúc 0 giờ'));
+  const out = el('button', 'mini', 'Rời nhóm'); out.addEventListener('click', leagueLeave); out.style.marginTop = '10px'; c1.append(out);
+  // cột 2: buôn bán với thành phố khác
+  c2.append(el('h4', null, 'Hợp đồng hôm nay'));
+  const tr = a && a.trade, deals = [];
+  if (tr) for (const [side, verb, who] of [['buy', 'Mua', 'from'], ['sell', 'Bán', 'to']]) for (const [k, d] of Object.entries(tr[side] || {})) deals.push(row(`${verb} ${S.MKT_NAME[k]} ${side === 'buy' ? 'của' : 'cho'} ${(d[who] || []).slice(0, 3).join(', ')}`, `${fmt(d.qty)} · giá ${Math.round(d.price * 100)}%${side === 'buy' && d.tariff ? ` + thuế ${Math.round(d.tariff * 100)}%` : ''}${d.left != null && d.left < d.qty ? ` · còn ${fmt(Math.round(d.left))}` : ''}`));
+  if (deals.length) c2.append(...deals); else c2.append(el('div', 'row', 'Chưa có hợp đồng (cần nhập / xuất khẩu hôm qua và giá rẻ hơn thế giới máy)'));
+  const P = Lg.policyOf(city), tbl = el('table', 'lgtab policy');
+  c2.append(el('h4', null, 'Giá chào bán · thuế nhập khẩu'));
+  const step = (field, k, d) => { const r = Lg.setPolicy(city, field, k, P[field][k] + d); if (!r.ok) toast(r.reason); renderLeague(); };
+  const hd = el('tr'); for (const t of ['', 'Hàng', 'Giá chào', 'Thuế NK']) hd.append(el('th', null, t)); tbl.append(hd);
+  for (const k of S.MKT_KINDS) {
+    const tr2 = el('tr'), ctl = (field) => { const td = el('td'), m = el('button', 'mini', '−'), p = el('button', 'mini', '+'); m.addEventListener('click', () => step(field, k, -0.05)); p.addEventListener('click', () => step(field, k, 0.05)); td.append(m, el('b', null, ` ${Math.round(P[field][k] * 100)}% `), p); return td; };
+    tr2.append(el('td', null, S.MKT_NAME[k].split(' ')[0]), el('td', null, S.MKT_NAME[k].split(' ').slice(1).join(' ')), ctl('ask'), ctl('tariff'));
+    tbl.append(tr2);
+  }
+  c2.append(tbl, el('small', null, 'Giá chào: phần của giá chợ chung khi bán cho thành phố khác. Thuế nhập khẩu đánh vào hàng mua của thành phố khác, tiền vào ngân sách; thuế cao thì doanh nghiệp mua của thế giới máy. Mỗi loại đổi được một lần mỗi ngày, áp từ ngày giải sau.'));
+  // cột 3: bảng xếp hạng
+  c3.append(el('h4', null, 'Bảng xếp hạng (điểm thịnh vượng)'));
+  const rank = el('table', 'lgtab'), h3 = el('tr');
+  for (const t of ['#', 'Thành phố', 'Điểm', 'Dân', 'Vui']) h3.append(el('th', null, t));
+  rank.append(h3);
+  L.standings.slice(0, 30).forEach((s, k) => {
+    const r = el('tr', s.owner === cloud.user?.id ? 'me' : '');
+    for (const v of [k + 1, `${s.name}${s.owner === cloud.user?.id ? ' (bạn)' : ''}${s.abandoned ? ' 🏚️' : s.online ? '' : ' 💤'}`, fmt(s.score), fmt(s.pop), `${s.happy ?? '–'}%`]) r.append(el('td', null, String(v)));
+    rank.append(r);
+  });
+  c3.append(rank, el('small', null, '💤 lâu không vào · 🏚️ bỏ quá 7 ngày (dân dần chuyển đi)'));
+  cols.append(c1, c2, c3); box.append(cols);
+}
+
+// ───────────────────────── lưu đám mây (cloud.js) ─────────────────────────
+const cloud = { user: null, slots: [], busy: false, at: 0, err: '' };
+const cloudData = () => ({ name: city.name, pop: city.stats.pop, day: city.day, city: S.serialize(city) });
+async function cloudRefresh() {
+  if (!Cloud.cloudMode()) return;
+  const r = await Cloud.listSaves();
+  cloud.user = r.ok ? r.user : null; cloud.slots = r.ok ? r.slots : []; cloud.err = r.ok || r.status === 401 ? '' : r.error;
+  renderCloud();
+}
+async function cloudSave(slot, quiet) {
+  if (!city || city.over || cloud.busy) return;
+  cloud.busy = true;
+  const r = await Cloud.putSave(slot, cloudData());
+  cloud.busy = false; cloud.at = performance.now();
+  if (!quiet) toast(r.ok ? `☁️ Đã lưu lên mây (${(r.size / 1024).toFixed(1)} KB)` : `Không lưu lên mây được: ${r.error}`);
+  if (r.ok) cloudRefresh(); else if (r.status === 401) { cloud.user = null; renderCloud(); }
+}
+async function cloudLoad(slot) {
+  const r = await Cloud.getSave(slot);
+  if (!r.ok) { toast(`Không tải được: ${r.error}`); return; }
+  try { startCity(S.deserialize(r.city)); toast(`☁️ Đã tải "${r.name}" từ mây`); $('over').classList.remove('show'); } catch (e) { toast('Bản lưu trên mây không đọc được: ' + e.message); }
+}
+function renderCloud() {
+  const box = $('cloud');
+  if (!box) return;
+  box.textContent = '';
+  const mode = Cloud.cloudMode();
+  if (!mode) { box.append(el('div', 'row', 'Mở game qua máy chủ của nền tảng để lưu lên mây')); return; }
+  if (cloud.err) box.append(el('div', 'row neg', cloud.err));
+  if (!cloud.user) {
+    const f = el('form', 'cloudLogin'), u = el('input'), p = el('input'), go = el('button', 'mini acc', 'Đăng nhập'), reg = el('button', 'mini', 'Đăng ký');
+    u.placeholder = mode === 'dev' ? 'DEV token của máy chủ chạy thử' : 'Tên đăng nhập'; u.autocomplete = 'username'; u.type = mode === 'dev' ? 'password' : 'text';
+    p.placeholder = 'Mật khẩu'; p.type = 'password'; p.autocomplete = 'current-password';
+    reg.type = 'button';
+    const run = async (signup) => { const r = await Cloud.login(u.value, p.value, signup); if (!r.ok) toast(r.error); else { toast('Đã đăng nhập'); cloudRefresh(); } };
+    f.addEventListener('submit', (e) => { e.preventDefault(); run(false); });
+    reg.addEventListener('click', () => run(true));
+    f.append(u, ...(mode === 'dev' ? [] : [p]), go, ...(mode === 'dev' ? [] : [reg]));
+    box.append(f, el('small', null, mode === 'dev' ? 'Máy chủ chạy thử: dùng DEV token như dashboard.' : 'Dùng chung tài khoản với dashboard của nền tảng.'));
+    return;
+  }
+  const head = el('div', 'row'), out = el('button', 'mini', 'Đăng xuất');
+  out.addEventListener('click', async () => { await Cloud.logout(); cloud.user = null; renderCloud(); });
+  head.append(el('span', null, `👤 ${Cloud.displayName(cloud.user.email)} · tự lưu 5 phút một lần`), out);
+  box.append(head);
+  for (const [slot, label] of Cloud.CLOUD_SLOTS) {
+    const d = cloud.slots.find((s) => s.slot === slot), row = el('div', 'slot'), info = el('div');
+    info.append(el('b', null, label), el('small', null, d ? `${d.name} · ${fmt(d.pop)} dân · ngày ${d.day + 1} · ${new Date(d.updated_at).toLocaleString('vi-VN')}` : 'Trống'));
+    row.append(info);
+    if (slot !== 'auto') { const b = el('button', 'mini acc', 'Lưu'); b.addEventListener('click', () => cloudSave(slot)); row.append(b); }
+    const b = el('button', 'mini', 'Tải'); b.disabled = !d; b.addEventListener('click', () => cloudLoad(slot)); row.append(b);
+    box.append(row);
+  }
+}
 function loadSlot(name) {
   const d = readSlot(name);
   if (!d) return false;
@@ -742,10 +930,12 @@ function showInfo(tile) {
   } else if (c.water[i]) { title = c.fishery && c.fishery[i] ? '🎣 Ngư trường' : '🌊 Mặt nước'; if (c.fishery && c.fishery[i]) add('Ngư trường', 'Tàu cá của các bến cá trong ' + S.FISHERY.reach + ' ô ra đây đánh bắt; nước càng sạch càng nhiều cá'); add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
-    const kind = S.bizKind(c, i);
-    const need = kind === 'factory' || kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
+    const kind = c.ware && c.ware[i] ? 'ware' : S.bizKind(c, i); // kho bãi của công ty: không sản xuất
+    const need = kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
+    const prod = kind === 'factory' ? S.PRODUCTS[S.productOf(c, i)] : null, rec = kind === 'factory' ? S.recipeOf(c, i) : null; // chuỗi sản xuất nhiều tầng
+    const mname = (k) => S.MKT_NAME[k] || k;
     const dq = S.districtOf(c, i); if (dq >= 0) add('Quận', `${c.dist.list[dq].name} · chủ tịch ${c.dist.list[dq].chair}`);
-    title = L ? `${zd.icon} ${need && kind === 'factory' ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${need.product}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
+    title = L && kind === 'ware' ? `🏗️ Kho bãi, logistics cấp ${L}` : L ? `${zd.icon} ${prod ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${prod.icon} ${prod.name.toLowerCase()}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
     if (L) {
       const h = S.cellHappy(c, i), rc = S.resCap(z, L), jb = S.jobCap(z, L);
       if (rc) {
@@ -761,9 +951,21 @@ function showInfo(tile) {
         const b = c.biz;
         add('Nhân viên', `${c.staff[i]} / ${jb} (đang có mặt ${c.present[i]})`);
         add('Lương · yêu cầu', `${S.wageAt(c, i).toFixed(2)} ₫/giờ · ${S.EDU_NAME[S.reqEdu(z, L)].toLowerCase()}`);
+        { // chủ sở hữu: công ty nào, thuộc tập đoàn nào (công ty là lớp sở hữu phủ lên ô, corp.js)
+          const q = c.owner && c.owner[i] ? S.corpById(c, c.owner[i]) : null, root = q && S.corpById(c, S.rootOf(c, q.id));
+          if (q) add('Thuộc', `🏢 ${S.corpTitle(q)}${root && root !== q ? ` · nhóm ${S.corpTitle(root)}` : ''}${c.ware && c.ware[i] ? ' · kho bãi' : ''}`);
+          else if (kind === 'factory' || kind === 'raw' || kind === 'shop' || kind === 'market') add('Thuộc', 'Doanh nghiệp độc lập');
+        }
         add('Tiền của doanh nghiệp', `<span class="${b.money[i] < 0 ? 'neg' : ''}">${fmt(b.money[i])} ₫</span>`);
         if (kind === 'market') add(`${need.icon} ${need.name} trên sạp`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
-        if (kind === 'factory' || kind === 'shop') add(kind === 'shop' ? 'Hàng trong kho' : `${need.icon} ${need.name} trong kho`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
+        if (kind === 'factory') {
+          add('Làm ra', `${prod.icon} ${prod.name} từ ${rec.map(mname).join(' + ')}${prod.tier ? ' (tầng 2: cần đủ cả hai)' : ''} · giá gốc ${fmt(S.priceOf(S.productOf(c, i)))} ₫`);
+          rec.forEach((k, j) => add(`${mname(k)} trong kho`, `${(j ? b.sin2[i] : b.sin[i]).toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`));
+        }
+        if (kind === 'ware') { const own = c.owner[i], st = (c.corpStore && c.corpStore[own]) || 0; add('Kho bãi', `Thêm ${st} chỗ chứa cho mỗi cơ sở sản xuất của cả nhóm (theo cấp kho và số người làm) · hàng trong nhóm giao nhanh hơn · xuất khẩu theo lô 24`); add('Thu phí lưu kho', 'Công ty trả theo lương, chi phí cố định, có lãi một phần'); }
+        if (kind === 'shop' || kind === 'market') add('Giá bán lẻ', `<span class="${(b.rp[i] || 1) > 1.1 ? 'neg' : ''}">×${(b.rp[i] || 1).toFixed(2)}</span> so với giá gốc · ${b.sin[i] < 6 ? 'kệ gần cạn, giá đang lên' : b.sin[i] > 25 ? 'hàng ứ, đang hạ giá' : 'cung cầu cân bằng'}`);
+        if (kind === 'shop') add('Hàng trong kho', `${b.sin[i].toFixed(1)} · giá trị TB ×${(b.sinK[i] || 1).toFixed(2)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
+        if (kind === 'raw') { const left = S.reserveLeft(c, i, zd.raw), R = S.RESERVE[zd.raw]; add('Trữ lượng còn', `${Math.round(left * 100)}%${R.regen ? ` · tự hồi ${Math.round(R.regen * 100)}% mỗi ngày` : ' · không tái tạo'}`); }
         if (kind === 'factory' || kind === 'raw') add(kind === 'raw' ? `${S.RAW[zd.raw].icon} ${S.RAW[zd.raw].name} chờ xe tới chở` : 'Thành phẩm chờ xuất', b.sout[i].toFixed(1));
         add('Hiệu quả', `${Math.round(b.eff[i] * 100)}%`);
         add('Chỗ đỗ xe', `${c.parked[i]} xe`);
@@ -906,6 +1108,7 @@ function renderEcon() {
   const t = c.tour, sc = t.score || S.tourismScore(c), last = t.last;
   $('tourBox').innerHTML = [
     ['Sức hút (điểm tham quan, quán xá)', `${sc.attract}`],
+    ['🍜 Phố ẩm thực', sc.food && sc.food.streets ? `${sc.food.streets} phố, ${sc.food.cells} ô quán (sức hút +${sc.foodA || 0})` : 'chưa có: 4 ô 🍜 ăn uống, giải trí liền nhau cùng một mặt đường'],
     ['Cửa ngõ đón khách', sc.gates ? `${sc.gates} (đường vào, ga, sân bay, tàu ra biển)` : '<span class="neg">✖ chưa có</span>'],
     ['Du khách mỗi ngày (ước)', fmt(sc.perDay)],
     ['Đang lưu trú / giường', `${fmt(t.guests)} / ${fmt(sc.beds)}${sc.beds ? '' : ' · xây 🛎️ khách sạn'}`],
@@ -942,7 +1145,7 @@ function renderEcon() {
   const m = c.market;
   $('mktNews').innerHTML = m.news ? `<span>${m.news.up ? '📈' : '📉'} ${m.news.text}</span><span>ngày ${m.news.day + 1}</span>` : '<span>Chưa có biến động lớn</span>';
   const cv = $('mktChart'), g = cv.getContext('2d'), W = cv.width, H = cv.height, hist = m.hist;
-  const COLS = ['#9bd84a', '#2fa36a', '#9aa0b8', '#b45fe0', '#3fb6dc', '#f2a03c'];
+  const COLS = ['#9bd84a', '#2fa36a', '#9aa0b8', '#b45fe0', '#3fb6dc', '#f2a03c', '#e8634a', '#d6c9a3', '#7a8fb8', '#c94fa0', '#f2d24a', '#4ad6c3'];
   g.clearRect(0, 0, W, H);
   let lo = 0.85, hi = 1.15; for (const row of hist) for (const v of row) { lo = Math.min(lo, v); hi = Math.max(hi, v); } // trục tự co giãn theo dữ liệu
   lo -= 0.03; hi += 0.03;
@@ -1005,6 +1208,12 @@ function renderExpenses(force) {
       bb.append(expRow({ icon: d.icon, name: d.name, note: `${Math.round(done * 100)}% · xong sau ${sv.build} giờ · đã chi ${money(d.cost)}`, cost: d.upkeep * S.RATE, x: (sv.x + d.size / 2) * S.T - S.HALF, z: (sv.y + d.size / 2) * S.T - S.HALF }, pg));
     }
   }
+  // dòng tiền: tóm tắt ngắn, chi tiết ở cửa sổ 💸
+  const fb = $('flowBox'), sum = ledgerSummary(city); fb.textContent = '';
+  const line = (name, v, cls) => { const r = el('div', 'row'); r.append(el('span', null, name), el('span', cls ?? (v >= 0 ? 'pos' : 'neg'), `${v >= 0 ? '+' : '−'}${fmt(Math.abs(Math.round(v)))}`)); return r; };
+  if (sum.rows.length) fb.append(line('Hôm qua vào từ bên ngoài', sum.inflow), line('Hôm qua ra bên ngoài', sum.outflow));
+  if (city.ledger && !city.sandbox) fb.append(line('🌏 Thế giới bên ngoài còn', worldReserve(city), worldK(city) < 1 ? 'neg' : ''));
+  if ($('flows').classList.contains('show') && !$('flows').classList.contains('peek')) renderFlows();
 }
 
 function renderLoans() {
@@ -1070,6 +1279,17 @@ function renderCity(force) {
     row('Nhà ở: đang ở / sức chứa', `${fmt(ps.pop - ps.homeless)} / ${fmt(s.housing)}`),
     row('Vô gia cư · đang ốm', `${fmt(ps.homeless)} · ${fmt(ps.sick)}`),
     row('Hôm qua: sinh · mất · bỏ đi', `${last.born || 0} · ${last.died || 0} · ${last.movedOut || 0}`),
+    ...(() => { // sổ dân: dân đến từ đâu, đi đâu (ledger.js); báo cáo ngày (world.js)
+      const P = c.popl, pl = (P && P.last) || {}, rep = c.reports && c.reports[c.reports.length - 1];
+      if (!P) return [];
+      return [
+        '<h4>Dân đến, đi (hôm qua)</h4>',
+        row('Từ nông thôn · nước ngoài · trẻ sinh ra', `${pl.rural || 0} · ${pl.abroad || 0} · ${pl.born || 0}`),
+        row('Về nông thôn · ra nước ngoài · mất', `${pl.toRural || 0} · ${pl.toAbroad || 0} · ${pl.died || 0}`),
+        row('Nông thôn còn (nguồn dân chuyển đến)', `${fmt(P.rural)} người${P.rural < 500 ? ' <span class="neg">· sắp cạn</span>' : ''}`),
+        ...(rep ? [row('Muốn rời đi: thất nghiệp · vô gia cư · bất mãn · nợ', `${rep.want.unemployed} · ${rep.want.homeless} · ${rep.want.unhappy} · ${rep.want.broke}`), row('Điểm thịnh vượng', `${S.prosperity(rep)}`)] : []),
+      ];
+    })(),
     '<h4>Học vấn người lớn</h4>',
     row('Chưa học · tiểu học', `${pct(ps.edu[0], adults)} · ${pct(ps.edu[1], adults)}`),
     row('Trung học · đại học', `${pct(ps.edu[2], adults)} · ${pct(ps.edu[3], adults)}`),
@@ -1149,7 +1369,9 @@ function updateHud(force) {
   if ($('fest').classList.contains('show')) renderFest(force);
   if ($('inbox').classList.contains('show')) renderInbox(force);
   if ($('dist').classList.contains('show')) renderDist(force);
-  aiPump(); distPump();
+  if ($('corp').classList.contains('show')) renderCorp(force);
+  { const n = c.corp ? c.corp.asks.length : 0; $('corpN').textContent = n ? `✋${n}` : c.corp && c.corp.list.length ? String(c.corp.list.length) : ''; }
+  aiPump(); distPump(); corpPump();
   const asks = c.dist.on ? c.dist.list.filter((q) => q.prop && q.prop.status === 'ask').length : 0;
   $('distN').textContent = c.dist.on ? (asks ? `✋${asks}` : String(c.dist.list.length)) : '';
   { const n = c.council.inbox.filter((i) => i.status === 'pending').length; $('inboxN').textContent = n ? String(n) : ''; }
@@ -1388,13 +1610,18 @@ function bindMinimap() {
 function peekDist() { $('dist').classList.add('peek'); toast('Bấm 🏙️ để mở lại bảng điều hành quận'); }
 
 function openSide(id) {
+  if ((id === 'league' || id === 'flows') && $(id).classList.contains('peek') && $(id).classList.contains('show')) { $(id).classList.remove('peek'); if (id === 'league') renderLeague(); else renderFlows(); return; }
+  if (id === 'flows') renderFlows();
   if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  if (id === 'league') { renderLeague(); leagueSync(true); }
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'corp', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
+  if (id === 'corp' && $('corp').classList.contains('show')) { layer = LAYERS.findIndex((l) => l[0] === 'corp'); applyOverlay(); refreshLayers(); renderCorp(true); } // mở bảng 🏢: bật lớp tập đoàn để thấy công ty đang chọn
+  corpFocus();
   if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
-  if (id === 'saves') renderSlots();
+  if (id === 'saves') { renderSlots(); renderCloud(); cloudRefresh(); }
   if (id === 'dev') renderDev();
   if (id === 'people') renderCity(true);
   if (id === 'budget') { renderLoans.sig = ''; renderExpenses.at = 0; updateHud(true); }
@@ -1404,6 +1631,12 @@ function bindUi() {
   $('distPeek').addEventListener('click', () => peekDist());
   for (const b of $('speed').children) b.addEventListener('click', () => setSpeed(+b.dataset.s));
   $('bBudget').addEventListener('click', () => openSide('budget'));
+  $('bLeague').addEventListener('click', () => openSide('league'));
+  $('bFlows').addEventListener('click', () => openSide('flows'));
+  $('bFlowsOpen').addEventListener('click', () => openSide('flows'));
+  for (const b of document.querySelectorAll('[data-peek]')) b.addEventListener('click', () => { const p = b.closest('.side'); p.classList.add('peek'); toast(`Bấm ${p.id === 'league' ? '🏆' : '💸'} để mở lại cửa sổ`); });
+  $('moneyStat').addEventListener('click', () => openSide('budget')); // bấm ô 💰 tiền cũng mở bảng ngân sách
+  $('moneyStat').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSide('budget'); } });
   $('bStyle').addEventListener('click', () => { city.style = city.style === 'vn' ? 'classic' : 'vn'; view.restyle(); $('bStyle').classList.toggle('on', city.style === 'vn'); toast(city.style === 'vn' ? '🇻🇳 Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy' : 'Phong cách cổ điển'); });
   $('bSave').addEventListener('click', () => openSide('saves'));
   $('bCity').addEventListener('click', () => openSide('people'));
@@ -1415,6 +1648,7 @@ function bindUi() {
   $('dateBox').addEventListener('click', () => openSide('fest'));
   $('bInbox').addEventListener('click', () => openSide('inbox'));
   $('bDist').addEventListener('click', () => openSide('dist'));
+  $('bCorp').addEventListener('click', () => openSide('corp'));
   $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
@@ -1485,6 +1719,112 @@ function keepFocus(fn) {
   if (!k || document.activeElement === a) return;
   const n = document.querySelector(`[data-draft="${k}"]`);
   if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+}
+
+/** Bảng 🏢 Tập đoàn: đề xuất đang chờ thị trưởng, danh sách công ty, chi tiết + lịch sử của công ty đang chọn. */
+let corpSel = 0;
+/** Tô sáng các cơ sở của công ty đang chọn trong bảng 🏢 (lớp xem tập đoàn); đóng bảng thì bỏ. Chỉ để xem, không lưu. */
+function corpFocus() {
+  const c = city; if (!c || !c.corp) return;
+  const q = $('corp').classList.contains('show') ? c.corp.list[corpSel] : null, id = q ? q.id : 0;
+  if ((c.corpFocus || 0) !== id) { c.corpFocus = id; c.dirty.zones = c.dirty.buildings = true; if (q) corpLook(q); }
+}
+/** Đưa máy quay tới vùng của công ty: tâm các ô của nó, xa vừa đủ thấy cả vùng, lệch xuống dưới bảng 🏢 đang che phía trên. */
+function corpLook(q) {
+  const l = q.cells.map(([i]) => i); if (!l.length) return;
+  const xs = l.map((i) => ((i % S.N) + 0.5) * S.T - S.HALF), zs = l.map((i) => (((i / S.N) | 0) + 0.5) * S.T - S.HALF);
+  const cx = xs.reduce((a, b) => a + b, 0) / l.length, cz = zs.reduce((a, b) => a + b, 0) / l.length;
+  const span = Math.max(...xs.map((x) => Math.abs(x - cx)), ...zs.map((z) => Math.abs(z - cz)));
+  const cam = view.cam; cam.dist = Math.max(170, Math.min(520, span * 3.2 + 120)); cam.pitch = Math.max(cam.pitch, 1.2);
+  const off = cam.dist * 0.22; cam.x = cx - Math.sin(cam.yaw) * off; cam.z = cz - Math.cos(cam.yaw) * off; view.panWorld(0, 0);
+}
+const CORP_LOG = {
+  founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
+  ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
+  askFailed: (e) => `Dự án không thực hiện được: ${e.text}`, counterOk: (e) => `Nhượng bộ: nâng cam kết lên ${e.jobs} việc làm`, counterNo: () => 'Không nhượng bộ thêm việc làm',
+  subsidiary: (e) => `Lập công ty con ${e.name} (${e.n} nhà máy, vốn ${money(e.cash)})`, exportOn: (e) => `Đẩy xuất khẩu: tồn kho thành phẩm ${e.stock}`, exportOff: (e) => `Dừng đẩy xuất khẩu (tồn kho ${e.stock})`,
+  decision: (e) => `${e.ai ? '🤖 ' : ''}Quyết: ${S.OPTS[e.id] || e.id}${e.ok ? '' : ' (không thực hiện được)'}${e.text ? ` — “${e.text}”` : ''}`,
+  acquire: (e) => (e.kind === 'rival' ? `Mua lại ${e.name} (${e.n} nhà máy) giá ${money(e.cost)}` : e.kind === 'shop' ? `Mua một cửa hàng cho chuỗi bán lẻ giá ${money(e.cost)}` : `Mua một xưởng độc lập giá ${money(e.cost)}`), acquired: (e) => `Bị ${e.by} mua lại giá ${money(e.cost)}`,
+  jv: (e) => `Liên doanh ${e.name} với ${e.partner}, góp ${money(e.cash)}`, loan: (e) => `Vay ngân hàng ${money(e.amount)}`, loanPaid: () => 'Trả hết nợ vay', default: (e) => `Vỡ nợ ${money(e.debt)}, ngân hàng xoá nợ`,
+  crisis: (e) => `Khủng hoảng: quỹ ${money(e.cash)}, nhà máy chạy ${e.eff}% công suất`, payUp: (e) => `Thiếu người (${e.fill}% chỗ làm có người): tăng lương 15% để giành lao động`, payDown: (e) => `Hạ lương về mức cũ (${e.fill}% chỗ có người)`,
+  monopoly: (e) => `Nắm quá 60% ${S.PRODUCTS[e.product] ? S.PRODUCTS[e.product].name.toLowerCase() : ''} của thành phố: độc quyền`, monopolyEnd: () => 'Hết độc quyền', dependence: (e) => `Giữ ${e.share}% việc làm của thành phố`, shock: (e) => `Sụp đổ, thành phố mất ${e.share}% việc làm`,
+  warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`,
+  dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
+};
+/** AI (Claude) đóng vai CEO: chọn một trong các hành động game đã kiểm tra; quá hạn game tự dùng lựa chọn của luật. */
+function corpPump() {
+  const c = city;
+  if (!c.corp) return;
+  c.corp.ai = aiOnline();
+  const qu = c.corpQueue;
+  if (!qu || !qu.length || corpPump.busy) return;
+  const q = S.corpById(c, qu.shift());
+  if (!q || !q.pend) return;
+  corpPump.busy = true;
+  const opts = q.pend.opts.map((id) => ({ id, label: S.OPTS[id] }));
+  aiCall('corp', { city: citySummary(c, S), q: S.corpBrief(c, q), options: opts }).then((d) => {
+    if (city === c && d && d.id && q.pend) S.corpResolve(c, q, d.id, d.why);
+  }).finally(() => { corpPump.busy = false; if (city === c && $('corp').classList.contains('show')) renderCorp(true); });
+}
+function renderCorp(force) { keepFocus(() => renderCorp0(force)); }
+function renderCorp0(force) {
+  const c = city, C = c.corp;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${corpSel}|${C.list.map((q) => q.id + ':' + q.cells.length + ':' + q.log.length).join(',')}|${C.asks.map((a) => a.id + ':' + a.jobs).join(',')}`;
+  if (!force && renderCorp.key === key) return;
+  renderCorp.key = key;
+  const root = $('corpBody'); root.textContent = '';
+  root.append(el('small', null, 'Công ty hình thành từ nhà máy có sẵn. CEO (chạy bằng luật theo tính cách) tự mở rộng, tự xin đất; bạn duyệt, từ chối hoặc đòi thêm việc làm. Lãi dư chia cho dân; lịch sử chỉ ghi việc thật.'));
+  for (const a of C.asks) {
+    const q = S.corpById(c, a.corp); if (!q) continue;
+    const card = el('div', 'card'), opts = el('div', 'opts');
+    card.append(el('b', null, `🏭 ${S.corpTitle(q)} xin ${a.sites.length} ô đất`), el('p', null, `Cam kết thêm ${a.jobs} việc làm trong ${a.days} ngày, nộp phí đất ${money(S.CORP.landFee * S.MK * a.sites.length)}. Còn ${Math.max(0, a.expires - c.day)} ngày để trả lời.`));
+    const yes = el('button', 'mini acc', '✅ Chấp nhận'), more = el('button', 'mini', '🗣️ Đòi thêm việc làm'), no = el('button', 'mini', '❌ Từ chối');
+    yes.onclick = () => { const r = S.approveAsk(c, a.id); toast(r.ok ? `🏭 Đã duyệt cho ${S.corpTitle(q)}` : r.reason); S.recalc(c); renderCorp(true); };
+    more.disabled = !!a.countered; more.onclick = () => { const r = S.counterAsk(c, a.id); toast(r.reply || r.reason); renderCorp(true); };
+    no.onclick = () => { S.rejectAsk(c, a.id); renderCorp(true); };
+    opts.append(yes, more, no); card.append(opts); root.append(card);
+  }
+  if (!C.list.length) { root.append(el('p', null, `Chưa có công ty nào: cần ${S.CORP.foundMin} dân và nhà máy đang chạy có lãi để hình thành công ty.`)); return; }
+  if (corpSel >= C.list.length) corpSel = 0;
+  corpFocus(); // công ty đang chọn có thể vừa giải thể
+  { // công cụ của thị trưởng: chống độc quyền, hỗ trợ doanh nghiệp nhỏ
+    const row = el('div', 'opts'), sme = el('button', 'mini', '🛡️ Bảo hộ DN nhỏ 30 ngày'), riv = el('button', 'mini', '🎯 Mời đối thủ mới');
+    sme.title = 'Tốn 150 MK ngân sách, chia vốn cho các xưởng độc lập; 30 ngày không bị tập đoàn mua lại'; riv.title = 'Lập ngay một công ty mới từ xưởng độc lập, khác sản phẩm của bên đang áp đảo';
+    sme.onclick = () => { const r = S.protectSme(c); toast(r.ok ? `🛡️ Đã bảo hộ ${r.n} doanh nghiệp nhỏ` : r.reason); renderCorp(true); };
+    riv.onclick = () => { const r = S.inviteRival(c); toast(r.ok ? `🎯 ${S.corpTitle(r.corp)} thành lập` : r.reason); renderCorp(true); };
+    sme.disabled = (C.sme ?? -1) >= c.day; row.append(sme, riv); root.append(row);
+  }
+  { // thị trường và cụm kinh tế: vốn đi theo giá thế giới
+    const box = el('div', 'card'), sg = S.signals(c).filter((x) => x.plants > 0 || x.price >= 1.15), hubs = C.hubs || [];
+    box.append(el('b', null, '🌐 Thị trường và cụm kinh tế'));
+    const t = el('p'); t.style.cssText = 'margin:4px 0;font-size:12px';
+    t.textContent = sg.length ? 'Giá thế giới (nhà máy trong thành phố): ' + sg.map((x) => `${S.PRODUCTS[x.p].icon} ${S.PRODUCTS[x.p].name} ${x.price.toFixed(2)}${x.price >= 1.2 ? '↑' : x.price <= 0.8 ? '↓' : ''} (${x.plants}) · nội địa ×${x.dp.toFixed(2)}`).join(' · ') : 'Chưa có số liệu.';
+    box.append(t, el('small', null, `🏷️ Giá bán lẻ cho dân: ×${(c.retailIdx || 1).toFixed(2)} so với giá gốc (kệ cạn thì giá lên, hàng ứ thì hạ; trên ×${S.RETAIL.hi} dân thấy đắt đỏ, kém vui). `), el('small', null, hubs.length ? `Cụm kinh tế: ${hubs.map((h) => `${h.sector ? S.PRODUCTS[h.sector].name : 'hỗn hợp'} ${h.n} cơ sở, ${h.jobs} việc`).join('; ')} (chạy nhanh hơn 10%)` : 'Chưa có cụm kinh tế: cần từ 6 cơ sở của công ty nằm sát nhau.'));
+    root.append(box);
+  }
+  const tb = el('table', 'dover');
+  tb.innerHTML = '<tr><th>Công ty</th><th>Bậc</th><th>🏭</th><th>👷 Việc</th><th>🌐 Ảnh hưởng</th><th>💰 Quỹ</th></tr>';
+  const order = [...C.list].sort((x, y) => S.rootOf(c, x.id) - S.rootOf(c, y.id) || (x.parent ? 1 : 0) - (y.parent ? 1 : 0) || x.id - y.id);
+  order.forEach((q) => {
+    const k = C.list.indexOf(q), st = S.corpStats(c, q), [r, g, b] = corpRGB(c, q.id), tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
+    [(q.parent ? '↳ ' : '') + S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
+    tr.onclick = () => { corpSel = k; renderCorp(true); corpFocus(); };
+    tb.append(tr);
+  });
+  root.append(tb);
+  const q = C.list[corpSel], st = S.corpStats(c, q), ceo = S.CEOS[q.ceo], card = el('div', 'card'), pr = S.PRODUCTS[st.sector];
+  card.append(el('b', null, `${S.corpTitle(q)}${pr ? ` · ${pr.icon} ${pr.name}` : ''}${q.kind === 'trade' ? ' · 🛒 Thương mại, bán lẻ' : ''}`));
+  const p = el('p'); p.style.cssText = 'margin:4px 0;font-size:12px';
+  p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm. ${q.parent ? `Công ty con của ${S.corpTitle(S.corpById(c, q.parent))}.` : st.group.subs ? `Cả nhóm: ${st.group.n} nhà máy, ${st.group.jobs} việc làm, ${st.group.subs} công ty con.` : ''}`;
+  card.append(p);
+  const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''}${st.wares ? ` · 🏗️ ${st.wares} kho (chứa thêm ${st.store} mỗi nhà máy)` : ''} · 💱 Giá thế giới ${st.signal} · 🏷️ Hệ số bán ${st.markup}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
+  card.append(tr2, el('br'));
+  { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono] ? S.PRODUCTS[st.mono].name.toLowerCase() : 'bán lẻ'}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
+  for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}`), el('br'));
+  card.append(el('h4', null, 'Lịch sử'));
+  const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';
+  for (const e of q.log.slice(-40).reverse()) ul.append(el('div', null, `Ngày ${e.day + 1}: ${CORP_LOG[e.type] ? CORP_LOG[e.type](e) : e.type}`));
+  card.append(ul); root.append(card);
 }
 
 function renderInbox(force) { keepFocus(() => renderInbox0(force)); }
@@ -1631,10 +1971,42 @@ async function sendOrder(d, text) {
   S.recalc(c); updateHud(true); renderDist(true);
 }
 
+const ASK_CHIPS = [['👥 Dân cư', 'Dân cư trong quận thế nào: bao nhiêu người, già trẻ, nhà còn trống không?'], ['💼 Việc làm', 'Việc làm và doanh nghiệp trong quận ra sao, có ai thất nghiệp, ai làm ăn lỗ không?'], ['📦 Tồn hàng', 'Hàng tồn, sản xuất trong quận thế nào, nhà máy có thiếu nguyên liệu không?'], ['🚢 Xuất khẩu', 'Tuần qua quận xuất khẩu được những gì, bao nhiêu tiền?'], ['🎭 Văn hoá', 'Đời sống văn hoá, vui chơi, du lịch của quận thế nào?'], ['🏫 Trường, y tế', 'Trường học, y tế, công an trong quận phủ tới dân được bao nhiêu?']];
+
+/** Thị trưởng hỏi chủ tịch quận: AI trả lời từ hồ sơ quận (số do game tính); không có AI thì trả lời theo chủ đề. */
+async function sendAsk(d, text) {
+  const c = city, q = c.dist.list[d];
+  if (!q || q.askWait) return;
+  q.askWait = text; renderDist(true);
+  const B = S.districtBrief(c, d), r = await aiCall('district', { city: citySummary(c, S), q: S.distSummary(c, d), task: 'ask', text, brief: B });
+  q.askWait = null;
+  if (city !== c) return;
+  S.noteAsk(c, d, text, r && r.text ? r.text : S.askFallback(c, d, text, B), !!(r && r.text));
+  renderDist(true);
+}
+
+/** Hồ sơ quận gọn: các con số chủ tịch dùng để trả lời. */
+function distBriefCard(c, d) {
+  const B = S.districtBrief(c, d), p = B.people, j = B.jobs, x = B.exports, cu = B.culture, sv = B.services, s = B.stock;
+  const kinds = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${(S.RAW[k] || S.PRODUCTS[k] || { icon: k }).icon} ${fmt(v)}`).join(' ') || '—';
+  const box = el('details', 'card'), sum = el('summary', null, '📊 Hồ sơ quận');
+  box.append(sum);
+  for (const [ic, t] of [
+    ['👥', `${fmt(p.pop)} dân · ${fmt(p.kids)} trẻ, ${fmt(p.adults)} lao động tuổi, ${fmt(p.seniors)} già · nhà trống ${fmt(B.housing.vacant)}/${fmt(B.housing.homes)}`],
+    ['💼', `${fmt(p.employed)}/${fmt(p.workers)} có việc (thất nghiệp ${p.joblessPct}%) · ${fmt(j.vacant)} chỗ trống · ${j.losing} doanh nghiệp lỗ`],
+    ['📦', `chờ chở: ${kinds(s.waiting)} · kệ hàng ${fmt(s.shopShelf)}${s.emptyShops ? ` · ${s.emptyShops} cửa hàng hết hàng` : ''}${s.factoriesNoInput ? ` · ${s.factoriesNoInput} nhà máy thiếu nguyên liệu` : ''}`],
+    ['🚢', x.days ? `xuất ${x.days} ngày: ${kinds(x.k)} · ${money(x.value)} (hôm qua ${money(x.yesterday)})` : 'chưa có sổ xuất khẩu (ghi từ hôm nay)'],
+    ['🎭', `văn hoá mức ${cu.program} · ${cu.parks} công viên (${cu.parkCoverPct}% dân gần) · ${cu.attractions} điểm tham quan · ${cu.hotels} khách sạn · ${cu.leisure} quán xá`],
+    ['🏫', `${sv.schools} trường (${sv.eduCoverPct}% dân) · ${sv.clinics} y tế (${sv.healthCoverPct}%) · công an ${sv.policeCoverPct}%`],
+  ]) { const r = el('div', 'row'); r.append(el('span', null, ic), el('span', null, t)); r.style.justifyContent = 'flex-start'; r.style.gap = '6px'; box.append(r); }
+  box.open = !!distBriefCard.open; box.addEventListener('toggle', () => { distBriefCard.open = box.open; });
+  return box;
+}
+
 function renderDist(force) { keepFocus(() => renderDist0(force)); }
 function renderDist0(force) {
   const c = city, D = c.dist;
-  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + q.chair + (q.note || '').length + q.build + q.bcap + (q.prop ? q.prop.status + q.prop.type : '') + (q.builds || []).length).join('|')}|${Math.round(c.money / 5000)}`;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${D.on}|${distSel}|${seatPick}|${D.list.map((q) => q.mode + q.cap + JSON.stringify(q.prog) + (q.order ? q.order.status + q.order.until : '') + q.reports.length + (q.reports.at(-1)?.ai ? 1 : 0) + (q.wait ? 1 : 0) + (q.askWait ? 1 : 0) + (q.asks || []).length + q.chair + (q.note || '').length + q.build + q.bcap + (q.prop ? q.prop.status + q.prop.type : '') + (q.builds || []).length).join('|')}|${Math.round(c.money / 5000)}`;
   if (!force && renderDist.key === key) return;
   renderDist.key = key;
   $('distAi').textContent = aiOnline() ? '🤖 Chủ tịch quận do AI (Claude) đóng vai: nhận lệnh, lập kế hoạch, chọn công trình để xây, báo cáo, tự quyết tình huống. Mọi con số và hậu quả do game tính.' : `🤖 ${aiEnabled() ? 'AI chưa sẵn sàng' : 'AI đang tắt (bật lại trong 📨 Hộp thư)'}: chủ tịch quận làm theo kế hoạch soạn sẵn, lệnh được hiểu theo từ khoá.`;
@@ -1690,6 +2062,7 @@ function renderDist0(force) {
   const swap = el('button', 'mini', '🔄 Thay chủ tịch'); swap.onclick = () => { const r = S.replaceChair(c, d); if (!r.ok) toast(r.reason); renderDist(true); };
   nav.append(look, mv, swap); head.append(nav);
   body.append(head);
+  body.append(distBriefCard(c, d));
   // chế độ
   body.append(el('h4', null, 'Cách điều hành'));
   const seg = el('div', 'seg');
@@ -1716,6 +2089,24 @@ function renderDist0(force) {
   body = col2;
   renderDistBuild(c, d, q, body);
   body = col3;
+  // hỏi chủ tịch
+  body.append(el('h4', null, '❓ Hỏi chủ tịch'));
+  const chips = el('div'); chips.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px';
+  for (const [lb, t] of ASK_CHIPS) { const b = el('button', 'mini', lb); b.title = t; b.disabled = !!q.askWait; b.onclick = () => sendAsk(d, t); chips.append(b); }
+  body.append(chips);
+  if ((q.asks || []).length || q.askWait) {
+    const ch = el('div', 'chat');
+    for (const a of (q.asks || []).slice(q.askWait ? -1 : -2)) ch.append(el('div', 'us', a.q), el('div', 'them', `${q.chair}: ${a.a}`));
+    if (q.askWait) ch.append(el('div', 'us', q.askWait), el('div', 'them', '… chủ tịch đang xem sổ sách'));
+    body.append(ch);
+  }
+  const ain = el('input'), asend = el('button', 'mini acc', 'Hỏi'), arow = el('div');
+  arow.style.cssText = 'display:flex;gap:6px'; ain.style.flex = '1'; ain.maxLength = 300; ain.placeholder = 'VD: quận mình tồn hàng gì nhiều nhất?';
+  draft(ain, `ask${d}`);
+  const ask = () => { const t = ain.value.trim(); if (t) { delete drafts[`ask${d}`]; sendAsk(d, t); } };
+  asend.onclick = ask; ain.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') ask(); });
+  asend.disabled = !!q.askWait;
+  arow.append(ain, asend); body.append(arow, el('small', null, 'Chủ tịch trả lời bằng số liệu thật của quận: dân cư, việc làm, tồn hàng, xuất khẩu, văn hoá, trường, y tế, môi trường, ngân sách.'));
   // giao việc
   body.append(el('h4', null, '📋 Giao việc'));
   const o = q.order;
@@ -1875,6 +2266,11 @@ function startCity(c) {
     return false;
   }
   city = c; window.__city = c;
+  if (c.league) { // nhóm cạnh tranh: chạy bù thời gian vắng mặt theo đồng hồ thật rồi đồng bộ máy chủ
+    const r = Lg.syncClock(c, S.catchUp);
+    if (r.ran || r.skipped) setTimeout(() => toast(`🏆 Đã chạy bù ${Math.round(r.ran / 24)} ngày vắng mặt${r.skipped ? `, bỏ qua ${Math.round(r.skipped / 24)} ngày (vắng quá ${Lg.CATCHUP_MAX_DAYS} ngày)` : ''}`), 400);
+    setTimeout(() => leagueSync(true), 0);
+  }
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('ferryFare').value = c.transit.ferryFare ?? 4; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
@@ -1904,7 +2300,10 @@ function frame(now) {
   if (stroke && now - stroke.at > 110) { stroke.at = now; strokeStep(false); }
 
   const hourBefore = city.hour;
-  S.advance(city, dt * speed);
+  if (city.league && city.hour >= Lg.allowedHour(city.league)) { // đồng hồ thật của nhóm: chờ ngày giải mới
+    if (!frame.waitHint || now - frame.waitHint > 15000) { frame.waitHint = now; const ms = Math.max(0, (city.league.start + (Lg.leagueDayNow(city.league) + 1) * city.league.dayMs) - Date.now()); hintOverride = `🏆 Đã hết ngày giải hôm nay: thành phố chờ ngày mới sau <b>${Math.ceil(ms / 60000)} phút</b> (nhóm cạnh tranh chạy theo đồng hồ thật)`; renderHint(); }
+  } else { if (frame.waitHint) { frame.waitHint = 0; hintOverride = null; renderHint(); } S.advance(city, dt * speed); }
+  leagueSync(false);
   const n = city.hour - hourBefore;
   for (const ev of city.events.splice(0)) {
     if (ev.type === 'milestone') {
@@ -1912,6 +2311,10 @@ function frame(now) {
       refreshToolbar(); renderDev();
     } else if (ev.type === 'fireStart') toast(`🔥 Có đám cháy${ev.cause ? ` (${ev.cause})` : ''}! Xe cứu hoả gần nhất đang chạy tới`);
     else if (ev.type === 'built') toast(`🏗️ Đã xây xong ${ev.icon} ${ev.name}`);
+    else if (ev.type === 'depleted') toast(ev.text);
+    else if (ev.type === 'league') toast(ev.text);
+    else if (ev.type === 'leagueClear' && (ev.receive || ev.refund)) toast(`🏆 Thanh toán hợp đồng ngày giải ${ev.day + 1}: nhận ${fmt(Math.round(ev.receive))} ₫${ev.refund ? `, hoàn lại ${fmt(Math.round(ev.refund))} ₫` : ''}`);
+    else if (ev.type === 'leagueDay') { const a = ev.alloc; toast(`🏆 Ngày giải mới: ${fmt(a.migrants)} người được chia về thành phố, ${fmt(a.tourists)} du khách, đầu tư ×${a.invest}`); }
     else if (ev.type === 'fireOut') toast('🚒 Đã dập xong đám cháy');
     else if (ev.type === 'fire') toast('🔥 Một toà nhà cháy rụi vì xe cứu hoả không tới kịp');
     else if (ev.type === 'bankruptBiz') { if (performance.now() - (frame.bizToast || 0) > 8000) { frame.bizToast = performance.now(); toast(`💸 Một ${{ shop: 'cửa hàng', factory: 'nhà máy', raw: 'cơ sở khai thác', office: 'văn phòng', leisure: 'quán ăn, chỗ vui chơi' }[ev.kind] || 'doanh nghiệp'} vừa phá sản (xem 👥 để biết vì sao)`); } }
@@ -1938,6 +2341,7 @@ function frame(now) {
   updateHud(false);
   drawMinimap(now);
   if (now - lastSave > 20000) autosave();
+  if (cloud.user && !cloud.busy && now - cloud.at > Cloud.CLOUD_EVERY_MS) cloudSave('auto', true); // tự lưu lên mây
   requestAnimationFrame(frame);
 }
 
@@ -1958,6 +2362,7 @@ window.__newCity = (seed, opts) => startCity(S.newCity(seed, opts || { size: vie
 window.__loadCity = (o) => startCity(S.deserialize(o)); // tiện thử nghiệm: nạp bản lưu (JSON)
 bindUi();
 startCity(first);
+cloudRefresh(); // đã đăng nhập (dashboard cùng tên miền) thì tự lưu lên mây ngay
 if (bootErr) toast('Không đọc được bản lưu: ' + bootErr.message);
 bindInput();
 let seen = false;

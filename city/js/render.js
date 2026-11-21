@@ -3,9 +3,9 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
-import { fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
@@ -57,6 +57,14 @@ function gaitMaterial(mat, o) {
 const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
 export const DCOL = [[255, 99, 71], [64, 160, 255], [80, 200, 120], [250, 190, 40], [190, 110, 240], [40, 210, 210], [255, 130, 190], [160, 200, 60]]; // màu từng quận
+/** Màu một công ty: màu của cả nhóm (theo công ty gốc); công ty con lần lượt nhạt hơn / đậm hơn để phân biệt trong nhóm. */
+export function corpRGB(c, id) {
+  const root = (c.corpGroup && c.corpGroup[id]) || id, base = DCOL[root % DCOL.length];
+  if (root === id || !c.corp) return base;
+  const sibs = c.corp.list.filter((q) => q.id !== root && c.corpGroup && c.corpGroup[q.id] === root).map((q) => q.id).sort((a, b) => a - b);
+  const f = [0.55, -0.5, 0.3, -0.3][Math.max(0, sibs.indexOf(id)) % 4];
+  return base.map((v) => Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f)));
+}
 const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
 const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], overpass2: [1.8], overpass3: [1.8], tunnel: [1.8], highway: [2.1, 5.4, 8.7] }; // thiếu loại nào thì xe chạy trên đó làm lỗi vòng vẽ
@@ -144,8 +152,11 @@ function pointAt(pts, cum, s) {
 }
 
 // biển hiệu chữ cho cửa hàng kiểu Việt Nam (từ chung chung, không phải thương hiệu)
-const SIGN_WORDS = ['PHỞ', 'CÀ PHÊ', 'TẠP HOÁ', 'BÁNH MÌ', 'SỬA XE', 'BÚN CHẢ', 'CƠM TẤM', 'ĐIỆN THOẠI'];
-const SIGN_BG = ['#d8262e', '#1f6fc8', '#f2c200', '#16935a', '#e8681f', '#d8262e', '#7a3fb0', '#1f6fc8'];
+const SIGN_WORDS = ['PHỞ', 'CÀ PHÊ', 'TẠP HOÁ', 'BÁNH MÌ', 'SỬA XE', 'BÚN CHẢ', 'CƠM TẤM', 'ĐIỆN THOẠI', 'NHÀ THUỐC', 'TIỆN LỢI', 'SIÊU THỊ'];
+const SIGN_BG = ['#d8262e', '#1f6fc8', '#f2c200', '#16935a', '#e8681f', '#d8262e', '#7a3fb0', '#1f6fc8', '#16a34a', '#2f7fd0', '#d8262e'];
+const UNIT_WORDS = 10; // chữ trên biển các căn nhà ống (SIÊU THỊ chỉ dùng cho siêu thị)
+// biển tên công trình công kiểu Việt Nam (cổng có bảng tên trên hai cột): [chữ, nền, màu chữ]
+const SVC_SIGNS = { school: ['TRƯỜNG TIỂU HỌC', '#c8102e', '#ffd200'], highschool: ['TRƯỜNG THPT', '#c8102e', '#ffd200'], university: ['TRƯỜNG ĐẠI HỌC', '#1f4fa0', '#ffffff'], clinic: ['TRẠM Y TẾ PHƯỜNG', '#1f6fc8', '#ffffff'], hospital: ['BỆNH VIỆN', '#ffffff', '#c8102e'], police: ['CÔNG AN PHƯỜNG', '#c8102e', '#ffd200'], fire: ['CẢNH SÁT PCCC', '#c8102e', '#ffffff'] };
 function signAtlas() {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64 * SIGN_WORDS.length;
   const g = cv.getContext('2d');
@@ -154,6 +165,25 @@ function signAtlas() {
     g.fillStyle = SIGN_BG[k] === '#f2c200' ? '#b0141c' : '#fff6d0';
     g.font = 'bold 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(w, 256, k * 64 + 34, 490);
+  });
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+/** Biển logo công ty (tập đoàn): mỗi công ty gốc một ô trên tấm ảnh, nền màu theo công ty, chữ cái đầu trong vòng tròn và tên in hoa. */
+const LOGO_SLOTS = 12, LOGO_H = 94;
+function logoAtlas(list) {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = LOGO_H * LOGO_SLOTS;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#444'; g.fillRect(0, 0, cv.width, cv.height);
+  list.forEach((o, k) => {
+    const y = k * LOGO_H, [r, gg, b] = o.rgb;
+    g.fillStyle = `rgb(${r},${gg},${b})`; g.fillRect(0, y, 512, LOGO_H);
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(52, y + LOGO_H / 2, 34, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgb(${r * 0.7 | 0},${gg * 0.7 | 0},${b * 0.7 | 0})`; g.font = 'bold 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(o.init, 52, y + LOGO_H / 2 + 2, 56);
+    g.fillStyle = '#fff'; g.font = 'bold 46px system-ui, sans-serif'; g.textAlign = 'left';
+    g.fillText(o.name, 104, y + LOGO_H / 2 + 2, 390);
   });
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
@@ -196,6 +226,22 @@ function hull2(pts) {
   for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
   for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
   return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+
+/** Công trình có người tụ tập theo giờ (render._life). */
+const LIFE_SVC = new Set(['school', 'highschool', 'park', 'plaza', 'market']);
+
+/** Biển tên công trình công (một texture cho mỗi loại, dựng khi cần). */
+const SVC_TEX = {};
+function svcSignTexture(type) {
+  if (SVC_TEX[type]) return SVC_TEX[type];
+  const [txt, bg, fg] = SVC_SIGNS[type], cv = document.createElement('canvas'); cv.width = 512; cv.height = 96;
+  const g = cv.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 96); g.strokeStyle = fg; g.lineWidth = 4; g.strokeRect(6, 6, 500, 84);
+  g.fillStyle = fg; g.font = 'bold 46px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(txt, 256, 50, 480);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return (SVC_TEX[type] = t);
 }
 
 /** Đốm sáng tròn mờ dần ra mép (vệt đèn đường, đèn pha trên mặt đường). */
@@ -482,6 +528,24 @@ export class View {
       for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
       const mm = new THREE.InstancedMesh(pg, this.signMat, 2000); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.signMeshes.push(mm);
     }
+    // biển logo công ty trên cổng nhà máy, kho (mỗi công ty gốc một ô của tấm ảnh logo)
+    this.logoMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); this.logoMeshes = []; this.logoKey = ''; this.logoSlot = new Map();
+    for (let k = 0; k < LOGO_SLOTS; k++) {
+      const pg = new THREE.PlaneGeometry(1, 1), uv = pg.attributes.uv, v0 = 1 - (k + 1) / LOGO_SLOTS, v1 = 1 - k / LOGO_SLOTS;
+      for (let j = 0; j < uv.count; j++) uv.setY(j, uv.getY(j) > 0.5 ? v1 : v0);
+      const mm = new THREE.InstancedMesh(pg, this.logoMat, 600); mm.count = 0; mm.frustumCulled = false; s.add(mm); this.logoMeshes.push(mm);
+    }
+    this.gateMesh = this._inst(corpGateGeometry(), this.matBuilding, 600, false);
+    // vỉa hè trước quán (theo chữ trên biển), xe máy đỗ trước cửa; trang trí lễ trên cột điện (cờ, đèn lồng)
+    this.frontMeshes = Object.fromEntries(FRONT_KINDS.map((k) => [k, this._inst(shopFrontGeometry(k), this.matBuilding, 2000, false)]));
+    this.bikeMesh = this._inst(parkedBikesGeometry(), this.matBuilding, 3000, false);
+    this.lanternMesh = this._inst(lanternGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), 3000, false);
+    this.flagMesh = this._inst(poleFlagGeometry(), this.matBuilding, 1500, false);
+    this.decoPts = []; this.decoKey = '';
+    // đời sống đường phố: người ngồi quán, người đứng (đi chợ, học sinh, tập thể dục); chỗ đặt lấy từ nhà và công trình
+    this.lifeSit = this._inst(sitGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 1500, false);
+    this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
+    this.lifeShops = []; this.lifeSvc = [];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {};
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
@@ -858,6 +922,7 @@ export class View {
 
   /** mode: 'zones' | 'value' | 'pollution' | 'service' | 'power' | 'water'; strong: đang cầm công cụ quy hoạch */
   setOverlay(mode, strong, grid, zone = 0) {
+    if ((mode === 'corp') !== (this.overlayMode === 'corp')) this.city.dirty.buildings = true; // vào / ra lớp tập đoàn: ẩn / hiện nhà khác, tô màu công ty
     if (mode !== this.overlayMode || strong !== this.ovStrong || zone !== this.ovZone) { this.overlayMode = mode; this.ovStrong = strong; this.ovZone = zone; this.city.dirty.zones = true; }
     this.ovMat.uniforms.uGrid.value = grid ? 1 : 0;
     if (mode !== 'traffic' && this.trafficMesh) { this.scene.remove(this.trafficMesh); this.trafficMesh.geometry.dispose(); this.trafficMesh = null; }
@@ -867,6 +932,7 @@ export class View {
 
   _zones() {
     const c = this.city, d = this.ovData, mode = this.overlayMode, st = [[230, 60, 50], [60, 200, 110], [240, 160, 40]];
+    const cc = new Map(), ccol = (id) => { let v = cc.get(id); if (!v) cc.set(id, (v = corpRGB(c, id))); return v; }; // màu từng công ty (lớp tập đoàn)
     for (let i = 0; i < N * N; i++) {
       let r = 0, g = 0, b = 0, a = 0;
       if (mode === 'zones') {
@@ -899,6 +965,19 @@ export class View {
           [r, g, b] = DCOL[q % DCOL.length];
           const edge = (x + 1 < N && c.dmap[i + 1] !== q) || (y + 1 < N && c.dmap[i + N] !== q) || (x > 0 && c.dmap[i - 1] !== q) || (y > 0 && c.dmap[i - N] !== q);
           a = c.water[i] ? 25 : edge ? 210 : 70; // trụ sở là toà nhà UBND quận thật, không tô riêng
+        }
+      } else if (mode === 'corp') {
+        // tập đoàn: mỗi nhóm một màu, mỗi công ty con một sắc đậm / nhạt của màu đó; viền đậm ở ranh giới vùng của từng công ty
+        const id = c.owner ? c.owner[i] : 0;
+        if (id) {
+          [r, g, b] = ccol(id);
+          const x = i % N, y = (i / N) | 0, ow = (j) => c.owner[j];
+          const edge = x + 1 >= N || ow(i + 1) !== id || y + 1 >= N || ow(i + N) !== id || x <= 0 || ow(i - 1) !== id || y <= 0 || ow(i - N) !== id;
+          a = c.level[i] ? (edge ? 245 : 170) : 100;
+          if (c.corpFocus) { // đang chọn một công ty trong bảng 🏢: vùng của nó rõ nhất, cùng nhóm vừa, nhóm khác mờ
+            const g0 = c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus;
+            a = id === c.corpFocus ? (edge ? 255 : 225) : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? (edge ? 170 : 90) : 30;
+          }
         }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
@@ -978,6 +1057,7 @@ export class View {
     // 2) dải mặt đường
     const cross = new Map(); // edgeId -> [mặt cắt đầu a, mặt cắt đầu b]
     const st = new GB(), lamps = []; // dầm, lan can, trụ, cột đèn; vị trí bóng đèn đường
+    this.decoPts = []; this.decoKey = ''; // chỗ treo cờ, đèn lồng dịp lễ (dọc cột điện kiểu Việt Nam)
     this.wprof = new Map();
     this.trims = trim;
     // lòng hầm chui đang mở (đáy thấp hơn mặt đất): khoét mặt đất để thấy đường bên dưới.
@@ -2044,6 +2124,67 @@ export class View {
     mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }
 
+  /**
+   * Đời sống đường phố (chỉ là hình, không đổi mô phỏng): khách ngồi quán phở, cà phê theo giờ, người mua bánh mì;
+   * người đi chợ buổi sáng; học sinh túa ra cổng trường giờ tan học; người tập thể dục, nhảy dân vũ ở công viên,
+   * quảng trường sáng sớm và chiều tối. Trời mưa thì vỉa hè, công viên vắng. Cập nhật khoảng 10 lần mỗi giây.
+   */
+  _life(dt) {
+    this._lifeT = (this._lifeT || 0) + dt;
+    if (this._lifeT < 0.1) return;
+    this._lifeT = 0;
+    const c = this.city, sit = this.lifeSit, stand = this.lifeStand, h = this.timeOfDay(), rain = c.inc && c.inc.weather === 'rain', out = rain ? 0.25 : 1, tm = this.time;
+    const m = new THREE.Matrix4(), l = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+    let ns = 0, nt = 0;
+    const band = (t) => { for (const [a, b, v] of t) if (h >= a && h < b) return v; return 0; };
+    const seat = (base, x, z, a, k, hue) => { // một người ngồi: (x, z) trong khung căn nhà, a = hướng mặt
+      if (ns >= sit.userData.cap) return;
+      sit.setMatrixAt(ns, m.multiplyMatrices(base, l.compose(p.set(x, 0.14, z), q.setFromAxisAngle(up, a), s)));
+      sit.setColorAt(ns++, col.setHSL(hue, 0.45, 0.55));
+    };
+    const person = (base, x, z, a, hue, light = 0.55, bob = 0) => { // một người đứng
+      if (nt >= stand.userData.cap) return;
+      stand.setMatrixAt(nt, m.multiplyMatrices(base, l.compose(p.set(x, 0.14 + bob, z), q.setFromAxisAngle(up, a), s)));
+      stand.setColorAt(nt++, light >= 0.95 ? col.setHex(0xf6f6f6) : col.setHSL(hue, 0.45, light));
+    };
+    const PHO = band([[5.5, 9, 0.85], [9, 11, 0.25], [11, 13.5, 0.8], [13.5, 17.5, 0.2], [17.5, 21, 0.75], [21, 23, 0.3]]) * out;
+    const CAFE = band([[6, 9, 0.9], [9, 11.5, 0.5], [11.5, 14, 0.25], [14, 17, 0.45], [17, 19, 0.3], [19, 23, 0.85]]) * out;
+    const BANHMI = band([[5.5, 8.5, 1], [16, 19, 0.6]]) * out;
+    for (const u of this.lifeShops || []) {
+      const r = (k) => hash2(u.id, k, 97);
+      if (u.k === 'pho' && PHO) {
+        for (const [k, x, z, a] of [[0, -0.85, 6, Math.PI / 2], [1, 0.85, 6, -Math.PI / 2], [2, 0, 6.55, Math.PI], [3, -0.85, 6.9, Math.PI / 2], [4, 0.85, 6.9, -Math.PI / 2], [5, 0, 7.45, Math.PI]]) if (r(k) < PHO) seat(u.m, x, z, a, k, r(k + 9));
+      } else if (u.k === 'cafe' && CAFE) {
+        for (let k = 0; k < 4; k++) if (r(k) < CAFE) seat(u.m, -1.2 + k * 0.8, 6.2, 0, k, r(k + 9));
+      } else if (u.k === 'banhmi' && BANHMI) {
+        for (let k = 0; k < 3; k++) if (r(k) < BANHMI) person(u.m, -0.4 + k * 0.5, 6.15 + (k % 2) * 0.3, Math.PI, r(k + 9));
+      } else if (u.k === 'cho') { // chợ truyền thống trong khu quy hoạch: đông nhất sáng sớm
+        const n = Math.round(band([[5, 10, 9], [10, 12, 4], [15, 18, 4]]) * (rain ? 0.6 : 1));
+        for (let k = 0; k < n; k++) person(u.m, -3.8 + r(k) * 7.6 + Math.sin(tm * 0.3 + k) * 0.4, -3.5 + r(k + 20) * 8 , r(k + 40) * 6.3, r(k + 9));
+      }
+    }
+    for (const v of this.lifeSvc || []) {
+      const L = v.size * 10, zf = L / 2, r = (k) => hash2(v.id, k, 99);
+      if (v.k === 'school' || v.k === 'highschool') { // tan trường, vào học: học sinh áo trắng trước cổng, phụ huynh đón
+        const n = Math.round(band([[6.4, 7.3, 22], [10.8, 11.8, 26], [16.6, 17.6, 26]]));
+        for (let k = 0; k < n; k++) person(v.m, (r(k) - 0.5) * L * 0.7, zf + 0.4 + r(k + 30) * 2, r(k + 60) * 6.3, r(k + 9), k % 5 ? 0.97 : 0.5);
+      } else if (v.k === 'park' || v.k === 'plaza') { // tập thể dục sáng sớm, nhảy dân vũ chiều tối: xếp hàng, nhún theo nhạc
+        const on = band([[5, 7, 1], [17.5, 19.5, 1]]) * (rain ? 0 : 1);
+        if (!on) continue;
+        const cols = v.k === 'plaza' ? 5 : 3, rows = v.k === 'plaza' ? 4 : 2, gap = v.k === 'plaza' ? 1.6 : 1.4;
+        for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+          const k = i * rows + j, bob = Math.max(0, Math.sin(tm * 3.2 + (h < 12 ? 0 : k * 0.3))) * 0.12;
+          person(v.m, (i - (cols - 1) / 2) * gap, (j - (rows - 1) / 2) * gap + (v.k === 'plaza' ? 5.6 : 2), Math.PI + Math.sin(tm * 1.6) * (h < 12 ? 0.05 : 0.4), r(k), 0.6, bob);
+        }
+      } else if (v.k === 'market') { // chợ trung tâm: người ra vào cửa chợ
+        const n = Math.round(band([[5, 11, 26], [11, 15, 10], [15, 19, 16]]) * (rain ? 0.6 : 1));
+        for (let k = 0; k < n; k++) person(v.m, (r(k) - 0.5) * L * 0.8 + Math.sin(tm * 0.25 + k) * 0.5, zf - 1 + r(k + 30) * 3, r(k + 60) * 6.3, r(k + 9));
+      }
+    }
+    sit.count = ns; stand.count = nt;
+    for (const mm of [sit, stand]) { mm.instanceMatrix.needsUpdate = true; if (mm.instanceColor) mm.instanceColor.needsUpdate = true; }
+  }
+
   /** Đồ trên bãi biển tô theo ô: dù, ghế nằm, khăn, chòi cứu hộ, quán nước, lưới bóng chuyền, dừa, phao bơi. */
   _beachProps() {
     const c = this.city;
@@ -2109,6 +2250,25 @@ export class View {
       this.floodMesh.setMatrixAt(n++, m);
     }
     this.floodMesh.count = n; this.floodMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Cờ, đèn lồng trên cột điện trong dịp lễ (lễ có trường deco); chỉ dựng lại khi đổi lễ hoặc đổi đường. */
+  _festDeco() {
+    const c = this.city, fn = c.style === 'vn' ? festivalNow(c) : null, deco = (fn && fn.f.deco) || '', key = `${deco}|${fn ? fn.f.id : ''}|${this.decoPts.length}`;
+    if (key === this.decoKey) return;
+    this.decoKey = key;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
+    const LANT = fn && fn.f.id === 'trungthu' ? [0xf2c200, 0xe8681f, 0xd8262e, 0x16935a, 0x1f6fc8] : [0xd8262e, 0xe0261e, 0xc81e1e];
+    let nl = 0, nf = 0;
+    for (const o of this.decoPts) {
+      if (o.t === 'lantern' && deco.includes('lantern') && nl < this.lanternMesh.userData.cap) {
+        this.lanternMesh.setMatrixAt(nl, m.compose(p.set(o.x, o.y, o.z), q.identity(), s1));
+        this.lanternMesh.setColorAt(nl++, col.setHex(LANT[(hash2(Math.round(o.x), Math.round(o.z), 71) * LANT.length) | 0]));
+      } else if (o.t === 'flag' && deco.includes('flag') && nf < this.flagMesh.userData.cap) this.flagMesh.setMatrixAt(nf++, m.compose(p.set(o.x, o.y, o.z), q.setFromAxisAngle(up, o.a), s1));
+    }
+    this.lanternMesh.count = nl; this.flagMesh.count = nf;
+    this.lanternMesh.instanceMatrix.needsUpdate = true; this.flagMesh.instanceMatrix.needsUpdate = true;
+    if (this.lanternMesh.instanceColor) this.lanternMesh.instanceColor.needsUpdate = true;
   }
 
   /** Pháo hoa ban đêm ở nơi tổ chức lễ (đêm giao thừa, Trung thu, lễ hội quy mô vừa trở lên). */
@@ -2402,6 +2562,15 @@ export class View {
             st.at(m4.compose(v3.set((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2), q.setFromEuler(e3.set(-Math.atan2(dy, ll), Math.atan2(dx, dz), 0, 'YXZ')), one)).box(0, 0, 0, 0.07, 0.07, Math.hypot(ll, dy), 0x1c1f22).at(null);
           }
         }
+        { // trang trí lễ: cờ cắm chéo trên cột (quay ra lòng đường), đèn lồng treo trên dây điện thấp nhất giữa hai cột
+          const d = this.decoPts;
+          d.push({ t: 'flag', x: px, y: top - 2.9, z: pz, a: Math.atan2(b.rx * sd, b.rz * sd) - Math.PI / 2 });
+          if (prevPole) for (const f of [0.3, 0.5, 0.7]) {
+            const ax = prevPole[0] + b.rx * -0.8, az = prevPole[2] + b.rz * -0.8, bx = px + b.rx * -0.8, bz = pz + b.rz * -0.8, l = Math.hypot(bx - ax, bz - az);
+            const sag = (0.5 + l * 0.012) * (1 - Math.abs(2 * f - 1));
+            d.push({ t: 'lantern', x: ax + (bx - ax) * f, y: prevPole[1] - 0.6 + (top - prevPole[1]) * f - sag, z: az + (bz - az) * f, a: 0 });
+          }
+        }
         prevPole = [px, top, pz];
         // xe đẩy bán hàng có ô che ở vỉa hè bên kia, thỉnh thoảng
         const swk = c.street ? c.street.sidewalk : 'free', vendor = swk === 'free' ? 0.6 : swk === 'license' ? 0.3 : 0; // chính sách vỉa hè
@@ -2481,10 +2650,75 @@ export class View {
     return mesh;
   }
 
+  /** Lớp tập đoàn: bảng tên nổi trên vùng của từng công ty (màu công ty; công ty con có "↳ … · con của …"). Ra khỏi lớp thì gỡ. */
+  _corpLabels() {
+    const c = this.city, on = this.overlayMode === 'corp' && c.corp && c.owner;
+    const list = on ? c.corp.list.filter((q) => q.cells.length) : [];
+    const key = on ? `${c.corpFocus || 0}|${list.map((q) => `${q.id}:${q.name}:${q.stage}:${q.parent}:${q.cells.length}:${q.cells[0][0]}`).join(',')}` : '';
+    if (key === this._clKey) return;
+    this._clKey = key;
+    if (this.corpLabels) { for (const s of this.corpLabels.children) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); if (!s.isSprite) s.geometry.dispose(); } this.scene.remove(this.corpLabels); this.corpLabels = null; } // hình của sprite dùng chung, không gỡ
+    if (!list.length) return;
+    const grp = (this.corpLabels = new THREE.Group()), PRE = ['', 'Công ty', 'Công ty', 'Tổng công ty', 'Tập đoàn'];
+    const g0 = c.corpFocus ? (c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus) : 0;
+    // vùng của từng công ty: nền màu trên mặt đất + viền nổi ở ranh giới (công ty đang chọn rõ nhất)
+    const cells = [], edges = [];
+    for (const q of list) for (const [i] of q.cells) {
+      const x = i % N, y = (i / N) | 0, id = q.id;
+      cells.push([i, id]);
+      if (x + 1 >= N || c.owner[i + 1] !== id) edges.push([i, id, 1, 0]);
+      if (x <= 0 || c.owner[i - 1] !== id) edges.push([i, id, -1, 0]);
+      if (y + 1 >= N || c.owner[i + N] !== id) edges.push([i, id, 0, 1]);
+      if (y <= 0 || c.owner[i - N] !== id) edges.push([i, id, 0, -1]);
+    }
+    const tone = (id) => { const [r, g, b] = corpRGB(c, id), k = !g0 || id === c.corpFocus ? 1 : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? 0.6 : 0.25; return new THREE.Color(r / 255 * k, g / 255 * k, b / 255 * k); };
+    const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), ps = new THREE.Vector3();
+    const plate = new THREE.InstancedMesh(new THREE.PlaneGeometry(T * 1.04, T * 1.04).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, depthWrite: false, fog: false }), cells.length);
+    cells.forEach(([i, id], k) => { plate.setMatrixAt(k, m4.compose(ps.set(cellX(i), c.cellH[i] + 0.25, cellZ(i)), qt.identity(), sc.set(1, 1, 1))); plate.setColorAt(k, tone(id)); });
+    const wall = new THREE.InstancedMesh(new THREE.BoxGeometry(T * 1.06, 2.2, 0.9), new THREE.MeshBasicMaterial({ fog: false }), Math.max(1, edges.length));
+    edges.forEach(([i, id, dx, dz], k) => { qt.setFromAxisAngle(_v3.set(0, 1, 0), dx ? Math.PI / 2 : 0); wall.setMatrixAt(k, m4.compose(ps.set(cellX(i) + (dx * T) / 2, c.cellH[i] + 1.1, cellZ(i) + (dz * T) / 2), qt, sc.set(1, 1, 1))); wall.setColorAt(k, tone(id)); });
+    wall.count = edges.length; plate.renderOrder = 2; grp.add(plate, wall);
+    for (const q of list) {
+      const l = q.cells.map(([i]) => i), cx = l.reduce((s, i) => s + cellX(i), 0) / l.length, cz = l.reduce((s, i) => s + cellZ(i), 0) / l.length;
+      const top = Math.max(...l.map((i) => c.cellH[i]));
+      const mom = q.parent ? c.corp.list.find((x) => x.id === q.parent) : null;
+      const line1 = `${q.parent ? '↳ ' : ''}${PRE[q.stage] || 'Công ty'} ${q.name}`, line2 = mom ? `con của ${mom.name}` : q.kind === 'trade' ? 'chuỗi bán lẻ' : `${l.length} cơ sở`;
+      const cv = document.createElement('canvas'); cv.width = 640; cv.height = 150;
+      const x = cv.getContext('2d'), [r, g, b] = corpRGB(c, q.id);
+      x.fillStyle = `rgba(${r},${g},${b},0.95)`; x.beginPath(); x.roundRect(6, 6, 628, 138, 26); x.fill();
+      x.lineWidth = 6; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.stroke();
+      x.textAlign = 'center'; x.fillStyle = r * 0.3 + g * 0.59 + b * 0.11 > 170 ? '#14171c' : '#ffffff';
+      x.font = 'bold 50px system-ui, sans-serif'; x.fillText(line1, 320, 70, 600);
+      x.font = '36px system-ui, sans-serif'; x.fillText(line2, 320, 122, 600);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const dim = g0 && q.id !== c.corpFocus ? ((c.corpGroup ? c.corpGroup[q.id] : q.id) === g0 ? 0.75 : 0.35) : 1;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: dim, depthTest: false, depthWrite: false, fog: false, sizeAttenuation: false })); // cỡ cố định trên màn hình, gần xa đều đọc được
+      const big = !g0 || q.id === c.corpFocus ? 1 : 0.78;
+      sp.scale.set(0.17 * big, 0.04 * big, 1); sp.position.set(cx, top + 34 + (q.parent ? 0 : 10), cz); sp.renderOrder = 999;
+      grp.add(sp);
+    }
+    this.scene.add(grp);
+  }
+
+  /** Dựng lại tấm ảnh logo khi danh sách công ty gốc (hoặc tên, bậc) đổi. */
+  _logoAtlas() {
+    const C = this.city.corp, roots = C ? C.list.filter((q) => !q.parent).slice(0, LOGO_SLOTS) : [];
+    const key = roots.map((q) => `${q.id}:${q.name}`).join('|');
+    if (key === this.logoKey) return;
+    this.logoKey = key; this.logoSlot = new Map(roots.map((q, k) => [q.id, k]));
+    if (this.logoMat.map) this.logoMat.map.dispose();
+    this.logoMat.map = roots.length ? logoAtlas(roots.map((q) => ({ name: q.name.toUpperCase(), init: q.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(), rgb: DCOL[q.id % DCOL.length] }))) : null;
+    this.logoMat.needsUpdate = true;
+  }
+
   _buildings() {
     const c = this.city, counts = {}, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(), col = new THREE.Color();
     let animating = false;
-    const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0);
+    const vn = c.style === 'vn', sm = new THREE.Matrix4(), sl = new THREE.Matrix4(), sc = new Array(SIGN_WORDS.length).fill(0), fc = Object.fromEntries(FRONT_KINDS.map((k) => [k, 0]));
+    let bc = 0, gc = 0;
+    const lc = new Array(LOGO_SLOTS).fill(0);
+    this._logoAtlas();
+    this.lifeShops = [];
     for (const k in this.growMeshes) counts[k] = 0;
     // ruộng chia thửa 4 × 4 ô: mỗi thửa một loại cây, một nhà kho ở ô sát đường (ưu tiên), đường đất dọc mép thửa
     const farmHouse = new Map();
@@ -2493,9 +2727,12 @@ export class View {
       const pid = ((((i / N) | 0) / 4) | 0) * 1000 + (((i % N) / 4) | 0), cur = farmHouse.get(pid);
       if (cur == null || (c.acc[i] === 1 && c.acc[cur] !== 1)) farmHouse.set(pid, i);
     }
+    const corpView = this.overlayMode === 'corp' && c.owner, cc = new Map(); // lớp tập đoàn: chỉ hiện nhà của các công ty, tô theo màu công ty
+    const g0 = corpView && c.corpFocus ? (c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus) : 0;
     for (let i = 0; i < N * N; i++) {
       const L = c.level[i];
       if (!L) continue;
+      if (corpView && !c.owner[i]) continue; // ẩn nhà không thuộc công ty nào
       let key, make, farm = false;
       const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '';
       if (c.zone[i] === 8) {
@@ -2504,6 +2741,8 @@ export class View {
         const tx = !house && x % 4 === 3 && x + 1 < N && nb(i + 1) ? 1 : 0, tz = !house && y % 4 === 3 && nb(i + N) ? 1 : 0; // đường đất giữa hai thửa
         key = `farm${crop}-${house ? L : 0}-${tx}${tz}`; farm = !house;
         make = () => farmGeometry(crop, house, tx, tz, L);
+      } else if (c.ware && c.ware[i]) { // kho bãi của công ty
+        key = `ware-${L}`; make = () => warehouseGeometry(L);
       } else {
         key = `${vnGeo}${c.zone[i]}-${L}-${c.variant[i] % 3}`;
         make = () => (vnGeo && growableVN(c.zone[i], L, c.variant[i] % 3)) || growable(c.zone[i], L, c.variant[i] % 3);
@@ -2523,17 +2762,38 @@ export class View {
       if (vnGeo && t >= 1 && (c.zone[i] === 2 || c.zone[i] === 7 || c.zone[i] === 17)) { // chữ trên biển hiệu từng căn nhà ống
         const nh = L >= 4 ? 3 : 2, w = 9.4 / nh;
         for (let k = 0; k < nh; k++) {
-          const wd = (hash2(x * 3 + k, y, 41) * SIGN_WORDS.length) | 0;
+          const wd = (hash2(x * 3 + k, y, 41) * UNIT_WORDS) | 0;
           if (sc[wd] >= 2000) continue;
           sl.makeTranslation(-4.7 + w * (k + 0.5), 3.32, 4.6 + 0.16).scale(_v3.set(w - 0.7, 0.72, 1));
           this.signMeshes[wd].setMatrixAt(sc[wd]++, sm.multiplyMatrices(m, sl));
+          const fk = FRONT_OF_SIGN[wd], fm = fk && this.frontMeshes[fk], ux = -4.7 + w * (k + 0.5);
+          if (fm && fc[fk] < fm.userData.cap) fm.setMatrixAt(fc[fk]++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // đồ bày ra vỉa hè theo loại quán
+          if (fk === 'pho' || fk === 'cafe' || fk === 'banhmi') this.lifeShops.push({ id: i * 4 + k, k: fk, m: new THREE.Matrix4().multiplyMatrices(m, new THREE.Matrix4().makeTranslation(ux, 0, 0)) }); // chỗ khách ngồi, đứng
+          if (bc < this.bikeMesh.userData.cap && hash2(x * 3 + k, y, 43) < 0.7) this.bikeMesh.setMatrixAt(bc++, sm.multiplyMatrices(m, sl.makeTranslation(ux, 0, 0))); // xe máy khách đỗ trước cửa
         }
       }
-      col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
+      if (vnGeo && t >= 1 && c.zone[i] === 5 && L <= 2 && sc[10] < 2000) { // chữ SIÊU THỊ trên mặt tiền siêu thị
+        sl.makeTranslation(MALL_SIGN.x, MALL_SIGN.y, MALL_SIGN.z).scale(_v3.set(MALL_SIGN.w, MALL_SIGN.h, 1));
+        this.signMeshes[10].setMatrixAt(sc[10]++, sm.multiplyMatrices(m, sl));
+      }
+      if (t >= 1 && c.owner && c.owner[i] && (c.zone[i] === 3 || c.zone[i] === 21 || ZDEF[c.zone[i]].biz === 'shop') && gc < this.gateMesh.userData.cap) { // cổng + biển logo công ty
+        const slot = this.logoSlot.get(c.corpGroup ? c.corpGroup[c.owner[i]] : c.owner[i]);
+        if (slot != null && lc[slot] < 600) { this.gateMesh.setMatrixAt(gc++, m); sl.makeTranslation(0, 2.83, 4.79).scale(_v3.set(3.4, 0.62, 1)); this.logoMeshes[slot].setMatrixAt(lc[slot]++, sm.multiplyMatrices(m, sl)); }
+      }
+      if (c.zone[i] === 20 && t >= 1) this.lifeShops.push({ id: i, k: 'cho', m: m.clone() }); // chợ truyền thống: người đi chợ
+      if (corpView) {
+        const id = c.owner[i]; let v = cc.get(id); if (!v) cc.set(id, (v = corpRGB(c, id)));
+        const k = !g0 || id === c.corpFocus ? 1 : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? 0.6 : 0.28; // công ty đang chọn sáng nhất, cùng nhóm vừa, nhóm khác tối
+        col.setRGB((v[0] / 255) * k, (v[1] / 255) * k, (v[2] / 255) * k);
+      } else col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
     }
     for (const k in this.growMeshes) { const mesh = this.growMeshes[k]; mesh.count = counts[k]; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     this.signMeshes.forEach((mm, k) => { mm.count = sc[k]; mm.instanceMatrix.needsUpdate = true; });
+    for (const k of FRONT_KINDS) { const mm = this.frontMeshes[k]; mm.count = fc[k]; mm.instanceMatrix.needsUpdate = true; }
+    this.bikeMesh.count = bc; this.bikeMesh.instanceMatrix.needsUpdate = true;
+    this.gateMesh.count = gc; this.gateMesh.instanceMatrix.needsUpdate = true;
+    this.logoMeshes.forEach((mm, k) => { mm.count = lc[k]; mm.instanceMatrix.needsUpdate = true; });
     return animating;
   }
 
@@ -2616,6 +2876,7 @@ export class View {
     this.serviceGroup.traverse((o) => { if (o.userData.own) o.geometry.dispose(); }); // giàn giáo công trường dựng riêng từng lần
     this.serviceGroup.clear();
     this.spinners = []; this.chimneys = []; this.siteAnims = []; this.movers = [];
+    this.lifeSvc = [];
     for (const s of c.services) {
       const def = SERVICES[s.type], grp = this._serviceObject(s.type);
       if (s.build > 0) { // công trường: nhà mọc dần theo tiến độ, giàn giáo, hàng rào, xe công trình
@@ -2630,7 +2891,14 @@ export class View {
         mesh.position.set(k % 2 ? o : -o, 0.14, k < 2 ? -o : o); mesh.castShadow = mesh.receiveShadow = true;
         grp.add(mesh);
       });
+      if (c.style === 'vn' && SVC_SIGNS[s.type]) { // cổng có bảng tên kiểu Việt Nam ở mép trước lô đất
+        const L = def.size * 10, zf = L / 2 - 0.6, post = this._svcPost || (this._svcPost = (() => { const g = new GB(); for (const x of [-2.1, 2.1]) g.box(x, 0, 0, 0.22, 3.1, 0.22, 0xd9d4c8); g.box(0, 2.25, -0.06, 4.6, 0.9, 0.1, 0x8d887e); return g.build(); })());
+        const pm = new THREE.Mesh(post, this.matBuilding); pm.position.set(0, 0.14, zf); pm.castShadow = true; grp.add(pm);
+        const sg = new THREE.Mesh(this._svcPlane || (this._svcPlane = new THREE.PlaneGeometry(4.4, 0.78)), (this._svcMats || (this._svcMats = {}))[s.type] || (this._svcMats[s.type] = new THREE.MeshBasicMaterial({ map: svcSignTexture(s.type) })));
+        sg.position.set(0, 2.84, zf + 0.01); grp.add(sg);
+      }
       grp.updateMatrixWorld(true);
+      if (LIFE_SVC.has(s.type)) this.lifeSvc.push({ id: s.uid ?? s.x * 1000 + s.y, k: s.type, size: def.size, m: grp.matrixWorld.clone() }); // học sinh, người tập thể dục, đi chợ
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
       for (const d of this._svc(s.type).movers || []) { // máy bay, tàu hoả, cẩu, xe tải chạy trong công trình
@@ -2788,6 +3056,8 @@ export class View {
     this.hideBld = on;
     for (const k in this.growMeshes) this.growMeshes[k].visible = !on;
     for (const m of this.signMeshes || []) m.visible = !on;
+    for (const m of this.logoMeshes || []) m.visible = !on;
+    if (this.gateMesh) this.gateMesh.visible = !on;
     this.serviceGroup.visible = !on;
     this.city.dirty.zones = true;
   }
@@ -2834,10 +3104,10 @@ export class View {
       if (v.wreck && !v.crashed) { v.crashed = true; v.ryaw += v.crashYaw || 0.6; } // xe tai nạn nằm chéo đường
       p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz) + this.waterLift(e, sa)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
       const look = v.look || v.kind;
-      if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : col.setHSL(v.color, 0.6, 0.5));
+      if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : look === 'shipper' ? col.set(v.color < 0.5 ? 0x1fae54 : 0xee5a2d) : col.setHSL(v.color, 0.6, 0.5)); // shipper: xanh lá hoặc cam
       else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
       else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
-      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, col.setHSL(v.color, 0.75, 0.52)); } }
+      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, c.style === 'vn' ? col.set(v.color < 0.5 ? 0xf2b705 : 0x1f9e55) : col.setHSL(v.color, 0.75, 0.52)); } } // kiểu Việt Nam: xe buýt vàng hoặc xanh lá
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
       else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
       else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));
@@ -3109,7 +3379,7 @@ export class View {
     gl.position.copy(this.camera.position).addScaledVector(sunD, 2400); gl.scale.set(gs, gs, 1);
     gl.material.color.copy(A.sunC); gl.material.opacity = su.uSunUp.value * sstep(-0.02, 0.06, e) * 0.55;
     this.sunV.value.copy(this.sunDir).transformDirection(this.camera.matrixWorldInverse); this.sunCol.value.copy(this.sun.color).multiplyScalar(Math.min(1.2, this.sun.intensity / 2.2) * (1 + su.uDusk.value * 0.6)); // lá ngược nắng chiều sáng rõ hơn
-    su.uCloud.value += ((storm ? 1 : wet ? 0.85 : c.inc.weather === 'dry' ? 0.05 : 0.3) - su.uCloud.value) * k;
+    su.uCloud.value += ((storm ? 1 : wet ? 0.85 : c.inc.weather === 'dry' || c.inc.weather === 'heat' ? 0.05 : 0.3) - su.uCloud.value) * k;
     this.scene.fog.color.copy(su.uHor.value); this.scene.background.copy(su.uHor.value);
     { // bụi mịn: trời mù, sương khói ngả xám nâu, nhìn không xa
       const aqi = this.city && this.city.street ? this.city.street.aqi : 0, k = clamp((aqi - 90) / 220, 0, 0.65);
@@ -3161,6 +3431,7 @@ export class View {
     this._spray(Math.min(dt, 0.05));
     if (d.rail || d.terrain === 2 || this._railSvcSig !== this._svcSig()) { this._rail(); d.rail = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
+    if (this.overlayMode === 'corp' || this.corpLabels) this._corpLabels();
     this._vehicles(dt);
     this._animals(simDt);
     this._flames();
@@ -3170,10 +3441,12 @@ export class View {
     this._weather(dt);
     this._floodWater();
     this._fireworks(simDt, dt);
+    this._festDeco();
     this._smoke(simDt);
     for (const sp of this.spinners) sp.rotation.z -= simDt * 1.6;
     this._movers(simDt);
     this._strollers(simDt);
+    this._life(dt);
     if (this.fallsGroup) { const day = (c.hour % 24) >= 7 && (c.hour % 24) <= 17; for (const o of this.fallsGroup.children) { if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); } else if (o.userData.rainbow) { o.visible = day; o.quaternion.copy(this.camera.quaternion); } } }
     if (this.hydroGroup) for (const o of this.hydroGroup.children) if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); }
     this._railTrains();

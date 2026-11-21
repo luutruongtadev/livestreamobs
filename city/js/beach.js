@@ -1,6 +1,7 @@
 // Phố Mới — bãi biển tô theo ô: người chơi kéo chuột tô vùng bãi (như quy hoạch), chỉ nhận ô gần BIỂN (không phải sông, hồ).
 // Tô xong, địa hình tự hạ thoải dần từ đất liền xuống mép nước (không còn bờ dốc bậc thang), phần nước sát bờ thành nước nông.
 import { N, idx, inMap, clamp, WATER_LEVEL } from './base.js';
+import { cityPay } from './ledger.js';
 
 export const BEACH = { cost: 250, upkeep: 4, reach: 6 }; // giá mỗi ô, phí mỗi ô mỗi ngày, cách biển tối đa (ô)
 
@@ -85,7 +86,7 @@ export function beachRect(c, x0, y0, x1, y1, { erase = false, dry = false } = {}
   if (cost > c.money && !c.sandbox) return { ok: false, count: cells.length, cost, reason: 'Không đủ tiền' };
   if (dry) return { ok: true, count: cells.length, cost };
   for (const i of cells) { c.beach[i] = erase ? 0 : 1; if (!erase) { c.zone[i] = 0; c.tree[i] = 0; } }
-  c.money -= cost;
+  cityPay(c, 'build', cost);
   if (!erase) smoothBeach(c);
   c.dirty.beach = true; c.dirty.zones = true; c.dirty.trees = true;
   return { ok: true, count: cells.length, cost };

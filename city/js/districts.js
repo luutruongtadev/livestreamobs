@@ -5,9 +5,10 @@
 // công cộng nhỏ bằng quỹ xây dựng (chủ tịch chọn loại, game chọn chỗ phủ nhiều dân thiếu nhất, không phá nhà). LLM (qua /api/city/ai, kind 'district')
 // chỉ chọn mức chương trình, viết lời nhận lệnh, báo cáo và chọn phương án; game ép mọi thứ vào khung và tự tính hậu quả.
 // Không có LLM thì dùng kế hoạch, báo cáo, lựa chọn dự phòng bên dưới.
-import { N, clamp, jobCap, SERVICES, RATE } from './base.js';
+import { MK, N, clamp, jobCap, resCap, SERVICES, RATE, ZDEF, RAW, PRODUCTS, productAt } from './base.js';
 import { DILEMMAS, decide, cleanText } from './council.js';
 import { stormSeason } from './seasons.js';
+import { world } from './ledger.js';
 
 export const DIST_UNLOCK = 400; // số dân để lập quận
 export const MAX_LV = 3;
@@ -257,6 +258,114 @@ export function distSummary(c, d) {
     stat: q.stat || {}, prog: { ...q.prog }, costs: Object.fromEntries(PKEYS.map((k) => [k, progCost(q, k, 1)])), storm: stormSeason(c), day: c.day + 1,
     buildFund: Math.max(0, Math.round(q.bcap * P.spend - buildSpent(c, q))), built: (q.builds || []).slice(-4).map((b) => b.type),
   };
+}
+
+// ───────────────────────── hồ sơ quận, thị trưởng hỏi chủ tịch ─────────────────────────
+
+/** Xe hàng xuất khẩu từ ô i ra khỏi thành phố (people.js gọi): cộng vào sổ xuất khẩu hôm nay của quận. */
+export function noteExport(c, i, kind, qty, value) {
+  const d = districtOf(c, i);
+  if (d < 0) return;
+  const q = c.dist.list[d], x = q.xToday || (q.xToday = { k: {}, v: 0 });
+  x.k[kind] = (x.k[kind] || 0) + qty; x.v += value;
+}
+const KIND_NAME = (k) => (RAW[k] ? `${RAW[k].icon} ${RAW[k].name.toLowerCase()}` : PRODUCTS[k] ? `${PRODUCTS[k].icon} ${PRODUCTS[k].name.toLowerCase()}` : k);
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const PARKS = ['park', 'plaza'], SIGHTS = ['stadium', 'beach', 'museum', 'waterfall'], STAY = ['hotel', 'resort'];
+
+/** Hồ sơ đầy đủ của quận d (tính khi thị trưởng hỏi): dân cư, việc làm, doanh nghiệp, tồn hàng, xuất khẩu 7 ngày, văn hoá, dịch vụ, môi trường. */
+export function districtBrief(c, d) {
+  const q = c.dist.list[d], pp = c.pp, b = c.biz, dm = c.dmap, st = q.stat || {};
+  const P = { pop: 0, kids: 0, adults: 0, seniors: 0, students: 0, workers: 0, employed: 0, jobless: 0, workOut: 0, broke: 0, eduHi: 0, happy: 0, wallet: 0 };
+  if (pp) for (let id = 0; id < pp.n; id++) {
+    if (!pp.alive[id] || pp.home[id] < 0 || dm[pp.home[id]] !== d) continue;
+    const a = pp.age[id];
+    P.pop++; P.happy += pp.happy[id]; P.wallet += pp.money[id];
+    if (pp.money[id] < 0) P.broke++;
+    if (a >= 18 && pp.edu[id] >= 2) P.eduHi++;
+    if (a < 18) P.kids++;
+    else if (a < 65) { P.adults++; if (pp.enrolled[id]) P.students++; else { P.workers++; if (pp.work[id] >= 0) { P.employed++; if (dm[pp.work[id]] !== d) P.workOut++; } else P.jobless++; } }
+    else P.seniors++;
+  }
+  const biz = { shop: 0, market: 0, leisure: 0, office: 0, factory: 0, raw: 0 }, stock = {}, cov = { edu: 0, health: 0, park: 0, police: 0 };
+  let jobs = 0, vacJobs = 0, losing = 0, shelf = 0, emptyShops = 0, starved = 0, homes = 0, vacHomes = 0, res = 0;
+  for (let i = 0; i < N * N; i++) {
+    if (dm[i] !== d || !c.level[i]) continue;
+    const z = c.zone[i], zd = ZDEF[z], L = c.level[i], jb = jobCap(z, L), rc = resCap(z, L), n = c.resCount[i] || 0;
+    if (rc) { homes += rc; vacHomes += Math.max(0, rc - n); }
+    if (n) { res += n; for (const k in cov) if (c.cover && c.cover[k] && c.cover[k][i] > 0.05) cov[k] += n; }
+    if (!jb || !zd.biz) continue;
+    jobs += jb; vacJobs += Math.max(0, jb - (c.staff ? c.staff[i] : 0));
+    const kind = c.ware && c.ware[i] ? 'ware' : zd.biz === 'ind' ? 'factory' : zd.biz === 'res' ? 'raw' : zd.biz; // kho bãi của công ty không phải nhà máy (không tính thiếu nguyên liệu)
+    if (biz[kind] !== undefined) biz[kind]++;
+    if (!b) continue;
+    if (b.money[i] < 0) losing++;
+    if (kind === 'raw') stock[zd.raw] = (stock[zd.raw] || 0) + b.sout[i];
+    else if (kind === 'factory') { const k = productAt(i, z); stock[k] = (stock[k] || 0) + b.sout[i]; if (b.sin[i] < 1) starved++; }
+    else if (kind === 'shop' || kind === 'market') { shelf += b.sin[i]; if (b.sin[i] < 1) emptyShops++; }
+  }
+  for (const k in stock) { stock[k] = Math.round(stock[k]); if (!stock[k]) delete stock[k]; }
+  const svc = {};
+  for (const s of c.services || []) if (s.cell >= 0 && dm[s.cell] === d) svc[s.type] = (svc[s.type] || 0) + 1;
+  const xd = q.xDays || [], xk = {};
+  let xv = 0;
+  for (const x of xd) { xv += x.v; for (const k in x.k) xk[k] = (xk[k] || 0) + x.k[k]; }
+  for (const k in xk) xk[k] = Math.round(xk[k]);
+  const sum = (ts) => ts.reduce((a, t) => a + (svc[t] || 0), 0);
+  return {
+    people: { pop: P.pop, kids: P.kids, adults: P.adults, seniors: P.seniors, students: P.students, workers: P.workers, employed: P.employed, jobless: P.jobless, joblessPct: pct(P.jobless, P.workers), workOutside: P.workOut, broke: P.broke, eduHiPct: pct(P.eduHi, P.adults + P.seniors), happy: P.pop ? Math.round(P.happy / P.pop) : 0, wallet: P.pop ? Math.round(P.wallet / P.pop) : 0 },
+    housing: { homes, vacant: vacHomes },
+    jobs: { total: jobs, vacant: vacJobs, losing, biz },
+    stock: { waiting: stock, shopShelf: Math.round(shelf), emptyShops, factoriesNoInput: starved },
+    exports: { days: xd.length, k: xk, value: Math.round(xv), yesterday: xd.length ? Math.round(xd.at(-1).v) : 0 },
+    culture: { program: q.prog.culture | 0, happy: st.happy || 0, parks: sum(PARKS), attractions: sum(SIGHTS), hotels: sum(STAY), leisure: biz.leisure, parkCoverPct: pct(cov.park, res) },
+    services: { schools: sum(['school', 'highschool', 'university']), clinics: sum(['clinic', 'hospital']), eduCoverPct: pct(cov.edu, res), healthCoverPct: pct(cov.health, res), policeCoverPct: pct(cov.police, res) },
+    env: { crime: st.crime || 0, pollution: st.pollution || 0, flood: st.flood || 0, landValue: st.value || 0 },
+    budget: { spend: planCost(q, q.prog), cap: q.cap, buildFund: Math.max(0, Math.round(q.bcap * PERSONAS[q.persona].spend - buildSpent(c, q))) },
+  };
+}
+
+const ASK_TOPICS = [
+  ['exports', /(?<!sản )xuất|bán ra|bán đi|ngoại tỉnh|cảng/i], // "sản xuất" không phải xuất khẩu
+  ['stock', /tồn|kho|hàng ế|hàng hoá|hàng hóa|sản xuất|nhà máy|nguyên liệu|kệ hàng/i],
+  ['jobs', /việc|thất nghiệp|lao động|doanh nghiệp|lương|công ty|kinh doanh|thua lỗ|đang lỗ/i],
+  ['culture', /văn hoá|văn hóa|vui|giải trí|công viên|lễ|du lịch|du khách|khách sạn|thể thao|tinh thần/i],
+  ['services', /trường|học|y tế|bệnh|trạm xá|dịch vụ/i],
+  ['env', /an ninh|trộm|tội|ô nhiễm|bụi|ngập|môi trường|giá đất/i],
+  ['budget', /ngân sách|chi tiêu|quỹ|tốn bao nhiêu|chi bao nhiêu|tiêu bao nhiêu/i],
+  ['people', /dân số|dân cư|bao nhiêu (dân|người)|người già|trẻ em|nhà ở|nhà trống|thu nhập|nghèo|mắc nợ/i],
+];
+const OPEN = { dan: 'Dạ thưa thị trưởng, ', kinhte: 'Theo số liệu, ', kyluat: 'Báo cáo thị trưởng: ', xanh: 'Thưa thị trưởng, ', tietkiem: 'Thưa thị trưởng, ', thanhtich: 'Rất vui được báo cáo thị trưởng: ' };
+const listK = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${KIND_NAME(k)} ${v}`).join(', ');
+
+/** Chủ đề của câu hỏi (dự phòng khi không có LLM), tối đa 2; không khớp thì 'overview'. */
+export const askTopics = (text) => { const t = ASK_TOPICS.filter(([, re]) => re.test(text)).map(([k]) => k); return t.length ? t.slice(0, 2) : ['overview']; };
+
+/** Chủ tịch trả lời câu hỏi của thị trưởng bằng số liệu thật (dự phòng khi không có LLM). */
+export function askFallback(c, d, text, B = districtBrief(c, d)) {
+  const q = c.dist.list[d], p = B.people, j = B.jobs, s = B.stock, x = B.exports, cu = B.culture, sv = B.services, e = B.env, fm = (v) => Math.round(v).toLocaleString('vi-VN');
+  const say = {
+    overview: () => `${q.name} có ${fm(p.pop)} dân, ${fm(j.total)} chỗ làm, mức vui ${p.happy}. Thị trưởng muốn hỏi kỹ phần nào: dân cư, việc làm, tồn hàng, xuất khẩu, văn hoá hay trường, trạm y tế?`,
+    people: () => `Quận có ${fm(p.pop)} dân: ${fm(p.kids)} trẻ em, ${fm(p.adults)} người tuổi lao động (${fm(p.students)} đang đi học), ${fm(p.seniors)} người già. ${p.eduHiPct}% người lớn học từ trung học trở lên; ${fm(p.broke)} người đang nợ. Còn ${fm(B.housing.vacant)}/${fm(B.housing.homes)} chỗ ở trống${B.housing.vacant < B.housing.homes * 0.05 ? ', gần kín chỗ, cần thêm đất ở' : ''}.`,
+    jobs: () => `${fm(p.employed)}/${fm(p.workers)} người lao động có việc (thất nghiệp ${p.joblessPct}%${p.joblessPct > 10 ? ', đáng lo' : ''}), ${fm(p.workOutside)} người đi làm ở quận khác. Quận có ${fm(j.total)} chỗ làm, còn ${fm(j.vacant)} chỗ trống; ${j.biz.shop + j.biz.market} cửa hàng, chợ, ${j.biz.office} văn phòng, ${j.biz.factory} nhà máy, xưởng, ${j.biz.raw} cơ sở khai thác, ${j.biz.leisure} quán xá. ${j.losing ? `${j.losing} doanh nghiệp đang lỗ.` : 'Chưa doanh nghiệp nào lỗ.'}`,
+    stock: () => `${Object.keys(s.waiting).length ? `Hàng chờ xe chở đi: ${listK(s.waiting)}.` : 'Nhà máy, cơ sở khai thác của quận không có hàng tồn chờ chở.'} Kệ cửa hàng còn ${fm(s.shopShelf)} đơn vị hàng${s.emptyShops ? `, ${s.emptyShops} cửa hàng hết hàng` : ''}${s.factoriesNoInput ? `; ${s.factoriesNoInput} nhà máy đang thiếu nguyên liệu` : ''}.`,
+    exports: () => (x.days && x.value ? `${x.days} ngày qua quận xuất ${listK(x.k)}, trị giá khoảng ${fm(x.value)} ₫ (hôm qua ${fm(x.yesterday)} ₫).` : `Mấy ngày qua quận chưa có hàng xuất ra ngoài thành phố${j.biz.factory + j.biz.raw ? '' : ': quận chưa có nhà máy hay cơ sở khai thác nào'}.`),
+    culture: () => `Chương trình văn hoá, thể thao phường đang ở mức ${cu.program}/${MAX_LV}, mức vui của dân ${cu.happy}. Quận có ${cu.parks} công viên, quảng trường (${cu.parkCoverPct}% dân ở gần), ${cu.attractions} điểm tham quan, ${cu.hotels} khách sạn, ${cu.leisure} khu ăn uống, giải trí.${cu.happy < 55 && cu.program < MAX_LV ? ' Tôi đề nghị tăng chương trình văn hoá.' : ''}`,
+    services: () => `Quận có ${sv.schools} trường, ${sv.clinics} trạm y tế, bệnh viện. ${sv.eduCoverPct}% dân ở trong vùng trường học, ${sv.healthCoverPct}% trong vùng y tế, ${sv.policeCoverPct}% trong vùng công an.`,
+    env: () => `Tội phạm ${e.crime}/100, ô nhiễm ${e.pollution}/100, ${e.flood} nhà đang ngập, giá đất trung bình ${e.landValue}.`,
+    budget: () => `Quận đang chi ${fm(B.budget.spend)} ₫/ngày trên trần ${fm(B.budget.cap)} ₫; quỹ xây dựng còn ${fm(B.budget.buildFund)} ₫.`,
+  };
+  const body = askTopics(text).map((t) => say[t]()).join(' '), open = OPEN[q.persona] || '';
+  return open ? open + body.replace(/^(?!Quận \d)\S/, (ch) => ch.toLowerCase()) : body;
+}
+
+/** Ghi một lượt hỏi – đáp của thị trưởng (giữ 6 lượt gần nhất). */
+export function noteAsk(c, d, text, answer, ai) {
+  const q = c.dist.list[d];
+  if (!q) return null;
+  const a = { day: c.day, q: String(text).slice(0, 300), a: String(answer || '').slice(0, 900), ai: !!ai };
+  q.asks = [...(q.asks || []), a].slice(-6);
+  return a;
 }
 
 // ───────────────────────── kế hoạch dự phòng ─────────────────────────
@@ -549,13 +658,16 @@ export function districtHour(c) {
       }
     });
   }
+  if (h === 0) for (const q of D.list) { q.xDays = [...(q.xDays || []), q.xToday || { k: {}, v: 0 }].slice(-7); q.xToday = null; } // sổ xuất khẩu 7 ngày
   if (h === 0 && c.dfx && c.biz) { // hỗ trợ hộ kinh doanh: doanh nghiệp trong quận có thêm vốn mỗi ngày
-    for (let i = 0; i < N * N; i++) { const f = c.level[i] && jobCap(c.zone[i], c.level[i]) ? distFx(c, i, 'business') : 0; if (f) c.biz.money[i] += 6 * f; }
+    for (let i = 0; i < N * N; i++) { const f = c.level[i] && jobCap(c.zone[i], c.level[i]) ? distFx(c, i, 'business') : 0; if (f) { c.biz.money[i] += 6 * MK * f; world(c, 'subsidy', 6 * MK * f); } }
   }
   return jobs;
 }
 
 // ───────────────────────── lưu / nạp ─────────────────────────
+
+const cleanX = (x) => ({ v: Math.max(0, +x?.v || 0), k: Object.fromEntries(Object.entries(x?.k || {}).filter(([k, v]) => (RAW[k] || PRODUCTS[k]) && v > 0).map(([k, v]) => [k, +v])) });
 
 export function initDistricts(c, o = {}) {
   o = cleanText(o);
@@ -565,6 +677,8 @@ export function initDistricts(c, o = {}) {
     order: q.order || null, reports: Array.isArray(q.reports) ? q.reports.slice(-8) : [], nextPlan: q.nextPlan | 0, nextReport: q.nextReport | 0, note: q.note || '', lastStat: q.lastStat || null, stat: q.stat || null, hall: Number.isFinite(+q.hall) && q.hall !== null ? +q.hall : null,
     build: BUILD_MODES[q.build] ? q.build : 'ask', bcap: clamp(Number.isFinite(+q.bcap) && q.bcap !== null ? +q.bcap : 20000, 0, 200000), nextBuild: q.nextBuild | 0,
     nope: q.nope && typeof q.nope === 'object' ? Object.fromEntries(Object.entries(q.nope).filter(([t]) => BUILDS.includes(t)).map(([t, v]) => [t, v | 0])) : {},
+    xDays: Array.isArray(q.xDays) ? q.xDays.slice(-7).map(cleanX) : [], xToday: q.xToday ? cleanX(q.xToday) : null,
+    asks: Array.isArray(q.asks) ? q.asks.slice(-6).map((a) => ({ day: a.day | 0, q: String(a.q || '').slice(0, 300), a: String(a.a || '').slice(0, 900), ai: !!a.ai })) : [],
     builds: Array.isArray(q.builds) ? q.builds.filter((b) => b && BUILDS.includes(b.type)).slice(-12).map((b) => ({ type: b.type, day: b.day | 0, cost: Math.max(0, +b.cost || 0), x: b.x | 0, y: b.y | 0, how: String(b.how || 'auto').slice(0, 6) })) : [],
     prop: q.prop && q.prop.status === 'ask' && BUILDS.includes(q.prop.type) ? { type: q.prop.type, why: String(q.prop.why || '').slice(0, 300), day: q.prop.day | 0, until: q.prop.until | 0, status: 'ask', x: q.prop.x | 0, y: q.prop.y | 0, cost: +q.prop.cost || 0, need: q.prop.need | 0, aiw: !!q.prop.aiw } : null,
   })) : [];
@@ -572,4 +686,4 @@ export function initDistricts(c, o = {}) {
   for (const q of list) q.prog = clampPlan(q, q.prog);
   rebuildDmap(c); refreshDistricts(c);
 }
-export const packDistricts = (c) => ({ on: c.dist.on, nextId: c.dist.nextId, list: c.dist.list.map((q) => ({ ...q, wait: undefined, reports: q.reports.slice(-6) })) });
+export const packDistricts = (c) => ({ on: c.dist.on, nextId: c.dist.nextId, list: c.dist.list.map((q) => ({ ...q, wait: undefined, askWait: undefined, reports: q.reports.slice(-6) })) });

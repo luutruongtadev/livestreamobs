@@ -1,13 +1,20 @@
 // Phố Mới — sự cố và thiên tai: thời tiết, mặt đường xuống cấp, tai nạn giao thông (có thể liên hoàn, bốc cháy),
 // cướp giật, cháy rừng, bão đá, lốc xoáy. Công an, xe cứu hộ, cứu hoả phải chạy tới hiện trường bằng xe thật.
-import { N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
+import { MK, N, T, HALF, SERVICES, ROADS, svcVal, idx, inMap, cellOf, cellX, cellZ, clamp, nearestOnEdge, resCap, jobCap } from './base.js';
 import { trip, reroute, cellPos } from './traffic.js';
-import { seasonWeather } from './seasons.js';
+import { seasonWeather, lunar } from './seasons.js';
+import { world } from './ledger.js';
+
+/** Mùa nóng (tháng 4–7 âm lịch): có thể có những đợt nắng nóng gay gắt. */
+export const hotSeason = (c) => { const m = lunar(c.day).month; return m >= 4 && m <= 7; };
+/** Hệ số điện, nước dùng theo thời tiết (nắng nóng: máy lạnh, quạt, tưới, tắm nhiều hơn). */
+export const heatUse = (c) => (c.inc && c.inc.weather === 'heat' ? { power: 1.3, water: 1.15 } : { power: 1, water: 1 });
 
 export const WEATHER = {
   clear: { name: 'Trời quang', icon: '☀️' },
   rain: { name: 'Mưa, đường trơn', icon: '🌧️' },
   dry: { name: 'Khô hạn, dễ cháy rừng', icon: '🔥' },
+  heat: { name: 'Nắng nóng gay gắt', icon: '🥵' },
   hail: { name: 'Bão đá', icon: '🌨️' },
   storm: { name: 'Bão', icon: '🌀' },
 };
@@ -142,8 +149,8 @@ function robberies(c) {
     }
     if (c.hour - r.h0 >= 3) { // kẻ cướp đã tẩu thoát
       inc.robberies = inc.robberies.filter((o) => o !== r);
-      c.biz.money[r.cell] -= 90; c.crime[r.cell] = Math.min(1, c.crime[r.cell] + 0.1);
-      for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] === r.cell) c.pp.money[id] -= 15;
+      c.biz.money[r.cell] -= 90 * MK; world(c, 'crime', -90 * MK); c.crime[r.cell] = Math.min(1, c.crime[r.cell] + 0.1);
+      for (let id = 0; id < c.pp.n; id++) if (c.pp.alive[id] && c.pp.home[id] === r.cell) { c.pp.money[id] -= 15 * MK; world(c, 'crime', -15 * MK); }
       c.events.push({ type: 'robberyEscaped' });
     }
   }
@@ -266,8 +273,9 @@ export function incidentsHour(c) {
   // thời tiết đổi mỗi sáng
   if (c.hour >= inc.wUntil && !(c.season && c.season.storm && c.season.storm.hit)) {
     const r = rng();
-    inc.weather = seasonWeather(c, r) || (r < 0.22 ? 'rain' : r < 0.36 ? 'dry' : r < 0.38 && c.pp.count >= 400 ? 'hail' : 'clear');
-    inc.wUntil = c.hour + (inc.weather === 'hail' ? 3 : 24 - h + (inc.weather === 'dry' ? 24 : 0));
+    inc.weather = seasonWeather(c, r) || (r < 0.22 ? 'rain' : r < 0.36 ? 'dry' : r < 0.38 && c.pp.count >= 400 ? 'hail' : r < 0.52 && hotSeason(c) ? 'heat' : 'clear'); // nắng nóng: tháng 4–7 âm
+    inc.wUntil = c.hour + (inc.weather === 'hail' ? 3 : 24 - h + (inc.weather === 'dry' || inc.weather === 'heat' ? 24 : 0));
+    if (inc.weather === 'heat') c.events.push({ type: 'council', text: '🥵 Nắng nóng gay gắt hai ngày: điện, nước dùng tăng mạnh, người già dễ ốm; dân ở gần cây xanh, công viên đỡ khổ hơn' });
     if (inc.weather === 'hail') c.events.push({ type: 'hail' });
   }
   // mặt đường mòn theo lượng xe, trạm bảo trì sửa dần trong bán kính
@@ -295,11 +303,11 @@ export function incidentsHour(c) {
 
 function wildfireHour(c) {
   const inc = c.inc, rng = c.rng, w = inc.weather, wild = inc.wild;
-  if (w === 'dry' || (w === 'hail' && rng() < 0.3)) for (let k = 0; k < 3; k++) { // sét đánh / nắng nóng làm cháy một gốc cây
+  if (w === 'dry' || w === 'heat' || (w === 'hail' && rng() < 0.3)) for (let k = 0; k < 3; k++) { // sét đánh / nắng nóng làm cháy một gốc cây
     const i = (rng() * N * N) | 0;
     if (c.tree[i] && !wild[i] && rng() < (c.cover.watch[i] > 0.05 ? 0.006 : 0.02)) { wild[i] = 6; c.events.push({ type: 'wildfire', x: i % N, y: (i / N) | 0 }); }
   }
-  const spread = w === 'dry' ? 0.06 : w === 'rain' || w === 'storm' ? 0.005 : 0.025, burning = [];
+  const spread = w === 'dry' || w === 'heat' ? 0.06 : w === 'rain' || w === 'storm' ? 0.005 : 0.025, burning = [];
   for (let i = 0; i < N * N; i++) if (wild[i]) burning.push(i);
   if (!burning.length) return;
   for (const i of burning) {
