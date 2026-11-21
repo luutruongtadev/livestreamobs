@@ -2660,7 +2660,7 @@ export class View {
         sl.makeTranslation(MALL_SIGN.x, MALL_SIGN.y, MALL_SIGN.z).scale(_v3.set(MALL_SIGN.w, MALL_SIGN.h, 1));
         this.signMeshes[10].setMatrixAt(sc[10]++, sm.multiplyMatrices(m, sl));
       }
-      if (t >= 1 && c.owner && c.owner[i] && (c.zone[i] === 3 || c.zone[i] === 21) && gc < this.gateMesh.userData.cap) { // cổng + biển logo công ty
+      if (t >= 1 && c.owner && c.owner[i] && (c.zone[i] === 3 || c.zone[i] === 21 || ZDEF[c.zone[i]].biz === 'shop') && gc < this.gateMesh.userData.cap) { // cổng + biển logo công ty
         const slot = this.logoSlot.get(c.corpGroup ? c.corpGroup[c.owner[i]] : c.owner[i]);
         if (slot != null && lc[slot] < 600) { this.gateMesh.setMatrixAt(gc++, m); sl.makeTranslation(0, 2.83, 4.79).scale(_v3.set(3.4, 0.62, 1)); this.logoMeshes[slot].setMatrixAt(lc[slot]++, sm.multiplyMatrices(m, sl)); }
       }

@@ -204,3 +204,18 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - **Biển logo**: mỗi công ty gốc có một logo (màu riêng, vòng tròn chữ cái đầu, tên in hoa) treo trên cổng nhà máy và kho của cả nhóm; tấm ảnh logo dựng lại khi danh sách công ty đổi; tối đa 12 công ty có logo.
 - **Giá nội địa theo cung cầu**: chỉ số giá từng loại hàng (0.8–1.3) trôi theo nhập khẩu so với xuất khẩu thật mỗi ngày (thiếu hàng phải nhập thì lên, thừa phải xuất thì xuống, kéo dần về 1); mỗi công ty có hệ số bán (0.9–1.2): tồn kho ứ thì hạ giá, cạn thì nâng, độc quyền thì đẩy thêm. Giá hàng giao trong thành phố = giá gốc × chỉ số × hệ số bán (trần 1.35); người bán nhận đúng số người mua trả nên sổ tiền không lệch. Bảng 🏢 hiện chỉ số nội địa và hệ số bán.
 - Chưa làm: logistics làm công ty con riêng (đội xe tải riêng), giá bán lẻ cho dân theo cung cầu, tập đoàn liên thành phố.
+
+## 17. Giá bán lẻ cho dân theo cung cầu
+
+- Mỗi cửa hàng, sạp chợ có hệ số giá bán lẻ `biz.rp` (0.8–1.4, không lưu: về 1 khi nạp rồi tự trôi lại trong vài ngày). Mỗi ngày: kệ gần cạn (dưới 10 đơn vị) thì giá lên, hàng ứ thì hạ để đẩy hàng, kéo dần về 1.
+- Dân mua ít đi khi đắt (sức mua theo `rp^-0.6`), tiền người mua trả đúng bằng tiền người bán nhận nên sổ tiền không lệch. Cả cửa hàng độc lập lẫn chuỗi bán lẻ của tập đoàn đều chạy theo luật này, nên chuỗi có nguồn hàng nội bộ dồi dào thì giá tự rẻ hơn.
+- Chỉ số giá chung `c.retailIdx` (bình quân theo số chỗ làm): trên ×1.15 dân thấy đắt đỏ (trừ tới 4 điểm vui, có nhu cầu "Giá hàng đắt đỏ"), dưới ×0.92 dân vui thêm 1. Có tin khi chỉ số đổi mức. Hiện trong bảng thông tin cửa hàng và hộp thị trường của 🏢.
+
+## 18. Công ty thương mại (bán lẻ) là công ty đầy đủ
+
+- Công ty có thêm loại `kind: 'trade'` bên cạnh sản xuất. Lập từ ≥ 3 cửa hàng độc lập (khu 2, 5, 7) gần nhau và có tiền; số công ty thương mại tối đa 1 + dân/1500 (không quá 3), tách khỏi hạn mức công ty sản xuất. Vốn chuyển từ ví các cửa hàng, không tạo tiền.
+- CEO cũng chạy các hành động chung: mở cửa hàng mới (khu 2, chọn ô gần nhà dân, đất đắt, gần cụm cũ), xin dự án nhiều ô, mua lại cửa hàng độc lập hay đối thủ thương mại đang khó (chỉ mua lại đối thủ cùng loại), vay, bán cơ sở yếu, liên doanh.
+- Chính sách giá: hệ số bán của công ty thương mại nhìn hàng trên kệ (kệ ứ thì hạ, cạn thì nâng, độc quyền bán lẻ thì đẩy thêm) và kéo giá bán lẻ của các cửa hàng của nó (nhanh hơn chủ cửa hàng nhỏ), nên chuỗi cạnh tranh nhau bằng giá, dân mua theo giá.
+- Tập đoàn sản xuất bậc 3 mua cửa hàng thì cửa hàng vào **công ty con thương mại** của nhóm (như "Đại Việt Thương mại"), được ưu tiên nhận hàng từ nhà máy cùng nhóm.
+- Độc quyền bán lẻ: nhóm giữ ≥ 4 cửa hàng và ≥ 60% số cửa hàng thành phố bị cảnh báo và bị chặn mua thêm, như độc quyền sản phẩm.
+- Công ty thương mại có logo trên cửa hàng, cùng bảng 🏢. Chưa có: bậc 4 cho thương mại (cần công ty con), kho riêng.

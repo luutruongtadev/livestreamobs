@@ -31,7 +31,7 @@ export function initPeople(c) {
   const U16 = () => new Uint16Array(N * N), F32 = () => new Float32Array(N * N);
   c.resCount = U16(); c.staff = U16(); c.present = U16(); c.parked = U16(); c.garbage = F32(); c.fire = new Uint8Array(N * N); c.fireTruck = new Uint8Array(N * N);
   c.dead = new Uint8Array(N * N); c.hearseTo = new Uint8Array(N * N); // người mất chờ xe tang ở từng nhà; nhà đã có xe tang đang tới
-  c.biz = { money: F32(), sin: F32(), sin2: F32(), sinK: F32().fill(1), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N), rev: F32() }; // rev: doanh thu cộng dồn (không lưu)
+  c.biz = { money: F32(), sin: F32(), sin2: F32(), sinK: F32().fill(1), sout: F32(), eff: F32().fill(0.5), incoming: new Uint8Array(N * N), rev: F32(), rp: F32().fill(1) }; // rev: doanh thu cộng dồn (không lưu)
   c.econ = { ring: Array.from({ length: 24 }, () => ({ r: 0, c: 0, i: 0 })), imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, day: { imports: 0, exports: 0, bankrupt: 0, parkSearch: 0, movedOut: 0, born: 0, died: 0, riders: 0 } };
   c.pstats = { pop: 0, kids: 0, adults: 0, seniors: 0, workers: 0, employed: 0, unemployed: 0, homeless: 0, sick: 0, students: 0, edu: [0, 0, 0, 0], happy: 55, commute: 0, mode: { car: 0, bus: 0, tram: 0, metro: 0, ferry: 0, walk: 0 }, housing: 0, crime: 0, jobs: 0, jobsBy: { c: 0, i: 0, o: 0 }, vacJobs: 0, companies: 0, eff: 0.5 };
   c.carSample = 1; c.gbusy = new Set();
@@ -92,7 +92,7 @@ export function onBuildingCleared(c, i) {
     if (pp.home[id] === i) { pp.home[id] = -1; if (pp.loc[id] === i && pp.state[id] === ST.HOME) pp.loc[id] = -1; }
   }
   c.resCount[i] = 0; c.staff[i] = 0; c.present[i] = 0; c.parked[i] = 0; c.garbage[i] = 0; c.fire[i] = 0; c.fireTruck[i] = 0; c.dead[i] = 0;
-  const b = c.biz; world(c, 'bizClose', -b.money[i]); b.money[i] = 0; if (b.rev) b.rev[i] = 0; b.sin[i] = 0; if (b.sin2) b.sin2[i] = 0; if (b.sinK) b.sinK[i] = 1; b.sout[i] = 0; b.eff[i] = 0.5; b.incoming[i] = 0;
+  const b = c.biz; world(c, 'bizClose', -b.money[i]); b.money[i] = 0; if (b.rev) b.rev[i] = 0; b.sin[i] = 0; if (b.sin2) b.sin2[i] = 0; if (b.sinK) b.sinK[i] = 1; if (b.rp) b.rp[i] = 1; b.sout[i] = 0; b.eff[i] = 0.5; b.incoming[i] = 0;
 }
 
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
@@ -529,6 +529,28 @@ function landlordDay(c) {
   else if (div > 0) world(c, 'dividend', -div); // chưa có dân: chủ ở ngoài thành phố
 }
 
+/**
+ * Giá bán lẻ theo cung cầu (mỗi ngày, cho từng cửa hàng, sạp chợ): hàng trên kệ cạn thì tăng giá, hàng ứ thì hạ giá để đẩy hàng,
+ * kéo dần về giá gốc; trong khung 0.8–1.4. Dân mua ít đi khi giá cao (trong bizHour), và chỉ số giá chung (c.retailIdx, bình quân
+ * theo số chỗ làm) ảnh hưởng độ hài lòng của dân (sim.js cellHappy).
+ */
+export const RETAIL = { min: 0.8, max: 1.4, target: 10, hi: 1.15, lo: 0.92 };
+function retailDay(c, companies) {
+  const b = c.biz;
+  let w = 0, s = 0;
+  for (const i of companies) {
+    const kind = bizKind(c, i);
+    if (kind !== 'shop' && kind !== 'market') continue;
+    const want = clamp((RETAIL.target - b.sin[i]) / 30, -0.4, 0.4); // kệ cạn: +, kệ đầy: −
+    const tgt = c.owner && c.owner[i] && c.corpMark ? c.corpMark[c.owner[i]] || 1 : 1; // cửa hàng của công ty hướng tới hệ số bán của công ty (chính sách giá của CEO)
+    b.rp[i] = clamp((b.rp[i] || 1) + want * 0.08 + (tgt - (b.rp[i] || 1)) * (c.owner && c.owner[i] ? 0.1 : 0.04), RETAIL.min, RETAIL.max); // công ty chỉnh giá nhanh hơn chủ cửa hàng nhỏ
+    const jc = jobCap(c.zone[i], c.level[i]); w += jc; s += jc * b.rp[i];
+  }
+  const was = c.retailIdx || 1; c.retailIdx = w ? s / w : 1;
+  const st = (v) => (v > RETAIL.hi ? 2 : v < RETAIL.lo ? 0 : 1);
+  if (c.events && st(c.retailIdx) !== st(was)) c.events.push({ type: 'council', text: st(c.retailIdx) === 2 ? `🏷️ Giá hàng trong thành phố đắt lên (×${c.retailIdx.toFixed(2)}): nhiều nơi hết hàng, cần thêm nhà máy hoặc nhập hàng` : st(c.retailIdx) === 0 ? `🏷️ Hàng hoá dồi dào, giá bán lẻ rẻ đi (×${c.retailIdx.toFixed(2)})` : `🏷️ Giá bán lẻ về mức bình thường (×${c.retailIdx.toFixed(2)})` });
+}
+
 /** Doanh nghiệp làm việc một giờ; budget: tiền dân sẵn sàng chi cho nhu cầu gộp. Trả về tiền dân đã chi. */
 function bizHour(c, companies, shops, h, budget = Infinity) {
   const b = c.biz, open = h >= 6 && h <= 20;
@@ -560,16 +582,17 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
       if (!b.incoming[i]) { if (b.sin[i] < low) needs[rec[0]].push([i, 0]); if (two && b.sin2[i] < low) needs[rec[1]].push([i, 1]); } // tầng 2: đặt cả hai nguyên liệu cùng lúc
       if (b.sout[i] >= PRICE.load) supply[productOf(c, i)].push(i);
     } else if (kind === 'shop') {
-      const unitV = PRICE.retail * (b.sinK[i] || 1); // hàng đắt (máy móc, điện tử) bán được giá hơn
-      const sold = Math.max(0, Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.3 * prod, budgetLeft / unitV));
+      const rp = b.rp[i] || 1, unitV = PRICE.retail * (b.sinK[i] || 1) * rp; // hàng đắt (máy móc, điện tử) bán được giá hơn; giá bán lẻ theo cung cầu (retailDay)
+      const sold = Math.max(0, Math.min(b.sin[i], shopStaff ? ((demand * pres) / shopStaff) * Math.pow(rp, -0.6) : 0, pres * 0.3 * prod, budgetLeft / unitV)); // đắt thì dân mua ít hơn
       b.sin[i] -= sold;
       if (sold > 0) { saleIncome(c, i, sold * unitV, 'c'); bought += sold * unitV; budgetLeft -= sold * unitV; }
       if (pres && b.sin[i] <= 0.01) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needShop.push(i);
     } else if (kind === 'market') { // chợ: bán thẳng nông sản, cá; sạp nhỏ nên bán chậm hơn cửa hàng một chút
-      const sold = Math.max(0, Math.min(b.sin[i], shopStaff ? (demand * pres) / shopStaff : 0, pres * 0.26 * prod, budgetLeft / PRICE.market));
+      const rp = b.rp[i] || 1, pm = PRICE.market * rp;
+      const sold = Math.max(0, Math.min(b.sin[i], shopStaff ? ((demand * pres) / shopStaff) * Math.pow(rp, -0.6) : 0, pres * 0.26 * prod, budgetLeft / pm));
       b.sin[i] -= sold;
-      if (sold > 0) { saleIncome(c, i, sold * PRICE.market, 'c'); bought += sold * PRICE.market; budgetLeft -= sold * PRICE.market; }
+      if (sold > 0) { saleIncome(c, i, sold * pm, 'c'); bought += sold * pm; budgetLeft -= sold * pm; }
       if (pres && b.sin[i] <= 0.01) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needs[needOf(c, i)].push([i, 0]);
     } else if (kind === 'leisure') {
@@ -581,7 +604,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
     if (b.money[i] < -380 * MK * (kind === 'factory' ? Math.max(1, priceOf(productOf(c, i)) / PRICE.goods) : 1)) broke.push(i); // nhà máy hàng đắt (máy móc, điện tử) mua nguyên liệu đắt: vốn lưu động lớn hơn
   }
   procure(c, fixed, 'bizCost'); // chi phí cố định: thuê dịch vụ của doanh nghiệp khác
-  if (h === 0) landlordDay(c);
+  if (h === 0) { landlordDay(c); retailDay(c, companies); }
   c.pstats.eff = companies.length ? effSum / companies.length : 0.5;
   // giao hàng: nhà cung cấp trong thành phố gần nhất, không có thì nhập từ ngoài
   let trucks = 0;

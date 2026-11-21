@@ -12,7 +12,7 @@ import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } f
 import { outside, reportDay } from './world.js';
 import { packLeague, unpackLeague, contract, tradeUse } from './league.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro } from './people.js';
+import { RETAIL, procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
@@ -37,7 +37,7 @@ export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './wor
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
 export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
-export { bizKind, wageAt, rentAt, isTro, TRO_RENT, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
+export { bizKind, wageAt, rentAt, isTro, TRO_RENT, RETAIL, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
@@ -2143,6 +2143,7 @@ export function cellHappy(c, i) {
   if (c.ground[i] > 0.25) needs.push('Đất ô nhiễm');
   if (c.noise[i] > 0.4) { h -= 6; needs.push('Ồn ào'); }
   if (c.dirtyWater) { h -= 6; needs.push('Nước máy bẩn: trạm bơm hút gần cống xả'); }
+  { const ri = c.retailIdx || 1; if (ri > RETAIL.hi) { h -= Math.min(4, Math.round((ri - RETAIL.hi) * 20)); needs.push(`Giá hàng đắt đỏ (×${ri.toFixed(2)}): cần nhiều hàng hơn`); } else if (ri < RETAIL.lo) h += 1; } // mặt bằng giá bán lẻ
   if (c.inc && c.inc.weather === 'heat' && c.level[i] && !(c.cover.park[i] > 0.05)) { h -= 4; needs.push('🥵 Nắng nóng, quanh nhà không có bóng cây'); }
   if (!c.water[i] && c.waterPol[i] > 0.35) { const k = 1 - 0.25 * distFx(c, i, 'drain'); h -= Math.round(c.waterPol[i] * 10 * k); needs.push(k < 1 ? 'Kênh rạch hôi (quận đang nạo vét)' : 'Kênh rạch, sông gần nhà bốc mùi hôi'); } // nạo vét của quận giảm mùi
   if (isTro(c, i)) { h -= 2; needs.push('Phòng trọ chật, rẻ'); }

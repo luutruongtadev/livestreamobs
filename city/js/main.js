@@ -957,6 +957,7 @@ function showInfo(tile) {
           add('Làm ra', `${prod.icon} ${prod.name} từ ${rec.map(mname).join(' + ')}${prod.tier ? ' (tầng 2: cần đủ cả hai)' : ''} · giá gốc ${fmt(S.priceOf(S.productOf(c, i)))} ₫`);
           rec.forEach((k, j) => add(`${mname(k)} trong kho`, `${(j ? b.sin2[i] : b.sin[i]).toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`));
         }
+        if (kind === 'shop' || kind === 'market') add('Giá bán lẻ', `<span class="${(b.rp[i] || 1) > 1.1 ? 'neg' : ''}">×${(b.rp[i] || 1).toFixed(2)}</span> so với giá gốc · ${b.sin[i] < 6 ? 'kệ gần cạn, giá đang lên' : b.sin[i] > 25 ? 'hàng ứ, đang hạ giá' : 'cung cầu cân bằng'}`);
         if (kind === 'shop') add('Hàng trong kho', `${b.sin[i].toFixed(1)} · giá trị TB ×${(b.sinK[i] || 1).toFixed(2)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
         if (kind === 'raw') { const left = S.reserveLeft(c, i, zd.raw), R = S.RESERVE[zd.raw]; add('Trữ lượng còn', `${Math.round(left * 100)}%${R.regen ? ` · tự hồi ${Math.round(R.regen * 100)}% mỗi ngày` : ' · không tái tạo'}`); }
         if (kind === 'factory' || kind === 'raw') add(kind === 'raw' ? `${S.RAW[zd.raw].icon} ${S.RAW[zd.raw].name} chờ xe tới chở` : 'Thành phẩm chờ xuất', b.sout[i].toFixed(1));
@@ -1775,7 +1776,7 @@ function renderCorp0(force) {
     box.append(el('b', null, '🌐 Thị trường và cụm kinh tế'));
     const t = el('p'); t.style.cssText = 'margin:4px 0;font-size:12px';
     t.textContent = sg.length ? 'Giá thế giới (nhà máy trong thành phố): ' + sg.map((x) => `${S.PRODUCTS[x.p].icon} ${S.PRODUCTS[x.p].name} ${x.price.toFixed(2)}${x.price >= 1.2 ? '↑' : x.price <= 0.8 ? '↓' : ''} (${x.plants}) · nội địa ×${x.dp.toFixed(2)}`).join(' · ') : 'Chưa có số liệu.';
-    box.append(t, el('small', null, hubs.length ? `Cụm kinh tế: ${hubs.map((h) => `${h.sector ? S.PRODUCTS[h.sector].name : 'hỗn hợp'} ${h.n} cơ sở, ${h.jobs} việc`).join('; ')} (chạy nhanh hơn 10%)` : 'Chưa có cụm kinh tế: cần từ 6 cơ sở của công ty nằm sát nhau.'));
+    box.append(t, el('small', null, `🏷️ Giá bán lẻ cho dân: ×${(c.retailIdx || 1).toFixed(2)} so với giá gốc (kệ cạn thì giá lên, hàng ứ thì hạ; trên ×${S.RETAIL.hi} dân thấy đắt đỏ, kém vui). `), el('small', null, hubs.length ? `Cụm kinh tế: ${hubs.map((h) => `${h.sector ? S.PRODUCTS[h.sector].name : 'hỗn hợp'} ${h.n} cơ sở, ${h.jobs} việc`).join('; ')} (chạy nhanh hơn 10%)` : 'Chưa có cụm kinh tế: cần từ 6 cơ sở của công ty nằm sát nhau.'));
     root.append(box);
   }
   const tb = el('table', 'dover');
@@ -1789,13 +1790,13 @@ function renderCorp0(force) {
   });
   root.append(tb);
   const q = C.list[corpSel], st = S.corpStats(c, q), ceo = S.CEOS[q.ceo], card = el('div', 'card'), pr = S.PRODUCTS[st.sector];
-  card.append(el('b', null, `${S.corpTitle(q)}${pr ? ` · ${pr.icon} ${pr.name}` : ''}`));
+  card.append(el('b', null, `${S.corpTitle(q)}${pr ? ` · ${pr.icon} ${pr.name}` : ''}${q.kind === 'trade' ? ' · 🛒 Thương mại, bán lẻ' : ''}`));
   const p = el('p'); p.style.cssText = 'margin:4px 0;font-size:12px';
   p.textContent = `CEO ${ceo.name}: "${ceo.philosophy}". Đầu tư: ${ceo.invest}. Đàm phán: ${ceo.nego}. Mức liều ${Math.round(ceo.risk * 100)}%, chia cổ tức ${Math.round(ceo.payout * 100)}%. Hiệu suất nhà máy ${Math.round(st.eff * 100)}%. Mục tiêu: ${q.goal.jobs} việc làm. ${q.parent ? `Công ty con của ${S.corpTitle(S.corpById(c, q.parent))}.` : st.group.subs ? `Cả nhóm: ${st.group.n} nhà máy, ${st.group.jobs} việc làm, ${st.group.subs} công ty con.` : ''}`;
   card.append(p);
   const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''}${st.wares ? ` · 🏗️ ${st.wares} kho (chứa thêm ${st.store} mỗi nhà máy)` : ''} · 💱 Giá thế giới ${st.signal} · 🏷️ Hệ số bán ${st.markup}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
   card.append(tr2, el('br'));
-  { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono].name.toLowerCase()}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
+  { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono] ? S.PRODUCTS[st.mono].name.toLowerCase() : 'bán lẻ'}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
   for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}`), el('br'));
   card.append(el('h4', null, 'Lịch sử'));
   const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';
