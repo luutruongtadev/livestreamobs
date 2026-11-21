@@ -3,7 +3,7 @@ import * as S from './sim.js';
 import { ledgerSummary, worldReserve, worldK } from './ledger.js';
 import * as Cloud from './cloud.js';
 import * as Lg from './league.js';
-import { View, DCOL } from './render.js';
+import { View, DCOL, corpRGB } from './render.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -1726,7 +1726,16 @@ let corpSel = 0;
 function corpFocus() {
   const c = city; if (!c || !c.corp) return;
   const q = $('corp').classList.contains('show') ? c.corp.list[corpSel] : null, id = q ? q.id : 0;
-  if ((c.corpFocus || 0) !== id) { c.corpFocus = id; c.dirty.zones = true; }
+  if ((c.corpFocus || 0) !== id) { c.corpFocus = id; c.dirty.zones = c.dirty.buildings = true; if (q) corpLook(q); }
+}
+/** Đưa máy quay tới vùng của công ty: tâm các ô của nó, xa vừa đủ thấy cả vùng, lệch xuống dưới bảng 🏢 đang che phía trên. */
+function corpLook(q) {
+  const l = q.cells.map(([i]) => i); if (!l.length) return;
+  const xs = l.map((i) => ((i % S.N) + 0.5) * S.T - S.HALF), zs = l.map((i) => (((i / S.N) | 0) + 0.5) * S.T - S.HALF);
+  const cx = xs.reduce((a, b) => a + b, 0) / l.length, cz = zs.reduce((a, b) => a + b, 0) / l.length;
+  const span = Math.max(...xs.map((x) => Math.abs(x - cx)), ...zs.map((z) => Math.abs(z - cz)));
+  const cam = view.cam; cam.dist = Math.max(170, Math.min(520, span * 3.2 + 120)); cam.pitch = Math.max(cam.pitch, 1.2);
+  const off = cam.dist * 0.22; cam.x = cx - Math.sin(cam.yaw) * off; cam.z = cz - Math.cos(cam.yaw) * off; view.panWorld(0, 0);
 }
 const CORP_LOG = {
   founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
@@ -1796,7 +1805,7 @@ function renderCorp0(force) {
   tb.innerHTML = '<tr><th>Công ty</th><th>Bậc</th><th>🏭</th><th>👷 Việc</th><th>🌐 Ảnh hưởng</th><th>💰 Quỹ</th></tr>';
   const order = [...C.list].sort((x, y) => S.rootOf(c, x.id) - S.rootOf(c, y.id) || (x.parent ? 1 : 0) - (y.parent ? 1 : 0) || x.id - y.id);
   order.forEach((q) => {
-    const k = C.list.indexOf(q), st = S.corpStats(c, q), [r, g, b] = DCOL[S.rootOf(c, q.id) % DCOL.length], tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
+    const k = C.list.indexOf(q), st = S.corpStats(c, q), [r, g, b] = corpRGB(c, q.id), tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
     [(q.parent ? '↳ ' : '') + S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
     tr.onclick = () => { corpSel = k; renderCorp(true); corpFocus(); };
     tb.append(tr);

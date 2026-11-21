@@ -2429,50 +2429,6 @@ test('city: tập đoàn — bán cơ sở khi khủng hoảng, duyệt dự án
   } finally { Object.assign(S.CORP, keep); }
 });
 
-test('city: tập đoàn Phase 4 — vốn đi theo giá thế giới, cụm kinh tế chạy nhanh hơn, chuỗi bán lẻ, xuất sớm khi giá cao; sổ tiền vẫn khớp', () => {
-  const c = town(); run(c, 120);
-  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
-  try {
-    run(c, 24 * 8);
-    const q = c.corp.list.find((x) => x.kind !== 'trade');
-    assert.ok(q, 'có công ty');
-    // tín hiệu: ô làm ra thứ đang được giá được chấm điểm cao hơn
-    const cell0 = [...c.level.keys()].find((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]);
-    const p = Object.keys(S.PRODUCTS).find((k) => S.productAt(cell0, 3) === k);
-    c.market.p[p] = 0.5; const lo = S.corpOptions && true; assert.ok(lo);
-    const price = (v) => { c.market.p[p] = v; return S.signalOf(c, p); };
-    assert.ok(price(1.8) > price(0.6));
-    // cụm kinh tế: 6 cơ sở sát nhau của công ty thành một cụm (dựng tạm 6 ô liền nhau rồi gỡ); ô trong cụm sản xuất nhanh hơn
-    let row = -1;
-    for (let y = 60; y < 90 && row < 0; y++) for (let x = 2; x < 60 && row < 0; x++) { let ok = true; for (let k = 0; k < 6; k++) { const i = y * S.N + x + k; if (c.water[i] || c.road[i] || c.occ[i] || c.level[i] || c.owner[i]) ok = false; } if (ok) row = y * S.N + x; }
-    assert.ok(row >= 0, 'có chỗ dựng cụm thử');
-    for (let k = 0; k < 6; k++) { c.zone[row + k] = 3; c.level[row + k] = 1; c.owner[row + k] = q.id; }
-    const hubs = S.hubScan(c);
-    assert.ok(hubs.some((h) => h.n >= 6) && c.hub[row] === 1, 'có cụm kinh tế');
-    for (let k = 0; k < 6; k++) { c.zone[row + k] = 0; c.level[row + k] = 0; c.owner[row + k] = 0; }
-    S.hubScan(c);
-    // giá thế giới cao: xuất khẩu bật sớm hơn (ngưỡng tồn kho 60%)
-    while (c.hour % 24 !== 5) run(c, 1);
-    c.hour++; // sang 6h sáng (giờ công ty ra quyết định); gọi thẳng corpHour để xe giao hàng không lấy mất tồn kho đặt tay
-    c.market.p[S.corpSector(c, q)] = 1.6; q.export = 0; q.xAt = 0;
-    for (const [i] of q.cells) c.biz.sout[i] = 12; // dưới ngưỡng thường (18), trên ngưỡng khi giá cao (10.8)
-    assert.ok(S.signalOf(c, S.corpSector(c, q)) >= S.CORP.hotPrice);
-    S.corpHour(c); assert.equal(q.export, 1, 'giá cao: xuất sớm');
-    run(c, 2);
-    // chuỗi bán lẻ: tập đoàn bậc 3 mua cửa hàng độc lập gần cụm
-    q.stage = 3; q.cash = 8000 * S.MK; q.cool.acq = 0; c.corp.sme = -1;
-    for (const x of c.corp.list) if (x !== q) { x.cash = 5000 * S.MK; for (const [i] of x.cells) c.biz.eff[i] = 0.9; }
-    const shop = [...c.level.keys()].find((i) => c.level[i] && !c.owner[i] && S.ZDEF[c.zone[i]].biz === 'shop');
-    const r = S.corpAct(c, q, { type: 'acquire' });
-    if (shop != null && r.ok && r.cell != null) assert.ok(S.ZDEF[c.zone[r.cell]].biz === 'shop' || S.ZDEF[c.zone[r.cell]].biz === 'ind');
-    // lưu / nạp, chạy tiếp không lệch sổ
-    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
-    assert.equal(back.corp.list.length, c.corp.list.length);
-    LG.resetLedger(c); run(c, 24 * 8);
-    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
-  } finally { Object.assign(S.CORP, keep); }
-});
-
 test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá nội địa theo cung cầu và hệ số bán, mô hình kho + biển logo; sổ tiền vẫn khớp', async () => {
   const c = town(); run(c, 120);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });

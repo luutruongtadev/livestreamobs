@@ -26,6 +26,14 @@ const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3
 const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
 export const DCOL = [[255, 99, 71], [64, 160, 255], [80, 200, 120], [250, 190, 40], [190, 110, 240], [40, 210, 210], [255, 130, 190], [160, 200, 60]]; // màu từng quận
+/** Màu một công ty: màu của cả nhóm (theo công ty gốc); công ty con lần lượt nhạt hơn / đậm hơn để phân biệt trong nhóm. */
+export function corpRGB(c, id) {
+  const root = (c.corpGroup && c.corpGroup[id]) || id, base = DCOL[root % DCOL.length];
+  if (root === id || !c.corp) return base;
+  const sibs = c.corp.list.filter((q) => q.id !== root && c.corpGroup && c.corpGroup[q.id] === root).map((q) => q.id).sort((a, b) => a - b);
+  const f = [0.55, -0.5, 0.3, -0.3][Math.max(0, sibs.indexOf(id)) % 4];
+  return base.map((v) => Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f)));
+}
 const RES_TINT = [null, 0x9db84a, 0x3f7a3a, 0x8d8a80, 0x5a5648]; // nhuộm nhẹ mặt đất theo tài nguyên
 const ASPHALT = '#41444a', WALK = '#b6b3a9';
 const LANES = { small: [1.6], large: [2.25, 5.55], oneway: [-1.6, 1.6], overpass: [1.8], overpass2: [1.8], overpass3: [1.8], tunnel: [1.8], highway: [2.1, 5.4, 8.7] }; // thiếu loại nào thì xe chạy trên đó làm lỗi vòng vẽ
@@ -870,6 +878,7 @@ export class View {
 
   /** mode: 'zones' | 'value' | 'pollution' | 'service' | 'power' | 'water'; strong: đang cầm công cụ quy hoạch */
   setOverlay(mode, strong, grid, zone = 0) {
+    if ((mode === 'corp') !== (this.overlayMode === 'corp')) this.city.dirty.buildings = true; // vào / ra lớp tập đoàn: ẩn / hiện nhà khác, tô màu công ty
     if (mode !== this.overlayMode || strong !== this.ovStrong || zone !== this.ovZone) { this.overlayMode = mode; this.ovStrong = strong; this.ovZone = zone; this.city.dirty.zones = true; }
     this.ovMat.uniforms.uGrid.value = grid ? 1 : 0;
     if (mode !== 'traffic' && this.trafficMesh) { this.scene.remove(this.trafficMesh); this.trafficMesh.geometry.dispose(); this.trafficMesh = null; }
@@ -879,6 +888,7 @@ export class View {
 
   _zones() {
     const c = this.city, d = this.ovData, mode = this.overlayMode, st = [[230, 60, 50], [60, 200, 110], [240, 160, 40]];
+    const cc = new Map(), ccol = (id) => { let v = cc.get(id); if (!v) cc.set(id, (v = corpRGB(c, id))); return v; }; // màu từng công ty (lớp tập đoàn)
     for (let i = 0; i < N * N; i++) {
       let r = 0, g = 0, b = 0, a = 0;
       if (mode === 'zones') {
@@ -913,11 +923,17 @@ export class View {
           a = c.water[i] ? 25 : edge ? 210 : 70; // trụ sở là toà nhà UBND quận thật, không tô riêng
         }
       } else if (mode === 'corp') {
-        // tập đoàn: mỗi công ty một màu; ô đã xây đậm, ô đang xây dở nhạt
-        const o = c.owner ? (c.corpGroup ? c.corpGroup[c.owner[i]] : c.owner[i]) : 0; // công ty con cùng màu tập đoàn mẹ
-        if (o) { [r, g, b] = DCOL[o % DCOL.length]; a = c.level[i] ? (c.hub && c.hub[i] ? 235 : 190) : 100; } // cụm kinh tế đậm hơn
-        if (o && c.corpFocus) { // đang chọn một công ty trong bảng 🏢: cơ sở của nó sáng rõ, còn lại mờ đi
-          if (c.owner[i] === c.corpFocus) { r = (r + 255 * 2) / 3; g = (g + 255 * 2) / 3; b = (b + 255 * 2) / 3; a = c.level[i] ? 255 : 150; } else a = 45;
+        // tập đoàn: mỗi nhóm một màu, mỗi công ty con một sắc đậm / nhạt của màu đó; viền đậm ở ranh giới vùng của từng công ty
+        const id = c.owner ? c.owner[i] : 0;
+        if (id) {
+          [r, g, b] = ccol(id);
+          const x = i % N, y = (i / N) | 0, ow = (j) => c.owner[j];
+          const edge = x + 1 >= N || ow(i + 1) !== id || y + 1 >= N || ow(i + N) !== id || x <= 0 || ow(i - 1) !== id || y <= 0 || ow(i - N) !== id;
+          a = c.level[i] ? (edge ? 245 : 170) : 100;
+          if (c.corpFocus) { // đang chọn một công ty trong bảng 🏢: vùng của nó rõ nhất, cùng nhóm vừa, nhóm khác mờ
+            const g0 = c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus;
+            a = id === c.corpFocus ? (edge ? 255 : 225) : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? (edge ? 170 : 90) : 30;
+          }
         }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
@@ -2590,6 +2606,56 @@ export class View {
     return mesh;
   }
 
+  /** Lớp tập đoàn: bảng tên nổi trên vùng của từng công ty (màu công ty; công ty con có "↳ … · con của …"). Ra khỏi lớp thì gỡ. */
+  _corpLabels() {
+    const c = this.city, on = this.overlayMode === 'corp' && c.corp && c.owner;
+    const list = on ? c.corp.list.filter((q) => q.cells.length) : [];
+    const key = on ? `${c.corpFocus || 0}|${list.map((q) => `${q.id}:${q.name}:${q.stage}:${q.parent}:${q.cells.length}:${q.cells[0][0]}`).join(',')}` : '';
+    if (key === this._clKey) return;
+    this._clKey = key;
+    if (this.corpLabels) { for (const s of this.corpLabels.children) { if (s.material.map) s.material.map.dispose(); s.material.dispose(); if (!s.isSprite) s.geometry.dispose(); } this.scene.remove(this.corpLabels); this.corpLabels = null; } // hình của sprite dùng chung, không gỡ
+    if (!list.length) return;
+    const grp = (this.corpLabels = new THREE.Group()), PRE = ['', 'Công ty', 'Công ty', 'Tổng công ty', 'Tập đoàn'];
+    const g0 = c.corpFocus ? (c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus) : 0;
+    // vùng của từng công ty: nền màu trên mặt đất + viền nổi ở ranh giới (công ty đang chọn rõ nhất)
+    const cells = [], edges = [];
+    for (const q of list) for (const [i] of q.cells) {
+      const x = i % N, y = (i / N) | 0, id = q.id;
+      cells.push([i, id]);
+      if (x + 1 >= N || c.owner[i + 1] !== id) edges.push([i, id, 1, 0]);
+      if (x <= 0 || c.owner[i - 1] !== id) edges.push([i, id, -1, 0]);
+      if (y + 1 >= N || c.owner[i + N] !== id) edges.push([i, id, 0, 1]);
+      if (y <= 0 || c.owner[i - N] !== id) edges.push([i, id, 0, -1]);
+    }
+    const tone = (id) => { const [r, g, b] = corpRGB(c, id), k = !g0 || id === c.corpFocus ? 1 : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? 0.6 : 0.25; return new THREE.Color(r / 255 * k, g / 255 * k, b / 255 * k); };
+    const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), ps = new THREE.Vector3();
+    const plate = new THREE.InstancedMesh(new THREE.PlaneGeometry(T * 1.04, T * 1.04).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, depthWrite: false, fog: false }), cells.length);
+    cells.forEach(([i, id], k) => { plate.setMatrixAt(k, m4.compose(ps.set(cellX(i), c.cellH[i] + 0.25, cellZ(i)), qt.identity(), sc.set(1, 1, 1))); plate.setColorAt(k, tone(id)); });
+    const wall = new THREE.InstancedMesh(new THREE.BoxGeometry(T * 1.06, 2.2, 0.9), new THREE.MeshBasicMaterial({ fog: false }), Math.max(1, edges.length));
+    edges.forEach(([i, id, dx, dz], k) => { qt.setFromAxisAngle(_v3.set(0, 1, 0), dx ? Math.PI / 2 : 0); wall.setMatrixAt(k, m4.compose(ps.set(cellX(i) + (dx * T) / 2, c.cellH[i] + 1.1, cellZ(i) + (dz * T) / 2), qt, sc.set(1, 1, 1))); wall.setColorAt(k, tone(id)); });
+    wall.count = edges.length; plate.renderOrder = 2; grp.add(plate, wall);
+    for (const q of list) {
+      const l = q.cells.map(([i]) => i), cx = l.reduce((s, i) => s + cellX(i), 0) / l.length, cz = l.reduce((s, i) => s + cellZ(i), 0) / l.length;
+      const top = Math.max(...l.map((i) => c.cellH[i]));
+      const mom = q.parent ? c.corp.list.find((x) => x.id === q.parent) : null;
+      const line1 = `${q.parent ? '↳ ' : ''}${PRE[q.stage] || 'Công ty'} ${q.name}`, line2 = mom ? `con của ${mom.name}` : q.kind === 'trade' ? 'chuỗi bán lẻ' : `${l.length} cơ sở`;
+      const cv = document.createElement('canvas'); cv.width = 640; cv.height = 150;
+      const x = cv.getContext('2d'), [r, g, b] = corpRGB(c, q.id);
+      x.fillStyle = `rgba(${r},${g},${b},0.95)`; x.beginPath(); x.roundRect(6, 6, 628, 138, 26); x.fill();
+      x.lineWidth = 6; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.stroke();
+      x.textAlign = 'center'; x.fillStyle = r * 0.3 + g * 0.59 + b * 0.11 > 170 ? '#14171c' : '#ffffff';
+      x.font = 'bold 50px system-ui, sans-serif'; x.fillText(line1, 320, 70, 600);
+      x.font = '36px system-ui, sans-serif'; x.fillText(line2, 320, 122, 600);
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const dim = g0 && q.id !== c.corpFocus ? ((c.corpGroup ? c.corpGroup[q.id] : q.id) === g0 ? 0.75 : 0.35) : 1;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: dim, depthTest: false, depthWrite: false, fog: false, sizeAttenuation: false })); // cỡ cố định trên màn hình, gần xa đều đọc được
+      const big = !g0 || q.id === c.corpFocus ? 1 : 0.78;
+      sp.scale.set(0.17 * big, 0.04 * big, 1); sp.position.set(cx, top + 34 + (q.parent ? 0 : 10), cz); sp.renderOrder = 999;
+      grp.add(sp);
+    }
+    this.scene.add(grp);
+  }
+
   /** Dựng lại tấm ảnh logo khi danh sách công ty gốc (hoặc tên, bậc) đổi. */
   _logoAtlas() {
     const C = this.city.corp, roots = C ? C.list.filter((q) => !q.parent).slice(0, LOGO_SLOTS) : [];
@@ -2617,9 +2683,12 @@ export class View {
       const pid = ((((i / N) | 0) / 4) | 0) * 1000 + (((i % N) / 4) | 0), cur = farmHouse.get(pid);
       if (cur == null || (c.acc[i] === 1 && c.acc[cur] !== 1)) farmHouse.set(pid, i);
     }
+    const corpView = this.overlayMode === 'corp' && c.owner, cc = new Map(); // lớp tập đoàn: chỉ hiện nhà của các công ty, tô theo màu công ty
+    const g0 = corpView && c.corpFocus ? (c.corpGroup ? c.corpGroup[c.corpFocus] : c.corpFocus) : 0;
     for (let i = 0; i < N * N; i++) {
       const L = c.level[i];
       if (!L) continue;
+      if (corpView && !c.owner[i]) continue; // ẩn nhà không thuộc công ty nào
       let key, make, farm = false;
       const vnGeo = vn && hasVN(c.zone[i]) ? 'v' : '';
       if (c.zone[i] === 8) {
@@ -2668,7 +2737,11 @@ export class View {
         if (slot != null && lc[slot] < 600) { this.gateMesh.setMatrixAt(gc++, m); sl.makeTranslation(0, 2.83, 4.79).scale(_v3.set(3.4, 0.62, 1)); this.logoMeshes[slot].setMatrixAt(lc[slot]++, sm.multiplyMatrices(m, sl)); }
       }
       if (c.zone[i] === 20 && t >= 1) this.lifeShops.push({ id: i, k: 'cho', m: m.clone() }); // chợ truyền thống: người đi chợ
-      col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
+      if (corpView) {
+        const id = c.owner[i]; let v = cc.get(id); if (!v) cc.set(id, (v = corpRGB(c, id)));
+        const k = !g0 || id === c.corpFocus ? 1 : (c.corpGroup ? c.corpGroup[id] : id) === g0 ? 0.6 : 0.28; // công ty đang chọn sáng nhất, cùng nhóm vừa, nhóm khác tối
+        col.setRGB((v[0] / 255) * k, (v[1] / 255) * k, (v[2] / 255) * k);
+      } else col.setHSL(0, 0, 0.86 + hash2(x, y, 77) * 0.14);
       mesh.setColorAt(counts[key]++, col);
     }
     for (const k in this.growMeshes) { const mesh = this.growMeshes[k]; mesh.count = counts[k]; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
@@ -3308,6 +3381,7 @@ export class View {
     this._spray(Math.min(dt, 0.05));
     if (d.rail || d.terrain === 2 || this._railSvcSig !== this._svcSig()) { this._rail(); d.rail = false; }
     if (this.overlayMode === 'traffic' && (this._tlAt === undefined || this.time - this._tlAt > 0.8)) { this._tlAt = this.time; this._trafficLayer(); }
+    if (this.overlayMode === 'corp' || this.corpLabels) this._corpLabels();
     this._vehicles(dt);
     this._animals(simDt);
     this._flames();
