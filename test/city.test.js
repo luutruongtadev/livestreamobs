@@ -2306,6 +2306,59 @@ test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, m�
   } finally { Object.assign(S.CORP, keep); }
 });
 
+test('city: tập đoàn — cam kết phụ (cống xả thải, xanh hoá, phòng cháy): theo loại và bậc, đo được, đạt / không đạt, lưu và nạp', () => {
+  const c = town(); run(c, 120); LG.resetLedger(c);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 12);
+    const q = c.corp.list.find((x) => x.kind !== 'trade');
+    assert.ok(q);
+    // cam kết theo loại và bậc
+    assert.deepEqual(S.termsFor(c, { kind: 'trade', stage: 4 }), ['safe']);
+    assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 1 }), ['sewage']);
+    assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 3 }), ['sewage', 'green', 'safe']);
+    const noSewer = { ...c, services: [] };
+    assert.deepEqual(S.termsFor(noSewer, { kind: 'ind', stage: 3 }), ['green', 'safe'], 'thành phố chưa có cống thì không đòi cam kết cống');
+    // xin, duyệt: cam kết ghi vào đề xuất và vào hợp đồng, có danh sách ô để đo
+    q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = []; q.stage = 3; q.ceo = 'bold';
+    const site = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
+    const ask = S.corpAct(c, q, { type: 'ask', sites: site });
+    assert.ok(ask.ok, ask.reason);
+    assert.deepEqual(ask.ask.terms, ['sewage', 'green', 'safe']);
+    c.stats.powerCap = 1e9;
+    assert.ok(S.approveAsk(c, ask.ask.id).ok);
+    const d = q.deals[q.deals.length - 1];
+    assert.deepEqual(d.terms, ['sewage', 'green', 'safe']);
+    assert.ok(d.ids.length >= 1 && d.ids.every((i) => c.owner[i] === q.id), 'ô dự án được ghi lại để đo');
+    // lưu / nạp giữ cam kết phụ và số đo đã tích luỹ
+    d.st = { n: 3, sw: 1.5, gr: 0.6, fd: 1 };
+    const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+    const bd = back.corp.list.find((x) => x.id === q.id).deals.find((x) => x.id === d.id);
+    assert.deepEqual(bd.terms, d.terms); assert.deepEqual(bd.ids, d.ids); assert.equal(bd.st.n, 3); assert.equal(bd.st.fd, 1);
+    // không đạt: nhiều ngày có cháy → vi phạm, ghi đúng cam kết nào hỏng
+    d.terms = ['safe']; d.st = { n: 5, sw: 0, gr: 0, fd: 9 }; d.due = c.day; d.base = -99999;
+    const t0 = q.trust; run(c, 24);
+    assert.equal(d.status, 'breach');
+    const ev = q.log.filter((e) => e.type === 'dealBreach').pop();
+    assert.deepEqual(ev.fails, ['safe']); assert.ok(q.trust < t0, 'uy tín giảm');
+    // đạt: không cháy → đạt cam kết, uy tín tăng
+    q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = [];
+    const a2 = S.corpAct(c, q, { type: 'ask', sites: [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2) });
+    if (a2.ok && S.approveAsk(c, a2.ask.id).ok) {
+      const d2 = q.deals[q.deals.length - 1];
+      d2.terms = ['safe']; d2.st = { n: 0, sw: 0, gr: 0, fd: 0 }; d2.due = c.day; d2.base = -99999;
+      const t1 = q.trust; run(c, 24);
+      assert.equal(d2.status, 'met'); assert.ok(q.trust > t1);
+    }
+    // cháy ở ô dự án: mỗi ngày chỉ đếm một lần dù cháy nhiều giờ
+    const d3 = { id: 9999, cells: 1, jobs: 1, base: 0, due: c.day + 99, status: 'open', ids: [q.cells[0][0]], terms: ['safe'], st: { n: 0, sw: 0, gr: 0, fd: 0 } };
+    q.deals.push(d3); c.fire[q.cells[0][0]] = 1;
+    S.corpHour(c); S.corpHour(c);
+    assert.equal(d3.st.fd, 1, 'một ngày cháy dù đo nhiều giờ');
+    c.fire[q.cells[0][0]] = 0;
+  } finally { Object.assign(S.CORP, keep); }
+});
+
 test('city: tập đoàn Phase 2 — công ty con, nhóm, AI chọn hành động (chỉ trong danh sách), xuất khẩu, lưu; sổ tiền vẫn khớp', async () => {
   const c = town(); run(c, 120);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
