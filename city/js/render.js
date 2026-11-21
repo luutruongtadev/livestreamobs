@@ -23,6 +23,37 @@ const PED_MODELS = [
 ];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
+// Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
+// Pha (aGait.x) lấy từ quãng đường đã đi nên chân không trượt; biên độ (aGait.y) = 0 thì đứng yên. mode 0 = người, 1 = chó (4 chân chéo).
+const GAIT_TAU = Math.PI * 2;
+function gaitMaterial(mat, o) {
+  const m = mat.clone();
+  m.customProgramCacheKey = () => 'gait' + o.mode;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uH = { value: o.H }; sh.uniforms.uHX = { value: o.HX }; sh.uniforms.uPiv = { value: o.piv }; sh.uniforms.uMode = { value: o.mode };
+    sh.vertexShader = 'attribute vec2 aGait;\nuniform float uH;\nuniform float uHX;\nuniform float uPiv;\nuniform float uMode;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+{
+  float ph = aGait.x, am = aGait.y;
+  float hy = position.y / uH;
+  float ax = abs(position.x) / max(uHX, 0.001);
+  float legSide = position.x >= 0.0 ? 1.0 : -1.0;
+  if (uMode > 0.5) legSide = ((position.x > 0.0) == (position.z > 0.0)) ? 1.0 : -1.0;
+  float wl = 1.0 - smoothstep(uPiv - 0.03, uPiv + 0.03, hy);
+  float ang = am * sin(ph) * legSide;
+  float dy = position.y - uPiv * uH;
+  transformed.z += wl * (-dy * sin(ang));
+  transformed.y += wl * dy * (cos(ang) - 1.0);
+  if (uMode < 0.5) {
+    float wa = smoothstep(0.45, 0.55, hy) * (1.0 - smoothstep(0.8, 0.86, hy)) * smoothstep(0.5, 0.7, ax);
+    float angA = -am * 0.8 * sin(ph) * legSide;
+    float dyA = position.y - 0.8 * uH;
+    transformed.z += wa * (-dyA * sin(angA));
+    transformed.y += wa * dyA * (cos(angA) - 1.0);
+  }
+}`);
+  };
+  return m;
+}
 const ZCOL = ZDEF.map((z) => z.rgb);
 const RESCOL = [null, ...Object.values(RAW).map((r) => r.rgb)]; // màu lớp xem tài nguyên theo mã c.res
 export const DCOL = [[255, 99, 71], [64, 160, 255], [80, 200, 120], [250, 190, 40], [190, 110, 240], [40, 210, 210], [255, 130, 190], [160, 200, 60]]; // màu từng quận
@@ -547,7 +578,7 @@ export class View {
     mat = mat ? mat.clone() : new THREE.MeshStandardMaterial();
     mat.metalness = 0; mat.roughness = 0.85;
     if (tint) mat.color.set(tint);
-    return { geo, mat };
+    return { geo, mat, H: size.y * k, HX: size.x * k / 2 };
   }
 
   /** Nạp người / vật tạo bằng Meshy (assets/models/*.glb); mỗi món tải xong thì tự thêm vào, tải lỗi thì bỏ qua (người hộp / không có vật vẫn ổn). */
@@ -556,14 +587,24 @@ export class View {
     const load = (file) => new Promise((resolve, reject) => loader.load(new URL(`../assets/models/${file}`, import.meta.url).href, resolve, undefined, reject));
     for (const pm of PED_MODELS) {
       load(pm.file).then((gltf) => {
-        const { geo, mat } = this._normalizeGltf(gltf, pm.foot);
-        this.pedVariants.push(this._inst(geo, mat, MAX_PEDS, true));
+        const { geo, mat, H, HX } = this._normalizeGltf(gltf, pm.foot);
+        const gm = gaitMaterial(mat, { H, HX, piv: 0.5, mode: 0 });
+        this.pedVariants.push(this._inst(this._gaitGeo(geo, MAX_PEDS), gm, MAX_PEDS, true));
       }).catch(() => {});
     }
     load(ANIMAL_DOG.file).then((gltf) => {
-      const { geo, mat } = this._normalizeGltf(gltf, ANIMAL_DOG.foot, ANIMAL_DOG.tint);
-      this.animalMesh = this._inst(geo, mat, MAX_ANIMALS, true);
+      const { geo, mat, H, HX } = this._normalizeGltf(gltf, ANIMAL_DOG.foot, ANIMAL_DOG.tint);
+      const gm = gaitMaterial(mat, { H, HX, piv: 0.42, mode: 1 });
+      this.animalMesh = this._inst(this._gaitGeo(geo, MAX_ANIMALS), gm, MAX_ANIMALS, true);
     }).catch(() => {});
+  }
+
+  /** Thêm thuộc tính pha/biên độ dáng đi cho từng cá thể (InstancedBufferAttribute), mảng lưu ở userData để ghi mỗi khung hình. */
+  _gaitGeo(geo, cap) {
+    const arr = new Float32Array(cap * 2);
+    geo.setAttribute('aGait', new THREE.InstancedBufferAttribute(arr, 2));
+    geo.userData.gait = arr;
+    return geo;
   }
 
   /** Chọn lại vài chục chỗ lang thang (công viên, quảng trường, lề đường trống) khi sang thành phố khác. */
@@ -583,7 +624,7 @@ export class View {
     if (!total) return;
     for (let k = 0; k < DOG_COUNT; k++) {
       const si = ((Math.random() * total) | 0) * 2, x = spots[si], z = spots[si + 1];
-      this.animals.push({ x, z, tx: x, tz: z, yaw: 0 });
+      this.animals.push({ x, z, tx: x, tz: z, yaw: 0, gp: Math.random() * 10 });
     }
   }
 
@@ -599,14 +640,17 @@ export class View {
         if (sp && sp.length >= 2) { const si = ((Math.random() * (sp.length / 2)) | 0) * 2; a.tx = sp[si] + (Math.random() - 0.5) * 6; a.tz = sp[si + 1] + (Math.random() - 0.5) * 6; }
       } else {
         const v = Math.sqrt(d2), speed = 1.1;
-        a.x += (dx / v) * speed * simDt; a.z += (dz / v) * speed * simDt; a.yaw = Math.atan2(dx, dz);
+        a.x += (dx / v) * speed * simDt; a.z += (dz / v) * speed * simDt; a.yaw = Math.atan2(dx, dz); a.gp += speed * simDt;
       }
       if (n >= MAX_ANIMALS) break;
       const bob = 1 + Math.sin(this.time * 8 + n) * 0.06;
       p.set(a.x, this.roadY(a.x, a.z) + 0.05, a.z); q.setFromAxisAngle(up, a.yaw); s.set(1, bob, 1); m.compose(p, q, s);
+      const ga = this.animalMesh.geometry.userData.gait, moving = d2 >= 0.3;
+      if (ga) { ga[n * 2] = a.gp * GAIT_TAU / 0.9; ga[n * 2 + 1] = moving ? 0.6 : 0; }
       this.animalMesh.setMatrixAt(n++, m);
     }
     this.animalMesh.count = n; this.animalMesh.instanceMatrix.needsUpdate = true;
+    if (this.animalMesh.geometry.userData.gait) this.animalMesh.geometry.attributes.aGait.needsUpdate = true;
   }
 
   setCity(city) {
@@ -2817,19 +2861,25 @@ export class View {
       const sg = st.fwd ? 1 : -1, tx = pt[2] * sg, tz = pt[3] * sg, off = w.side * (ROADS[e.type].w / 2 - 0.9);
       const gx = pt[0] - pt[3] * off, gz = pt[1] + pt[2] * off;
       if (w.rx == null) { w.rx = gx; w.rz = gz; }
+      const ox = w.rx, oz = w.rz;
       w.rx += (gx - w.rx) * ease; w.rz += (gz - w.rz) * ease;
+      w.gp = (w.gp || 0) + Math.hypot(w.rx - ox, w.rz - oz); // quãng đường đã đi: điều khiển pha bước chân
       const bob = 1 + Math.sin(this.time * 14 + w.hue * 40) * 0.05;
       p.set(w.rx, this.roadY(w.rx, w.rz) + this.waterLift(e, st.fwd ? Math.min(w.s, e.len) : Math.max(0, e.len - w.s)) + 0.1, w.rz); q.setFromAxisAngle(up, Math.atan2(tx, tz)); m.compose(p, q, s.set(1.25, 1.25 * bob, 1.25));
       if (nv) {
         const vi = ((w.cb.id * 2654435761) >>> 0) % nv, ni = nvC[vi]++;
-        if (ni < MAX_PEDS) pv[vi].setMatrixAt(ni, m);
+        if (ni < MAX_PEDS) {
+          pv[vi].setMatrixAt(ni, m);
+          const ga = pv[vi].geometry.userData.gait;
+          if (ga) { ga[ni * 2] = w.gp * GAIT_TAU / 1.3 + w.hue * GAIT_TAU; ga[ni * 2 + 1] = 0.45; }
+        }
       } else if (np < MAX_PEDS) { this.pedMesh.setMatrixAt(np, m); this.pedMesh.setColorAt(np++, col.setHSL(w.hue, 0.55, 0.55)); }
     }
     s.set(1, 1, 1);
     this.beamMesh.count = nb; this.beamMesh.instanceMatrix.needsUpdate = true;
     for (const k in this.vehMeshes) { const mesh = this.vehMeshes[k]; mesh.count = vc[k] || 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np], [this.metroMesh, nm], [this.metroStripe, nm]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
-    if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; }
+    if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; if (pv[i].geometry.userData.gait) pv[i].geometry.attributes.aGait.needsUpdate = true; }
     // đèn tín hiệu
     const LC = { g: 0x35e06a, y: 0xffd23f, r: 0xff3b30 };
     let nl = 0;
