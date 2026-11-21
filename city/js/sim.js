@@ -2093,7 +2093,8 @@ export function computeMaps(c) {
     const L = c.level[i];
     if (!L) continue;
     const z = c.zone[i], x = i % N, y = (i / N) | 0;
-    if (z === 3) {
+    if (z === 3 && c.ware && c.ware[i]) stamp(c.noise, x, y, 3, 0.2 + 0.03 * L, true); // kho bãi: không xả khói, chỉ ồn vì xe tải ra vào
+    else if (z === 3) {
       stamp(c.air, x, y, 6, AIR[L - 1], true); stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.3, true);
     } else if (RES_POL[z]) {
       const [a, g, n] = RES_POL[z];
@@ -2353,7 +2354,7 @@ function growth(c) {
     const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1 && !flooded(c, i);
     if (!c.level[i]) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
-      if (rng() < Math.max(0, dm) * 0.4) {
+      if ((c.owner && c.owner[i] ? 0.6 : Math.max(0, dm) * 0.4) > rng()) { // công ty đã trả tiền xây (nhà máy, kho, cửa hàng của công ty): xây ngay khi đủ điện nước, không chờ nhu cầu thành phố
         c.level[i] = 1; c.variant[i] = (rng() * 3) | 0; c.dir[i] = c.rdir[i]; c.age[i] = 0; c.tree[i] = 0;
         { const cap = 150 * MK * worldK(c); world(c, 'bizOpen', cap - c.biz.money[i]); c.biz.money[i] = cap; } c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) ? 10 : 0; // vốn ban đầu từ nhà đầu tư bên ngoài
         c.dirty.buildings = c.dirty.trees = true; built = true;
@@ -2365,7 +2366,7 @@ function growth(c) {
       clearBuilding(c, i); // bỏ hoang vì thiếu điện nước
     } else if (resCap(z, c.level[i]) && !jobCap(z, c.level[i]) && c.resCount[i] === 0 && c.age[i] > 36 && dm < -0.4 && rng() < 0.02) {
       clearBuilding(c, i); // nhà bỏ trống quá lâu
-    } else if (ok && dm > -0.2 && canLevelUp(c, i) && c.room(i, utilUse(z, c.level[i] + 1) - utilUse(z, c.level[i]) + 1) && rng() < 0.2) {
+    } else if (ok && dm > -0.2 && canLevelUp(c, i) && !(c.ware && c.ware[i] && c.level[i] >= 3) && c.room(i, utilUse(z, c.level[i] + 1) - utilUse(z, c.level[i]) + 1) && rng() < 0.2) {
       c.level[i]++; c.age[i] = 0; c.dirty.buildings = true; built = true;
       computeNetworks(c);
     }

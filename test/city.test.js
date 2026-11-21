@@ -2443,9 +2443,11 @@ test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá n
     const r = S.corpAct(c, q, { type: 'build', cells: [site], ware: true });
     assert.ok(r.ok, JSON.stringify(r));
     assert.ok(c.ware[site] === 1 && q.wares.includes(site) && q.log.some((e) => e.type === 'warehouse'));
-    c.level[site] = 2; c.dirty.buildings = true; // coi như đã xây xong: kho cấp 2
-    let rebuilt = false; for (let h = 0; h < 48 && !rebuilt; h++) { S.tick(c); rebuilt = c.corpStore[q.id] > 0; }
-    assert.ok(rebuilt && c.corpStore[q.id] === S.CORP.storeCap * 2, 'kho thêm chỗ chứa cho cả nhóm');
+    for (let h = 0; h < 24 * 12 && !c.level[site]; h++) S.tick(c); // công ty đã trả tiền: xây ngay khi đủ điện nước, không chờ nhu cầu công nghiệp
+    assert.ok(c.level[site] > 0, 'kho được xây');
+    let rebuilt = false; for (let h = 0; h < 24 * 4 && !rebuilt; h++) { S.tick(c); rebuilt = c.corpStore[q.id] > 0; }
+    assert.ok(rebuilt && c.corpStore[q.id] <= S.CORP.storeCap * Math.min(3, c.level[site]), 'kho có người làm thì thêm chỗ chứa cho cả nhóm');
+    run(c, 24 * 4); assert.ok(c.level[site] && c.biz.money[site] > 0, `phí lưu kho đủ nuôi kho (ví ${c.biz.money[site]})`);
     // kho không tính là nhà máy sản xuất (thị phần, ngành chính)
     assert.ok(S.marketShare(c, q.id, S.productAt(site, 3)) <= 1);
     // giá nội địa: chỉ số cung cầu nằm trong khung; hệ số bán chỉnh theo tồn kho; giá giao hàng trong thành phố kẹp trong khung

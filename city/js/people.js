@@ -577,10 +577,10 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
     let active = pres > 0;
     if (kind === 'raw') {
       const rk = ZDEF[c.zone[i]].raw;
-      b.sout[i] += extract(c, i, rk, Math.min(48 - b.sout[i], pres * RAW[rk].rate * prod * boost * (rk === 'fish' ? fisheryMul(c, i) : 1))); // bến cá: tàu ra ngư trường gần bến; lấy từ trữ lượng của ô (reserve.js)
+      b.sout[i] += extract(c, i, rk, Math.min(48 + (c.corpStore && c.owner ? c.corpStore[c.owner[i]] || 0 : 0) - b.sout[i], pres * RAW[rk].rate * prod * boost * (rk === 'fish' ? fisheryMul(c, i) : 1))); // bến cá: tàu ra ngư trường gần bến; lấy từ trữ lượng của ô (reserve.js)
       if (b.sout[i] >= PRICE.load) supply[rk].push(i);
     } else if (kind === 'ware') { // kho bãi, logistics: công ty trả phí lưu kho, kho trả lương; kho còn tăng chỗ chứa cho nhà máy cùng nhóm
-      c.fn.corpPayWare(c, i, pres * 0.5 * MK);
+      c.fn.corpPayWare(c, i, pres * wageAt(c, i) * 1.25 + 0.12 * MK * c.level[i]); // phí đủ trả lương, chi phí cố định, có lãi một phần
     } else if (kind === 'factory') {
       const rec = recipeOf(c, i), two = rec.length > 1; // nhà máy tầng 2 cần đủ cả hai nguyên liệu
       const use = Math.min(b.sin[i], two ? b.sin2[i] : Infinity, pres * FACT_RATE * prod, 48 + (c.corpStore && c.owner ? c.corpStore[c.owner[i]] || 0 : 0) - b.sout[i]); // kho của nhóm thêm chỗ chứa

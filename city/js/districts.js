@@ -296,7 +296,7 @@ export function districtBrief(c, d) {
     if (n) { res += n; for (const k in cov) if (c.cover && c.cover[k] && c.cover[k][i] > 0.05) cov[k] += n; }
     if (!jb || !zd.biz) continue;
     jobs += jb; vacJobs += Math.max(0, jb - (c.staff ? c.staff[i] : 0));
-    const kind = zd.biz === 'ind' ? 'factory' : zd.biz === 'res' ? 'raw' : zd.biz;
+    const kind = c.ware && c.ware[i] ? 'ware' : zd.biz === 'ind' ? 'factory' : zd.biz === 'res' ? 'raw' : zd.biz; // kho bãi của công ty không phải nhà máy (không tính thiếu nguyên liệu)
     if (biz[kind] !== undefined) biz[kind]++;
     if (!b) continue;
     if (b.money[i] < 0) losing++;

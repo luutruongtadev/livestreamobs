@@ -237,3 +237,12 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - Giá chỉnh theo kệ hàng trung bình cả ngày, không chỉ ảnh chụp lúc nửa đêm (một chuyến xe hàng tới sớm hay muộn không còn quyết định giá).
 - Chỉ số giá chung tính theo lượng bán (giá dân thật sự trả); chưa ai mua gì thì theo số chỗ làm. Cửa hàng kệ trống không bán được không kéo chỉ số lên nữa.
 - Giá từng cửa hàng và chỉ số giá được lưu vào bản lưu, nạp lại không nhảy về ×1.
+
+## 21. Rà soát kho bãi, logistics (sửa)
+
+- Ô do công ty trả tiền xây (nhà máy, kho, cửa hàng) được xây ngay khi đủ điện nước và có đường, không chờ nhu cầu công nghiệp của thành phố (trước đây kho thường không mọc lên vì lúc cần kho thì nhu cầu công nghiệp đã âm, công ty mất phí).
+- Phí lưu kho đủ trả lương (×1.25) và chi phí cố định, nên kho không còn lỗ dần tới phá sản. Kho dừng ở cấp 3 (chỗ chứa chỉ tính tới cấp 3).
+- Kho không xả khói như nhà máy, chỉ gây ồn vì xe tải.
+- Bảng thông tin ghi "🏗️ Kho bãi, logistics" kèm chỗ chứa thêm cho cả nhóm; báo cáo quận không tính kho là nhà máy thiếu nguyên liệu.
+- Chỗ chứa thêm tính theo cấp kho và số người làm (kho không ai làm thì không thêm), áp dụng cho cả mỏ, ruộng, bến cá của nhóm.
+- Công ty xin xây kho khi hàng đang ứ hoặc đang đẩy xuất khẩu (không còn dùng tổng số hàng đã từng xuất).

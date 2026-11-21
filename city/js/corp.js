@@ -338,7 +338,10 @@ export const subsOf = (c, q) => c.corp.list.filter((x) => x.parent === q.id);
 function rebuildGroups(c) {
   const g = [0], e = [0], pay = [0], mk = [0], store = [0], ware = new Uint8Array(N * N);
   for (const q of c.corp.list) { g[q.id] = rootOf(c, q.id); e[q.id] = q.export ? 1 : 0; pay[q.id] = q.pay || 1; mk[q.id] = q.markup || 1; }
-  for (const q of c.corp.list) for (const i of q.wares || []) if (c.owner[i] === q.id) { ware[i] = 1; if (c.level[i]) store[g[q.id]] = Math.min(CORP.storeMax, (store[g[q.id]] || 0) + CORP.storeCap * Math.min(c.level[i], 3)); }
+  for (const q of c.corp.list) for (const i of q.wares || []) if (c.owner[i] === q.id) { // chỗ chứa thêm theo cấp kho và mức có người làm (kho không ai làm thì không thêm gì)
+    ware[i] = 1;
+    if (c.level[i]) { const fill = c.staff ? Math.min(1, c.staff[i] / Math.max(1, jobCap(c.zone[i], c.level[i]))) : 1; store[g[q.id]] = Math.min(CORP.storeMax, (store[g[q.id]] || 0) + Math.round(CORP.storeCap * Math.min(c.level[i], 3) * fill)); }
+  }
   for (const q of c.corp.list) store[q.id] = store[g[q.id]] || 0; // kho của cả nhóm phục vụ mọi công ty trong nhóm
   c.corpGroup = g; c.corpExp = e; c.corpPay = pay; c.corpMark = mk; c.corpStore = store; c.ware = ware;
 }
@@ -815,7 +818,7 @@ function warehousePlan(c, q) {
   const fac = ids.flatMap((x) => cellsBuilt(c, x)).filter((i) => ZDEF[c.zone[i]].biz === 'ind' && !(c.ware && c.ware[i]));
   if (fac.length < 4 + wares * 3) return -1; // mỗi kho thêm cần thêm 3 nhà máy
   const avg = fac.reduce((s, i) => s + c.biz.sout[i], 0) / fac.length;
-  if (avg < 14 && !(q.xunits > 0)) return -1;
+  if (avg < 14 && !q.export) return -1; // hàng đang ứ, hoặc đang đẩy xuất khẩu
   if (q.cash < feeOf(1) * 1.2 + CORP.reserve * MK) return -1;
   return expandSite(c, q);
 }

@@ -930,12 +930,12 @@ function showInfo(tile) {
   } else if (c.water[i]) { title = c.fishery && c.fishery[i] ? '🎣 Ngư trường' : '🌊 Mặt nước'; if (c.fishery && c.fishery[i]) add('Ngư trường', 'Tàu cá của các bến cá trong ' + S.FISHERY.reach + ' ô ra đây đánh bắt; nước càng sạch càng nhiều cá'); add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
   else {
     const z = c.zone[i], L = c.level[i], zd = S.ZDEF[z];
-    const kind = S.bizKind(c, i);
+    const kind = c.ware && c.ware[i] ? 'ware' : S.bizKind(c, i); // kho bãi của công ty: không sản xuất
     const need = kind === 'market' ? S.RAW[S.needOf(c, i)] : null;
     const prod = kind === 'factory' ? S.PRODUCTS[S.productOf(c, i)] : null, rec = kind === 'factory' ? S.recipeOf(c, i) : null; // chuỗi sản xuất nhiều tầng
     const mname = (k) => S.MKT_NAME[k] || k;
     const dq = S.districtOf(c, i); if (dq >= 0) add('Quận', `${c.dist.list[dq].name} · chủ tịch ${c.dist.list[dq].chair}`);
-    title = L ? `${zd.icon} ${prod ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${prod.icon} ${prod.name.toLowerCase()}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
+    title = L && kind === 'ware' ? `🏗️ Kho bãi, logistics cấp ${L}` : L ? `${zd.icon} ${prod ? `${z === 21 ? 'Xưởng' : 'Nhà máy'} ${prod.icon} ${prod.name.toLowerCase()}` : zd.name} cấp ${L}` : z ? zd.name : !c.own[i] ? 'Đất chưa mua' : c.acc[i] ? 'Ô đất cạnh đường' : 'Đất trống';
     if (L) {
       const h = S.cellHappy(c, i), rc = S.resCap(z, L), jb = S.jobCap(z, L);
       if (rc) {
@@ -962,6 +962,7 @@ function showInfo(tile) {
           add('Làm ra', `${prod.icon} ${prod.name} từ ${rec.map(mname).join(' + ')}${prod.tier ? ' (tầng 2: cần đủ cả hai)' : ''} · giá gốc ${fmt(S.priceOf(S.productOf(c, i)))} ₫`);
           rec.forEach((k, j) => add(`${mname(k)} trong kho`, `${(j ? b.sin2[i] : b.sin[i]).toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`));
         }
+        if (kind === 'ware') { const own = c.owner[i], st = (c.corpStore && c.corpStore[own]) || 0; add('Kho bãi', `Thêm ${st} chỗ chứa cho mỗi cơ sở sản xuất của cả nhóm (theo cấp kho và số người làm) · hàng trong nhóm giao nhanh hơn · xuất khẩu theo lô 24`); add('Thu phí lưu kho', 'Công ty trả theo lương, chi phí cố định, có lãi một phần'); }
         if (kind === 'shop' || kind === 'market') add('Giá bán lẻ', `<span class="${(b.rp[i] || 1) > 1.1 ? 'neg' : ''}">×${(b.rp[i] || 1).toFixed(2)}</span> so với giá gốc · ${b.sin[i] < 6 ? 'kệ gần cạn, giá đang lên' : b.sin[i] > 25 ? 'hàng ứ, đang hạ giá' : 'cung cầu cân bằng'}`);
         if (kind === 'shop') add('Hàng trong kho', `${b.sin[i].toFixed(1)} · giá trị TB ×${(b.sinK[i] || 1).toFixed(2)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
         if (kind === 'raw') { const left = S.reserveLeft(c, i, zd.raw), R = S.RESERVE[zd.raw]; add('Trữ lượng còn', `${Math.round(left * 100)}%${R.regen ? ` · tự hồi ${Math.round(R.regen * 100)}% mỗi ngày` : ' · không tái tạo'}`); }
