@@ -951,6 +951,11 @@ function showInfo(tile) {
         const b = c.biz;
         add('Nhân viên', `${c.staff[i]} / ${jb} (đang có mặt ${c.present[i]})`);
         add('Lương · yêu cầu', `${S.wageAt(c, i).toFixed(2)} ₫/giờ · ${S.EDU_NAME[S.reqEdu(z, L)].toLowerCase()}`);
+        { // chủ sở hữu: công ty nào, thuộc tập đoàn nào (công ty là lớp sở hữu phủ lên ô, corp.js)
+          const q = c.owner && c.owner[i] ? S.corpById(c, c.owner[i]) : null, root = q && S.corpById(c, S.rootOf(c, q.id));
+          if (q) add('Thuộc', `🏢 ${S.corpTitle(q)}${root && root !== q ? ` · nhóm ${S.corpTitle(root)}` : ''}${c.ware && c.ware[i] ? ' · kho bãi' : ''}`);
+          else if (kind === 'factory' || kind === 'raw' || kind === 'shop' || kind === 'market') add('Thuộc', 'Doanh nghiệp độc lập');
+        }
         add('Tiền của doanh nghiệp', `<span class="${b.money[i] < 0 ? 'neg' : ''}">${fmt(b.money[i])} ₫</span>`);
         if (kind === 'market') add(`${need.icon} ${need.name} trên sạp`, `${b.sin[i].toFixed(1)}${b.incoming[i] ? ' · 🚚 xe hàng đang tới' : ''}`);
         if (kind === 'factory') {
@@ -1612,7 +1617,8 @@ function openSide(id) {
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
-  if (id === 'corp' && $('corp').classList.contains('show')) renderCorp(true);
+  if (id === 'corp' && $('corp').classList.contains('show')) { layer = LAYERS.findIndex((l) => l[0] === 'corp'); applyOverlay(); refreshLayers(); renderCorp(true); } // mở bảng 🏢: bật lớp tập đoàn để thấy công ty đang chọn
+  corpFocus();
   if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
   if (id === 'saves') { renderSlots(); renderCloud(); cloudRefresh(); }
   if (id === 'dev') renderDev();
@@ -1716,6 +1722,12 @@ function keepFocus(fn) {
 
 /** Bảng 🏢 Tập đoàn: đề xuất đang chờ thị trưởng, danh sách công ty, chi tiết + lịch sử của công ty đang chọn. */
 let corpSel = 0;
+/** Tô sáng các cơ sở của công ty đang chọn trong bảng 🏢 (lớp xem tập đoàn); đóng bảng thì bỏ. Chỉ để xem, không lưu. */
+function corpFocus() {
+  const c = city; if (!c || !c.corp) return;
+  const q = $('corp').classList.contains('show') ? c.corp.list[corpSel] : null, id = q ? q.id : 0;
+  if ((c.corpFocus || 0) !== id) { c.corpFocus = id; c.dirty.zones = true; }
+}
 const CORP_LOG = {
   founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
   ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
@@ -1764,6 +1776,7 @@ function renderCorp0(force) {
   }
   if (!C.list.length) { root.append(el('p', null, `Chưa có công ty nào: cần ${S.CORP.foundMin} dân và nhà máy đang chạy có lãi để hình thành công ty.`)); return; }
   if (corpSel >= C.list.length) corpSel = 0;
+  corpFocus(); // công ty đang chọn có thể vừa giải thể
   { // công cụ của thị trưởng: chống độc quyền, hỗ trợ doanh nghiệp nhỏ
     const row = el('div', 'opts'), sme = el('button', 'mini', '🛡️ Bảo hộ DN nhỏ 30 ngày'), riv = el('button', 'mini', '🎯 Mời đối thủ mới');
     sme.title = 'Tốn 150 MK ngân sách, chia vốn cho các xưởng độc lập; 30 ngày không bị tập đoàn mua lại'; riv.title = 'Lập ngay một công ty mới từ xưởng độc lập, khác sản phẩm của bên đang áp đảo';
@@ -1785,7 +1798,7 @@ function renderCorp0(force) {
   order.forEach((q) => {
     const k = C.list.indexOf(q), st = S.corpStats(c, q), [r, g, b] = DCOL[S.rootOf(c, q.id) % DCOL.length], tr = el('tr', 'row1' + (k === corpSel ? ' on' : ''));
     [(q.parent ? '↳ ' : '') + S.corpTitle(q), S.STAGES[st.stage], st.cells + (st.pending ? `+${st.pending}` : ''), st.jobs, `${st.influence}%`, money(q.cash)].forEach((v, j) => { const td = el('td', null, String(v)); if (!j) td.style.borderLeft = `4px solid rgb(${r},${g},${b})`; tr.append(td); });
-    tr.onclick = () => { corpSel = k; renderCorp(true); };
+    tr.onclick = () => { corpSel = k; renderCorp(true); corpFocus(); };
     tb.append(tr);
   });
   root.append(tb);

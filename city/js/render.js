@@ -916,6 +916,9 @@ export class View {
         // tập đoàn: mỗi công ty một màu; ô đã xây đậm, ô đang xây dở nhạt
         const o = c.owner ? (c.corpGroup ? c.corpGroup[c.owner[i]] : c.owner[i]) : 0; // công ty con cùng màu tập đoàn mẹ
         if (o) { [r, g, b] = DCOL[o % DCOL.length]; a = c.level[i] ? (c.hub && c.hub[i] ? 235 : 190) : 100; } // cụm kinh tế đậm hơn
+        if (o && c.corpFocus) { // đang chọn một công ty trong bảng 🏢: cơ sở của nó sáng rõ, còn lại mờ đi
+          if (c.owner[i] === c.corpFocus) { r = (r + 255 * 2) / 3; g = (g + 255 * 2) / 3; b = (b + 255 * 2) / 3; a = c.level[i] ? 255 : 150; } else a = 45;
+        }
       } else if (mode === 'waterpol') {
         const v = c.waterPol[i]; if (v > 0.03) { r = 150; g = 90; b = 30; a = 60 + 170 * v; }
       } else if (!c.water[i]) {
