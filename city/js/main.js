@@ -1723,7 +1723,7 @@ const CORP_LOG = {
   subsidiary: (e) => `Lập công ty con ${e.name} (${e.n} nhà máy, vốn ${money(e.cash)})`, exportOn: (e) => `Đẩy xuất khẩu: tồn kho thành phẩm ${e.stock}`, exportOff: (e) => `Dừng đẩy xuất khẩu (tồn kho ${e.stock})`,
   decision: (e) => `${e.ai ? '🤖 ' : ''}Quyết: ${S.OPTS[e.id] || e.id}${e.ok ? '' : ' (không thực hiện được)'}${e.text ? ` — “${e.text}”` : ''}`,
   acquire: (e) => (e.kind === 'rival' ? `Mua lại ${e.name} (${e.n} nhà máy) giá ${money(e.cost)}` : e.kind === 'shop' ? `Mua một cửa hàng cho chuỗi bán lẻ giá ${money(e.cost)}` : `Mua một xưởng độc lập giá ${money(e.cost)}`), acquired: (e) => `Bị ${e.by} mua lại giá ${money(e.cost)}`,
-  jv: (e) => `Liên doanh ${e.name} với ${e.partner}, góp ${money(e.cash)}`, loan: (e) => `Vay ngân hàng ${money(e.amount)}`, loanPaid: () => 'Trả hết nợ vay', default: (e) => `Vỡ nợ ${money(e.debt)} khi giải thể`,
+  jv: (e) => `Liên doanh ${e.name} với ${e.partner}, góp ${money(e.cash)}`, loan: (e) => `Vay ngân hàng ${money(e.amount)}`, loanPaid: () => 'Trả hết nợ vay', default: (e) => `Vỡ nợ ${money(e.debt)}, ngân hàng xoá nợ`,
   crisis: (e) => `Khủng hoảng: quỹ ${money(e.cash)}, nhà máy chạy ${e.eff}% công suất`, payUp: (e) => `Thiếu người (${e.fill}% chỗ làm có người): tăng lương 15% để giành lao động`, payDown: (e) => `Hạ lương về mức cũ (${e.fill}% chỗ có người)`,
   monopoly: (e) => `Nắm quá 60% ${S.PRODUCTS[e.product] ? S.PRODUCTS[e.product].name.toLowerCase() : ''} của thành phố: độc quyền`, monopolyEnd: () => 'Hết độc quyền', dependence: (e) => `Giữ ${e.share}% việc làm của thành phố`, shock: (e) => `Sụp đổ, thành phố mất ${e.share}% việc làm`,
   warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`,

@@ -2385,7 +2385,7 @@ test('city: tập đoàn Phase 3 — mua lại, liên doanh, vay, độc quyền
     const m = S.marketShare(c, a.id, S.corpSector(c, a)); assert.ok(m >= 0 && m <= 1);
     // sụp đổ của nhóm lớn: cú sốc niềm tin cho cả thành phố
     const z = c.corp.list.find((x) => !x.parent && !x.partners);
-    z.lastShare = 0.2; for (const [i] of z.cells) { c.owner[i] = 0; } z.cells = []; z.cash = 0;
+    z.lastShare = 0.2; for (const x of [z, ...S.subsOf(c, z)]) { for (const [i] of x.cells) c.owner[i] = 0; x.cells = []; x.cash = 0; } // cả nhóm sụp
     const n0 = c.council.mods.length; while (c.hour % 24 !== 5) run(c, 1); run(c, 2);
     assert.ok(c.council.mods.length > n0 && c.council.mods.some((x) => x.from === 'corp' && x.v < 0), 'sụp đổ gây sốc');
     // lưu / nạp giữ nợ, liên doanh, bảo hộ; sổ tiền khớp
@@ -2393,6 +2393,39 @@ test('city: tập đoàn Phase 3 — mua lại, liên doanh, vay, độc quyền
     assert.equal(back.corp.sme, c.corp.sme); assert.ok(back.corp.list.every((x) => x.debt >= 0));
     LG.resetLedger(c); // quỹ ở trên do test đặt tay: tính lại gốc sổ rồi chạy tiếp (có nợ vay, lãi, liên doanh)
     run(c, 24 * 6); const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+  } finally { Object.assign(S.CORP, keep); }
+});
+
+test('city: tập đoàn — bán cơ sở khi khủng hoảng, duyệt dự án khi quỹ đã hụt, mua đối thủ trả cho dân, vỡ nợ; sổ tiền vẫn khớp', () => {
+  const c = town(); run(c, 120);
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    run(c, 24 * 8);
+    const q = c.corp.list.find((x) => x.kind !== 'trade' && S.cellsBuilt(c, x).length >= 2);
+    assert.ok(q, 'có công ty');
+    LG.resetLedger(c);
+    // bán cơ sở yếu nhất: không ném lỗi, ô thành doanh nghiệp độc lập
+    const n0 = q.cells.length, r = S.corpDo(c, q, 'release');
+    assert.ok(r.ok && q.cells.length === n0 - 1, JSON.stringify(r));
+    // duyệt dự án khi quỹ đã hụt trong lúc chờ: từ chối, quỹ không âm
+    q.cash = 1e6 * S.MK; q.cool.ask = 0; c.corp.asks = []; q.stage = 4; c.stats.powerCap = 1e9;
+    const sites = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i] && !c.owner[i]).slice(0, 4);
+    const ask = S.corpAct(c, q, { type: 'ask', sites });
+    assert.ok(ask.ok, JSON.stringify(ask));
+    q.cash = sites.length * S.CORP.cellFee * S.MK + 41 * S.MK;
+    assert.equal(S.approveAsk(c, ask.ask.id).ok, false); assert.ok(q.cash > 0 && !c.corp.asks.length);
+    // mua đối thủ: tiền về tay dân, không vào quỹ đối thủ (giờ là công ty con)
+    const b = S.inviteRival(c).corp;
+    if (b && b.cells.length) {
+      q.cash = 4000 * S.MK; q.stage = 2; q.cool.acq = 0; q.parent = 0; b.cash = 0; for (const [i] of b.cells) c.biz.eff[i] = 0.1;
+      const a = S.corpAct(c, q, { type: 'acquire' });
+      if (a.rival) assert.equal(b.cash, 0, 'đối thủ không nhận lại tiền mua');
+    }
+    // nợ không trả nổi phình quá 2 lần hạn mức thì vỡ nợ, bị cấm vay
+    q.cash = 0; q.debt = 1e9; while (c.hour % 24 !== 5) run(c, 1); run(c, 2);
+    assert.ok(q.debt === 0 && q.cool.loan > c.day && q.log.some((e) => e.type === 'default'));
+    LG.resetLedger(c); run(c, 24 * 4);
+    const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
   } finally { Object.assign(S.CORP, keep); }
 });
 

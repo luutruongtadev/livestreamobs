@@ -219,3 +219,14 @@ Mọi tác động đã có đường dẫn trong sim, chỉ cần công ty *t�
 - Tập đoàn sản xuất bậc 3 mua cửa hàng thì cửa hàng vào **công ty con thương mại** của nhóm (như "Đại Việt Thương mại"), được ưu tiên nhận hàng từ nhà máy cùng nhóm.
 - Độc quyền bán lẻ: nhóm giữ ≥ 4 cửa hàng và ≥ 60% số cửa hàng thành phố bị cảnh báo và bị chặn mua thêm, như độc quyền sản phẩm.
 - Công ty thương mại có logo trên cửa hàng, cùng bảng 🏢. Chưa có: bậc 4 cho thương mại (cần công ty con), kho riêng.
+
+## 19. Rà soát logic (sửa lỗi)
+
+- Bán cơ sở khi khủng hoảng từng làm lượt 6h của tập đoàn ném lỗi (hàm chọn ô yếu nhất bị xoá nhầm ở Phase 2): đã khôi phục, giữ kho bãi lại sau cùng.
+- Duyệt dự án: quỹ phải còn đủ phí xây + phí đất + dự phòng tại lúc duyệt (quỹ có thể hụt trong 8 ngày chờ), không thì đề xuất bị huỷ; phí đất tính theo số ô thật sự được giao. Quỹ không còn âm; công ty giải thể khi quỹ âm cũng không làm lệch sổ.
+- Mua lại đối thủ: tiền trả cho cổ đông cũ (dân), không vào quỹ đối thủ (vì đối thủ thành công ty con, tiền sẽ quay về nhóm). Chỉ công ty gốc mua đối thủ, nhóm không quá 3 công ty con (+ 1 công ty con thương mại).
+- Liên doanh chỉ giữa công ty cùng loại, và công ty liên doanh cùng loại với bên khởi xướng.
+- Công ty mẹ hết ô nhưng công ty con còn sống thì không tính là nhóm sụp đổ (không gây sốc).
+- Lập công ty con không làm mẹ bị tính sai cam kết việc làm (việc làm chuyển sang con được trừ khỏi mốc).
+- Tên công ty không trùng (công ty con thương mại, công ty con, liên doanh).
+- Nợ không trả nổi phình quá 2 lần hạn mức thì vỡ nợ: ngân hàng xoá nợ, công ty mất uy tín, bị cấm vay 60 ngày.
