@@ -3,7 +3,7 @@
 // Công ty chỉ có: quỹ (nằm trong totalMoney), CEO với tính cách, và các hành động đi qua MỘT cổng corpAct (kiểm tra → thực thi →
 // ghi lịch sử). Phase 1: CEO chạy bằng luật theo tính cách (chưa gọi LLM; LLM sẽ chỉ chọn trong danh sách hành động hợp lệ).
 // Mọi chuyển tiền là chuyển nội bộ trong thành phố hoặc đi qua procure / inner / world, nên sổ cái vẫn khớp.
-import { N, MK, ZDEF, SERVICES, PRODUCTS, RAW_KINDS, PRODUCT_KINDS, productAt, jobCap, hash2, clamp } from './base.js';
+import { N, MK, ZDEF, PRODUCTS, RAW_KINDS, PRODUCT_KINDS, productAt, jobCap, hash2, clamp } from './base.js';
 import { inner, world, worldCan } from './ledger.js';
 import { decorFx } from './decor.js';
 
@@ -12,6 +12,7 @@ export const CORP = {
   sweepFrom: 150, sweepRate: 0.35, // cuối ngày: ô sở hữu có quá 150 MK thì 35% phần dư về quỹ công ty
   cellFee: 80, reserve: 40, // phí phát triển một ô (thuê doanh nghiệp xây); quỹ tối thiểu giữ lại
   landFee: 30, // phí đất nộp ngân sách mỗi ô khi dự án được duyệt
+  infraFee: 25, // phí hạ tầng xử lý nước thải: công ty sản xuất nộp ngân sách mỗi ô khi được duyệt (thay cho việc đo cống: công ty không tự xây được hạ tầng)
   askDays: 8, askCool: 15, breachCool: 30, actCool: 3, // hạn trả lời, nghỉ sau khi bị từ chối / sai cam kết, nhịp hành động
   commitDays: 40, jobsPerCell: 7, pendDays: 40, maxLog: 120,
   foundEvery: 6, foundMin: 300, // lập công ty mới: mỗi 6 ngày, thành phố từ 300 dân
@@ -22,7 +23,7 @@ export const CORP = {
   storeCap: 16, storeMax: 64, wareMax: 3, wareFee: 0.5, // kho bãi: mỗi kho thêm 16 chỗ chứa cho mỗi nhà máy của nhóm (tối đa 64), tối đa 3 kho; phí lưu kho 0.5 MK mỗi người làm mỗi giờ
   dpMin: 0.8, dpMax: 1.3, mkMin: 0.9, mkMax: 1.2, priceMax: 1.35, // giá nội địa: chỉ số cung cầu 0.8–1.3, hệ số bán của từng công ty 0.9–1.2, tổng không quá 1.35
   retailMin: 3, // chuỗi bán lẻ: từ bậc 3
-  termSewage: 0.8, termGreen: 0.3, termFire: 2, // cam kết phụ: nối cống xả thải ≥ 80% số ngày; độ xanh quanh ô ≥ 30%; tối đa 2 ngày có cháy trong hạn
+  termGreen: 0.3, termFire: 2, // cam kết phụ: độ xanh quanh ô ≥ 30%; tối đa 2 ngày có cháy trong hạn
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
@@ -42,16 +43,16 @@ export const corpTitle = (q) => `${prefix(q.stage)} ${q.name}`;
 
 /** Cam kết phụ (ngoài việc làm), đều đo được từ dữ liệu game. */
 export const TERM_KEYS = ['sewage', 'green', 'safe'];
-export const TERMS = { sewage: 'Nối cống xả thải', green: 'Xanh hoá quanh nhà máy', safe: 'An toàn phòng cháy' };
+export const TERMS = { sewage: 'Phí hạ tầng nước thải', green: 'Xanh hoá quanh nhà máy', safe: 'An toàn phòng cháy' };
 export const termLine = (k) => ({
-  sewage: `nối cống xả thải trên ${Math.round(CORP.termSewage * 100)}% số ngày`,
+  sewage: `nộp phí hạ tầng nước thải ${CORP.infraFee} MK mỗi ô`,
   green: `độ xanh quanh nhà máy từ ${Math.round(CORP.termGreen * 100)}%`,
   safe: `không quá ${CORP.termFire} ngày có cháy ở ô dự án`,
 }[k] || k);
-/** Cam kết phụ theo loại và bậc công ty: sản xuất cần cống (nếu thành phố có), bậc 3 trở lên thêm xanh hoá và phòng cháy; bán lẻ chỉ phòng cháy. */
+/** Cam kết phụ theo loại và bậc công ty: sản xuất nộp phí hạ tầng nước thải (không đo, nộp ngay khi duyệt), bậc 3 trở lên thêm xanh hoá và phòng cháy; bán lẻ chỉ phòng cháy. */
 export function termsFor(c, q) {
   if (q.kind === 'trade') return ['safe'];
-  const t = c.services && c.services.some((s) => SERVICES[s.type] && SERVICES[s.type].sewage) ? ['sewage'] : [];
+  const t = ['sewage'];
   if (q.stage >= 3) t.push('green', 'safe');
   return t;
 }
@@ -209,6 +210,9 @@ function projectSites(c, q, n) {
 // ───────────────────────── cổng hành động ─────────────────────────
 
 const feeOf = (n) => n * CORP.cellFee * MK;
+/** Quỹ cần có cho dự án n ô: phí xây + phí đất + phí hạ tầng (nếu có cam kết nước thải) + quỹ dự phòng. */
+const infraOf = (terms, n) => ((terms || []).includes('sewage') ? CORP.infraFee * MK * n : 0);
+const projNeed = (terms, n) => feeOf(n) + CORP.landFee * MK * n + infraOf(terms, n) + CORP.reserve * MK;
 /** Khu quy hoạch công ty xây: công ty thương mại xây cửa hàng (khu 2), công ty sản xuất xây nhà máy (khu 3). */
 const buildZone = (q) => (q.kind === 'trade' ? 2 : 3);
 /** Điện còn dư (nhà máy mới cần điện): từ chối nếu mạng điện đã chạm trần. */
@@ -291,10 +295,9 @@ export function corpAct(c, q, act) {
     if (c.day < q.cool.ask) return { ok: false, reason: 'Đang trong thời gian nghỉ đề xuất' };
     const sites = (act.sites || []).filter((i) => siteOk(c, i));
     if (!sites.length) return { ok: false, reason: 'Không có khu đất phù hợp' };
-    const need = feeOf(sites.length) + CORP.landFee * MK * sites.length + CORP.reserve * MK, jv = act.jv ? corpById(c, act.jv) : null;
+    const jv = act.jv ? corpById(c, act.jv) : null, terms = termsFor(c, jv ? { ...q, stage: Math.min(q.stage, jv.stage) } : q), need = projNeed(terms, sites.length);
     if (jv ? q.cash < need / 2 || jv.cash < need / 2 : q.cash < need) return { ok: false, reason: 'Quỹ không đủ cho dự án' };
     const k = 1 - Math.min(0.4, influence(c, q) / 100); // công ty càng lớn càng cam kết ít việc làm hơn (ảnh hưởng)
-    const terms = termsFor(c, jv ? { ...q, stage: Math.min(q.stage, jv.stage) } : q);
     const a = { id: c.corp.nextAsk++, corp: q.id, day: c.day, expires: c.day + CORP.askDays, terms, sites, jobs: Math.round(sites.length * CORP.jobsPerCell * k * (q.kind === 'trade' ? 0.45 : 1)), days: CORP.commitDays, status: 'open', countered: 0, jv: jv ? jv.id : 0 };
     c.corp.asks.push(a); corpLog(c, q, 'ask', { n: sites.length, jobs: a.jobs, jv: jv ? jv.name : undefined });
     news(c, `🏭 ${corpTitle(q)}${jv ? ` cùng ${corpTitle(jv)} (liên doanh)` : ''} xin cấp ${sites.length} ô đất làm nhà máy, cam kết thêm ${a.jobs} việc làm${terms.length ? `, ${terms.map(termLine).join(', ')}` : ''} trong ${a.days} ngày (xem 🏢 Tập đoàn)`);
@@ -311,7 +314,7 @@ export function approveAsk(c, id) {
   let q = a && corpById(c, a.corp);
   if (!a || !q) return { ok: false, reason: 'Đề xuất không còn' };
   if (a.jv) { // liên doanh: hai công ty góp vốn đều nhau vào công ty mới, công ty mới xây và chịu cam kết
-    const p = corpById(c, a.jv), need = feeOf(a.sites.length) + CORP.landFee * MK * a.sites.length + CORP.reserve * MK, half = need / 2;
+    const p = corpById(c, a.jv), need = projNeed(a.terms, a.sites.length), half = need / 2;
     if (!p || q.cash < half || p.cash < half) { c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Một bên liên doanh không còn đủ vốn' }; }
     const jq = makeCorp(c, uniqueName(c, [`Liên doanh ${q.name.split(' ')[0]}–${p.name.split(' ')[0]}`]), q.ceo, q.sector, 0, 0, q.kind || 'ind');
     jq.partners = [q.id, p.id]; q.cash -= half; p.cash -= half; jq.cash = half * 2;
@@ -320,16 +323,18 @@ export function approveAsk(c, id) {
     q = jq; rebuildGroups(c);
   }
   // quỹ có thể đã hụt trong lúc chờ duyệt: phải đủ cả phí xây, phí đất và quỹ dự phòng thì mới xây (không để quỹ âm)
-  if (q.cash < feeOf(a.sites.length) + CORP.landFee * MK * a.sites.length + CORP.reserve * MK) { corpLog(c, q, 'askFailed', { text: 'Quỹ không còn đủ cho dự án' }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Quỹ công ty không còn đủ cho dự án' }; }
+  if (q.cash < projNeed(a.terms, a.sites.length)) { corpLog(c, q, 'askFailed', { text: 'Quỹ không còn đủ cho dự án' }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Quỹ công ty không còn đủ cho dự án' }; }
   const base = jobsOf(c, q);
   const r = corpAct(c, q, { type: 'build', cells: a.sites, approved: true });
   if (!r.ok) { corpLog(c, q, 'askFailed', { text: r.reason }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return r; }
   const land = CORP.landFee * MK * r.n; // phí đất theo số ô thật sự được giao
   q.cash -= land; c.money += land; inner(c, 'corpLand', land); // phí đất: quỹ công ty → ngân sách (trong thành phố)
+  const infra = infraOf(a.terms, r.n); // phí hạ tầng nước thải: quỹ công ty → ngân sách, để thị trưởng xây cống, trạm xử lý
+  if (infra > 0) { q.cash -= infra; c.money += infra; inner(c, 'corpInfra', infra); }
   const jobs = Math.round(a.jobs * (r.n / a.sites.length));
   q.deals.push({ id: a.id, cells: r.n, jobs, base, due: c.day + a.days, status: 'open', ids: a.sites.filter((i) => c.owner[i] === q.id), terms: (a.terms || []).filter((k) => TERM_KEYS.includes(k)), st: { n: 0, sw: 0, gr: 0, fd: 0 } });
   q.trust = clamp(q.trust + 0.5, -3, 5);
-  corpLog(c, q, 'approved', { n: r.n, jobs, due: c.day + a.days });
+  corpLog(c, q, 'approved', { n: r.n, jobs, due: c.day + a.days, infra: Math.round(infra) });
   c.corp.asks = c.corp.asks.filter((x) => x !== a);
   news(c, `🏭 Đã duyệt: ${corpTitle(q)} xây ${r.n} nhà máy, cam kết thêm ${jobs} việc làm${a.terms && a.terms.length ? `, ${a.terms.map(termLine).join(', ')}` : ''} đến ngày ${c.day + a.days + 1}`);
   return { ok: true, built: r.n };
@@ -443,7 +448,7 @@ export function corpOptions(c, q) {
   if (q.cash < chest) return { ids: [], def: 'hold' };
   const n = Math.min(5, 2 + q.stage);
   const can = { expand: q.cells.length < capCells(q) && expandSite(c, q) >= 0 && powerOk(c), project: false, subsidiary: !!subsidiaryPlan(c, q), acquire: !!acquirePlan(c, q), jv: !!jvPlan(c, q), warehouse: warehousePlan(c, q) >= 0 };
-  if (q.cash >= feeOf(n) + CORP.landFee * MK * n + CORP.reserve * MK && !c.corp.asks.length && c.day >= q.cool.ask && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
+  if (q.cash >= projNeed(termsFor(c, q), n) && !c.corp.asks.length && c.day >= q.cool.ask && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
   for (const k of ['warehouse', 'expand', 'project', 'subsidiary', 'acquire', 'jv']) if (can[k]) ids.push(k);
   if (!ids.length) return { ids: [], def: 'hold' };
   ids.push('hold');
@@ -538,7 +543,6 @@ function sampleDeal(c, q, d) {
   if (!ids.length) return;
   const st = d.st || (d.st = { n: 0, sw: 0, gr: 0, fd: 0 });
   st.n++;
-  if (d.terms.includes('sewage')) st.sw += ids.filter((i) => c.sOk && c.sOk[i] === 1).length / ids.length;
   if (d.terms.includes('green')) st.gr += ids.reduce((s, i) => s + greenOf(c, i), 0) / ids.length;
 }
 function evalDeals(c, q) {
@@ -548,7 +552,6 @@ function evalDeals(c, q) {
     if (c.day < d.due) continue;
     const got = jobsOf(c, q) - d.base, st = d.st || { n: 0, sw: 0, gr: 0, fd: 0 }, terms = d.terms || [], fails = [];
     if (st.n > 0) {
-      if (terms.includes('sewage') && st.sw / st.n < CORP.termSewage) fails.push('sewage');
       if (terms.includes('green') && st.gr / st.n < CORP.termGreen) fails.push('green');
     }
     if (terms.includes('safe') && st.fd > CORP.termFire) fails.push('safe');
@@ -730,7 +733,7 @@ function acquirePlan(c, q) {
 /** Liên doanh: một công ty gốc khác đủ vốn và (tuỳ tính cách, quan hệ) chịu góp nửa vốn một dự án 2 ô. */
 function jvPlan(c, q) {
   if (q.parent || q.partners || c.corp.asks.length || c.day < q.cool.ask) return null;
-  const n = 2, need = feeOf(n) + CORP.landFee * MK * n + CORP.reserve * MK;
+  const n = 2, need = projNeed(termsFor(c, q), n);
   if (q.cash < need / 2 + CORP.reserve * MK || !powerOk(c)) return null;
   let best = null;
   for (const r of c.corp.list) {

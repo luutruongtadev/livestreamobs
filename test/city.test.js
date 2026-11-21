@@ -2317,8 +2317,7 @@ test('city: tập đoàn — cam kết phụ (cống xả thải, xanh hoá, ph�
     assert.deepEqual(S.termsFor(c, { kind: 'trade', stage: 4 }), ['safe']);
     assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 1 }), ['sewage']);
     assert.deepEqual(S.termsFor(c, { kind: 'ind', stage: 3 }), ['sewage', 'green', 'safe']);
-    const noSewer = { ...c, services: [] };
-    assert.deepEqual(S.termsFor(noSewer, { kind: 'ind', stage: 3 }), ['green', 'safe'], 'thành phố chưa có cống thì không đòi cam kết cống');
+    assert.ok(S.CORP.infraFee > 0 && !('termSewage' in S.CORP), 'cống xả thải là phí hạ tầng, không đo công suất');
     // xin, duyệt: cam kết ghi vào đề xuất và vào hợp đồng, có danh sách ô để đo
     q.cash = 5000 * S.MK; q.cool.ask = 0; c.corp.asks = []; q.stage = 3; q.ceo = 'bold';
     const site = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
@@ -2326,9 +2325,22 @@ test('city: tập đoàn — cam kết phụ (cống xả thải, xanh hoá, ph�
     assert.ok(ask.ok, ask.reason);
     assert.deepEqual(ask.ask.terms, ['sewage', 'green', 'safe']);
     c.stats.powerCap = 1e9;
+    const m0 = c.money, cash0 = q.cash;
     assert.ok(S.approveAsk(c, ask.ask.id).ok);
     const d = q.deals[q.deals.length - 1];
     assert.deepEqual(d.terms, ['sewage', 'green', 'safe']);
+    const nBuilt = d.cells, infra = S.CORP.infraFee * S.MK * nBuilt, land = S.CORP.landFee * S.MK * nBuilt;
+    assert.ok(Math.abs((c.money - m0) - (land + infra)) < 1e-6, 'phí đất và phí hạ tầng nước thải về ngân sách');
+    assert.ok(q.log.some((e) => e.type === 'approved' && e.infra === Math.round(infra)), 'nhật ký ghi phí hạ tầng');
+    assert.ok(cash0 - q.cash >= land + infra, 'quỹ công ty trả đủ phí');
+    // quỹ không đủ phí hạ tầng thì không xin được
+    q.cash = (S.CORP.cellFee + S.CORP.landFee) * S.MK * 2 + S.CORP.reserve * S.MK; q.cool.ask = 0; c.corp.asks = [];
+    const fresh = [...c.level.keys()].filter((i) => !c.level[i] && !c.zone[i] && !c.owner[i] && c.acc[i] && c.own[i] && !c.road[i] && !c.occ[i] && !c.water[i] && !c.steep[i]).slice(0, 2);
+    assert.equal(fresh.length, 2);
+    const poor = S.corpAct(c, q, { type: 'ask', sites: fresh });
+    assert.equal(poor.ok, false, 'đủ phí xây + đất nhưng thiếu phí hạ tầng thì không xin được');
+    assert.equal(poor.reason, 'Quỹ không đủ cho dự án');
+    q.cash = 5000 * S.MK;
     assert.ok(d.ids.length >= 1 && d.ids.every((i) => c.owner[i] === q.id), 'ô dự án được ghi lại để đo');
     // lưu / nạp giữ cam kết phụ và số đo đã tích luỹ
     d.st = { n: 3, sw: 1.5, gr: 0.6, fd: 1 };

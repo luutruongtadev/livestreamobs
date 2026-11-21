@@ -1822,7 +1822,7 @@ function renderCorp0(force) {
   { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono] ? S.PRODUCTS[st.mono].name.toLowerCase() : 'bán lẻ'}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
   for (const d of q.deals) {
     const st = d.st || { n: 0, sw: 0, gr: 0, fd: 0 }, prog = [];
-    if (d.status === 'open' && d.terms) for (const k of d.terms) prog.push(k === 'sewage' ? `🚰 cống ${st.n ? Math.round((100 * st.sw) / st.n) : 0}%/${Math.round(S.CORP.termSewage * 100)}%` : k === 'green' ? `🌳 xanh ${st.n ? Math.round((100 * st.gr) / st.n) : 0}%/${Math.round(S.CORP.termGreen * 100)}%` : `🔥 cháy ${st.fd}/${S.CORP.termFire} ngày`);
+    if (d.status === 'open' && d.terms) for (const k of d.terms) prog.push(k === 'sewage' ? '🚰 đã nộp phí hạ tầng' : k === 'green' ? `🌳 xanh ${st.n ? Math.round((100 * st.gr) / st.n) : 0}%/${Math.round(S.CORP.termGreen * 100)}%` : `🔥 cháy ${st.fd}/${S.CORP.termFire} ngày`);
     card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}${prog.length ? ` · ${prog.join(' · ')}` : d.terms && d.terms.length ? ` · ${d.terms.map((k) => S.TERMS[k]).join(', ')}` : ''}`), el('br'));
   }
   card.append(el('h4', null, 'Lịch sử'));

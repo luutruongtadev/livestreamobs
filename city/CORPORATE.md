@@ -253,8 +253,8 @@ Ngoài việc làm, một đề xuất có thể kèm các cam kết phụ, đo 
 
 | Cam kết | Ai phải có | Đo bằng | Ngưỡng |
 |---|---|---|---|
-| 🚰 Nối cống xả thải | Công ty sản xuất, khi thành phố đã có công trình xử lý nước thải | Trung bình theo ngày: tỷ lệ ô dự án nối mạng thoát nước và chưa quá tải (`sOk`) | từ 80% số ngày |
+| 🚰 Phí hạ tầng nước thải | Công ty sản xuất | Không đo: nộp ngay khi duyệt, 25 MK mỗi ô, thẳng vào ngân sách để thị trưởng xây cống, trạm xử lý | cần đủ quỹ lúc xin |
 | 🌳 Xanh hoá | Công ty sản xuất từ bậc 3 | Độ xanh ô dự án = cây quanh + công viên + trang trí (cùng công thức lọc không khí) | từ 30% |
 | 🔥 An toàn phòng cháy | Sản xuất từ bậc 3; công ty bán lẻ mọi bậc | Số ngày có cháy ở ô dự án (mỗi ngày tính một lần) | tối đa 2 ngày |
 
-Đạt tất cả: uy tín +1. Không đạt việc làm: −1,5; mỗi cam kết phụ hỏng: −1 (tối đa −1,5), tạm dừng xin dự án 30 ngày. Cam kết cống phụ thuộc hạ tầng của thị trưởng (ống nước và công suất xử lý), nên chỉ đòi khi thành phố đã có công trình nước thải. Hợp đồng cũ (không có cam kết phụ) vẫn chạy như trước.
+Đạt tất cả: uy tín +1. Không đạt việc làm: −1,5; mỗi cam kết phụ đo được mà hỏng (xanh hoá, phòng cháy): −1 (tối đa −1,5), tạm dừng xin dự án 30 ngày. Công ty không tự xây được hạ tầng, nên thay vì đo cống, họ nộp phí hạ tầng cho ngân sách và thị trưởng dùng tiền đó xây cống, trạm xử lý. Quỹ phải đủ cả phí này lúc xin dự án. Hợp đồng cũ (không có cam kết phụ) vẫn chạy như trước.
