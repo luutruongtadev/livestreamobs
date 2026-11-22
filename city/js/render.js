@@ -42,11 +42,12 @@ const VEH_MODELS = [
 // Công trình biểu tượng tạo bằng Meshy: thay khối chính của công trình (nền / móng vẫn dựng bằng code). rotY đưa mặt tiền về +z.
 const SVC_MODELS = {
   pagoda: { file: 'lm_pagoda.glb' }, museum: { file: 'lm_museum.glb' }, theater: { file: 'lm_theater.glb' }, dhall: { file: 'lm_dhall.glb' },
-  tvtower: { file: 'lm_tvtower.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
+  tvtower: { file: 'lm_tvtower.glb' }, stadium: { file: 'lm_stadium.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
   train: { file: 'lm_train.glb', slot: TRAIN_SLOT }, airport: { file: 'lm_airport.glb', slot: AIRPORT_SLOT }, // ga, sân bay: chỉ thay nhà ga, đường ray / đường băng và tàu / máy bay chạy giữ nguyên
   hotel: { file: 'lm_hotel.glb' }, resort: { file: 'lm_resort.glb' }, university: { file: 'lm_university.glb' },
-  // Tạm bỏ lm_hospital.glb, lm_stadium.glb: lưới Meshy hỏng (bệnh viện thủng tường, mất mái, mảnh rời lơ lửng; sân vận động
-  // có vòm khung nghiêng gãy). Dùng mô hình dựng bằng code cho tới khi tạo lại bản lưới kín.
+  // Bệnh viện, sân vận động: lưới Meshy không texture, đã giảm mặt; bệnh viện có texture nướng từ ảnh chiếu hộp, sân vận động tô màu đỉnh.
+  // maxH: trần chiều cao riêng (mặc định theo mô hình dựng bằng code), để bệnh viện không bị thu nhỏ lọt thỏm giữa lô.
+  hospital: { file: 'lm_hospital.glb', maxH: 21 },
 };
 // Xe buýt, tàu điện: thân trắng, tô màu theo từng xe
 const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
@@ -741,8 +742,10 @@ export class View {
     for (const [type, sm] of Object.entries(SVC_MODELS)) {
       load(sm.file).then((gltf) => {
         const def = SERVICES[type], orig = serviceModel(type, def.size).geometry; orig.computeBoundingBox();
-        const { geo, mat } = this._normalizeGltf(gltf, def.size * 10 * 0.9, null, sm.rotY || 0, sm.slot ? { fit: sm.slot, keepNormals: true } : { maxH: Math.max(8, orig.boundingBox.max.y * 1.1), keepNormals: true });
-        plain(mat); mat.emissive = new THREE.Color(0xffe2a8); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; this.nightMats.push(mat); // ban đêm cửa sổ sáng đèn
+        const { geo, mat } = this._normalizeGltf(gltf, def.size * 10 * 0.9, null, sm.rotY || 0, sm.slot ? { fit: sm.slot, keepNormals: true } : { maxH: sm.maxH || Math.max(8, orig.boundingBox.max.y * 1.1), keepNormals: true });
+        plain(mat);
+        if (geo.attributes.color) mat.vertexColors = true; // mô hình tô màu đỉnh (không texture)
+        if (mat.map) { mat.emissive = new THREE.Color(0xffe2a8); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; this.nightMats.push(mat); } // ban đêm cửa sổ sáng đèn (không có texture thì cả khối sẽ sáng đều: bỏ)
         this.svcModels[type] = { geometry: geo, material: mat, slot: sm.slot };
         delete this.svcCache[type]; // bản không có nhà ga (khi dùng chỗ đặt)
         if (this.city) this.city.dirty.services = true;
