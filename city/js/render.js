@@ -50,6 +50,8 @@ const SVC_MODELS = {
 const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
 // Tàu hoả bằng Meshy: đầu máy, toa khách (thân trắng, tô màu theo đoàn tàu), toa chở container. rotY đưa đầu tàu về +z.
 const TRAIN_MODELS = [{ key: 'loco', file: 'train_loco.glb', rotY: -Math.PI / 2 }, { key: 'coach', file: 'train_coach.glb', rotY: -Math.PI / 2 }, { key: 'wagon', file: 'train_wagon.glb', rotY: -Math.PI / 2 }];
+// Tàu khách trên sông bằng Meshy (mũi về +z); drop = hạ thân xuống để phần dưới ngập nước.
+const SHIP_MODELS = [{ idx: 0, file: 'ship_passenger.glb', len: 16, rotY: Math.PI / 2, drop: 0.85 }];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
@@ -742,6 +744,14 @@ export class View {
         this.svcModels[type] = { geometry: geo, material: mat, slot: sm.slot };
         delete this.svcCache[type]; // bản không có nhà ga (khi dùng chỗ đặt)
         if (this.city) this.city.dirty.services = true;
+      }).catch(() => {});
+    }
+    for (const sm of SHIP_MODELS) {
+      load(sm.file).then((gltf) => {
+        const { geo, mat } = this._normalizeGltf(gltf, sm.len, null, sm.rotY, { keepNormals: true });
+        geo.translate(0, -sm.drop, 0); geo.computeBoundingSphere();
+        const old = this.shipMeshes[sm.idx]; this.scene.remove(old); old.dispose();
+        this.shipMeshes[sm.idx] = this._inst(geo, plain(mat), old.userData.cap, true);
       }).catch(() => {});
     }
     for (const tm of TRAIN_MODELS) {
