@@ -48,6 +48,8 @@ const SVC_MODELS = {
 };
 // Xe buýt, tàu điện: thân trắng, tô màu theo từng xe
 const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
+// Tàu hoả bằng Meshy: đầu máy, toa khách (thân trắng, tô màu theo đoàn tàu), toa chở container. rotY đưa đầu tàu về +z.
+const TRAIN_MODELS = [{ key: 'loco', file: 'train_loco.glb', rotY: -Math.PI / 2 }, { key: 'coach', file: 'train_coach.glb', rotY: -Math.PI / 2 }, { key: 'wagon', file: 'train_wagon.glb', rotY: -Math.PI / 2 }];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
@@ -739,6 +741,15 @@ export class View {
         plain(mat); mat.emissive = new THREE.Color(0xffe2a8); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; this.nightMats.push(mat); // ban đêm cửa sổ sáng đèn
         this.svcModels[type] = { geometry: geo, material: mat, slot: sm.slot };
         delete this.svcCache[type]; // bản không có nhà ga (khi dùng chỗ đặt)
+        if (this.city) this.city.dirty.services = true;
+      }).catch(() => {});
+    }
+    for (const tm of TRAIN_MODELS) {
+      load(tm.file).then((gltf) => {
+        const { geo, mat } = this._normalizeGltf(gltf, 6.6, null, tm.rotY, { keepNormals: true });
+        plain(mat); (this.trainModels || (this.trainModels = {}))[tm.key] = { geo, mat };
+        for (const k of ['pass', 'freight']) for (const set of (this.trainPool && this.trainPool[k]) || []) for (const m of set) this.scene.remove(m); // dựng lại tàu bằng mô hình mới
+        this.trainPool = null;
         if (this.city) this.city.dirty.services = true;
       }).catch(() => {});
     }
@@ -2164,6 +2175,15 @@ export class View {
     this.scene.add(this.railMesh);
   }
 
+  /** Một toa tàu: mô hình Meshy nếu đã nạp (thân tô màu theo đoàn tàu), không thì toa dựng bằng code. */
+  _trainMesh(pt) {
+    const key = pt.kind === 'flat' || pt.kind === 'tank' ? 'wagon' : pt.kind, tm = this.trainModels && this.trainModels[key];
+    if (!tm) return new THREE.Mesh(pt.geometry, this.matBuilding);
+    let mat = tm.mat;
+    if (key !== 'wagon') { const body = (pt.o && pt.o.body) ?? 0x1f5f8b, ck = key + body, cache = this._trainMats || (this._trainMats = {}); mat = cache[ck] || (cache[ck] = Object.assign(tm.mat.clone(), {})); mat.color.set(body); }
+    return new THREE.Mesh(tm.geo, mat);
+  }
+
   /** Tàu liên vận chạy trên các tuyến cửa khẩu → ga (theo giờ mô phỏng, dừng khi tạm dừng game). */
   _railTrains() {
     const c = this.city;
@@ -2173,7 +2193,7 @@ export class View {
     const list = trainsAt(c, simTime(c)), used = { pass: 0, freight: 0 };
     for (const tr of list) {
       const key = tr.freight ? 'freight' : 'pass', pool = this.trainPool[key];
-      if (!pool[used[key]]) { const set = trainParts(tr.freight).map((pt) => { const m = new THREE.Mesh(pt.geometry, this.matBuilding); m.castShadow = true; m.userData.off = pt.off; this.scene.add(m); return m; }); pool.push(set); }
+      if (!pool[used[key]]) { const set = trainParts(tr.freight).map((pt) => { const m = this._trainMesh(pt); m.castShadow = true; m.userData.off = pt.off; this.scene.add(m); return m; }); pool.push(set); }
       const set = pool[used[key]++], R = tr.route;
       for (const m of set) {
         const s = tr.dir > 0 ? tr.s - m.userData.off - 3.3 : tr.s + m.userData.off + 3.3;
@@ -2996,7 +3016,7 @@ export class View {
       grp.traverse((o) => { if (o.userData.spin) { o.rotation.z = hash2(s.x, s.y, 3) * 6; this.spinners.push(o); } });
       for (const pt of this._svc(s.type).smoke || []) this.chimneys.push(new THREE.Vector3(...pt).applyMatrix4(grp.matrixWorld));
       for (const d of this._svc(s.type).movers || []) { // máy bay, tàu hoả, cẩu, xe tải chạy trong công trình
-        const meshes = d.parts.map((pt) => { const o = new THREE.Mesh(pt.geometry, this.matBuilding); o.castShadow = true; o.visible = false; grp.add(o); return o; });
+        const meshes = d.parts.map((pt) => { const o = this._trainMesh(pt); o.castShadow = true; o.visible = false; grp.add(o); return o; });
         this.movers.push({ d, meshes, ph: hash2(s.x, s.y, 7) });
       }
       this.serviceGroup.add(grp);

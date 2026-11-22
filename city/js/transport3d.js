@@ -131,8 +131,8 @@ export function metroGeometry() {
 
 /** Các toa của một đoàn tàu đường dài (mũi về +z): khách = đầu máy + 4 toa khách; hàng = đầu máy + 6 toa container, bồn. */
 export function trainParts(freight = false) {
-  if (!freight) { const o = { body: 0x1f5f8b, stripe: 0xf2c14e }; return [{ geometry: carGeo('loco', 6.6, o), off: 0 }, ...[1, 2, 3, 4].map((k) => ({ geometry: carGeo('coach', 6.6, o), off: k * 6.9 }))]; }
-  return [{ geometry: carGeo('loco', 6.6, { body: 0xd8b93a, stripe: 0x2a2c30 }), off: 0 }, ...[1, 2, 3, 4, 5, 6].map((k) => ({ geometry: k % 3 === 2 ? carGeo('tank', 6.6, { tank: k % 2 ? 0x1f2326 : 0xd8d4cc }) : carGeo('flat', 6.6, { seed: k * 5 }), off: k * 6.9 }))];
+  if (!freight) { const o = { body: 0x1f5f8b, stripe: 0xf2c14e }; return [{ geometry: carGeo('loco', 6.6, o), off: 0, kind: 'loco', o: o }, ...[1, 2, 3, 4].map((k) => ({ geometry: carGeo('coach', 6.6, o), off: k * 6.9, kind: 'coach', o: o }))]; }
+  return [{ geometry: carGeo('loco', 6.6, { body: 0xd8b93a, stripe: 0x2a2c30 }), off: 0, kind: 'loco', o: { body: 0xd8b93a, stripe: 0x2a2c30 } }, ...[1, 2, 3, 4, 5, 6].map((k) => ({ geometry: k % 3 === 2 ? carGeo('tank', 6.6, { tank: k % 2 ? 0x1f2326 : 0xd8d4cc }) : carGeo('flat', 6.6, { seed: k * 5 }), off: k * 6.9, kind: k % 3 === 2 ? 'tank' : 'flat', o: {} }))];
 }
 
 // ───────────────────────── ga tàu hoả ─────────────────────────
@@ -196,8 +196,8 @@ export function trainStation(g, e, nb = false) { // nb: bỏ nhà ga (thay bằn
   for (const [x, z] of [[-13.5, 12], [13.5, 12]]) { g.cyl(x, 0.14, z, 0.14, 0.1, 6, 0x5b6670, 6); g.box(x, 6, z, 0.9, 0.25, 0.5, 0xfff2c0); }
 
   // tàu: đầu máy + toa khách; tàu hàng: đầu máy + toa container + toa bồn
-  const passenger = (o) => [{ geometry: carGeo('loco', 6.6, o), off: 0 }, { geometry: carGeo('coach', 6.6, o), off: 6.9 }, { geometry: carGeo('coach', 6.6, o), off: 13.8 }, { geometry: carGeo('coach', 6.6, o), off: 20.7 }];
-  const freight = [{ geometry: carGeo('loco', 6.6, { body: 0xd8b93a, stripe: 0x2a2c30 }), off: 0 }, { geometry: carGeo('flat', 6.6, { seed: 4 }), off: 6.9 }, { geometry: carGeo('tank', 6.6), off: 13.8 }, { geometry: carGeo('flat', 6.6, { seed: 9 }), off: 20.7 }, { geometry: carGeo('tank', 6.6, { tank: 0xd8d4cc }), off: 27.6 }, { geometry: carGeo('flat', 6.6, { seed: 13 }), off: 34.5 }];
+  const passenger = (o) => [{ geometry: carGeo('loco', 6.6, o), off: 0, kind: 'loco', o: o }, { geometry: carGeo('coach', 6.6, o), off: 6.9, kind: 'coach', o: o }, { geometry: carGeo('coach', 6.6, o), off: 13.8, kind: 'coach', o: o }, { geometry: carGeo('coach', 6.6, o), off: 20.7, kind: 'coach', o: o }];
+  const freight = [{ geometry: carGeo('loco', 6.6, { body: 0xd8b93a, stripe: 0x2a2c30 }), off: 0, kind: 'loco', o: { body: 0xd8b93a, stripe: 0x2a2c30 } }, { geometry: carGeo('flat', 6.6, { seed: 4 }), off: 6.9, kind: 'flat', o: { seed: 4 } }, { geometry: carGeo('tank', 6.6), off: 13.8, kind: 'tank', o: {} }, { geometry: carGeo('flat', 6.6, { seed: 9 }), off: 20.7, kind: 'flat', o: { seed: 9 } }, { geometry: carGeo('tank', 6.6, { tank: 0xd8d4cc }), off: 27.6, kind: 'tank', o: { tank: 0xd8d4cc } }, { geometry: carGeo('flat', 6.6, { seed: 13 }), off: 34.5, kind: 'flat', o: { seed: 13 } }];
   const Y = 0.53, E = Math.PI / 2, far = H + 42;
   return [
     { parts: passenger({}), period: 46, clip: H - 0.2, keys: [K(0, -far, Y, TR[0], E, 0, 'h'), K(0.02, -far, Y, TR[0], E), K(0.22, 11.5, Y, TR[0], E, 0, 'o'), K(0.62, 11.5, Y, TR[0], E), K(0.86, far, Y, TR[0], E, 0, 'i'), K(0.88, far, Y, TR[0], E, 0, 'h'), K(1, -far, Y, TR[0], E, 0, 'h')] },
