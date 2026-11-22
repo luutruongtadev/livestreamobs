@@ -137,21 +137,27 @@ export function trainParts(freight = false) {
 
 // ───────────────────────── ga tàu hoả ─────────────────────────
 
+/** Chỗ đặt nhà ga Meshy (toạ độ trong lô, đơn vị 10 m/ô): tâm x, z, vừa trong w × d, cao tối đa h. */
+export const TRAIN_SLOT = { x: 0, z: 10.8, w: 27, d: 11, h: 14 };
+export const AIRPORT_SLOT = { x: -4, z: 12, w: 36, d: 12, h: 10 };
+
 /** Ga tàu hoả 3×3 ô: nhà ga mặt đường (+z), sân ga có mái, cầu bộ hành, 3 đường ray, cột điện lưới; tàu khách vào ga, tàu hàng chạy qua. */
-export function trainStation(g, e) {
+export function trainStation(g, e, nb = false) { // nb: bỏ nhà ga (thay bằng mô hình Meshy, vị trí ở TRAIN_SLOT)
   const H = e / 2, rr = mulberry32(17);
   g.box(0, 0, 0, e, 0.14, e, 0xbdb8ac);
   g.box(0, 0.14, -12.6, e, 0.06, 4.4, 0x8fa36a); // dải cỏ sau cùng
   for (let k = 0; k < 15; k++) g.box(-H + 1 + k * 2, 0.14, -14.6, 0.08, 1.8, 0.08, 0x6f7a82); g.box(0, 1.6, -14.6, e, 0.06, 0.06, 0x6f7a82); // hàng rào
-  // nhà ga: khối chính hai tầng, sảnh giữa cao, mái ngói đỏ, cột hiên, đồng hồ
-  g.box(-7, 0.14, 10, 12, 6.5, 6, 0xead9b6, true); g.gable(-7, 6.64, 10, 12.4, 2, 6.6, 0x9a4a36, true, 0xead9b6);
-  g.box(7, 0.14, 10, 12, 6.5, 6, 0xead9b6, true); g.gable(7, 6.64, 10, 12.4, 2, 6.6, 0x9a4a36, true, 0xead9b6);
-  g.box(0, 0.14, 10.5, 7, 9.5, 7, 0xf1e3c4, true); g.gable(0, 9.64, 10.5, 7.6, 3, 7.6, 0x9a4a36, false, 0xf1e3c4);
-  g.box(0, 6.8, 14.05, 6, 1, 0.12, 0x2c5aa0); // biển tên ga
-  g.cyl(0, 8.6, 14.05, 0.75, 0.75, 0.06, 0xf4efe6, 14); // đồng hồ (mặt đứng giả)
-  g.box(0, 0.14, 14.6, 16, 0.25, 2.2, 0xd8d2c4); g.box(0, 3.6, 14.4, 16.4, 0.25, 2.6, 0x7d4a3c); // hiên
-  for (const x of [-7.6, -3, 3, 7.6]) g.cyl(x, 0.39, 15.4, 0.2, 0.2, 3.2, 0xf4efe6, 8);
-  for (const x of [-12.4, 12.4]) g.box(x, 0.14, 14, 1.6, 0.9, 1.4, 0x5a8a4a); // bồn cây
+  if (!nb) {
+    // nhà ga: khối chính hai tầng, sảnh giữa cao, mái ngói đỏ, cột hiên, đồng hồ
+    g.box(-7, 0.14, 10, 12, 6.5, 6, 0xead9b6, true); g.gable(-7, 6.64, 10, 12.4, 2, 6.6, 0x9a4a36, true, 0xead9b6);
+    g.box(7, 0.14, 10, 12, 6.5, 6, 0xead9b6, true); g.gable(7, 6.64, 10, 12.4, 2, 6.6, 0x9a4a36, true, 0xead9b6);
+    g.box(0, 0.14, 10.5, 7, 9.5, 7, 0xf1e3c4, true); g.gable(0, 9.64, 10.5, 7.6, 3, 7.6, 0x9a4a36, false, 0xf1e3c4);
+    g.box(0, 6.8, 14.05, 6, 1, 0.12, 0x2c5aa0); // biển tên ga
+    g.cyl(0, 8.6, 14.05, 0.75, 0.75, 0.06, 0xf4efe6, 14); // đồng hồ (mặt đứng giả)
+    g.box(0, 0.14, 14.6, 16, 0.25, 2.2, 0xd8d2c4); g.box(0, 3.6, 14.4, 16.4, 0.25, 2.6, 0x7d4a3c); // hiên
+    for (const x of [-7.6, -3, 3, 7.6]) g.cyl(x, 0.39, 15.4, 0.2, 0.2, 3.2, 0xf4efe6, 8);
+    for (const x of [-12.4, 12.4]) g.box(x, 0.14, 14, 1.6, 0.9, 1.4, 0x5a8a4a); // bồn cây
+  }
   // sân ga cạnh nhà ga (z 3..6.8) + sân ga giữa (z -3.2..-0.4)
   g.box(0, 0.14, 4.9, e, 0.9, 3.8, 0xc9c5ba); g.box(0, 1.04, 3.12, e, 0.02, 0.25, YEL);
   g.box(0, 0.14, -1.8, e, 0.9, 2.8, 0xc9c5ba); g.box(0, 1.04, -0.52, e, 0.02, 0.22, YEL); g.box(0, 1.04, -3.08, e, 0.02, 0.22, YEL);
@@ -285,7 +291,7 @@ export function containerPort(g, e) {
 // ───────────────────────── sân bay ─────────────────────────
 
 /** Sân bay 5×5 ô: nhà ga sát đường (+z) có ống lồng, sân đỗ, đường lăn, đường băng phía sau (-z); máy bay hạ cánh, lăn, cất cánh. */
-export function airport(g, e) {
+export function airport(g, e, nb = false) { // nb: bỏ nhà ga hành khách (thay bằng mô hình Meshy, vị trí ở AIRPORT_SLOT)
   const H = e / 2;
   g.box(0, 0, 0, e, 0.14, e, 0x7da55a);
   // đường băng (trục x, z = -18.5): mặt nhựa, vạch tim, vạch ngưỡng "phím đàn", vạch chạm bánh, đèn lề
@@ -305,13 +311,15 @@ export function airport(g, e) {
   // sân đỗ bê tông
   g.box(-4, 0.14, -1, 40, 0.05, 14, 0xa5a39d);
   for (const x of [-15, -4, 7]) { g.box(x, 0.2, -1.5, 0.12, 0.02, 12, YEL); g.box(x, 0.2, 5.4, 1.6, 0.02, 0.12, YEL); } // vạch dẫn chỗ đỗ
-  // nhà ga: khối kính dài, mái vòm cong (3 tấm), sảnh đón trả khách ở mặt đường
-  g.box(-4, 0.14, 11, 36, 6, 6.6, 0xdfe6ea);
-  for (const z of [7.65, 14.35]) { g.box(-4, 0.5, z, 35.4, 2.2, 0.1, GLASS_L); g.box(-4, 3.3, z, 35.4, 2.3, 0.1, GLASS_L); } // vách kính hai tầng
-  for (let k = 0; k <= 12; k++) for (const z of [7.6, 14.4]) g.box(-21.7 + k * 2.95, 0.14, z, 0.18, 6, 0.14, 0xb5bcc2); // khung đứng
-  for (const [dz, a] of [[-2.4, 0.22], [0, 0], [2.4, -0.22]]) g.at(new THREE.Matrix4().makeTranslation(-4, 6.4 + (dz ? -0.25 : 0.1), 11 + dz).multiply(new THREE.Matrix4().makeRotationX(a))).box(0, 0, 0, 37, 0.3, 2.6, 0xc9d0d6).at(null);
-  g.box(-4, 0.14, 16.2, 30, 0.2, 3.6, 0x55595e); g.box(-4, 3.6, 15.9, 32, 0.2, 3, 0xe9ecef); for (let k = 0; k < 7; k++) g.box(-19 + k * 5, 0.34, 17.2, 0.2, 3.3, 0.2, STEEL); // làn đón khách có mái
-  g.box(-4, 4.4, 14.35, 10, 1, 0.1, 0x2c5aa0); // biển sân bay
+  if (!nb) {
+    // nhà ga: khối kính dài, mái vòm cong (3 tấm), sảnh đón trả khách ở mặt đường
+    g.box(-4, 0.14, 11, 36, 6, 6.6, 0xdfe6ea);
+    for (const z of [7.65, 14.35]) { g.box(-4, 0.5, z, 35.4, 2.2, 0.1, GLASS_L); g.box(-4, 3.3, z, 35.4, 2.3, 0.1, GLASS_L); } // vách kính hai tầng
+    for (let k = 0; k <= 12; k++) for (const z of [7.6, 14.4]) g.box(-21.7 + k * 2.95, 0.14, z, 0.18, 6, 0.14, 0xb5bcc2); // khung đứng
+    for (const [dz, a] of [[-2.4, 0.22], [0, 0], [2.4, -0.22]]) g.at(new THREE.Matrix4().makeTranslation(-4, 6.4 + (dz ? -0.25 : 0.1), 11 + dz).multiply(new THREE.Matrix4().makeRotationX(a))).box(0, 0, 0, 37, 0.3, 2.6, 0xc9d0d6).at(null);
+    g.box(-4, 0.14, 16.2, 30, 0.2, 3.6, 0x55595e); g.box(-4, 3.6, 15.9, 32, 0.2, 3, 0xe9ecef); for (let k = 0; k < 7; k++) g.box(-19 + k * 5, 0.34, 17.2, 0.2, 3.3, 0.2, STEEL); // làn đón khách có mái
+    g.box(-4, 4.4, 14.35, 10, 1, 0.1, 0x2c5aa0); // biển sân bay
+  }
   // ống lồng (jet bridge) từ nhà ga ra cửa máy bay
   for (const x of [-15, -4, 7]) { bar(g, [x + 2.4, 3.3, 7.6], [x + 1.5, 2.9, 4.4], 1.5, 1.9, 0xd9dcd8); g.box(x + 1.6, 0.14, 4.8, 0.35, 1.2, 0.35, STEEL); }
   // máy bay đỗ ở 3 chỗ (mũi hướng nhà ga), xe kéo, xe chở hành lý

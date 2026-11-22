@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
-import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY } from './transport3d.js';
+import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY, TRAIN_SLOT, AIRPORT_SLOT } from './transport3d.js';
 import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
@@ -43,6 +43,7 @@ const VEH_MODELS = [
 const SVC_MODELS = {
   pagoda: { file: 'lm_pagoda.glb' }, museum: { file: 'lm_museum.glb' }, theater: { file: 'lm_theater.glb' }, dhall: { file: 'lm_dhall.glb' },
   tvtower: { file: 'lm_tvtower.glb' }, stadium: { file: 'lm_stadium.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
+  train: { file: 'lm_train.glb', slot: TRAIN_SLOT }, airport: { file: 'lm_airport.glb', slot: AIRPORT_SLOT }, // ga, sân bay: chỉ thay nhà ga, đường ray / đường băng và tàu / máy bay chạy giữ nguyên
   hotel: { file: 'lm_hotel.glb' }, resort: { file: 'lm_resort.glb' }, hospital: { file: 'lm_hospital.glb' }, university: { file: 'lm_university.glb' },
 };
 // Xe buýt, tàu điện: thân trắng, tô màu theo từng xe
@@ -664,6 +665,7 @@ export class View {
     geo.computeBoundingBox();
     const bb = geo.boundingBox, size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
     let k = foot / Math.max(size.x, size.z, 0.001);
+    if (opt.fit) k = Math.min(opt.fit.w / Math.max(size.x, 0.001), opt.fit.d / Math.max(size.z, 0.001), opt.fit.h / Math.max(size.y, 0.001));
     if (opt.maxH) k = Math.min(k, opt.maxH / Math.max(size.y, 0.001)); // công trình cao, mảnh (tháp): giới hạn theo chiều cao
     if (opt.baseCenter) { // cây nghiêng: lấy tâm theo gốc cây (phần thấp nhất) để cây mọc đúng chỗ
       const pa = geo.attributes.position, lim = bb.min.y + size.y * 0.04; let sx = 0, sz = 0, n = 0;
@@ -712,6 +714,12 @@ export class View {
           if (geos.length > 1) { this.vehVariants[look] = geos.length; geos.forEach((g, k) => { this.vehMeshes[`${look}#${k}`] = this._inst(g, mat, cap, true); }); }
           else this.vehMeshes[look] = this._inst(geos[0], mat, cap, true);
           for (const key of Object.keys(this.vehMeshes)) if (key === look || key.startsWith(look + '#')) this.vehMeshes[key].receiveShadow = false; // mô hình chi tiết bị lốm đốm khi tự đổ bóng
+          if (look === 'taxi') { // biển TAXI trên nóc: mẫu sedan dùng chung không có
+            geos[0].computeBoundingBox();
+            const sg = new THREE.BoxGeometry(0.7, 0.26, 0.34); sg.translate(0, 0.13, 0);
+            this.taxiSign = this._inst(sg, new THREE.MeshStandardMaterial({ color: 0xf6f2e4, emissive: 0xfff0b0, emissiveIntensity: 0.25, roughness: 0.6 }), MAX_CARS, false);
+            this._taxiSignM = new THREE.Matrix4().makeTranslation(0, geos[0].boundingBox.max.y - 0.03, -0.25);
+          }
           if (vm.tint === false) this.vehModelLooks[look] = true;
         }
       }).catch(() => {});
@@ -727,9 +735,10 @@ export class View {
     for (const [type, sm] of Object.entries(SVC_MODELS)) {
       load(sm.file).then((gltf) => {
         const def = SERVICES[type], orig = serviceModel(type, def.size).geometry; orig.computeBoundingBox();
-        const { geo, mat } = this._normalizeGltf(gltf, def.size * 10 * 0.9, null, sm.rotY || 0, { maxH: Math.max(8, orig.boundingBox.max.y * 1.1), keepNormals: true });
+        const { geo, mat } = this._normalizeGltf(gltf, def.size * 10 * 0.9, null, sm.rotY || 0, sm.slot ? { fit: sm.slot, keepNormals: true } : { maxH: Math.max(8, orig.boundingBox.max.y * 1.1), keepNormals: true });
         plain(mat); mat.emissive = new THREE.Color(0xffe2a8); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; this.nightMats.push(mat); // ban đêm cửa sổ sáng đèn
-        this.svcModels[type] = { geometry: geo, material: mat };
+        this.svcModels[type] = { geometry: geo, material: mat, slot: sm.slot };
+        delete this.svcCache[type]; // bản không có nhà ga (khi dùng chỗ đặt)
         if (this.city) this.city.dirty.services = true;
       }).catch(() => {});
     }
@@ -2925,16 +2934,20 @@ export class View {
   }
 
   _svc(type) {
-    return this.svcCache[type] || (this.svcCache[type] = serviceModel(type, SERVICES[type].size));
+    const sm = this.svcModels[type];
+    return this.svcCache[type] || (this.svcCache[type] = serviceModel(type, SERVICES[type].size, { noBuilding: !!(sm && sm.slot) }));
   }
 
   _serviceObject(type, mat) {
-    const model = this._svc(type), grp = new THREE.Group(), sm = this.svcModels[type];
-    const mesh = new THREE.Mesh(sm ? sm.geometry : model.geometry, mat || (sm ? sm.material : this.matBuilding));
+    const model = this._svc(type), grp = new THREE.Group(), sm = this.svcModels[type], slot = sm && sm.slot, whole = sm && !slot;
+    const mesh = new THREE.Mesh(whole ? sm.geometry : model.geometry, mat || (whole ? sm.material : this.matBuilding));
     mesh.castShadow = !mat; mesh.receiveShadow = !mat;
-    if (sm) mesh.position.y = 0.14; // đặt mô hình Meshy lên nền lát, móng dựng bằng code bên dưới
+    if (whole) mesh.position.y = 0.14; // đặt mô hình Meshy lên nền lát, móng dựng bằng code bên dưới
     grp.add(mesh);
-    if (sm) {
+    if (slot) { // ga, sân bay: nền, đường ray / băng dựng bằng code, chỉ nhà ga là mô hình Meshy
+      const gm = new THREE.Mesh(sm.geometry, mat || sm.material); gm.position.set(slot.x, 0.14, slot.z); gm.castShadow = !mat; gm.receiveShadow = !mat; grp.add(gm);
+    }
+    if (whole) {
       const S = SERVICES[type].size * 10, e = S - 0.3, bg = this._svcBase[S] || (this._svcBase[S] = (() => { const b = new GB(); b.box(0, -7, 0, e, 7, e, 0x8d887e); b.box(0, 0, 0, e, 0.14, e, 0xb9b5aa); return b.build(); })());
       const bm = new THREE.Mesh(bg, mat || this.matBuilding); bm.castShadow = !mat; bm.receiveShadow = !mat; grp.add(bm);
     } else for (const sp of model.spin || []) {
@@ -3157,7 +3170,8 @@ export class View {
     const PAL = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c, 0x3d8a5a, 0xf2f2f2];
     const FIX = { garbage: 0x3d8a5a, ambulance: 0xffffff, fire: 0xd0342c, hearse: 0x26262a, police: 0x2c5aa0, tow: 0xe6a01e };
     const ease = 1 - Math.exp(-realDt * 10);
-    let nu = 0, np = 0, nt = 0;
+    let nu = 0, np = 0, nt = 0, ns = 0;
+    const tmM = new THREE.Matrix4();
     const vc = this.vehCount;
     for (const k in vc) vc[k] = 0;
     const CONT = [0xc0392b, 0x2f6fb0, 0x3d8a5a, 0xe07b2e, 0x8a949c, 0x7a3fa0, 0xd8b93a];
@@ -3187,7 +3201,10 @@ export class View {
       p.set(v.rx, (lift ? this._crossY(v.rx, v.rz, -tz, tx, ROADS[e.type].w / 2) + lift : this.roadY(v.rx, v.rz) + this.waterLift(e, sa)) + 0.06, v.rz); q.setFromAxisAngle(up, v.ryaw); m.compose(p, q, s);
       const look = v.look || v.kind;
       if (v.kind === 'moto') put(look, MAX_MOTO, v.wreck ? col.set(0x3a3a3a) : look === 'shipper' ? col.set(v.color < 0.5 ? 0x1fae54 : 0xee5a2d) : col.setHSL(v.color, 0.6, 0.5)); // shipper: xanh lá hoặc cam
-      else if (v.kind === 'car') put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
+      else if (v.kind === 'car') {
+        put(look, MAX_CARS, v.wreck ? col.set(0x3a3a3a) : look === 'taxi' ? col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a) : col.set(PAL[(v.color * PAL.length) | 0]));
+        if (look === 'taxi' && this.taxiSign && !v.wreck && ns < MAX_CARS) this.taxiSign.setMatrixAt(ns++, tmM.copy(m).multiply(this._taxiSignM));
+      }
       else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
       else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, c.style === 'vn' ? col.set(v.color < 0.5 ? 0xf2b705 : 0x1f9e55) : col.setHSL(v.color, 0.75, 0.52)); } } // kiểu Việt Nam: xe buýt vàng hoặc xanh lá
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
@@ -3230,6 +3247,7 @@ export class View {
     s.set(1, 1, 1);
     this.beamMesh.count = nb; this.beamMesh.instanceMatrix.needsUpdate = true;
     for (const k in this.vehMeshes) { const mesh = this.vehMeshes[k]; mesh.count = vc[k] || 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
+    if (this.taxiSign) { this.taxiSign.count = ns; this.taxiSign.instanceMatrix.needsUpdate = true; }
     for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np], [this.metroMesh, nm], [this.metroStripe, nm]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     if (nv) for (let i = 0; i < nv; i++) { pv[i].count = Math.min(nvC[i], MAX_PEDS); pv[i].instanceMatrix.needsUpdate = true; if (pv[i].geometry.userData.gait) pv[i].geometry.attributes.aGait.needsUpdate = true; }
     // đèn tín hiệu

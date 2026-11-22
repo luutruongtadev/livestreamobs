@@ -836,7 +836,7 @@ export function vehicleGeometry(look) {
 const LOT_HEDGE = new Set(['clinic', 'school', 'highschool', 'police', 'fire', 'university', 'hospital', 'research', 'depot', 'shelter', 'theater', 'market', 'crematorium', 'recycle']);
 
 /** Công trình đặt tay. Trả về { geometry, spin?: [{geometry, pos:[x,y,z]}] } — gốc ở tâm khối đất, mặt tiền về +z. */
-export function serviceModel(type, size) {
+export function serviceModel(type, size, opts = {}) {
   const g = new GB(), S = size * 10, e = S - 0.3; // mô hình dựng theo ô 10 m, cảnh thu nhỏ theo cỡ ô thật (T / 10)
   const out = {};
   const pave = (c) => g.box(0, 0, 0, e, 0.14, e, c);
@@ -1227,11 +1227,11 @@ export function serviceModel(type, size) {
       break;
     }
     case 'train': { // ga tàu hoả (transport3d.js)
-      out.movers = trainStation(g, e);
+      out.movers = trainStation(g, e, opts.noBuilding);
       break;
     }
     case 'airport': { // sân bay (transport3d.js)
-      out.movers = airport(g, e);
+      out.movers = airport(g, e, opts.noBuilding);
       break;
     }
     case 'airportIntl': { // sân bay quốc tế 8×8 (transport3d.js)
