@@ -12,14 +12,15 @@ import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } f
 import { outside, reportDay } from './world.js';
 import { packLeague, unpackLeague, contract, tradeUse } from './league.js';
 import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
-import { RETAIL, procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro } from './people.js';
+import { RETAIL, procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro, trimStaff } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
 import { initEcon, packEcon, marketDay, tourismHour, tourismDay, sectorOf, budgetK } from './econ.js';
 import { intlHour, intlDay, promoCost, flyHappy, intlOutlook } from './intl.js';
 import { initRail, packRail, planRail, addRail, removeRail, railsInRect, railCells, tunnelCells, railBonus, railUpkeep, railHour, railDay, railHappy } from './rail.js';
 import { seasonHour, festMul, festHappy, flooded, initSeason, packSeason } from './seasons.js';
-import { corpHour, initCorp, packCorp, corpNote, corpPayWare, corpFlow, corpPrice } from './corp.js';
+import { corpHour, initCorp, packCorp, corpNote, corpPayWare, corpFlow, corpPrice, investorFound } from './corp.js';
+import { initChain, packChain, chainDay, chainCleared, watchLayoff } from './chain.js';
 import { councilHour, councilMod, taxBreak, dealCost, initCouncil, packCouncil } from './council.js';
 import { initStreet, packStreet, streetDay, streetBonus, applyStreet } from './street.js';
 import { BEACH, beachRect, beachCount, packBeach, unpackBeach } from './beach.js';
@@ -52,7 +53,8 @@ export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
 export { CLIMATES, climateOf } from './base.js';
 export { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, canAfford, pickHome } from './tiers.js';
-export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend } from './corp.js';
+export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend, fitsZone, landFeeOf, askBounds, corpCounter, corpCounterFallback, askBrief, ASK_TURNS, brkWant, brkOf, taxOf, investorFound, actorOf, actorPay, actorCells } from './corp.js';
+export { CHAIN, chron, chronById, causeChain, effectsOf, placeName, bizName, whoAt, areaStats, workerHousing, housingShort, freeIndustrial, landK, economyMix, mixLine, identityName, haltCell, dumpCell, fundCells } from './chain.js';
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
 export { seaGates } from './ships.js';
@@ -402,6 +404,7 @@ export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   initCouncil(c);
   initDistricts(c);
   initCorp(c);
+  initChain(c);
   initStreet(c);
   initRail(c); c.railCell = railCells(c); c.tunnelCell = tunnelCells(c);
   applyStreet(c);
@@ -632,7 +635,7 @@ function attach(c) {
   c.clock = 0; c.hourSec = HOUR_SEC; c.day = Math.floor(c.hour / 24);
   c.hourInc = { r: 0, c: 0, i: 0 }; c.fareSeen = 0;
   c.entry = { x: cellCenter(c.start.x), z: -HALF + 1 };
-  c.fn = { corpNote, corpPayWare, corpFlow, corpPrice, saleIncome, zoneRect, clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
+  c.fn = { corpNote, corpPayWare, corpFlow, corpPrice, investorFound, trimStaff, watchLayoff, computeMaps, saleIncome, zoneRect, clearBuilding, cellHappy, die, syncHalls, moveHall, distBuildPlan, distBuild, procure, wageAt, householdPay, removeCitizen, contract, tradeUse, saleIncome };
   c.onArrive = onArrive; c.onTourists = touristSpend;
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
@@ -1706,7 +1709,8 @@ export function computeNetworks(c) {
 // ───────────────────────── quy hoạch, công trình, san ủi ─────────────────────────
 
 function clearBuilding(c, i) {
-  if (!c.level[i]) return;
+  if (!c.level[i]) { c._why = null; return; }
+  chainCleared(c, i); // biên niên: mất việc, đứt nguồn hàng (trước khi toà nhà biến mất, còn biết số người làm)
   c.level[i] = 0; c.age[i] = 0; c.dirty.buildings = true;
   onBuildingCleared(c, i);
 }
@@ -2097,7 +2101,8 @@ export function computeMaps(c) {
     const z = c.zone[i], x = i % N, y = (i / N) | 0;
     if (z === 3 && c.ware && c.ware[i]) stamp(c.noise, x, y, 3, 0.2 + 0.03 * L, true); // kho bãi: không xả khói, chỉ ồn vì xe tải ra vào
     else if (z === 3) {
-      stamp(c.air, x, y, 6, AIR[L - 1], true); stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.3, true);
+      const k = c.halted && c.halted[i] ? 0.2 : c.corpTech && c.owner && c.owner[i] ? 1 - 0.12 * (c.corpTech[c.owner[i]] || 0) : 1; // đình chỉ: gần như hết khói; máy móc mới: ít khói hơn
+      stamp(c.air, x, y, 6, AIR[L - 1] * k, true); stamp(c.ground, x, y, 3, 0.3, true); stamp(c.noise, x, y, 3, 0.3, true);
     } else if (RES_POL[z]) {
       const [a, g, n] = RES_POL[z];
       if (a) stamp(c.air, x, y, 5, a, true);
@@ -2106,6 +2111,7 @@ export function computeMaps(c) {
     } else if (ZDEF[z].biz === 'shop' || ZDEF[z].biz === 'market') stamp(c.noise, x, y, 2, 0.1 + 0.03 * L, true);
     else if (ZDEF[z].biz === 'leisure') stamp(c.noise, x, y, 2.5, 0.16 + 0.03 * L, true);
   }
+  for (const i of c.dumped || []) if (c.level[i]) stamp(c.waterPol, i % N, (i / N) | 0, 5, 0.55, true); // nhà máy được cho xả thải ra sông (hộp thư thị trưởng)
   // tiếng ồn giao thông: đường càng đông càng ồn
   for (const e of c.edges.values()) {
     const s = (0.1 + 0.55 * edgeLoad(c, e)) * (e.type === 'large' ? 1.35 : e.type === 'highway' ? 1.7 : 1);
@@ -2356,16 +2362,16 @@ function growth(c) {
     const ok = c.pOk[i] === 1 && c.wOk[i] === 1 && c.sOk[i] === 1 && !flooded(c, i);
     if (!c.level[i]) {
       if (!c.acc[i] || !ok || !c.room(i, utilUse(z, 1) + 1)) continue;
-      if ((c.owner && c.owner[i] ? 0.6 : Math.max(0, dm) * 0.4) > rng()) { // công ty đã trả tiền xây (nhà máy, kho, cửa hàng của công ty): xây ngay khi đủ điện nước, không chờ nhu cầu thành phố
+      if ((c.owner && c.owner[i]) || (c.funded && c.funded[i]) ? 0.6 > rng() : Math.max(0, dm) * 0.4 > rng()) { // công ty đã trả tiền xây (cả nhà ở công nhân công ty tài trợ, chain.js) (nhà máy, kho, cửa hàng của công ty): xây ngay khi đủ điện nước, không chờ nhu cầu thành phố
         c.level[i] = 1; c.variant[i] = (rng() * 3) | 0; c.dir[i] = c.rdir[i]; c.age[i] = 0; c.tree[i] = 0;
         { const cap = 150 * MK * worldK(c); world(c, 'bizOpen', cap - c.biz.money[i]); c.biz.money[i] = cap; } c.biz.eff[i] = 0.5; c.biz.sin[i] = jobCap(z, 1) ? 10 : 0; // vốn ban đầu từ nhà đầu tư bên ngoài
         c.dirty.buildings = c.dirty.trees = true; built = true;
         computeNetworks(c); // cập nhật phần công suất còn dư
       }
     } else if (!c.acc[i]) {
-      if (rng() < 0.3) { clearBuilding(c, i); c.zone[i] = 0; c.dirty.zones = true; }
+      if (rng() < 0.3) { c._why = { kind: 'noroad' }; clearBuilding(c, i); c.zone[i] = 0; c.dirty.zones = true; }
     } else if (!ok && rng() < (c.pOk[i] === 0 || c.wOk[i] === 0 ? 0.02 : 0.007)) {
-      clearBuilding(c, i); // bỏ hoang vì thiếu điện nước
+      c._why = { kind: 'noutil' }; clearBuilding(c, i); // bỏ hoang vì thiếu điện nước
     } else if (resCap(z, c.level[i]) && !jobCap(z, c.level[i]) && c.resCount[i] === 0 && c.age[i] > 36 && dm < -0.4 && rng() < 0.02) {
       clearBuilding(c, i); // nhà bỏ trống quá lâu
     } else if (ok && dm > -0.2 && canLevelUp(c, i) && !(c.ware && c.ware[i] && c.level[i] >= 3) && c.room(i, utilUse(z, c.level[i] + 1) - utilUse(z, c.level[i]) + 1) && rng() < 0.2) {
@@ -2409,7 +2415,7 @@ function hourTick(c) {
   cityGet(c, 'rooms', rooms * worldK(c)); // khách ngoài thành phố trả: thế giới nghèo thì trả ít
   { const lp = (s.exp.loans || 0) / 24; cityPay(c, 'loanPay', lp); cityPay(c, 'upkeep', s.expense / 24 - lp); }
   if (h === 0) { issueDay(c); ledgerDay(c); W.ruralDay(c); reserveDay(c); reportDay(c); }
-  if (h === 0) { W.marketDay(c); W.tourismDay(c); W.intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); }
+  if (h === 0) { W.marketDay(c); W.tourismDay(c); W.intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); chainDay(c); } // chainDay: chuỗi sự kiện nhân quả, giá thuê theo khu, bản sắc kinh tế
   if (h === 0 || (c.inc && c.inc.weather !== c._wWeather)) { // mùa mưa / khô, trời bão: ao hồ do đào đắp đầy lên hoặc cạn bớt
     c._wWeather = c.inc && c.inc.weather;
     if (waterSync(c)) { makeResources(c, heightFn(c)); roadsChanged(c); computeMaps(c); }
@@ -2481,7 +2487,7 @@ export function serialize(c) {
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural, abroad: c.popl.abroad } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
     loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
-    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), retail: packRetail(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
+    apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), chain: packChain(c), retail: packRetail(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
       const a = [e.id, e.a, e.b, e.type, r1(e.cx), r1(e.cz)];
@@ -2605,6 +2611,7 @@ function deserializeAt(o) {
   initCouncil(c, o.council || {});
   initDistricts(c, o.dist || {});
   initCorp(c, o.corp || {});
+  initChain(c, o.chain || {});
   if (!o.apv) for (const sv of c.services) if (sv.type === 'airport' && !(sv.mods || (sv.mods = [])).includes('intl')) sv.mods.push('intl'); // bản lưu trước khi có sân bay nội địa: sân bay cũ đã là quốc tế
   applyStreet(c);
   if (o.sandbox) enableSandbox(c);

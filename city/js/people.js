@@ -96,12 +96,24 @@ export function onBuildingCleared(c, i) {
   const b = c.biz; world(c, 'bizClose', -b.money[i]); b.money[i] = 0; if (b.rev) b.rev[i] = 0; b.sin[i] = 0; if (b.sin2) b.sin2[i] = 0; if (b.sinK) b.sinK[i] = 1; if (b.rp) b.rp[i] = 1; if (b.rs) { b.rs[i] = 0; b.sh[i] = 0; } b.sout[i] = 0; b.eff[i] = 0.5; b.incoming[i] = 0;
 }
 
+/** Ô vừa bị hạ cấp (công ty thu hẹp): người làm vượt số chỗ làm mới bị cho nghỉ. Trả số người mất việc. */
+export function trimStaff(c, i) {
+  const pp = c.pp, cap = jobCap(c.zone[i], c.level[i]);
+  let n = c.staff[i] - cap, cut = 0;
+  for (let id = pp.n - 1; id >= 0 && n > 0; id--) {
+    if (!pp.alive[id] || pp.work[id] !== i) continue;
+    leaveJob(c, id); if (pp.loc[id] === i) { pp.loc[id] = pp.home[id]; pp.state[id] = ST.HOME; }
+    n--; cut++;
+  }
+  return cut;
+}
+
 /** Lương mỗi giờ của một chỗ làm ở ô i. */
 export const wageAt = (c, i) => MK * (1 + 0.4 * reqEdu(c.zone[i], c.level[i])) * (1 + 0.05 * (c.level[i] - 1)) * (c.corpPay && c.owner ? c.corpPay[c.owner[i]] || 1 : 1); // công ty trả cao hơn để giành lao động
 /** Nguyên liệu một nhà máy đủ người dùng hết mỗi giờ. */
 const FACT_RATE = 0.5; // nguyên liệu một công nhân chế biến mỗi giờ (nhập nguyên liệu, xuất hàng vẫn còn lãi)
 const factoryUse = (c, i) => jobCap(c.zone[i], c.level[i]) * FACT_RATE * (1 + 0.12 * (c.level[i] - 1));
-export const rentAt = (c, i) => MK * (1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6) * (isTro(c, i) ? TRO_RENT : 1);
+export const rentAt = (c, i) => MK * (1.5 + c.landValue[i] * 0.05 + (c.level[i] - 1) * 0.6) * (isTro(c, i) ? TRO_RENT : 1) * (c.rentK ? c.rentK[i] || 1 : 1); // rentK: khu nhiều nhà trống thì rẻ, khu chật thì đắt (chain.js)
 /** Nhà trọ: dãy phòng liền kề cấp 1–2 (một phần ba số ô, theo variant, khớp hình nhà trọ ở kiểu nhà Việt Nam) — tiền thuê rẻ hơn hẳn. */
 export const TRO_RENT = 0.65;
 export const isTro = (c, i) => c.zone[i] === 14 && c.level[i] >= 1 && c.level[i] <= 2 && c.variant[i] % 3 === 0;
@@ -346,7 +358,7 @@ export function touristSpend(c, n, per = 8) {
 
 /** Doanh thu của một doanh nghiệp: trừ thuế, thành phố thu phần thuế đó. */
 export function saleIncome(c, i, amount, cat, from, free) {
-  const rate = free ? 0 : (c.tax[cat] / 100) * (1 - (c.taxBreakK || 0)); // nhà đầu tư được miễn một phần thuế (council.js); free: bán nguyên liệu thô trong thành phố được miễn thuế doanh thu (tránh đánh thuế chồng nhiều tầng nông → nhà máy → cửa hàng)
+  const rate = free ? 0 : (c.tax[cat] / 100) * (1 - Math.max(c.taxBreakK || 0, c.corpBrk && c.owner && c.owner[i] ? c.corpBrk[c.owner[i]] || 0 : 0)); // ưu đãi thuế: hợp đồng cũ cho cả thành phố, hoặc ưu đãi riêng cho công ty (corp.js); nhà đầu tư được miễn một phần thuế (council.js); free: bán nguyên liệu thô trong thành phố được miễn thuế doanh thu (tránh đánh thuế chồng nhiều tầng nông → nhà máy → cửa hàng)
   if (from && from.startsWith('group:')) groupFlow(c, from.slice(6), amount); // thành phố khác trả qua máy chủ nhóm: đúng số, không qua ví thế giới
   else if (from) { amount *= worldK(c); world(c, from, amount); } // người trả ở ngoài thành phố: thế giới nghèo đi thì trả ít đi (ledger.js)
   c.biz.money[i] += amount * (1 - rate);
@@ -587,7 +599,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   for (const i of companies) {
     const kind = c.ware && c.ware[i] ? 'ware' : bizKind(c, i), pres = c.present[i], cap = jobCap(c.zone[i], c.level[i]); // kho bãi của công ty: không sản xuất
     b.money[i] -= 0.12 * MK * c.level[i]; fixed += 0.12 * MK * c.level[i]; // chi phí cố định
-    const prod = (1 + 0.12 * (c.level[i] - 1)) * (kind === 'raw' || kind === 'factory' ? fest : 1) * (c.hub && c.hub[i] ? 1.1 : 1) * (c.flood && c.flood[i] >= 1.5 ? 0.2 : 1); // ngập: gần như đứng máy
+    const prod = (1 + 0.12 * (c.level[i] - 1)) * (kind === 'raw' || kind === 'factory' ? fest : 1) * (c.hub && c.hub[i] ? 1.1 : 1) * (c.flood && c.flood[i] >= 1.5 ? 0.2 : 1) * (c.halted && c.halted[i] ? 0 : 1) * (c.corpTech && c.owner && c.owner[i] ? 1 + 0.08 * (c.corpTech[c.owner[i]] || 0) : 1); // ngập: gần như đứng máy; bị đình chỉ: dừng hẳn; máy móc mới của công ty: nhanh hơn
     let active = pres > 0;
     if (kind === 'raw') {
       const rk = ZDEF[c.zone[i]].raw;
@@ -639,7 +651,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
       let best = -1, bk = null, bd = Infinity;
       for (const k of kinds) for (const s of supply[k]) { if (b.sout[s] < qty) continue; const d = dist(s, to) * (og(s) && og(s) === og(to) ? (c.corpStore && c.corpStore[c.owner[s]] ? 0.42 : 0.55) : 1); if (d < bd) { bd = d; best = s; bk = k; } }
       if (best >= 0) {
-        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; if (og(best) && og(best) === og(to)) c.fn.corpNote(c, 'intern', best, qty); continue; }
+        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; if (c.supLink) c.supLink[to] = best; if (og(best) && og(best) === og(to)) c.fn.corpNote(c, 'intern', best, qty); continue; } // supLink: ai cấp hàng cho ai (đứt cung ứng, chain.js)
       }
       const out = nearestOutside(c, to);
       if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind: importKind(), qty, imp: true, slot }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
@@ -659,6 +671,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   for (const i of broke) {
     c.econ.bankrupt++; c.econ.day.bankrupt++;
     c.events.push({ type: 'bankruptBiz', x: i % N, y: (i / N) | 0, kind: bizKind(c, i) });
+    c._why = { kind: 'bankrupt' }; // biên niên: vì sao toà nhà biến mất (chain.js)
     c.fn.clearBuilding(c, i);
   }
   return bought;
@@ -696,7 +709,7 @@ function servicesHour(c, h) {
   for (let i = 0; i < N * N; i++) {
     if (c.level[i]) { built++; if (rng() < 1 / built) pick = i; }
     if (!c.fire[i]) continue;
-    if (--c.fire[i] === 0) { c.events.push({ type: 'fire', x: i % N, y: (i / N) | 0, zone: c.zone[i] }); c.fn.clearBuilding(c, i); c.dirty.fx = true; continue; }
+    if (--c.fire[i] === 0) { c.events.push({ type: 'fire', x: i % N, y: (i / N) | 0, zone: c.zone[i] }); c._why = { kind: 'fire' }; c.fn.clearBuilding(c, i); c.dirty.fx = true; continue; }
     for (const j of [i - 1, i + 1, i - N, i + N]) if (j >= 0 && j < N * N && c.level[j] && !c.fire[j] && rng() < 0.05) { c.fire[j] = 7; c.dirty.fx = true; } // lửa lan sang nhà sát vách
     if (c.fireTruck[i]) continue;
     let best = null, bd = Infinity;

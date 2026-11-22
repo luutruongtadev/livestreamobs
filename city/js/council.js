@@ -1,9 +1,11 @@
 // Phố Mới — hộp thư thị trưởng: tình huống khó xử, đàm phán với đối tác, đánh giá của du khách.
 // Mọi con số và hậu quả do game tính ở đây; LLM (qua /api/city/ai, xem city/js/ai.js) chỉ viết lời và mặc cả
 // trong khung số game cho phép. Không có LLM thì dùng mẫu câu soạn sẵn bên dưới.
-import { N, SERVICES, ZDEF, clamp } from './base.js';
-import { cityPay, cityGet } from './ledger.js';
+import { N, MK, SERVICES, ZDEF, clamp } from './base.js';
+import { cityPay, cityGet, inner } from './ledger.js';
 import { lunar, stormSeason } from './seasons.js';
+import { chron, haltCell, dumpCell, CHAIN } from './chain.js';
+import { actorOf, actorPay, actorCells, corpById, corpLog } from './corp.js';
 
 // ───────────────────────── hiệu ứng tạm thời ─────────────────────────
 
@@ -21,13 +23,37 @@ export function councilMod(c, key) {
   return v;
 }
 /** Phần thuế thương mại / công nghiệp đang được miễn cho nhà đầu tư (0..1). */
-export const taxBreak = (c) => (c.council ? c.council.deals.reduce((s, d) => (d.type === 'investor' && d.until >= c.day ? Math.max(s, d.breakPct / 100) : s), 0) : 0);
+export const taxBreak = (c) => (c.council ? c.council.deals.reduce((s, d) => (d.type === 'investor' && !d.corp && d.until >= c.day ? Math.max(s, d.breakPct / 100) : s), 0) : 0); // hợp đồng đã lập công ty: ưu đãi chỉ cho nhà máy của công ty đó (corp.js brk)
 /** Chi phí mỗi ngày của các hợp đồng (trợ giá đường bay). */
 export const dealCost = (c) => (c.council ? c.council.deals.reduce((s, d) => s + (d.type === 'airline' && d.until >= c.day ? d.subsidy : 0), 0) : 0);
 
 // ───────────────────────── tình huống khó xử (8) ─────────────────────────
 
 const count = (c, f) => { let n = 0; for (let i = 0; i < N * N; i++) if (c.level[i] && f(ZDEF[c.zone[i]], i)) n++; return n; };
+/** Nhà máy ven sông (cách mặt nước ≤ 2 ô) to nhất đang chạy: doanh nghiệp thật trong tình huống xả thải. -1 nếu không có. */
+function riverside(c) {
+  let best = -1, bv = -1;
+  for (let i = 0; i < N * N; i++) {
+    if (c.zone[i] !== 3 || !c.level[i] || (c.ware && c.ware[i]) || (c.halted && c.halted[i]) || (c.dumped && c.dumped.includes(i))) continue;
+    const x = i % N, y = (i / N) | 0;
+    let wet = false;
+    for (let dy = -2; dy <= 2 && !wet; dy++) for (let dx = -2; dx <= 2; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < N && Y < N && c.water[Y * N + X]) { wet = true; break; } }
+    if (!wet) continue;
+    const v = c.level[i] * 10 + c.staff[i] + (c.owner && c.owner[i] ? 5 : 0);
+    if (v > bv) { bv = v; best = i; }
+  }
+  return best;
+}
+/** Doanh nghiệp công nghiệp đang túng nhất (ví âm nhiều nhất, hoặc ít tiền nhất so với số người làm): tình huống nợ lương Tết. */
+function strapped(c) {
+  let best = -1, bv = Infinity;
+  for (let i = 0; i < N * N; i++) {
+    if (!c.level[i] || ZDEF[c.zone[i]].cat !== 'i' || (c.ware && c.ware[i]) || !c.staff[i]) continue;
+    const v = c.biz.money[i] / c.staff[i];
+    if (v < bv) { bv = v; best = i; }
+  }
+  return best;
+}
 /**
  * Mẫu tình huống: when(c) có xảy ra được không; options: id, hiệu ứng (money: tiền ngay; mods: [key, v, số ngày]; rating: điểm cộng
  * vào đánh giá du khách sắp tới). text: mẫu lời dự phòng khi không có LLM.
@@ -36,12 +62,13 @@ export const DILEMMAS = {
   waste: {
     topic: 'Nhà máy xin xả thải ra sông để giữ việc làm',
     when: (c) => count(c, (z) => z.cat === 'i') >= 6 && c.water.some((v) => v),
+    actor: riverside, // tình huống gắn với đúng nhà máy ven sông đó; không có nhà máy nào ven sông thì không xảy ra
     options: [
-      { id: 'allow', label: 'Cho phép tạm thời', money: 9000, mods: [['happy', -3, 20], ['tour', 0.9, 20]], rating: -0.4 },
-      { id: 'fine', label: 'Bắt xử lý, phạt nếu vi phạm', money: 4000, mods: [['comm', -0.03, 15]] },
-      { id: 'close', label: 'Đình chỉ nhà máy', money: -6000, mods: [['happy', 2, 20], ['pull', -0.03, 15]] },
+      { id: 'allow', label: 'Cho phép tạm thời, thu phí xả thải', money: 9000, payer: 'actor', act: 'dump', mods: [['happy', -3, 20], ['tour', 0.9, 20]], rating: -0.4 },
+      { id: 'fine', label: 'Bắt xử lý, phạt nếu vi phạm', money: 4000, payer: 'actor', act: 'fine', mods: [['comm', -0.03, 15]] },
+      { id: 'close', label: 'Đình chỉ nhà máy', money: -6000, act: 'halt', mods: [['happy', 2, 20], ['pull', -0.03, 15]] },
     ],
-    text: { title: 'Nhà máy xin xả thải', story: 'Một nhà máy ven sông báo nếu phải đầu tư hệ thống xử lý nước thải ngay thì sẽ cắt giảm công nhân. Họ xin được xả thải tạm thời trong vài tuần.' },
+    text: { title: 'Nhà máy xin xả thải', story: '{who} báo nếu phải đầu tư hệ thống xử lý nước thải ngay thì sẽ cắt giảm công nhân. Họ xin được xả thải ra sông tạm thời trong vài tuần.' },
   },
   vendors: {
     topic: 'Hàng rong lấn chiếm vỉa hè khu trung tâm',
@@ -146,12 +173,13 @@ export const DILEMMAS = {
   tetBonus: {
     topic: 'Công nhân chờ thưởng Tết, nhiều xưởng nợ lương',
     when: (c) => lunar(c.day).month === 12 && count(c, (z) => z.cat === 'i') >= 3,
+    actor: strapped, // doanh nghiệp công nghiệp túng tiền nhất (ít tiền nhất trên mỗi người làm)
     options: [
-      { id: 'force', label: 'Buộc doanh nghiệp trả đủ trước Tết', money: 0, mods: [['happy', 3, 15], ['comm', -0.03, 15]] },
-      { id: 'help', label: 'Thành phố hỗ trợ quà Tết', money: -8000, mods: [['happy', 3, 15], ['pull', 0.02, 20]] },
+      { id: 'force', label: 'Buộc doanh nghiệp trả đủ trước Tết', money: 0, act: 'bonus', mods: [['happy', 3, 15], ['comm', -0.03, 15]] },
+      { id: 'help', label: 'Thành phố hỗ trợ quà Tết', money: -8000, act: 'gift', mods: [['happy', 3, 15], ['pull', 0.02, 20]] },
       { id: 'wait', label: 'Để doanh nghiệp tự lo', money: 0, mods: [['happy', -3, 20], ['pull', -0.02, 20]] },
     ],
-    text: { title: 'Tết này có thưởng không?', story: 'Còn ít ngày nữa là Tết, nhiều công nhân ở khu xưởng vẫn chưa nhận lương tháng trước, nói gì tới thưởng. Họ tụ tập trước cổng xin về quê sớm.' },
+    text: { title: 'Tết này có thưởng không?', story: 'Còn ít ngày nữa là Tết, công nhân của {who} vẫn chưa nhận lương tháng trước, nói gì tới thưởng. Họ tụ tập trước cổng xin về quê sớm.' },
   },
   xeOm: {
     topic: 'Xe ôm truyền thống phản đối xe ôm công nghệ',
@@ -268,8 +296,8 @@ export const DEALS = {
     when: (c) => c.pp.count >= 300,
     params: { invest: [20000, 160000, '₫ vốn góp hạ tầng', 'us'], breakPct: [10, 60, '% thuế thương mại, công nghiệp được miễn', 'them'], days: [20, 120, 'ngày ưu đãi', 'them'] },
     start: (c, P) => ({ invest: Math.round(P.invest[0] + (P.invest[1] - P.invest[0]) * 0.35), breakPct: 50, days: 100 }),
-    summary: (o) => `Góp ${o.invest.toLocaleString('vi-VN')} ₫ ngay, đổi lại miễn ${o.breakPct}% thuế thương mại và công nghiệp trong ${o.days} ngày (dân tới ở đông hơn trong thời gian đó)`,
-    worth: (o) => o.invest - o.breakPct * o.days * 18, // ước lượng lời / lỗ cho thành phố (gợi ý cho người chơi)
+    summary: (o) => `Góp ${o.invest.toLocaleString('vi-VN')} ₫ hạ tầng ngay và lập công ty xây ${Math.min(5, Math.max(2, 2 + Math.round(o.invest / 50000)))} nhà máy trên khu công nghiệp đã quy hoạch; đổi lại nhà máy của họ được miễn ${o.breakPct}% thuế trong ${o.days} ngày (dân tới ở đông hơn trong thời gian đó)`,
+    worth: (o) => o.invest - o.breakPct * o.days * 6, // ước lượng lời / lỗ cho thành phố (gợi ý cho người chơi): ưu đãi chỉ cho nhà máy của nhà đầu tư
   },
   grant: {
     who: ['Bộ Xây dựng', 'Bộ Tài nguyên và Môi trường', 'Quỹ phòng chống thiên tai trung ương'],
@@ -400,12 +428,14 @@ export function councilHour(c) {
 
 function newDilemma(c, rng) {
   const recent = new Set(c.council.inbox.filter((i) => i.kind === 'dilemma' && i.day > c.day - 15).map((i) => i.type));
-  const can = Object.keys(DILEMMAS).filter((t) => !recent.has(t) && DILEMMAS[t].when(c));
+  const can = Object.keys(DILEMMAS).filter((t) => !recent.has(t) && DILEMMAS[t].when(c) && (!DILEMMAS[t].actor || DILEMMAS[t].actor(c) >= 0)); // tình huống có doanh nghiệp liên quan: phải có doanh nghiệp thật đó
   if (!can.length) return null;
-  const type = can[(rng() * can.length) | 0], D = DILEMMAS[type];
-  const it = { id: c.council.nextId++, kind: 'dilemma', type, day: c.day, expires: c.day + 3, status: 'pending', topic: D.topic, options: D.options.map((o) => ({ id: o.id, label: o.label })), title: D.text.title, story: D.text.story };
+  const type = can[(rng() * can.length) | 0], D = DILEMMAS[type], actor = D.actor ? actorOf(c, D.actor(c)) : null;
+  const story = D.text.story.replace('{who}', actor ? actor.name : 'Một doanh nghiệp');
+  const it = { id: c.council.nextId++, kind: 'dilemma', type, day: c.day, expires: c.day + 3, status: 'pending', topic: D.topic, options: D.options.map((o) => ({ id: o.id, label: o.label })), title: D.text.title, story };
+  if (actor) it.actor = actor;
   c.council.inbox.push(it);
-  c.events.push({ type: 'council', text: `📨 Có việc cần thị trưởng quyết: ${D.text.title}` });
+  it.ev = chron(c, 'dilemma', `📨 Có việc cần thị trưởng quyết: ${D.text.title}${actor ? ` (${actor.name})` : ''}`, { cell: actor ? actor.cell : -1, corp: actor ? actor.corp : 0 });
   return it;
 }
 
@@ -431,7 +461,11 @@ export function decide(c, id, optId, auto = false, by = null) {
     if (!by) return { ok: false, reason: 'Không đủ tiền cho phương án này' };
     return decide(c, id, defaultOption(it.type).id, true); // chủ tịch quận không chi quá quỹ: quyết theo mặc định
   }
-  cityGet(c, 'council', auto && o.money > 0 ? Math.round(o.money / 2) : o.money); // quá hạn mới xử lý: khoản thu chỉ còn một nửa
+  const A = it.actor && c.level[it.actor.cell] ? it.actor : null; // doanh nghiệp thật trong tình huống (còn hoạt động)
+  let got = auto && o.money > 0 ? Math.round(o.money / 2) : o.money; // quá hạn mới xử lý: khoản thu chỉ còn một nửa
+  if (o.payer === 'actor' && A && got > 0) { got = Math.round(actorPay(c, A, got)); c.money += got; inner(c, 'council', got); } // doanh nghiệp nộp phí, phạt: tiền trong thành phố chuyển vào ngân sách
+  else if (o.act === 'gift' && A && got < 0 && giveWorkers(c, A, -got)) { c.money += got; inner(c, 'council', -got); } // quà Tết tới tay đúng công nhân của doanh nghiệp đó
+  else cityGet(c, 'council', got);
   for (const [key, v, days] of o.mods) c.council.mods.push({ key, v, until: c.day + days, from: it.type });
   if (o.rating) c.council.ratingBias += o.rating;
   if (o.fire) { // làm ngơ chuyện phòng cháy: vài căn nhà ở bốc cháy thật
@@ -441,10 +475,32 @@ export function decide(c, id, optId, auto = false, by = null) {
     c.dirty.fx = true;
   }
   it.status = 'done'; it.chose = optId; it.auto = auto; if (by) it.by = by;
-  const got = auto && o.money > 0 ? Math.round(o.money / 2) : o.money;
-  c.events.push({ type: 'council', text: `${auto ? '⌛ Quá hạn, thành phố mặc định' : by ? `🏙️ ${by} quyết` : '🖋️ Thị trưởng quyết'}: ${it.title} → ${o.label}${got ? ` (${got > 0 ? '+' : ''}${got.toLocaleString('vi-VN')} ₫)` : ''}` });
+  const ev = chron(c, 'decision', `${auto ? '⌛ Quá hạn, thành phố mặc định' : by ? `🏙️ ${by} quyết` : '🖋️ Thị trưởng quyết'}: ${it.title}${A ? ` (${A.name})` : ''} → ${o.label}${got ? ` (${got > 0 ? '+' : ''}${got.toLocaleString('vi-VN')} ₫)` : ''}`, { cell: A ? A.cell : -1, corp: A ? A.corp : 0, cause: it.ev });
+  if (A && o.act) actorEffect(c, A, o, ev);
   return { ok: true, option: o };
 }
+
+/** Chia tiền cho người đang làm ở các ô của doanh nghiệp (thưởng Tết). Trả số người nhận (0 = không ai, tiền không chuyển). */
+function giveWorkers(c, A, amount) {
+  const cells = new Set(actorCells(c, A)), pp = c.pp, who = [];
+  for (let id = 0; id < pp.n; id++) if (pp.alive[id] && cells.has(pp.work[id])) who.push(id);
+  if (!who.length || !(amount > 0)) return 0;
+  for (const id of who) pp.money[id] += amount / who.length;
+  return who.length;
+}
+/** Hậu quả thật lên đúng doanh nghiệp: xả thải (ô nhiễm nước quanh nhà máy), nộp phạt, đình chỉ (ngừng sản xuất), thưởng Tết cho công nhân. */
+function actorEffect(c, A, o, ev) {
+  const q = A.corp ? corpById(c, A.corp) : null, log = (type, data) => { if (q) corpLog(c, q, type, data); };
+  if (o.act === 'dump') { dumpCell(c, A.cell, 20, ev); log('dump', { days: 20 }); chron(c, 'pollution', `🚱 ${A.name} xả thải ra sông 20 ngày: nước quanh nhà máy ô nhiễm, dân ven sông kêu mùi hôi`, { cell: A.cell, corp: A.corp, cause: ev }); }
+  if (o.act === 'fine') log('fined', {});
+  if (o.act === 'halt') { haltCell(c, A.cell, CHAIN.haltDays, ev); log('halted', { days: CHAIN.haltDays }); chron(c, 'halt', `⛔ ${A.name} bị đình chỉ ${CHAIN.haltDays} ngày: ngừng sản xuất, vẫn phải trả lương và chi phí`, { cell: A.cell, corp: A.corp, cause: ev }); }
+  if (o.act === 'bonus') {
+    const n = actorCells(c, A).reduce((s, i) => s + c.staff[i], 0), want = n * 4 * MK, paid = actorPay(c, A, want); // khoảng 4 MK mỗi người
+    if (paid > 0 && giveWorkers(c, A, paid)) { inner(c, 'tetBonus', paid); log('tetBonus', { paid: Math.round(paid) }); chron(c, 'bonus', `🧧 ${A.name} trả ${Math.round(paid).toLocaleString('vi-VN')} ₫ lương, thưởng Tết cho ${n} công nhân${paid < want ? ' (chỉ trả được một phần)' : ''}`, { cell: A.cell, corp: A.corp, cause: ev }); }
+    else if (paid > 0) actorRefund(c, A, paid);
+  }
+}
+const actorRefund = (c, A, v) => { const q = A.corp ? corpById(c, A.corp) : null; if (q) q.cash += v; else c.biz.money[A.cell] += v; };
 
 /** Số công trình chống ngập đã xong tính cho hợp đồng hỗ trợ: trạm bơm = 1, kè (rẻ hơn nhiều) = 1/4. */
 const floodWorks = (c) => c.services.reduce((n, s) => n + (s.build > 0 ? 0 : s.type === 'floodpump' ? 1 : s.type === 'levee' ? 0.25 : 0), 0);
@@ -466,7 +522,8 @@ export function signDeal(c, id) {
   if (it.type === 'grant') { cityGet(c, 'council', o.grant); d.base = floodWorks(c); }
   c.council.deals.push(d);
   it.status = 'signed';
-  c.events.push({ type: 'council', text: `🤝 Đã ký với ${it.who}: ${DEALS[it.type].summary(o)}` });
+  d.ev = chron(c, 'deal', `🤝 Đã ký với ${it.who}: ${DEALS[it.type].summary(o)}`);
+  if (it.type === 'investor' && c.fn && c.fn.investorFound) c.fn.investorFound(c, d); // nhà đầu tư lập công ty, xây nhà máy thật trên khu công nghiệp đã quy hoạch
   return { ok: true, deal: d };
 }
 export function rejectDeal(c, id) {

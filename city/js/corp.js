@@ -5,6 +5,7 @@
 // Mọi chuyển tiền là chuyển nội bộ trong thành phố hoặc đi qua procure / inner / world, nên sổ cái vẫn khớp.
 import { N, MK, ZDEF, PRODUCTS, RAW_KINDS, PRODUCT_KINDS, productAt, jobCap, hash2, clamp } from './base.js';
 import { inner, world, worldCan } from './ledger.js';
+import { chron, landK, placeName, workerHousing, housingShort, fundCells, bizName } from './chain.js';
 
 /** Bảng tham số cân bằng (đơn vị: MK). */
 export const CORP = {
@@ -24,6 +25,11 @@ export const CORP = {
   retailMin: 3, // chuỗi bán lẻ: từ bậc 3
   divHolders: 0.35, divLeak: 0.2, divLeakStage: 3, // cổ tức: ~35% người lớn nắm cổ phần mỗi công ty (cố định theo id), 20% lãi của công ty từ bậc 3 chảy ra nước ngoài; phần còn lại chịu thuế thu nhập
   expOn: 18, expOff: 8, decideHours: 6, // đẩy xuất khẩu khi tồn kho thành phẩm ≥ 18 (tắt khi < 8); chờ AI chọn tối đa 6 giờ game
+  invDays: 25, // nhà đầu tư đã ký hợp đồng chờ đất khu công nghiệp tối đa 25 ngày rồi rút vốn
+  techMax: 3, techK: 0.08, techFee: 40, techCool: 20, // đầu tư máy móc: tối đa 3 nấc, mỗi nấc +8% sản lượng, −12% khói; phí 40 MK mỗi nhà máy × nấc
+  taxBase: 9, taxHigh: 14, // thuế chuẩn; từ 14% CEO nghĩ tới chuyện dời nhà máy đi
+  brkMax: 50, brkDays: 60, // ưu đãi thuế công ty xin kèm dự án: tối đa 50% trong 60 ngày
+  houseFee: 60, houseMax: 4, // nhà ở công nhân: công ty tài trợ 60 MK mỗi ô nhà ở đã quy hoạch, tối đa 4 ô một lần
 };
 export const maxCorps = (c) => clamp(2 + Math.floor((c.pp ? c.pp.count : 0) / 700), 2, 8);
 export const STAGES = ['', 'Khởi nghiệp', 'Đang lớn', 'Doanh nghiệp lớn', 'Tập đoàn'];
@@ -53,6 +59,7 @@ export function termsFor(c, q) {
 }
 
 const cur = (c) => (c.corp ? c.corp : null);
+const vnd = (v) => `${Math.round(v).toLocaleString('vi-VN')} ₫`;
 export const corpById = (c, id) => (c.corp ? c.corp.list.find((q) => q.id === id) : undefined);
 const built = (c, i) => c.level[i] > 0;
 const idxXY = (x, y) => y * N + x;
@@ -65,7 +72,8 @@ export function corpLog(c, q, type, data = {}) {
   q.log.push({ day: c.day, type, ...data });
   if (q.log.length > CORP.maxLog) q.log.splice(0, q.log.length - CORP.maxLog);
 }
-const news = (c, text) => c.events.push({ type: 'council', text });
+/** Tin của công ty: vào biên niên thành phố (chain.js) và hiện thông báo. Trả id sự kiện để các sự kiện sau ghi nguyên nhân. */
+const news = (c, text, o = {}) => chron(c, o.kind || 'corp', text, o);
 
 // ───────────────────────── chỉ số ─────────────────────────
 
@@ -126,7 +134,11 @@ export function initCorp(c, o = {}) {
     const q = {
       id: r.id | 0, name: String(r.name || 'Công ty').replace(/[<>]/g, '').slice(0, 40), kind: r.kind === 'trade' ? 'trade' : 'ind', ceo: CEOS[r.ceo] ? r.ceo : 'steady', sector: PRODUCTS[r.sector] ? r.sector : null,
       parent: r.parent | 0, stage: clamp(r.stage | 0, 1, 4), cash: Math.max(0, num(r.cash)), born: r.born | 0, trust: clamp(num(r.trust), -3, 5),
-      cool: { act: num(r.cool && r.cool.act), ask: num(r.cool && r.cool.ask), sub: num(r.cool && r.cool.sub), acq: num(r.cool && r.cool.acq), loan: num(r.cool && r.cool.loan) },
+      cool: { act: num(r.cool && r.cool.act), ask: num(r.cool && r.cool.ask), sub: num(r.cool && r.cool.sub), acq: num(r.cool && r.cool.acq), loan: num(r.cool && r.cool.loan), tech: num(r.cool && r.cool.tech), move: num(r.cool && r.cool.move) },
+      tech: clamp(r.tech | 0, 0, CORP.techMax), low: Math.max(0, r.low | 0), taxSeen: Number.isFinite(+r.taxSeen) ? +r.taxSeen : undefined, taxEv: r.taxEv | 0, taxEvAt: Number.isFinite(+r.taxEvAt) ? +r.taxEvAt : undefined,
+      brk: r.brk && r.brk.pct > 0 ? { pct: clamp(r.brk.pct | 0, 0, 100), until: r.brk.until | 0 } : null, foreign: r.foreign ? String(r.foreign).replace(/[<>]/g, '').slice(0, 60) : undefined,
+      inv: r.inv && r.inv.n > 0 ? { n: clamp(r.inv.n | 0, 1, 5), until: r.inv.until | 0, warned: r.inv.warned ? 1 : 0 } : undefined, ev: r.ev | 0,
+      house: Number.isFinite(+r.house) ? +r.house : undefined, houseEv: r.houseEv | 0, landWant: Number.isFinite(+r.landWant) ? +r.landWant : undefined,
       export: r.export ? 1 : 0, xAt: num(r.xAt), debt: Math.max(0, num(r.debt)), pay: clamp(num(r.pay, 1), 1, 1.5), pAt: num(r.pAt), lastShare: clamp(num(r.lastShare), 0, 1), mono: r.mono ? 1 : 0, dep: r.dep ? 1 : 0, crisisAt: num(r.crisisAt, -99), markup: clamp(num(r.markup, 1), CORP.mkMin, CORP.mkMax),
       wares: (Array.isArray(r.wares) ? r.wares : []).filter((x) => x >= 0 && x < N * N).map((x) => x | 0),
       partners: Array.isArray(r.partners) ? r.partners.slice(0, 2).map((x) => x | 0) : undefined, intern: Math.max(0, num(r.intern)), xunits: Math.max(0, num(r.xunits)),
@@ -143,6 +155,8 @@ export function initCorp(c, o = {}) {
   const asks = (Array.isArray(o.asks) ? o.asks : []).slice(0, 4).filter((a) => a && list.some((q) => q.id === a.corp) && Array.isArray(a.sites)).map((a) => ({
     id: a.id | 0, corp: a.corp | 0, day: a.day | 0, expires: a.expires | 0, sites: a.sites.filter((i) => i >= 0 && i < N * N).slice(0, 8).map((i) => i | 0), jobs: a.jobs | 0, days: a.days | 0, terms: (Array.isArray(a.terms) ? a.terms : []).filter((k) => TERM_KEYS.includes(k)),
     status: ['open', 'agreed'].includes(a.status) ? a.status : 'open', countered: a.countered ? 1 : 0,
+    kind: a.kind === 'housing' ? 'housing' : 'project', jv: a.jv | 0, rezone: Math.max(0, a.rezone | 0), brk: clamp(a.brk | 0, 0, CORP.brkMax), brk0: clamp((a.brk0 ?? a.brk) | 0, 0, CORP.brkMax), brkDays: Math.max(0, a.brkDays | 0), jobs0: (a.jobs0 ?? a.jobs) | 0, cost: Math.max(0, num(a.cost)), ev: a.ev | 0, final: a.final ? true : undefined,
+    chat: (Array.isArray(a.chat) ? a.chat : []).slice(-16).map((m) => ({ from: m.from === 'us' ? 'us' : 'them', text: String(m.text || '').replace(/[<>]/g, '').slice(0, 600) })),
   }));
   for (const q of list) { if (q.parent === q.id || !list.some((x) => x.id === q.parent)) q.parent = 0; if (q.partners) { q.partners = q.partners.filter((x) => list.some((y) => y.id === x)); if (q.partners.length < 2) q.partners = undefined; } }
   c.corp = { list, asks, nextId: Math.max(1, o.nextId | 0, ...list.map((q) => q.id + 1)), nextAsk: Math.max(1, o.nextAsk | 0, ...asks.map((a) => a.id + 1)), foundAt: num(o.foundAt, -99), foundTradeAt: num(o.foundTradeAt, -99), off: o.off ? 1 : 0, sme: num(o.sme, -1), rival: num(o.rival, -1), dp: {}, flow: {} };
@@ -153,8 +167,15 @@ export const packCorp = (c) => (c.corp ? { list: c.corp.list.map(({ pend, ...q }
 
 // ───────────────────────── chỗ xây ─────────────────────────
 
-/** Ô đất trống của thành phố, cạnh đường, chưa quy hoạch (zoneRect còn kiểm lại mọi điều kiện khác). */
-const siteOk = (c, i) => c.own[i] && c.acc[i] && !c.steep[i] && !c.water[i] && !c.road[i] && !c.occ[i] && !c.zone[i] && !c.level[i] && !c.owner[i] && !(c.beach && c.beach[i]) && !(c.decor && c.decor[i]) && !(c.falls && c.falls[i]) && !(c.resvCell && c.resvCell[i]);
+/** Ô đất trống của thành phố, cạnh đường, chưa có nhà, chưa ai giữ (zoneRect còn kiểm lại mọi điều kiện khác). */
+const freeLand = (c, i) => c.own[i] && c.acc[i] && !c.steep[i] && !c.water[i] && !c.road[i] && !c.occ[i] && !c.level[i] && !c.owner[i] && !(c.beach && c.beach[i]) && !(c.decor && c.decor[i]) && !(c.falls && c.falls[i]) && !(c.resvCell && c.resvCell[i]);
+/** Loại khu công ty được xây theo đúng quy hoạch: sản xuất → khu công nghiệp (3) hoặc xưởng chế biến (21); thương mại → cửa hàng (2, 5). Kho chỉ ở khu công nghiệp. */
+export const fitsZone = (q, z, ware = false) => (ware ? z === 3 : q.kind === 'trade' ? z === 2 || z === 5 : z === 3 || z === 21);
+/** Ô thị trưởng ĐÃ quy hoạch đúng loại, còn trống: công ty chỉ được tự xây ở đây (không tự chuyển mục đích sử dụng đất). */
+const zonedOk = (c, q, i, ware = false) => freeLand(c, i) && fitsZone(q, c.zone[i], ware);
+/** Ô chưa quy hoạch: chỉ được dùng khi thị trưởng duyệt đề xuất xin chuyển đổi quy hoạch. */
+const rawOk = (c, i) => freeLand(c, i) && !c.zone[i];
+const siteOk = (c, q, i) => zonedOk(c, q, i) || rawOk(c, i);
 const near = (c, i, r) => { const x = i % N, y = (i / N) | 0; return (cb) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < N && Y < N && cb(idxXY(X, Y), dx, dy)) return true; } return false; }; };
 const homesNear = (c, i) => { let n = 0; near(c, i, 2)((k) => { if (c.level[k] && ZDEF[c.zone[k]].res) n++; return false; }); return n; };
 
@@ -172,29 +193,43 @@ function siteScore(c, q, i, centre) {
 }
 const centreOf = (c, q) => { const l = q.cells.map(([i]) => i); if (!l.length) return null; return { x: l.reduce((s, i) => s + (i % N), 0) / l.length, y: l.reduce((s, i) => s + ((i / N) | 0), 0) / l.length }; };
 
-/** Ô liền kề cụm hiện có (bán kính 3) để mở rộng nhỏ. */
-function expandSite(c, q) {
+/** Ô đã quy hoạch đúng loại liền kề cụm hiện có (bán kính 3) để mở rộng nhỏ; ware: chỉ khu công nghiệp. Không có thì -1. */
+function expandSite(c, q, ware = false) {
   const centre = centreOf(c, q); let best = -1, bs = -Infinity;
   const seen = new Set();
-  for (const [o] of q.cells) near(c, o, 3)((i) => { if (!seen.has(i) && siteOk(c, i)) { seen.add(i); const s = siteScore(c, q, i, centre); if (s > bs) { bs = s; best = i; } } return false; });
+  for (const [o] of q.cells) near(c, o, 3)((i) => { if (!seen.has(i) && zonedOk(c, q, i, ware)) { seen.add(i); const s = siteScore(c, q, i, centre); if (s > bs) { bs = s; best = i; } } return false; });
   return best;
 }
-/** Một dự án mới: n ô liền nhau ở nơi điểm cao nhất toàn bản đồ (có thể xa cụm cũ, nên cần thị trưởng duyệt). */
-function projectSites(c, q, n) {
+/** n ô liền nhau ở nơi điểm cao nhất toàn bản đồ, chỉ trong các ô thoả ok. */
+function cluster(c, q, n, ok) {
   const centre = centreOf(c, q); let seed = -1, bs = -Infinity;
-  for (let i = 0; i < N * N; i++) if (siteOk(c, i)) { const s = siteScore(c, q, i, centre); if (s > bs) { bs = s; seed = i; } }
+  for (let i = 0; i < N * N; i++) if (ok(i)) { const s = siteScore(c, q, i, centre); if (s > bs) { bs = s; seed = i; } }
   if (seed < 0) return [];
   const out = [seed], used = new Set(out);
-  for (let k = 0; k < out.length && out.length < n; k++) near(c, out[k], 1)((i) => { if (out.length < n && !used.has(i) && siteOk(c, i)) { used.add(i); out.push(i); } return false; });
+  for (let k = 0; k < out.length && out.length < n; k++) near(c, out[k], 1)((i) => { if (out.length < n && !used.has(i) && ok(i)) { used.add(i); out.push(i); } return false; });
   return out;
 }
+/** Ô khu đúng loại đã quy hoạch, còn trống, cho một dự án n ô (ưu tiên). */
+const zonedSites = (c, q, n) => cluster(c, q, n, (i) => zonedOk(c, q, i));
+/**
+ * Một dự án mới (cần thị trưởng duyệt): ưu tiên ô đã quy hoạch đúng loại; không đủ (dưới 2 ô) thì xin đất chưa quy hoạch, khi đó
+ * đề xuất ghi rõ số ô phải chuyển đổi mục đích sử dụng đất và chỉ thị trưởng mới chuyển được.
+ */
+function projectSites(c, q, n) {
+  const z = zonedSites(c, q, n);
+  return z.length >= Math.min(2, n) ? z : cluster(c, q, n, (i) => rawOk(c, i));
+}
+/** Số ô trong danh sách chưa quy hoạch (phải chuyển đổi mục đích sử dụng đất). */
+const rezoneOf = (c, sites) => sites.filter((i) => !c.zone[i]).length;
 
 // ───────────────────────── cổng hành động ─────────────────────────
 
 const feeOf = (n) => n * CORP.cellFee * MK;
 /** Quỹ cần có cho dự án n ô: phí xây + phí đất + phí hạ tầng của các cam kết phụ + quỹ dự phòng. */
 const infraOf = (terms, n) => (terms || []).reduce((sum, k) => sum + (CORP.infra[k] || 0) * MK * n, 0);
-const projNeed = (terms, n) => feeOf(n) + CORP.landFee * MK * n + infraOf(terms, n) + CORP.reserve * MK;
+/** Phí đất mỗi ô nộp ngân sách: nhiều công ty cùng tranh đất công nghiệp thì phí lên (chain.js landK). */
+export const landFeeOf = (c) => CORP.landFee * MK * (c ? landK(c) : 1);
+const projNeed = (terms, n, c) => feeOf(n) + landFeeOf(c) * n + infraOf(terms, n) + CORP.reserve * MK;
 /** Khu quy hoạch công ty xây: công ty thương mại xây cửa hàng (khu 2), công ty sản xuất xây nhà máy (khu 3). */
 const buildZone = (q) => (q.kind === 'trade' ? 2 : 3);
 /** Điện còn dư (nhà máy mới cần điện): từ chối nếu mạng điện đã chạm trần. */
@@ -209,16 +244,22 @@ const capCells = (q) => 4 + q.stage * 4;
 export function corpAct(c, q, act) {
   if (!c.corp || !corpById(c, q.id)) return { ok: false, reason: 'Công ty không còn' };
   if (act.type === 'build') {
-    const cells = (act.cells || []).filter((i) => siteOk(c, i));
-    if (!cells.length) return { ok: false, reason: 'Không còn ô đất hợp lệ' };
+    const ware = !!act.ware, asked = act.cells || [];
+    const cells = asked.filter((i) => zonedOk(c, q, i, ware) || (act.approved && act.rezone && rawOk(c, i))); // đất chưa quy hoạch chỉ khi thị trưởng đã duyệt chuyển đổi
+    if (!cells.length) return { ok: false, reason: asked.some((i) => rawOk(c, i)) ? 'Đất chưa quy hoạch: công ty không được tự chuyển mục đích sử dụng đất, phải xin thị trưởng' : 'Không còn ô đất hợp lệ' };
     if (q.cells.length + cells.length > capCells(q)) return { ok: false, reason: `Đã đủ ${capCells(q)} ô cho bậc ${q.stage}` };
     if (!powerOk(c)) return { ok: false, reason: 'Mạng điện đã đầy, chưa dám xây thêm nhà máy' };
     if (!act.approved && cells.length > 1) return { ok: false, reason: 'Dự án nhiều ô phải được thị trưởng duyệt' };
     const fee = feeOf(cells.length);
     if (q.cash < fee + CORP.reserve * MK) return { ok: false, reason: 'Quỹ không đủ' };
     let n = 0;
-    for (const i of cells) { const r = c.fn.zoneRect(c, i % N, (i / N) | 0, i % N, (i / N) | 0, buildZone(q)); if (r.ok && c.zone[i] === buildZone(q)) { claim(c, q, i); if (act.ware) q.wares.push(i); n++; } }
+    let rz = 0;
+    for (const i of cells) {
+      if (!c.zone[i]) { const r = c.fn.zoneRect(c, i % N, (i / N) | 0, i % N, (i / N) | 0, buildZone(q)); if (!r.ok || c.zone[i] !== buildZone(q)) continue; rz++; } // thị trưởng đã duyệt chuyển đổi: game quy hoạch thay
+      claim(c, q, i); if (ware) q.wares.push(i); n++;
+    }
     if (!n) return { ok: false, reason: 'Khu đất không quy hoạch được' };
+    if (rz) { c.dirty.zones = true; corpLog(c, q, 'rezoned', { n: rz }); }
     const paid = feeOf(n); q.cash -= paid; c.fn.procure(c, paid, 'corpBuild');
     corpLog(c, q, act.ware ? 'warehouse' : 'build', { n, cost: Math.round(paid) });
     if (act.ware) rebuildGroups(c);
@@ -275,29 +316,86 @@ export function corpAct(c, q, act) {
   if (act.type === 'ask') {
     if (c.corp.asks.some((a) => a.corp === q.id)) return { ok: false, reason: 'Đã có đề xuất đang chờ' };
     if (c.day < q.cool.ask) return { ok: false, reason: 'Đang trong thời gian nghỉ đề xuất' };
-    const sites = (act.sites || []).filter((i) => siteOk(c, i));
+    const sites = (act.sites || []).filter((i) => siteOk(c, q, i));
     if (!sites.length) return { ok: false, reason: 'Không có khu đất phù hợp' };
-    const jv = act.jv ? corpById(c, act.jv) : null, terms = termsFor(c, jv ? { ...q, stage: Math.min(q.stage, jv.stage) } : q), need = projNeed(terms, sites.length);
+    const jv = act.jv ? corpById(c, act.jv) : null, terms = termsFor(c, jv ? { ...q, stage: Math.min(q.stage, jv.stage) } : q), need = projNeed(terms, sites.length, c);
     if (jv ? q.cash < need / 2 || jv.cash < need / 2 : q.cash < need) return { ok: false, reason: 'Quỹ không đủ cho dự án' };
     const k = 1 - Math.min(0.4, influence(c, q) / 100); // công ty càng lớn càng cam kết ít việc làm hơn (ảnh hưởng)
-    const a = { id: c.corp.nextAsk++, corp: q.id, day: c.day, expires: c.day + CORP.askDays, terms, sites, jobs: Math.round(sites.length * CORP.jobsPerCell * k * (q.kind === 'trade' ? 0.45 : 1)), days: CORP.commitDays, status: 'open', countered: 0, jv: jv ? jv.id : 0 };
-    c.corp.asks.push(a); corpLog(c, q, 'ask', { n: sites.length, jobs: a.jobs, jv: jv ? jv.name : undefined });
-    news(c, `🏭 ${corpTitle(q)}${jv ? ` cùng ${corpTitle(jv)} (liên doanh)` : ''} xin cấp ${sites.length} ô đất làm nhà máy, cam kết thêm ${a.jobs} việc làm${terms.length ? `, ${terms.map(termLine).join(', ')}` : ''} trong ${a.days} ngày (xem 🏢 Tập đoàn)`);
+    const rezone = rezoneOf(c, sites), brk = jv ? 0 : brkWant(c, q), jobs = Math.round(sites.length * CORP.jobsPerCell * k * (q.kind === 'trade' ? 0.45 : 1));
+    const a = { id: c.corp.nextAsk++, corp: q.id, kind: 'project', day: c.day, expires: c.day + CORP.askDays, terms, sites, jobs, jobs0: jobs, days: CORP.commitDays, status: 'open', countered: 0, jv: jv ? jv.id : 0, rezone, brk, brk0: brk, brkDays: brk ? CORP.brkDays : 0, chat: [] };
+    c.corp.asks.push(a); corpLog(c, q, 'ask', { n: sites.length, jobs: a.jobs, jv: jv ? jv.name : undefined, rezone, brk });
+    const what = q.kind === 'trade' ? 'cửa hàng' : 'nhà máy', zoneName = q.kind === 'trade' ? 'khu thương mại' : 'khu công nghiệp';
+    a.ev = news(c, `🏭 ${corpTitle(q)}${jv ? ` cùng ${corpTitle(jv)} (liên doanh)` : ''} xin ${sites.length} ô đất làm ${what}${rezone ? ` (${rezone} ô chưa quy hoạch: xin chuyển sang ${zoneName})` : ` trên ${zoneName} đã quy hoạch`}, cam kết thêm ${a.jobs} việc làm${terms.length ? `, ${terms.map(termLine).join(', ')}` : ''} trong ${a.days} ngày${brk ? `, xin miễn ${brk}% thuế trong ${a.brkDays} ngày` : ''} (xem 🏢 Tập đoàn)`, { corp: q.id, cell: sites[0], cause: q.taxEv && c.day - (q.taxEvAt || -99) < 20 ? q.taxEv : undefined });
     return { ok: true, ask: a };
+  }
+  if (act.type === 'house') { // tài trợ xây nhà ở công nhân trên ô nhà ở thị trưởng đã quy hoạch (vẫn phải được duyệt)
+    if (c.corp.asks.some((x) => x.corp === q.id)) return { ok: false, reason: 'Đã có đề xuất đang chờ' };
+    if (c.day < q.cool.ask) return { ok: false, reason: 'Đang trong thời gian nghỉ đề xuất' };
+    const sites = (act.sites || []).filter((i) => !c.level[i] && c.zone[i] && ZDEF[c.zone[i]].cat === 'r' && !ZDEF[c.zone[i]].who && c.acc[i] && !(c.funded && c.funded[i])).slice(0, CORP.houseMax);
+    if (!sites.length) return { ok: false, reason: 'Không có ô nhà ở đã quy hoạch gần cụm nhà máy' };
+    const cost = sites.length * CORP.houseFee * MK;
+    if (q.cash < cost + CORP.reserve * MK) return { ok: false, reason: 'Quỹ không đủ' };
+    const a = { id: c.corp.nextAsk++, corp: q.id, kind: 'housing', day: c.day, expires: c.day + CORP.askDays, terms: [], sites, jobs: 0, jobs0: 0, days: 0, status: 'open', countered: 1, jv: 0, rezone: 0, brk: 0, brk0: 0, brkDays: 0, cost, chat: [] };
+    c.corp.asks.push(a); corpLog(c, q, 'houseAsk', { n: sites.length, cost: Math.round(cost) });
+    a.ev = news(c, `🏘️ ${corpTitle(q)} xin tài trợ ${vnd(cost)} xây nhà ở cho công nhân trên ${sites.length} ô nhà ở đã quy hoạch gần cụm nhà máy (xem 🏢 Tập đoàn)`, { corp: q.id, cell: sites[0], cause: q.houseEv });
+    return { ok: true, ask: a };
+  }
+  if (act.type === 'downsize') { // thu hẹp: hạ một nấc nhà máy yếu, người làm dư bị cho nghỉ
+    const i = act.cell;
+    if (!q.cells.some(([k]) => k === i) || !(c.level[i] >= 2)) return { ok: false, reason: 'Không có nhà máy để thu hẹp' };
+    const before = c.staff[i] | 0;
+    c.level[i]--; c.age[i] = 0; c.dirty.buildings = true;
+    const cut = c.fn.trimStaff ? c.fn.trimStaff(c, i) : 0;
+    corpLog(c, q, 'downsize', { cut, jobs: jobCap(c.zone[i], c.level[i]) });
+    const ev = news(c, `📉 ${corpTitle(q)} thu hẹp ${bizName(c, i)} ở ${placeName(c, i)}: giảm sản lượng, ${cut} người mất việc`, { corp: q.id, cell: i, cause: act.cause });
+    if (cut >= 6 && c.fn.watchLayoff) c.fn.watchLayoff(c, i, Math.max(cut, before - jobCap(c.zone[i], c.level[i])), ev);
+    return { ok: true, cut };
+  }
+  if (act.type === 'close' || act.type === 'relocate') { // đóng hẳn một cơ sở (dời đi nơi khác: một phần tài sản chuyển ra ngoài thành phố)
+    const i = act.cell;
+    if (!q.cells.some(([k]) => k === i) || !c.level[i]) return { ok: false, reason: 'Không có cơ sở để đóng' };
+    const move = act.type === 'relocate' ? Math.min(q.cash * 0.3, valueOf(c, i)) : 0;
+    c._why = { kind: act.type, cause: act.cause, note: act.type === 'relocate' ? `sang tỉnh khác vì thuế ${q.kind === 'trade' ? 'thương mại' : 'công nghiệp'} ${taxOf(c, q)}% quá cao` : 'vì lỗ kéo dài' }; // biên niên ghi một dòng (chain.js), kèm số người mất việc
+    c.fn.clearBuilding(c, i);
+    release(c, q, i);
+    if (act.type === 'relocate') q.cool.move = c.day + 10;
+    if (move > 0) { q.cash -= move; world(c, 'corpMove', -move); }
+    corpLog(c, q, act.type, { cell: i, moved: Math.round(move) });
+    return { ok: true };
+  }
+  if (act.type === 'tech') { // đầu tư máy móc, công nghệ: chạy nhanh hơn, ít khói hơn; tiền trả cho doanh nghiệp trong thành phố (procure)
+    const p = techPlan(c, q);
+    if (!p) return { ok: false, reason: 'Chưa đủ điều kiện đầu tư công nghệ' };
+    q.cash -= p.cost; c.fn.procure(c, p.cost, 'corpTech'); q.tech = (q.tech || 0) + 1; q.cool.tech = c.day + CORP.techCool; rebuildGroups(c);
+    corpLog(c, q, 'tech', { lv: q.tech, cost: Math.round(p.cost) });
+    news(c, `⚙️ ${corpTitle(q)} đầu tư máy móc mới (nấc ${q.tech}/${CORP.techMax}): sản lượng +${Math.round(q.tech * CORP.techK * 100)}%, khói thải ít hơn`, { corp: q.id });
+    return { ok: true, lv: q.tech };
   }
   return { ok: false, reason: 'Hành động không có' };
 }
 
 // ───────────────────────── thị trưởng trả lời đề xuất ─────────────────────────
 
-/** Thị trưởng chấp nhận: công ty nộp phí đất cho ngân sách, xây, và nhận cam kết việc làm đo được. */
+/** Thị trưởng chấp nhận: công ty nộp phí đất cho ngân sách, xây, và nhận cam kết việc làm đo được (kèm ưu đãi thuế nếu có). */
 export function approveAsk(c, id) {
   const a = c.corp.asks.find((x) => x.id === id);
   let q = a && corpById(c, a.corp);
   if (!a || !q) return { ok: false, reason: 'Đề xuất không còn' };
+  const drop = () => { c.corp.asks = c.corp.asks.filter((x) => x !== a); };
+  if (a.kind === 'housing') { // nhà ở công nhân: công ty trả tiền xây (cho doanh nghiệp trong thành phố), ô nhà ở được xây ngay khi đủ điện nước
+    const sites = a.sites.filter((i) => !c.level[i] && c.zone[i] && ZDEF[c.zone[i]].cat === 'r');
+    const cost = sites.length * CORP.houseFee * MK;
+    if (!sites.length || q.cash < cost) { drop(); corpLog(c, q, 'askFailed', { text: 'Không còn đất hoặc không còn đủ vốn xây nhà ở' }); return { ok: false, reason: 'Không còn đất hoặc công ty không còn đủ vốn' }; }
+    q.cash -= cost; c.fn.procure(c, cost, 'corpHouse');
+    const n = fundCells(c, sites);
+    q.trust = clamp(q.trust + 0.5, -3, 5); drop();
+    corpLog(c, q, 'houseOk', { n, cost: Math.round(cost) });
+    news(c, `🏗️ Đã duyệt: ${corpTitle(q)} chi ${vnd(cost)} xây nhà ở cho công nhân trên ${n} ô gần cụm nhà máy`, { corp: q.id, cell: sites[0], cause: a.ev });
+    return { ok: true, built: n };
+  }
   if (a.jv) { // liên doanh: hai công ty góp vốn đều nhau vào công ty mới, công ty mới xây và chịu cam kết
-    const p = corpById(c, a.jv), need = projNeed(a.terms, a.sites.length), half = need / 2;
-    if (!p || q.cash < half || p.cash < half) { c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Một bên liên doanh không còn đủ vốn' }; }
+    const p = corpById(c, a.jv), need = projNeed(a.terms, a.sites.length, c), half = need / 2;
+    if (!p || q.cash < half || p.cash < half) { drop(); return { ok: false, reason: 'Một bên liên doanh không còn đủ vốn' }; }
     const jq = makeCorp(c, uniqueName(c, [`Liên doanh ${q.name.split(' ')[0]}–${p.name.split(' ')[0]}`]), q.ceo, q.sector, 0, 0, q.kind || 'ind');
     jq.partners = [q.id, p.id]; q.cash -= half; p.cash -= half; jq.cash = half * 2;
     corpLog(c, q, 'jv', { name: jq.name, partner: p.name, cash: Math.round(half) }); corpLog(c, p, 'jv', { name: jq.name, partner: q.name, cash: Math.round(half) });
@@ -305,20 +403,22 @@ export function approveAsk(c, id) {
     q = jq; rebuildGroups(c);
   }
   // quỹ có thể đã hụt trong lúc chờ duyệt: phải đủ cả phí xây, phí đất và quỹ dự phòng thì mới xây (không để quỹ âm)
-  if (q.cash < projNeed(a.terms, a.sites.length)) { corpLog(c, q, 'askFailed', { text: 'Quỹ không còn đủ cho dự án' }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return { ok: false, reason: 'Quỹ công ty không còn đủ cho dự án' }; }
+  if (q.cash < projNeed(a.terms, a.sites.length, c)) { corpLog(c, q, 'askFailed', { text: 'Quỹ không còn đủ cho dự án' }); drop(); return { ok: false, reason: 'Quỹ công ty không còn đủ cho dự án' }; }
   const base = jobsOf(c, q);
-  const r = corpAct(c, q, { type: 'build', cells: a.sites, approved: true });
-  if (!r.ok) { corpLog(c, q, 'askFailed', { text: r.reason }); c.corp.asks = c.corp.asks.filter((x) => x !== a); return r; }
-  const land = CORP.landFee * MK * r.n; // phí đất theo số ô thật sự được giao
+  const r = corpAct(c, q, { type: 'build', cells: a.sites, approved: true, rezone: a.rezone > 0 });
+  if (!r.ok) { corpLog(c, q, 'askFailed', { text: r.reason }); drop(); return r; }
+  const land = landFeeOf(c) * r.n; // phí đất theo số ô thật sự được giao (đang tranh đất thì cao hơn)
   q.cash -= land; c.money += land; inner(c, 'corpLand', land); // phí đất: quỹ công ty → ngân sách (trong thành phố)
   const infra = infraOf(a.terms, r.n); // phí hạ tầng (cống, cây xanh, phòng cháy): quỹ công ty → ngân sách, để thị trưởng xây
   if (infra > 0) { q.cash -= infra; c.money += infra; inner(c, 'corpInfra', infra); }
   const jobs = Math.round(a.jobs * (r.n / a.sites.length));
-  q.deals.push({ id: a.id, cells: r.n, jobs, base, due: c.day + a.days, status: 'open', terms: (a.terms || []).filter((k) => TERM_KEYS.includes(k)) });
+  q.deals.push({ id: a.id, cells: r.n, jobs, base, due: c.day + a.days, status: 'open', terms: (a.terms || []).filter((k) => TERM_KEYS.includes(k)), brk: a.brk || 0 });
+  if (a.brk > 0) { q.brk = { pct: a.brk, until: c.day + a.brkDays }; rebuildGroups(c); }
   q.trust = clamp(q.trust + 0.5, -3, 5);
-  corpLog(c, q, 'approved', { n: r.n, jobs, due: c.day + a.days, infra: Math.round(infra) });
-  c.corp.asks = c.corp.asks.filter((x) => x !== a);
-  news(c, `🏭 Đã duyệt: ${corpTitle(q)} xây ${r.n} nhà máy, cam kết thêm ${jobs} việc làm${a.terms && a.terms.length ? `, ${a.terms.map(termLine).join(', ')}` : ''} đến ngày ${c.day + a.days + 1}`);
+  corpLog(c, q, 'approved', { n: r.n, jobs, due: c.day + a.days, infra: Math.round(infra), brk: a.brk || 0 });
+  drop();
+  const ev = news(c, `🏭 Đã duyệt: ${corpTitle(q)} xây ${r.n} ${q.kind === 'trade' ? 'cửa hàng' : 'nhà máy'}${a.rezone ? ` (thành phố chuyển ${a.rezone} ô sang ${q.kind === 'trade' ? 'khu thương mại' : 'khu công nghiệp'})` : ''}, cam kết thêm ${jobs} việc làm${a.terms && a.terms.length ? `, ${a.terms.map(termLine).join(', ')}` : ''}${a.brk ? `, được miễn ${a.brk}% thuế đến ngày ${c.day + a.brkDays + 1}` : ''} đến ngày ${c.day + a.days + 1}`, { corp: q.id, cell: a.sites[0], cause: a.ev });
+  if (r.n < a.sites.length) news(c, `⚔️ ${a.sites.length - r.n}/${a.sites.length} ô đất của dự án ${corpTitle(q)} đã bị lấy trước trong lúc chờ duyệt: dự án nhỏ lại`, { kind: 'land', corp: q.id, cause: ev });
   return { ok: true, built: r.n };
 }
 export function rejectAsk(c, id) {
@@ -336,13 +436,68 @@ export function counterAsk(c, id) {
   a.countered = 1;
   const want = CEOS[q.ceo].concede + q.trust * 0.05 - influence(c, q) / 200; // lớn hơn thì cứng hơn
   if (hash2(q.id, c.day, 61) < want) {
-    a.jobs = Math.round(a.jobs * 1.4); corpLog(c, q, 'counterOk', { jobs: a.jobs });
+    a.jobs = Math.min(askBounds(a).jobs[1], Math.round(a.jobs * 1.4)); corpLog(c, q, 'counterOk', { jobs: a.jobs });
     return { ok: true, accepted: true, jobs: a.jobs, reply: `${corpTitle(q)} đồng ý nâng cam kết lên ${a.jobs} việc làm.` };
   }
   corpLog(c, q, 'counterNo', {});
   return { ok: true, accepted: false, reply: `${corpTitle(q)} giữ nguyên ${a.jobs} việc làm: "đòi thêm thì chúng tôi không đủ biên lợi nhuận".` };
 }
 
+// ───────────────────────── đàm phán đề xuất (chat với CEO, AI hoặc luật) ─────────────────────────
+
+export const ASK_TURNS = 5; // số lượt mặc cả tối đa mỗi đề xuất
+/** Khung mặc cả của một đề xuất dự án: việc làm cam kết (thành phố muốn cao), % thuế được miễn (công ty muốn cao). */
+export function askBounds(a) {
+  const j0 = Math.max(1, a.jobs0 || a.jobs || 1);
+  return { jobs: [Math.max(1, Math.round(j0 * 0.8)), Math.round(j0 * 1.6), 'việc làm cam kết', 'us'], brk: [0, Math.max(0, a.brk0 || 0), '% thuế được miễn', 'them'] };
+}
+const clampAsk = (a, o) => { const B = askBounds(a), out = {}; for (const k in B) out[k] = Math.round(clamp(Number.isFinite(+o?.[k]) ? +o[k] : a[k], B[k][0], B[k][1])); return out; };
+/** Mức nhượng bộ tối đa mỗi lượt theo tính cách CEO và độ lớn của công ty (tỷ lệ khung). */
+const concedeStep = (c, q) => clamp(0.08 + CEOS[q.ceo].concede * 0.14 + q.trust * 0.01 - influence(c, q) / 600, 0.04, 0.22);
+/**
+ * Cập nhật đề nghị mới của CEO (từ LLM hoặc luật dự phòng): ép vào khung, mỗi lượt chỉ nhượng tối đa concedeStep khung về phía thành phố
+ * so với đề nghị trước (lời lẽ thế nào cũng không moi được hơn), quá ASK_TURNS lượt thì là mức cuối; walkaway: công ty rút đề xuất.
+ */
+export function corpCounter(c, id, reply, offer, status) {
+  const a = c.corp.asks.find((x) => x.id === id), q = a && corpById(c, a.corp);
+  if (!a || !q || a.kind === 'housing') return null;
+  const B = askBounds(a), k = concedeStep(c, q);
+  if (offer) {
+    const o = clampAsk(a, offer);
+    for (const key in B) { const [lo, hi, , want] = B[key], lim = Math.max(1, (hi - lo) * k); o[key] = want === 'us' ? Math.min(o[key], a[key] + lim) : Math.max(o[key], a[key] - lim); }
+    const o2 = clampAsk(a, o); a.jobs = o2.jobs; a.brk = o2.brk; if (!a.brk) a.brkDays = 0; else if (!a.brkDays) a.brkDays = CORP.brkDays;
+  }
+  if (a.chat.filter((m) => m.from === 'us').length >= ASK_TURNS && status === 'negotiating') status = 'final';
+  if (status === 'final') a.final = true;
+  a.chat.push({ from: 'them', text: String(reply || '').replace(/[<>]/g, '').slice(0, 600) });
+  if (a.chat.length > 16) a.chat.splice(0, a.chat.length - 16);
+  if (status === 'walkaway') { corpLog(c, q, 'walkaway', {}); q.cool.ask = c.day + CORP.askCool; c.corp.asks = c.corp.asks.filter((x) => x !== a); news(c, `🚪 ${corpTitle(q)} rút đề xuất sau khi mặc cả không thành`, { corp: q.id, cause: a.ev }); }
+  else corpLog(c, q, 'nego', { jobs: a.jobs, brk: a.brk });
+  return a;
+}
+/** CEO trả lời bằng luật (không có AI): nhượng dần theo tính cách, tới lượt cuối thì giữ nguyên. */
+export function corpCounterFallback(c, a) {
+  const q = corpById(c, a.corp), B = askBounds(a), turns = a.chat.filter((m) => m.from === 'us').length;
+  if (!q) return { reply: '', offer: null, status: 'walkaway' };
+  if (turns > ASK_TURNS - 1 || a.final) return { reply: `${corpTitle(q)}: đây là mức cuối cùng, mong thị trưởng cân nhắc.`, offer: { jobs: a.jobs, brk: a.brk }, status: 'final' };
+  const k = concedeStep(c, q);
+  const o = { jobs: a.jobs + (B.jobs[1] - B.jobs[0]) * k, brk: a.brk - (B.brk[1] - B.brk[0]) * k };
+  return { reply: `${corpTitle(q)}: chúng tôi xin điều chỉnh, cam kết ${Math.round(clampAsk(a, o).jobs)} việc làm${a.brk0 ? `, ưu đãi thuế ${clampAsk(a, o).brk}%` : ''}.`, offer: o, status: 'negotiating' };
+}
+/** Số liệu gửi kèm khi AI đóng vai CEO mặc cả một đề xuất. */
+export function askBrief(c, a) {
+  const q = corpById(c, a.corp), B = askBounds(a);
+  return { ...corpBrief(c, q), sites: a.sites.length, rezone: a.rezone || 0, jobsNow: a.jobs, brkNow: a.brk || 0, brkDays: a.brkDays || CORP.brkDays, jobsMin: B.jobs[0], jobsMax: B.jobs[1], brkMax: B.brk[1], landFee: Math.round(landFeeOf(c) / MK), concedePct: Math.round(concedeStep(c, q) * 100) };
+}
+
+/** Ưu đãi thuế công ty xin kèm dự án: thuế càng cao, CEO càng cứng, công ty càng lớn thì xin càng nhiều (bội số 5%, tối đa 50%). */
+export function brkWant(c, q) {
+  const t = q.kind === 'trade' ? c.tax.c : c.tax.i, ceo = CEOS[q.ceo];
+  const v = (t - CORP.taxBase) * 4 + (1 - ceo.concede) * 28 + influence(c, q) * 0.2 - 6;
+  return clamp(Math.round(v / 5) * 5, 0, CORP.brkMax);
+}
+/** Phần thuế công ty đang được miễn (0..1). */
+export const brkOf = (c, q) => (q && q.brk && q.brk.until >= c.day ? q.brk.pct / 100 : 0);
 
 // ───────────────────────── nhóm công ty, công ty con ─────────────────────────
 
@@ -355,14 +510,15 @@ export function rootOf(c, id) {
 export const subsOf = (c, q) => c.corp.list.filter((x) => x.parent === q.id);
 /** Bảng tra cho people.js: corpGroup[id công ty] = id công ty gốc (ưu tiên giao hàng nội bộ), corpExp[id] = đang đẩy xuất khẩu. */
 function rebuildGroups(c) {
-  const g = [0], e = [0], pay = [0], mk = [0], store = [0], ware = new Uint8Array(N * N);
-  for (const q of c.corp.list) { g[q.id] = rootOf(c, q.id); e[q.id] = q.export ? 1 : 0; pay[q.id] = q.pay || 1; mk[q.id] = q.markup || 1; }
+  const g = [0], e = [0], pay = [0], mk = [0], store = [0], tech = [0], brk = [0], ware = new Uint8Array(N * N);
+  for (const q of c.corp.list) { g[q.id] = rootOf(c, q.id); e[q.id] = q.export ? 1 : 0; pay[q.id] = q.pay || 1; mk[q.id] = q.markup || 1; tech[q.id] = q.tech || 0; brk[q.id] = brkOf(c, q); }
+  for (const q of c.corp.list) brk[q.id] = Math.max(brk[q.id], brk[g[q.id]] || 0); // ưu đãi thuế của tập đoàn mẹ áp cho cả nhóm
   for (const q of c.corp.list) for (const i of q.wares || []) if (c.owner[i] === q.id) { // chỗ chứa thêm theo cấp kho và mức có người làm (kho không ai làm thì không thêm gì)
     ware[i] = 1;
     if (c.level[i]) { const fill = c.staff ? Math.min(1, c.staff[i] / Math.max(1, jobCap(c.zone[i], c.level[i]))) : 1; store[g[q.id]] = Math.min(CORP.storeMax, (store[g[q.id]] || 0) + Math.round(CORP.storeCap * Math.min(c.level[i], 3) * fill)); }
   }
   for (const q of c.corp.list) store[q.id] = store[g[q.id]] || 0; // kho của cả nhóm phục vụ mọi công ty trong nhóm
-  c.corpGroup = g; c.corpExp = e; c.corpPay = pay; c.corpMark = mk; c.corpStore = store; c.ware = ware;
+  c.corpGroup = g; c.corpExp = e; c.corpPay = pay; c.corpMark = mk; c.corpStore = store; c.corpTech = tech; c.corpBrk = brk; c.ware = ware;
 }
 /** people.js báo: 'intern' = hàng giao trong cùng nhóm (qty đơn vị), 'export' = hàng xuất ra ngoài từ ô của công ty. */
 export function corpNote(c, kind, cell, qty) {
@@ -387,7 +543,7 @@ const poorest = (c, q) => { let b = -1, v = Infinity; for (const i of cellsBuilt
 
 function makeCorp(c, name, ceo, sector, parent, cash, kind = 'ind') {
   const C = c.corp, id = C.nextId++;
-  const q = { id, kind, name, ceo, sector, parent, stage: 1, cash, born: c.day, trust: 0, cool: { act: c.day + 2, ask: c.day, sub: c.day + CORP.subCool, acq: c.day + CORP.acqCool }, goal: { jobs: 40 }, cells: [], deals: [], log: [], export: 0, intern: 0, xunits: 0, markup: 1, wares: [], debt: 0, pay: 1, pAt: 0, lastShare: 0, mono: 0, dep: 0, crisisAt: -99 };
+  const q = { id, kind, name, ceo, sector, parent, stage: 1, cash, born: c.day, trust: 0, cool: { act: c.day + 2, ask: c.day, sub: c.day + CORP.subCool, acq: c.day + CORP.acqCool, tech: c.day + 5 }, goal: { jobs: 40 }, cells: [], deals: [], log: [], export: 0, intern: 0, xunits: 0, markup: 1, wares: [], debt: 0, pay: 1, pAt: 0, lastShare: 0, mono: 0, dep: 0, crisisAt: -99, tech: 0, low: 0, taxSeen: kind === 'trade' ? c.tax.c : c.tax.i };
   C.list.push(q);
   return q;
 }
@@ -401,8 +557,32 @@ export const OPTS = {
   jv: 'Lập liên doanh với công ty khác, cùng góp vốn xin một dự án',
   loan: 'Vay vốn ngân hàng để vượt khó (có lãi, phải trả dần)',
   release: 'Bán bớt cơ sở yếu nhất để giảm lỗ',
+  downsize: 'Thu hẹp sản xuất: hạ một nấc nhà máy yếu nhất, cho bớt người nghỉ việc',
+  close: 'Đóng cửa hẳn cơ sở lỗ nhất (người làm ở đó mất việc)',
+  relocate: 'Dời cơ sở yếu nhất sang tỉnh khác vì thuế cao (mang một phần vốn đi)',
+  tech: 'Đầu tư máy móc, công nghệ: sản lượng cao hơn, ít khói thải hơn',
+  housing: 'Xin tài trợ xây nhà ở công nhân trên đất nhà ở đã quy hoạch gần cụm nhà máy',
   hold: 'Giữ nguyên, tích luỹ tiền',
 };
+/** Thuế suất công ty đang chịu (công nghiệp hoặc thương mại, %). */
+export const taxOf = (c, q) => (q.kind === 'trade' ? c.tax.c : c.tax.i);
+/** Cơ sở có thể thu hẹp: đã xây từ cấp 2, không phải kho, hiệu suất thấp nhất. */
+function shrinkSite(c, q) { let b = -1, v = Infinity; for (const i of cellsBuilt(c, q)) if (c.level[i] >= 2 && !(c.ware && c.ware[i]) && c.biz.eff[i] < v) { v = c.biz.eff[i]; b = i; } return b; }
+/** Đầu tư máy móc: công ty sản xuất từ bậc 2, ≥ 2 nhà máy, chưa đủ 3 nấc, hết thời gian nghỉ, đủ tiền (gấp đôi dự phòng). */
+function techPlan(c, q) {
+  const n = cellsBuilt(c, q).filter((i) => ZDEF[c.zone[i]].biz === 'ind' && !(c.ware && c.ware[i])).length;
+  if (q.kind === 'trade' || q.stage < 2 || n < 2 || (q.tech || 0) >= CORP.techMax || c.day < (q.cool.tech || 0)) return null;
+  const cost = CORP.techFee * MK * n * ((q.tech || 0) + 1);
+  return q.cash >= cost + CORP.reserve * MK * 2 ? { cost } : null;
+}
+/** Nhà ở công nhân: vừa có tin thiếu nhà ở quanh cụm của công ty (chain.js) và có ô nhà ở đã quy hoạch còn trống gần đó. */
+function housePlan(c, q) {
+  if (q.parent || q.kind === 'trade' || c.day - (q.house ?? -99) > 20 || c.day < q.cool.ask || c.corp.asks.some((a) => a.corp === q.id)) return null;
+  const h = workerHousing(c, q);
+  if (!housingShort(h) || !h.sites.length) return null;
+  const sites = h.sites.slice(0, CORP.houseMax), cost = sites.length * CORP.houseFee * MK;
+  return q.cash >= cost + CORP.reserve * MK * 1.5 ? { sites, cost, fill: h.fill } : null;
+}
 
 /** Lập công ty con: chuyển 2 nhà máy (ưu tiên khác ngành chính) và vốn khởi đầu từ quỹ mẹ; mẹ phải còn ít nhất 3 nhà máy. */
 function subsidiaryPlan(c, q) {
@@ -418,37 +598,53 @@ function subsidiaryPlan(c, q) {
 
 /** Các hành động CEO đang có thể làm (đã kiểm tra điều kiện), kèm lựa chọn mặc định của luật. */
 export function corpOptions(c, q) {
-  const ceo = CEOS[q.ceo], ids = [], mine = cellsBuilt(c, q).length, eff = effOf(c, q);
-  if (q.cash < CORP.reserve * MK * 0.5 && eff < 0.35) { // khủng hoảng: vay, bán cơ sở yếu, hoặc chịu
+  const ceo = CEOS[q.ceo], ids = [], mine = cellsBuilt(c, q).length, eff = effOf(c, q), tEff = taxOf(c, q) * (1 - brkOf(c, q));
+  if (q.cash < CORP.reserve * MK * 0.5 && eff < 0.35) { // khủng hoảng: vay, thu hẹp, bán / đóng cơ sở yếu, hoặc chịu
     if (loanPlan(c, q)) ids.push('loan');
-    if (mine > 1) ids.push('release');
-    const def = ids.includes('loan') && ceo.risk >= 0.3 ? 'loan' : ids.includes('release') ? 'release' : ids.includes('loan') ? 'loan' : 'hold';
+    if (shrinkSite(c, q) >= 0) ids.push('downsize');
+    if (mine > 1) ids.push('release', 'close');
+    const def = ids.includes('loan') && ceo.risk >= 0.3 ? 'loan' : ids.includes('downsize') ? 'downsize' : ids.includes('release') ? 'release' : ids.includes('loan') ? 'loan' : 'hold';
     return ids.length ? { ids: [...ids, 'hold'], def } : { ids: [], def: 'hold' };
   }
-  if (eff < 0.35 || q.cells.length - mine >= 2) return { ids: [], def: 'hold' };
-  const chest = CORP.cellFee * (1 + ceo.risk * 2) * MK + CORP.reserve * MK;
+  if (eff < 0.35) { // chạy ế kéo dài (≥ 5 ngày): thu hẹp hoặc đóng bớt, không thì chờ
+    if ((q.low || 0) < 5) return { ids: [], def: 'hold' };
+    if (shrinkSite(c, q) >= 0) ids.push('downsize');
+    if (mine > 2) ids.push('close');
+    return ids.length ? { ids: [...ids, 'hold'], def: ceo.risk < 0.45 ? ids[0] : 'hold' } : { ids: [], def: 'hold' };
+  }
+  if (tEff >= CORP.taxHigh && mine >= 2 && eff < 0.6 && !q.partners && c.day >= (q.cool.move || 0)) { // thuế quá cao, làm ăn không tốt: tính chuyện dời đi
+    return { ids: ['relocate', 'hold'], def: ceo.risk >= 0.45 || eff < 0.45 ? 'relocate' : 'hold' };
+  }
+  if (q.cells.length - mine >= 2) return { ids: [], def: 'hold' };
+  const chest = (CORP.cellFee * (1 + ceo.risk * 2) * MK + CORP.reserve * MK) * (1 + Math.max(-0.3, (tEff - CORP.taxBase) * 0.07)); // thuế cao thì giữ tiền dày hơn mới dám mở rộng
   if (q.cash < chest) return { ids: [], def: 'hold' };
   const n = Math.min(5, 2 + q.stage);
-  const can = { expand: q.cells.length < capCells(q) && expandSite(c, q) >= 0 && powerOk(c), project: false, subsidiary: !!subsidiaryPlan(c, q), acquire: !!acquirePlan(c, q), jv: !!jvPlan(c, q), warehouse: warehousePlan(c, q) >= 0 };
-  if (q.cash >= projNeed(termsFor(c, q), n) && !c.corp.asks.length && c.day >= q.cool.ask && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
-  for (const k of ['warehouse', 'expand', 'project', 'subsidiary', 'acquire', 'jv']) if (can[k]) ids.push(k);
+  const can = { expand: q.cells.length < capCells(q) && expandSite(c, q) >= 0 && powerOk(c), project: false, subsidiary: !!subsidiaryPlan(c, q), acquire: !!acquirePlan(c, q), jv: !!jvPlan(c, q), warehouse: warehousePlan(c, q) >= 0, tech: !!techPlan(c, q), housing: !!housePlan(c, q) };
+  if (q.cash >= projNeed(termsFor(c, q), n, c) && !c.corp.asks.length && c.day >= q.cool.ask && powerOk(c)) can.project = projectSites(c, q, n).length >= 2;
+  if (q.kind !== 'trade' && !q.parent && !can.expand && q.cells.length < capCells(q) && zonedSites(c, q, n).length < 2) q.landWant = c.day; // muốn lớn mà hết đất công nghiệp đã quy hoạch: tranh đất (chain.js)
+  for (const k of ['housing', 'warehouse', 'tech', 'expand', 'project', 'subsidiary', 'acquire', 'jv']) if (can[k]) ids.push(k);
   if (!ids.length) return { ids: [], def: 'hold' };
   ids.push('hold');
-  const bold = ceo.risk >= 0.45 || q.stage >= 3, order = bold ? ['subsidiary', 'acquire', 'warehouse', 'project', 'expand', 'jv'] : ['warehouse', 'expand', 'jv', 'subsidiary', 'project', 'acquire']; // liều: ăn to; thận trọng: làm chắc, tìm đối tác
+  const bold = ceo.risk >= 0.45 || q.stage >= 3, order = bold ? ['housing', 'subsidiary', 'acquire', 'warehouse', 'project', 'expand', 'tech', 'jv'] : ['housing', 'warehouse', 'tech', 'expand', 'jv', 'subsidiary', 'project', 'acquire']; // liều: ăn to; thận trọng: làm chắc, tìm đối tác
   return { ids, def: order.find((k) => can[k]) || 'hold' };
 }
 
 /** Thực thi một lựa chọn (mọi thứ vẫn qua corpAct để kiểm tra lại). */
 export function corpDo(c, q, id) {
   const n = Math.min(5, 2 + q.stage);
-  if (id === 'expand') { const i = expandSite(c, q); return i >= 0 ? corpAct(c, q, { type: 'build', cells: [i] }) : { ok: false, reason: 'Không còn chỗ' }; }
+  if (id === 'expand') { const i = expandSite(c, q); return i >= 0 ? corpAct(c, q, { type: 'build', cells: [i] }) : { ok: false, reason: 'Không còn đất đã quy hoạch' }; }
   if (id === 'project') return corpAct(c, q, { type: 'ask', sites: projectSites(c, q, n) });
   if (id === 'warehouse') { const i = warehousePlan(c, q); return i >= 0 ? corpAct(c, q, { type: 'build', cells: [i], ware: true }) : { ok: false, reason: 'Không có chỗ' }; }
   if (id === 'subsidiary') return corpAct(c, q, { type: 'subsidiary' });
   if (id === 'acquire') return corpAct(c, q, { type: 'acquire' });
   if (id === 'loan') return corpAct(c, q, { type: 'loan' });
   if (id === 'jv') { const p = jvPlan(c, q); return p ? corpAct(c, q, { type: 'ask', sites: p.sites, jv: p.partner }) : { ok: false, reason: 'Không có đối tác' }; }
-  if (id === 'release') { const i = poorest(c, q); if (i >= 0) { const r = corpAct(c, q, { type: 'release', cell: i }); if (r.ok) news(c, `📉 ${corpTitle(q)} gặp khó khăn, bán bớt một cơ sở`); return r; } return { ok: false, reason: 'Không còn cơ sở để bán' }; }
+  if (id === 'release') { const i = poorest(c, q); if (i >= 0) { const r = corpAct(c, q, { type: 'release', cell: i }); if (r.ok) news(c, `📉 ${corpTitle(q)} gặp khó khăn, bán bớt một cơ sở`, { corp: q.id, cell: i }); return r; } return { ok: false, reason: 'Không còn cơ sở để bán' }; }
+  if (id === 'downsize') { const i = shrinkSite(c, q); const r = i >= 0 ? corpAct(c, q, { type: 'downsize', cell: i }) : { ok: false, reason: 'Không có nhà máy để thu hẹp' }; if (r.ok) q.low = 0; return r; }
+  if (id === 'close') { const i = poorest(c, q); const r = i >= 0 ? corpAct(c, q, { type: 'close', cell: i }) : { ok: false, reason: 'Không còn cơ sở' }; if (r.ok) q.low = 0; return r; }
+  if (id === 'relocate') { const i = poorest(c, q); return i >= 0 ? corpAct(c, q, { type: 'relocate', cell: i, cause: q.taxEv }) : { ok: false, reason: 'Không còn cơ sở' }; }
+  if (id === 'tech') return corpAct(c, q, { type: 'tech' });
+  if (id === 'housing') { const p = housePlan(c, q); return p ? corpAct(c, q, { type: 'house', sites: p.sites }) : { ok: false, reason: 'Không có đất nhà ở gần cụm' }; }
   return { ok: true };
 }
 
@@ -459,6 +655,7 @@ export function corpBrief(c, q) {
     name: corpTitle(q), stage: q.stage, ceo: ceo.name, philosophy: ceo.philosophy, invest: ceo.invest, nego: ceo.nego, risk: ceo.risk, sector: PRODUCTS[st.sector] ? PRODUCTS[st.sector].name : '',
     cells: st.cells, pending: st.pending, jobs: st.jobs, eff: Math.round(st.eff * 100), cashMK: Math.round(q.cash / MK), worldPrice: Math.round(signalOf(c, corpSector(c, q)) * 100) / 100, hubs: (c.corp.hubs || []).length, debtMK: Math.round((q.debt || 0) / MK), jobShare: Math.round(jobShare(c, rootOf(c, q.id)) * 1000) / 10, monopoly: monopolyOf(c, rootOf(c, q.id)) || '', partners: q.partners ? 1 : 0, goalJobs: q.goal.jobs, subs: g.subs, groupCells: g.n, groupJobs: g.jobs,
     export: q.export, internUnits: Math.round(q.intern), exportUnits: Math.round(q.xunits), trust: q.trust, influence: st.influence, city: { pop: c.pp ? c.pp.count : 0, powerUsePct: c.stats && c.stats.powerCap ? Math.round((100 * c.stats.powerUse) / c.stats.powerCap) : 0 },
+    taxPct: taxOf(c, q), taxBasePct: CORP.taxBase, taxBreakPct: Math.round(brkOf(c, q) * 100), taxChangedDaysAgo: q.taxEvAt != null ? c.day - q.taxEvAt : -1, tech: q.tech || 0, lowDays: q.low || 0, workerHousingShort: c.day - (q.house ?? -99) <= 20 ? 1 : 0, landFeeK: Math.round(landK(c) * 100) / 100, zonedLandFree: zonedSites(c, q, 6).length,
   };
 }
 /** AI (hoặc người) chọn một trong các lựa chọn đang chờ: game kiểm tra id nằm trong danh sách rồi mới thực thi. */
@@ -492,6 +689,87 @@ function settle(c, q) {
   q.pend = null;
   corpDo(c, q, o.ids.includes(def) ? def : 'hold');
 }
+
+/** Công ty phản ứng khi thành phố đổi thuế suất của mình (≥ 2 điểm): ghi lịch sử, công ty từ bậc 2 lên tiếng; nguyên nhân = sự kiện đổi thuế. */
+function taxReact(c, q) {
+  const t = taxOf(c, q);
+  if (q.taxSeen == null) { q.taxSeen = t; return; }
+  if (Math.abs(t - q.taxSeen) < 2) return;
+  const up = t > q.taxSeen, from = q.taxSeen, ceo = CEOS[q.ceo];
+  q.taxSeen = t; q.taxEv = c.chain ? c.chain.taxEv : 0; q.taxEvAt = c.day;
+  corpLog(c, q, 'taxReact', { from, to: t });
+  if (q.parent || q.stage < 2) return;
+  const plan = up ? (t * (1 - brkOf(c, q)) >= CORP.taxHigh ? (ceo.risk >= 0.45 ? 'tính chuyện dời nhà máy sang tỉnh khác' : 'hoãn mở rộng, sẽ xin ưu đãi thuế khi xin dự án mới') : 'giữ tiền dày hơn trước khi mở rộng') : 'đẩy nhanh kế hoạch mở rộng';
+  news(c, `${up ? '😠' : '🙂'} ${corpTitle(q)} phản ứng việc thuế ${q.kind === 'trade' ? 'thương mại' : 'công nghiệp'} ${up ? 'tăng' : 'giảm'} ${from}% → ${t}%: ${plan}`, { corp: q.id, cause: q.taxEv, toast: q.stage >= 3 });
+}
+
+/** Tên công ty của nhà đầu tư: "Tập đoàn Hanshin (Hàn Quốc)" → "Hanshin Việt Nam". */
+const investorName = (who) => `${String(who).replace(/^(Tập đoàn|Công ty|Quỹ)\s+/, '').replace(/\s*\(.*\)\s*$/, '').trim() || 'Đầu tư'} Việt Nam`;
+/**
+ * Thị trưởng ký hợp đồng với nhà đầu tư (council.signDeal): nhà đầu tư lập công ty có vốn ngoài, xây 2–5 nhà máy trên khu công nghiệp
+ * đã quy hoạch (giấy phép = hợp đồng đã ký). Ưu đãi thuế chỉ cho nhà máy của họ. Chờ quá 25 ngày không có đất thì rút vốn, hợp đồng chấm dứt.
+ */
+export function investorFound(c, d) {
+  if (!c.corp || c.corp.off) return null;
+  const n = clamp(2 + Math.round((d.invest || 0) / 50000), 2, 5), cash = feeOf(n) + CORP.reserve * MK * 2;
+  if (!worldCan(c, cash)) return null;
+  const ceo = CEO_KEYS[(hash2(c.day, String(d.who).length, 41) * CEO_KEYS.length) | 0];
+  const q = makeCorp(c, uniqueName(c, [investorName(d.who)]), ceo, null, 0, cash);
+  world(c, 'invest', cash); // vốn từ nước ngoài vào quỹ công ty (sổ cái: thế giới → thành phố)
+  q.foreign = String(d.who).replace(/[<>]/g, '').slice(0, 60); q.inv = { n, until: c.day + CORP.invDays, warned: 0 };
+  if (d.breakPct > 0) q.brk = { pct: clamp(d.breakPct | 0, 0, 100), until: d.until };
+  d.corp = q.id;
+  corpLog(c, q, 'founded', { n: 0, sector: null, cash: Math.round(cash), parent: q.foreign });
+  q.ev = news(c, `🌏 ${q.foreign} lập ${corpTitle(q)}, vốn ${vnd(cash)}: sẽ xây ${n} nhà máy trên khu công nghiệp thành phố đã quy hoạch`, { corp: q.id, cause: d.ev });
+  rebuildGroups(c);
+  investorBuild(c, q);
+  return q;
+}
+/** Mỗi ngày: công ty nhà đầu tư tìm ô khu công nghiệp đã quy hoạch để khởi công; quá hạn không có đất thì rút vốn. */
+function investorBuild(c, q) {
+  const I = q.inv;
+  if (!I) return;
+  const sites = zonedSites(c, q, I.n);
+  if (sites.length && powerOk(c)) {
+    const r = corpAct(c, q, { type: 'build', cells: sites, approved: true });
+    if (r.ok) {
+      I.n -= r.n;
+      news(c, `🏗️ ${corpTitle(q)} khởi công ${r.n} nhà máy ở ${placeName(c, sites[0])}`, { corp: q.id, cell: sites[0], cause: q.ev });
+      if (I.n <= 0) delete q.inv;
+      return;
+    }
+  }
+  if (!I.warned) { I.warned = 1; news(c, `⏳ ${corpTitle(q)} chờ đất: thành phố chưa có ô khu công nghiệp trống có đường, điện nước${powerOk(c) ? '' : ' (lưới điện đã đầy)'}. Quy hoạch khu công nghiệp trong ${I.until - c.day} ngày, không nhà đầu tư sẽ rút vốn`, { corp: q.id, cause: q.ev }); }
+  if (c.day < I.until) return;
+  delete q.inv;
+  if (q.cells.length) return; // đã xây được một phần: ở lại với số nhà máy đã có
+  world(c, 'invest', -q.cash); q.cash = 0; // rút vốn về nước
+  if (c.council) for (const d of c.council.deals) if (d.corp === q.id && d.until >= c.day) d.until = c.day - 1; // hợp đồng (và ưu đãi thuế) chấm dứt
+  q.brk = null; corpLog(c, q, 'withdraw', {});
+  news(c, `🚪 ${q.foreign || corpTitle(q)} rút vốn: chờ ${CORP.invDays} ngày không có đất khu công nghiệp. Hợp đồng ưu đãi chấm dứt`, { corp: q.id, cause: q.ev });
+}
+
+/**
+ * Doanh nghiệp liên quan tới một tình huống khó xử (council.js): ô và công ty thật, để tình huống và hậu quả gắn đúng chỗ.
+ * Trả { cell, corp, name } hoặc null.
+ */
+export function actorOf(c, cell) {
+  if (!(cell >= 0) || !c.level[cell]) return null;
+  const q = c.owner && c.owner[cell] ? corpById(c, c.owner[cell]) : null;
+  return { cell, corp: q ? q.id : 0, name: q ? corpTitle(q) : `${bizName(c, cell)} ở ${placeName(c, cell)}`, what: bizName(c, cell) };
+}
+/** Doanh nghiệp trong tình huống trả tiền (phạt, phí, thưởng): từ quỹ công ty, hoặc ví của cơ sở độc lập; trả được bao nhiêu thì trả. */
+export function actorPay(c, actor, amount) {
+  if (!actor || !(amount > 0)) return 0;
+  const q = actor.corp ? corpById(c, actor.corp) : null;
+  if (q) { const p = Math.max(0, Math.min(amount, q.cash)); q.cash -= p; return p; }
+  if (!c.level[actor.cell]) return 0;
+  const p = Math.max(0, Math.min(amount, c.biz.money[actor.cell]));
+  c.biz.money[actor.cell] -= p;
+  return p;
+}
+/** Các ô của doanh nghiệp trong tình huống (cả công ty, hoặc một cơ sở). */
+export const actorCells = (c, actor) => { const q = actor && actor.corp ? corpById(c, actor.corp) : null; return q ? cellsBuilt(c, q) : actor && c.level[actor.cell] ? [actor.cell] : []; };
 
 function found(c, opt = {}) {
   const C = c.corp, roots = C.list.filter((q) => !q.parent && q.kind !== 'trade').length;
@@ -582,7 +860,7 @@ function daily(c) {
   const C = c.corp;
   for (const q of C.list) {
     // ô bị dỡ / phá sản / quy hoạch lại thì rời công ty; ô xây dở quá lâu thì bỏ
-    q.cells = q.cells.filter(([i, d]) => { const ok = built(c, i) ? c.owner[i] === q.id : c.zone[i] === buildZone(q) && c.owner[i] === q.id && c.day - d <= CORP.pendDays; if (!ok && c.owner[i] === q.id) c.owner[i] = 0; return ok; });
+    q.cells = q.cells.filter(([i, d]) => { const ok = built(c, i) ? c.owner[i] === q.id : fitsZone(q, c.zone[i], (q.wares || []).includes(i)) && c.owner[i] === q.id && c.day - d <= CORP.pendDays; if (!ok && c.owner[i] === q.id) c.owner[i] = 0; return ok; });
     if (q.parent && !corpById(c, q.parent)) q.parent = 0; // mẹ đã giải thể: công ty con thành độc lập
     q.wares = (q.wares || []).filter((i) => q.cells.some(([k]) => k === i));
   }
@@ -593,13 +871,14 @@ function daily(c) {
     if (st !== q.stage) { corpLog(c, q, 'stage', { from: q.stage, to: st }); if (st > q.stage) news(c, `📈 ${corpTitle({ ...q, stage: st })} lên bậc "${STAGES[st]}"`); q.stage = st; }
     q.sector = corpSector(c, q) || q.sector;
     evalDeals(c, q);
-    if (q.cells.length) { debtDay(c, q); markupCheck(c, q); exportCheck(c, q); payCheck(c, q); watch(c, q); ceoDecide(c, q); payout(c, q); }
+    if (q.inv) investorBuild(c, q);
+    if (q.cells.length) { q.low = effOf(c, q) < 0.35 ? (q.low || 0) + 1 : 0; taxReact(c, q); debtDay(c, q); markupCheck(c, q); exportCheck(c, q); payCheck(c, q); watch(c, q); ceoDecide(c, q); payout(c, q); }
     if (c.day % 14 === 0) corpLog(c, q, 'season', { jobs: jobsOf(c, q), cells: cellsBuilt(c, q).length, intern: Math.round(q.intern), xunits: Math.round(q.xunits) });
     if (q.goal && jobsOf(c, q) >= q.goal.jobs) { corpLog(c, q, 'goal', { jobs: q.goal.jobs }); q.goal = { jobs: Math.round(q.goal.jobs * 1.8) }; }
   }
   for (const q of C.list) if (!q.parent && q.cells.length) q.lastShare = jobShare(c, q.id); // để biết cú sốc nếu nhóm này sụp
   // công ty hết ô: giải thể (liên doanh trả vốn cho các bên), quỹ còn lại chia cho dân; nhóm lớn sụp thì cả thành phố chịu cú sốc
-  for (const q of [...C.list]) if (!q.cells.length) {
+  for (const q of [...C.list]) if (!q.cells.length && !q.inv) { // nhà đầu tư đang chờ đất thì chưa giải thể
     const ps = q.partners ? q.partners.map((x) => corpById(c, x)).filter(Boolean) : [];
     if (ps.length && q.cash > 0) { for (const p of ps) p.cash += q.cash / ps.length; q.cash = 0; }
     if (q.debt > 0) { corpLog(c, q, 'default', { debt: Math.round(q.debt) }); q.debt = 0; }
@@ -708,7 +987,7 @@ function acquirePlan(c, q) {
 /** Liên doanh: một công ty gốc khác đủ vốn và (tuỳ tính cách, quan hệ) chịu góp nửa vốn một dự án 2 ô. */
 function jvPlan(c, q) {
   if (q.parent || q.partners || c.corp.asks.length || c.day < q.cool.ask) return null;
-  const n = 2, need = projNeed(termsFor(c, q), n);
+  const n = 2, need = projNeed(termsFor(c, q), n, c);
   if (q.cash < need / 2 + CORP.reserve * MK || !powerOk(c)) return null;
   let best = null;
   for (const r of c.corp.list) {

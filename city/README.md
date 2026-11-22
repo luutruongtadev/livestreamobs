@@ -236,6 +236,15 @@ Cỡ **256 × 256** (thử nghiệm) gấp bảy lần cỡ vừa. Đo trên má
 - **🧺 Chợ truyền thống**: sạp bán thẳng nông sản, cá từ nông trại, bến cá (không qua nhà máy), giá rẻ hơn cửa hàng. **🏚️ Xưởng chế biến**: xưởng nhỏ chế biến nông sản, cá, gỗ thành hàng hoá, ít ô nhiễm, đặt gần nhà được.
 - **🎨 Chế độ Open**: nút trên màn hình chào hoặc bảng 💾. Mở khoá mọi công trình, khu, công nghệ; có cả bản đồ; tiền không giới hạn; không bao giờ phá sản. Bật cho thành phố đang chơi được (không tắt lại).
 
+## Chính quyền giữ quyền, chuỗi sự kiện có nguyên nhân
+
+- **Đất theo quy hoạch**: công ty chỉ tự xây trên ô bạn đã quy hoạch đúng loại (nhà máy: khu công nghiệp, xưởng; cửa hàng: khu thương mại). Muốn đất chưa quy hoạch thì phải xin trong bảng 🏢: thẻ đề xuất ghi rõ số ô phải chuyển đổi, bạn duyệt thì game mới quy hoạch thay. Nhiều công ty cùng chờ đất công nghiệp thì là **tranh đất**: phí đất nộp ngân sách lên (tối đa ×1,75).
+- **Nhà đầu tư ký hợp đồng** (📨) thì lập công ty thật bằng vốn ngoài và xây 2–5 nhà máy trên khu công nghiệp đã quy hoạch; ưu đãi thuế chỉ cho nhà máy của họ. Chờ 25 ngày không có đất thì rút vốn, hợp đồng chấm dứt.
+- **CEO phản ứng chính sách**: đổi thuế công nghiệp / thương mại từ 2 điểm là một sự kiện; công ty ghi lại và đổi cách làm (thuế cao: giữ tiền dày hơn, xin ưu đãi thuế khi xin dự án, từ 14% có thể dời cơ sở sang tỉnh khác; thuế thấp: mở rộng nhanh hơn). CEO còn tự **thu hẹp** (hạ cấp nhà máy ế, cho bớt người nghỉ), **đóng cửa** cơ sở lỗ, **đầu tư máy móc** (+8% sản lượng, ít khói hơn mỗi nấc).
+- **Mặc cả với CEO**: ô chat trong thẻ đề xuất; AI đóng vai CEO (không có AI thì luật), game ép số vào khung việc làm / % ưu đãi và giới hạn mức nhượng mỗi lượt theo tính cách.
+- **Tình huống gắn doanh nghiệp thật**: "nhà máy xin xả thải", "nợ lương Tết" nêu đúng nhà máy / công ty; hậu quả vào đúng chỗ đó (cho xả thải: nước quanh nhà máy ô nhiễm 20 ngày, doanh nghiệp nộp phí; đình chỉ: nhà máy ngừng sản xuất 15 ngày; buộc trả thưởng: tiền từ quỹ công ty tới tay công nhân của họ).
+- **📜 Biên niên**: mỗi sự kiện ghi nguyên nhân, bấm 📍 để xem chỗ. Game tự lần theo số liệu: mất việc → thất nghiệp quanh đó tăng → hàng quán vắng khách → nhà bỏ trống, giá thuê hạ → doanh nghiệp mới mở; nhà cung cấp đóng cửa → nơi mua hàng phải nhập ngoài → nơi nào đổ theo; thiếu nhà ở công nhân quanh cụm nhà máy (công ty có thể xin tài trợ xây nhà ở trên đất nhà ở bạn đã quy hoạch); giá thuê từng khu theo nhà trống; **bản sắc kinh tế** (thành phố công nghiệp thép, thương mại dịch vụ, du lịch…) tính từ việc làm theo ngành, đổi khi giữ được 5 ngày. Chi tiết: `CORPORATE.md` mục 22.
+
 ## Phong cách Việt Nam
 
 Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản lưu cũ giữ kiểu cũ). Khu nhà ở thấp, nhà phố, liền kề, ký túc xá, hỗn hợp, cửa hàng và ăn uống mọc thành dãy nhà ống nhiều màu: ban công có lan can và chậu cây, cửa cuốn hoặc cửa hàng có biển hiệu chữ và mái bạt, trên mái có bồn nước inox, máy nước nóng, tum mái tôn, cờ đỏ sao vàng ở ban công. Đường có cột điện bê tông với dây điện chằng chịt thay cho đèn đường, xe đẩy bán hàng có ô che trên vỉa hè, cây dừa ven sông biển, và gần như ai cũng đi xe máy.

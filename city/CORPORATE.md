@@ -267,3 +267,36 @@ Quỹ công ty phải đủ cả phí xây (80 MK/ô), phí đất (30 MK/ô), c
   - Phần sau thuế chia cho **cổ đông**: khoảng 35% người lớn, cố định theo id người và công ty (không ai thì chia đều).
 - **Nguyên liệu thô** (nông, lâm, ngư, khoáng, dầu) bán trong thành phố được **miễn thuế doanh thu**, để chuỗi nông → nhà máy → cửa hàng không bị thuế chồng ba tầng. Xuất khẩu vẫn chịu thuế; công nhân vẫn đóng thuế thu nhập qua lương.
 - Cổ tức của doanh nghiệp độc lập (không thuộc công ty) giữ nguyên như trước.
+
+## 22. Chính quyền giữ quyền, chuỗi sự kiện có nguyên nhân
+
+Rà soát theo đặc tả "Hybrid City Builder" (người chơi là chính quyền, AI là tác nhân, game đảm bảo hợp lệ). Ba chỗ trái nguyên tắc đã sửa, thêm phản ứng chính sách của CEO và chuỗi sự kiện nhân quả (`js/chain.js`).
+
+**Quy hoạch là của thị trưởng**
+- `zonedOk`: công ty chỉ tự xây (mở rộng 1 ô, kho, nhà đầu tư khởi công) trên ô đã quy hoạch đúng loại (`fitsZone`: sản xuất 3/21, thương mại 2/5, kho chỉ 3). `corpAct build` trên đất chưa quy hoạch bị từ chối.
+- Dự án xin duyệt ưu tiên ô đã quy hoạch; không đủ thì xin đất chưa quy hoạch với `ask.rezone` = số ô phải chuyển đổi. Chỉ khi thị trưởng duyệt (`approveAsk` → `build { approved, rezone }`) game mới gọi `zoneRect`.
+- Tranh đất: CEO muốn lớn mà hết đất đã quy hoạch thì ghi `q.landWant`; từ 2 công ty cùng chờ → sự kiện "⚔️ Tranh đất công nghiệp", hệ số phí đất `chain.landK` lên tối đa ×1.75 (tiền vào ngân sách), hết tranh thì về 1. Ô của dự án bị lấy trước trong lúc chờ duyệt cũng ghi sự kiện.
+
+**Nhà đầu tư tạo thay đổi thật** (`investorFound`, `investorBuild`)
+- Ký `DEALS.investor` → công ty mới (`q.foreign`), vốn từ thế giới qua `world('invest')`, xây 2–5 nhà máy trên khu công nghiệp đã quy hoạch. Ưu đãi thuế thành ưu đãi riêng của công ty (`q.brk`), `taxBreak` toàn thành phố chỉ còn cho hợp đồng cũ.
+- Không có đất: báo một lần; quá 25 ngày rút vốn về nước, hợp đồng và ưu đãi chấm dứt.
+
+**Tình huống khó xử có nguyên nhân thật**
+- `DILEMMAS.actor(c)` chọn doanh nghiệp thật (`waste`: nhà máy ven sông lớn nhất; `tetBonus`: doanh nghiệp công nghiệp ít tiền nhất trên mỗi người làm). Không có thì tình huống không xảy ra. Quận nhận việc là quận nơi doanh nghiệp đóng.
+- Hậu quả vào đúng doanh nghiệp: phí, phạt trừ quỹ công ty / ví cơ sở (`actorPay`, chuyển nội bộ vào ngân sách); cho xả thải → `dumpCell` (ô nhiễm nước thật quanh nhà máy 20 ngày); đình chỉ → `haltCell` (sản lượng 0, khói giảm, 15 ngày); buộc trả thưởng / quà Tết → tiền tới công nhân của doanh nghiệp đó.
+- LLM nhận `actor` và bị cấm đặt tên doanh nghiệp khác.
+
+**CEO phản ứng chính sách, hành động mới**
+- `chain.taxDay`: đổi thuế ≥ 2 điểm là sự kiện `policy`. `taxReact`: công ty ghi lịch sử, công ty từ bậc 2 lên tiếng (nguyên nhân = sự kiện đổi thuế).
+- Thuế hiệu dụng (`taxOf × (1 − brkOf)`) đổi quỹ dự phòng trước khi mở rộng (±7%/điểm), mức ưu đãi xin kèm dự án (`brkWant`, bội số 5%, tối đa 50% trong 60 ngày), và từ 14% mở lựa chọn `relocate` (đóng cơ sở yếu nhất, mang ≤ 30% quỹ ra ngoài, nghỉ 10 ngày).
+- `downsize` (chạy ế ≥ 5 ngày hoặc khủng hoảng: hạ một cấp, `trimStaff` cho người dư nghỉ), `close` (đóng hẳn), `tech` (bậc ≥ 2, ≥ 2 nhà máy; 40 MK × nhà máy × nấc qua `procure`; +8% sản lượng, −12% khói mỗi nấc, tối đa 3), `housing` (xem dưới). AI vẫn chỉ chọn trong danh sách hợp lệ.
+- Đàm phán đề xuất: `askBounds` (việc làm 0.8–1.6 × đề nghị đầu; ưu đãi 0..mức xin), `corpCounter` ép khung và giới hạn nhượng mỗi lượt (`concedeStep` theo tính cách, uy tín, ảnh hưởng), tối đa 5 lượt, `walkaway` rút đề xuất. Gateway `kind: 'corpNego'` (ép khung ở server lẫn trình duyệt); không có AI thì `corpCounterFallback`.
+
+**Chuỗi sự kiện** (`chain.js`, chạy 0 giờ mỗi ngày)
+- Biên niên `c.chain.log` (240 dòng, lưu cùng bản lưu): `{ id, day, kind, text, cell, corp, cause }`. Tin của công ty, hộp thư, chính sách đều ghi vào đây; `causeChain` lần ngược, `effectsOf` lần xuôi. LLM không ghi được dòng nào.
+- Đóng cửa (`clearBuilding` → `chainCleared`, lý do qua `c._why`: phá sản, đóng, dời, cháy, thiếu điện nước, mất đường): mất ≥ 12 việc thì theo dõi khu bán kính 7 ô; là nhà cung cấp (`c.supLink`, ghi khi xe hàng trong thành phố giao) thì sự kiện đứt nguồn hàng, sau đó đếm nơi mua đã đổ theo.
+- Khu theo dõi đi từng nấc khi số liệu thật vượt ngưỡng: thất nghiệp (+5 người hoặc 25% số việc mất) → doanh thu hàng quán giảm ≥ 15% → nhà trống +5 điểm hoặc giá thuê < ×0.95 → có cơ sở mới mở trong khu. Quá hạn mà không xảy ra thì dừng, không bịa.
+- Giá thuê từng ô nhà ở `c.rentK` (0.82–1.15) theo tỷ lệ nhà trống của khu bán kính 4 so với cả thành phố (khu dưới 40 chỗ giữ nguyên); khu chật ×1.1 trở lên ghi sự kiện "giá thuê tăng". `rentAt` nhân hệ số này (tiền thuê vẫn là chuyển nội bộ, sổ không lệch).
+- Nhà ở công nhân (`workerHousing`): quanh cụm nhà máy của công ty ≥ 60 chỗ làm, đủ người < 85%, > 50% công nhân ở xa, chỗ ở trống < 10% → sự kiện, CEO có lựa chọn `housing`: xin tài trợ 60 MK/ô xây nhà ở trên ô nhà ở thị trưởng đã quy hoạch; duyệt thì `fundCells` cho xây ngay khi đủ điện nước.
+- Bản sắc kinh tế (`economyMix`): việc làm theo ngành → "Thành phố công nghiệp thép", "Vùng nông nghiệp, thuỷ sản", "Trung tâm tài chính", "Thành phố du lịch", "Thương mại, dịch vụ"…; đổi khi nhãn mới giữ 5 ngày; gửi kèm tóm tắt thành phố cho AI.
+- UI: nút 📜 (lọc Kinh tế / Đời sống / Chính quyền, "↳ vì", 📍 xem chỗ); thẻ đề xuất 🏢 có cảnh báo chuyển đổi quy hoạch, ưu đãi thuế, ô mặc cả; chi tiết công ty có thuế đang chịu, máy móc, vốn ngoài, chờ đất.

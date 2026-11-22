@@ -1379,6 +1379,8 @@ function updateHud(force) {
   if ($('inbox').classList.contains('show')) renderInbox(force);
   if ($('dist').classList.contains('show')) renderDist(force);
   if ($('corp').classList.contains('show')) renderCorp(force);
+  if ($('chron').classList.contains('show')) renderChron(force);
+  { const L = c.chain ? c.chain.log : [], n = L.filter((e) => e.day >= c.day - 1).length; $('chronN').textContent = n ? String(n) : ''; }
   { const n = c.corp ? c.corp.asks.length : 0; $('corpN').textContent = n ? `✋${n}` : c.corp && c.corp.list.length ? String(c.corp.list.length) : ''; }
   aiPump(); distPump(); corpPump();
   const asks = c.dist.on ? c.dist.list.filter((q) => q.prop && q.prop.status === 'ask').length : 0;
@@ -1630,10 +1632,11 @@ function openSide(id) {
   if (id === 'flows') renderFlows();
   if (id === 'dist' && $('dist').classList.contains('peek') && $('dist').classList.contains('show')) { $('dist').classList.remove('peek'); renderDist(true); return; }
   if (id === 'league') { renderLeague(); leagueSync(true); }
-  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'corp', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
+  for (const p of ['budget', 'saves', 'people', 'dev', 'layers', 'fest', 'inbox', 'dist', 'corp', 'chron', 'league', 'flows']) $(p).classList.toggle('show', p === id && !$(p).classList.contains('show'));
   if (!$('dist').classList.contains('show')) { $('dist').classList.remove('peek'); seatPick = null; } // đóng bảng quận thì bỏ chọn chỗ trụ sở
   if (id === 'fest') renderFest(true);
   if (id === 'inbox') renderInbox(true);
+  if (id === 'chron') renderChron(true);
   if (id === 'corp' && $('corp').classList.contains('show')) { layer = LAYERS.findIndex((l) => l[0] === 'corp'); applyOverlay(); refreshLayers(); renderCorp(true); } // mở bảng 🏢: bật lớp tập đoàn để thấy công ty đang chọn
   corpFocus();
   if (id === 'dist' && $('dist').classList.contains('show')) { if (city.dist.on) { layer = LAYERS.findIndex((l) => l[0] === 'district'); applyOverlay(); refreshLayers(); } renderDist(true); }
@@ -1665,6 +1668,7 @@ function bindUi() {
   $('bInbox').addEventListener('click', () => openSide('inbox'));
   $('bDist').addEventListener('click', () => openSide('dist'));
   $('bCorp').addEventListener('click', () => openSide('corp'));
+  $('bChron').addEventListener('click', () => openSide('chron'));
   $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   buildLayers(); bindMinimap();
@@ -1713,7 +1717,7 @@ function aiPump() {
   const reviews = items.filter((i) => i.kind === 'review'), dilemmas = items.filter((i) => i.kind === 'dilemma');
   const sum = citySummary(c, S), jobs = [];
   if (reviews.length) jobs.push(aiCall('reviews', { city: sum, reviews }).then((d) => { for (const r of d?.reviews || []) { const it = reviews.find((x) => x.id === r.id); if (it && r.text) { it.text = r.text; it.ai = true; } } }));
-  for (const it of dilemmas) jobs.push(aiCall('dilemma', { city: sum, topic: it.topic, title: it.title, story: it.story, options: it.options }).then((d) => {
+  for (const it of dilemmas) jobs.push(aiCall('dilemma', { city: sum, topic: it.topic, title: it.title, story: it.story, options: it.options, actor: it.actor ? it.actor.name : '' }).then((d) => {
     if (!d || it.status !== 'pending') return;
     if (d.title) it.title = d.title; if (d.story) it.story = d.story;
     for (const o of d.options || []) { const t = it.options.find((x) => x.id === o.id); if (t) { t.label = o.label || t.label; t.note = o.note; } }
@@ -1756,7 +1760,7 @@ function corpLook(q) {
 }
 const CORP_LOG = {
   founded: (e) => `Thành lập, lấy ${e.n} nhà máy làm nền, vốn ${money(e.cash)}`, build: (e) => `Xây thêm ${e.n} nhà máy, chi ${money(e.cost)}`, release: () => 'Bán một cơ sở yếu (thành doanh nghiệp độc lập)',
-  ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
+  ask: (e) => `Xin dự án ${e.n} ô đất, cam kết ${e.jobs} việc làm`, approved: (e) => `Được duyệt dự án ${e.n} ô, cam kết ${e.jobs} việc làm${e.brk ? `, miễn ${e.brk}% thuế` : ''}`, rejected: () => 'Đề xuất bị từ chối', askExpired: () => 'Đề xuất quá hạn không ai trả lời',
   askFailed: (e) => `Dự án không thực hiện được: ${e.text}`, counterOk: (e) => `Nhượng bộ: nâng cam kết lên ${e.jobs} việc làm`, counterNo: () => 'Không nhượng bộ thêm việc làm',
   subsidiary: (e) => `Lập công ty con ${e.name} (${e.n} nhà máy, vốn ${money(e.cash)})`, exportOn: (e) => `Đẩy xuất khẩu: tồn kho thành phẩm ${e.stock}`, exportOff: (e) => `Dừng đẩy xuất khẩu (tồn kho ${e.stock})`,
   decision: (e) => `${e.ai ? '🤖 ' : ''}Quyết: ${S.OPTS[e.id] || e.id}${e.ok ? '' : ' (không thực hiện được)'}${e.text ? ` — “${e.text}”` : ''}`,
@@ -1764,7 +1768,12 @@ const CORP_LOG = {
   jv: (e) => `Liên doanh ${e.name} với ${e.partner}, góp ${money(e.cash)}`, loan: (e) => `Vay ngân hàng ${money(e.amount)}`, loanPaid: () => 'Trả hết nợ vay', default: (e) => `Vỡ nợ ${money(e.debt)}, ngân hàng xoá nợ`,
   crisis: (e) => `Khủng hoảng: quỹ ${money(e.cash)}, nhà máy chạy ${e.eff}% công suất`, payUp: (e) => `Thiếu người (${e.fill}% chỗ làm có người): tăng lương 15% để giành lao động`, payDown: (e) => `Hạ lương về mức cũ (${e.fill}% chỗ có người)`,
   monopoly: (e) => `Nắm quá 60% ${S.PRODUCTS[e.product] ? S.PRODUCTS[e.product].name.toLowerCase() : ''} của thành phố: độc quyền`, monopolyEnd: () => 'Hết độc quyền', dependence: (e) => `Giữ ${e.share}% việc làm của thành phố`, shock: (e) => `Sụp đổ, thành phố mất ${e.share}% việc làm`,
-  warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`,
+  warehouse: (e) => `Xây kho bãi / logistics, chi ${money(e.cost)}`, rezoned: (e) => `Thành phố chuyển ${e.n} ô đất sang khu của công ty (đã duyệt)`,
+  houseAsk: (e) => `Xin tài trợ ${money(e.cost)} xây nhà ở công nhân trên ${e.n} ô`, houseOk: (e) => `Được duyệt: tài trợ ${money(e.cost)} xây nhà ở công nhân trên ${e.n} ô`,
+  downsize: (e) => `Thu hẹp sản xuất: ${e.cut} người nghỉ việc, cơ sở còn ${e.jobs} chỗ làm`, close: () => 'Đóng cửa một cơ sở lỗ kéo dài', relocate: (e) => `Dời một cơ sở sang tỉnh khác${e.moved ? `, mang theo ${money(e.moved)}` : ''}`,
+  tech: (e) => `Đầu tư máy móc nấc ${e.lv}, chi ${money(e.cost)}`, taxReact: (e) => `Thuế đổi ${e.from}% → ${e.to}%: điều chỉnh kế hoạch`, walkaway: () => 'Rút đề xuất sau khi mặc cả không thành',
+  nego: (e) => `Mặc cả: ${e.jobs} việc làm${e.brk ? `, xin miễn ${e.brk}% thuế` : ''}`, withdraw: () => 'Nhà đầu tư rút vốn vì không có đất', dump: (e) => `Được cho xả thải ra sông ${e.days} ngày`, fined: () => 'Bị phạt vì xả thải, phải xử lý nước thải',
+  halted: (e) => `Bị đình chỉ ${e.days} ngày`, tetBonus: (e) => `Trả lương, thưởng Tết ${money(e.paid)}`,
   dealMet: (e) => `Đạt cam kết: thêm ${e.jobs}/${e.want} việc làm`, dealBreach: (e) => `Chưa đạt cam kết: ${e.jobs}/${e.want} việc làm`, stage: (e) => `Đổi bậc: ${S.STAGES[e.from]} → ${S.STAGES[e.to]}`, season: (e) => `Kỳ báo cáo: ${e.jobs} việc làm, ${e.cells} nhà máy${e.intern ? `, giao nội bộ ${e.intern}` : ''}${e.xunits ? `, xuất ${e.xunits}` : ''}`, goal: (e) => `Đạt mục tiêu ${e.jobs} việc làm`,
 };
 /** AI (Claude) đóng vai CEO: chọn một trong các hành động game đã kiểm tra; quá hạn game tự dùng lựa chọn của luật. */
@@ -1785,20 +1794,43 @@ function corpPump() {
 function renderCorp(force) { keepFocus(() => renderCorp0(force)); }
 function renderCorp0(force) {
   const c = city, C = c.corp;
-  const key = `${c.day}|${(c.hour / 6) | 0}|${corpSel}|${C.list.map((q) => q.id + ':' + q.cells.length + ':' + q.log.length).join(',')}|${C.asks.map((a) => a.id + ':' + a.jobs).join(',')}`;
+  const key = `${c.day}|${(c.hour / 6) | 0}|${corpSel}|${C.list.map((q) => q.id + ':' + q.cells.length + ':' + q.log.length).join(',')}|${C.asks.map((a) => `${a.id}:${a.jobs}:${a.brk}:${a.chat ? a.chat.length : 0}:${a.wait ? 1 : 0}`).join(',')}`;
   if (!force && renderCorp.key === key) return;
   renderCorp.key = key;
   const root = $('corpBody'); root.textContent = '';
-  root.append(el('small', null, 'Công ty hình thành từ nhà máy có sẵn. CEO (chạy bằng luật theo tính cách) tự mở rộng, tự xin đất; bạn duyệt, từ chối hoặc đòi thêm việc làm. Lãi dư chia cho dân; lịch sử chỉ ghi việc thật.'));
+  root.append(el('small', null, 'Công ty hình thành từ nhà máy có sẵn. CEO tự quyết kinh doanh (mở rộng, thu hẹp, đầu tư máy móc, dời đi khi thuế cao) nhưng chỉ tự xây trên đất bạn đã quy hoạch đúng loại; đất chưa quy hoạch, dự án nhiều ô, ưu đãi thuế phải qua bạn duyệt. Lịch sử chỉ ghi việc thật.'));
+  { // đất công nghiệp: tranh đất làm phí đất lên
+    const free = S.freeIndustrial(c), want = C.list.filter((q) => !q.parent && q.kind !== 'trade' && c.day - (q.landWant ?? -99) <= 3), k = S.landK(c);
+    root.append(el('br'), el('small', want.length >= 2 ? 'neg' : null, `🏭 Đất khu công nghiệp đã quy hoạch còn trống: ${free} ô${want.length ? ` · ${want.length} công ty đang chờ đất (${want.map(S.corpTitle).join(', ')})` : ''} · phí đất ${money(S.landFeeOf(c))}/ô${k > 1.01 ? ` (×${k.toFixed(2)} vì tranh đất)` : ''}`));
+  }
   for (const a of C.asks) {
     const q = S.corpById(c, a.corp); if (!q) continue;
     const card = el('div', 'card'), opts = el('div', 'opts');
-    card.append(el('b', null, `🏭 ${S.corpTitle(q)} xin ${a.sites.length} ô đất`), el('p', null, `Cam kết thêm ${a.jobs} việc làm${a.terms && a.terms.length ? `, ${a.terms.map(S.termLine).join(', ')}` : ''} trong ${a.days} ngày, nộp phí đất ${money(S.CORP.landFee * S.MK * a.sites.length)}. Còn ${Math.max(0, a.expires - c.day)} ngày để trả lời.`));
-    const yes = el('button', 'mini acc', '✅ Chấp nhận'), more = el('button', 'mini', '🗣️ Đòi thêm việc làm'), no = el('button', 'mini', '❌ Từ chối');
+    if (a.kind === 'housing') {
+      card.append(el('b', null, `🏘️ ${S.corpTitle(q)} xin tài trợ xây nhà ở công nhân`), el('p', null, `Công ty chi ${money(a.cost)} xây ${a.sites.length} ô nhà ở bạn đã quy hoạch gần cụm nhà máy (xây ngay khi đủ điện nước, không chờ nhu cầu). Còn ${Math.max(0, a.expires - c.day)} ngày để trả lời.`));
+    } else {
+      const rz = a.rezone ? ` ⚠️ ${a.rezone}/${a.sites.length} ô chưa quy hoạch: duyệt nghĩa là thành phố chuyển ${a.rezone} ô đó sang ${q.kind === 'trade' ? 'khu thương mại' : 'khu công nghiệp'}.` : ' Đất đã nằm trong quy hoạch của bạn.';
+      card.append(el('b', null, `🏭 ${S.corpTitle(q)} xin ${a.sites.length} ô đất`), el('p', null, `Cam kết thêm ${a.jobs} việc làm${a.terms && a.terms.length ? `, ${a.terms.map(S.termLine).join(', ')}` : ''} trong ${a.days} ngày, nộp phí đất ${money(S.landFeeOf(c) * a.sites.length)}${a.brk ? `; đổi lại xin miễn ${a.brk}% thuế cho công ty trong ${a.brkDays} ngày` : ''}.${rz} Còn ${Math.max(0, a.expires - c.day)} ngày để trả lời.`));
+      const chat = el('div', 'chat');
+      for (const m of a.chat || []) chat.append(el('div', m.from === 'us' ? 'us' : 'them', m.text));
+      if (a.wait) chat.append(el('div', 'them', '… CEO đang soạn trả lời'));
+      if ((a.chat && a.chat.length) || a.wait) card.append(chat);
+      const B = S.askBounds(a), row = el('div'), inp = el('input'), send = el('button', 'mini', 'Gửi');
+      row.style.cssText = 'display:flex;gap:6px;margin-top:6px'; inp.style.flex = '1'; inp.maxLength = 300;
+      inp.placeholder = a.final ? 'CEO đã đưa ra mức cuối' : `Mặc cả với CEO: việc làm ${B.jobs[0]}–${B.jobs[1]}${a.brk0 ? `, ưu đãi thuế 0–${a.brk0}%` : ''}…`;
+      inp.disabled = !!a.final || !!a.wait; send.disabled = inp.disabled;
+      draft(inp, `ask${a.id}`);
+      const go = () => { const t = inp.value.trim(); if (t && !a.wait) { delete drafts[`ask${a.id}`]; corpNegotiate(a, t); } };
+      send.onclick = go; inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+      row.append(inp, send); card.append(row);
+      requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; });
+    }
+    const yes = el('button', 'mini acc', '✅ Chấp nhận'), more = el('button', 'mini', '🗣️ Đòi thêm việc làm'), no = el('button', 'mini', '❌ Từ chối'), look = el('button', 'mini', '📍 Xem chỗ');
     yes.onclick = () => { const r = S.approveAsk(c, a.id); toast(r.ok ? `🏭 Đã duyệt cho ${S.corpTitle(q)}` : r.reason); S.recalc(c); renderCorp(true); };
-    more.disabled = !!a.countered; more.onclick = () => { const r = S.counterAsk(c, a.id); toast(r.reply || r.reason); renderCorp(true); };
+    more.disabled = !!a.countered || !!a.wait; more.onclick = () => { const r = S.counterAsk(c, a.id); toast(r.reply || r.reason); renderCorp(true); };
     no.onclick = () => { S.rejectAsk(c, a.id); renderCorp(true); };
-    opts.append(yes, more, no); card.append(opts); root.append(card);
+    look.onclick = () => lookCell(a.sites[0]);
+    opts.style.cssText = 'flex-direction:row;flex-wrap:wrap'; opts.append(yes, ...(a.kind === 'housing' ? [] : [more]), no, look); card.append(opts); root.append(card);
   }
   if (!C.list.length) { root.append(el('p', null, `Chưa có công ty nào: cần ${S.CORP.foundMin} dân và nhà máy đang chạy có lãi để hình thành công ty.`)); return; }
   if (corpSel >= C.list.length) corpSel = 0;
@@ -1835,12 +1867,51 @@ function renderCorp0(force) {
   card.append(p);
   const tr2 = el('small', null, `🔁 Hàng giao trong nhóm: ${st.intern} · 🌐 Xuất ra ngoài: ${st.xunits}${st.export ? ' (đang đẩy xuất khẩu)' : ''}${st.retail ? ` · 🏬 Chuỗi bán lẻ: ${st.retail} cửa hàng` : ''}${st.wares ? ` · 🏗️ ${st.wares} kho (chứa thêm ${st.store} mỗi nhà máy)` : ''} · 💱 Giá thế giới ${st.signal} · 🏷️ Hệ số bán ${st.markup}${q.pend ? ' · ⏳ CEO đang cân nhắc' : ''}`);
   card.append(tr2, el('br'));
+  { const x = [], tax = S.taxOf(c, q), brk = S.brkOf(c, q); // phản ứng chính sách, công nghệ, nhà đầu tư nước ngoài
+    x.push(`🧾 Thuế đang chịu ${tax}%${brk ? ` (được miễn ${Math.round(brk * 100)}% đến ngày ${q.brk.until + 1})` : ''}${tax * (1 - brk) >= S.CORP.taxHigh ? ' · thuế cao: CEO có thể dời cơ sở đi' : ''}`);
+    if (q.tech) x.push(`⚙️ Máy móc nấc ${q.tech}/${S.CORP.techMax} (+${Math.round(q.tech * S.CORP.techK * 100)}% sản lượng, ít khói hơn)`);
+    if (q.foreign) x.push(`🌏 Vốn của ${q.foreign}${q.inv ? ` · còn chờ đất cho ${q.inv.n} nhà máy (rút vốn sau ngày ${q.inv.until + 1})` : ''}`);
+    if (q.low >= 3) x.push(`📉 Chạy ế ${q.low} ngày liền`);
+    if (c.day - (q.house ?? -99) <= 20) x.push('🏚️ Thiếu nhà ở công nhân quanh cụm');
+    if (c.day - (q.landWant ?? -99) <= 3) x.push('⏳ Đang chờ đất khu công nghiệp đã quy hoạch');
+    card.append(el('small', null, x.join(' · ')), el('br')); }
   { const w = []; if (st.mono) w.push(`🧱 Độc quyền ${S.PRODUCTS[st.mono] ? S.PRODUCTS[st.mono].name.toLowerCase() : 'bán lẻ'}`); if (q.dep) w.push(`⚠️ Phụ thuộc: giữ ${st.share}% việc làm`); if (st.debt > 0) w.push(`🏦 Nợ ${money(st.debt)}`); if (q.pay > 1) w.push('💵 Đang trả lương cao hơn'); if (q.partners) w.push('🤝 Liên doanh'); if (w.length) card.append(el('small', 'neg', w.join(' · ')), el('br')); }
   for (const d of q.deals) card.append(el('small', null, `${{ open: '⏳', met: '✅', breach: '⚠️' }[d.status]} Cam kết +${d.jobs} việc làm (hạn ngày ${d.due + 1})${d.status === 'open' ? `, đã thêm ${Math.max(0, S.jobsOf(c, q) - d.base)}` : ''}${d.terms && d.terms.length ? ` · đã nộp: ${d.terms.map((k) => S.TERMS[k]).join(', ')}` : ''}`), el('br'));
   card.append(el('h4', null, 'Lịch sử'));
   const ul = el('div'); ul.style.cssText = 'max-height:220px;overflow:auto;font-size:12px';
   for (const e of q.log.slice(-40).reverse()) ul.append(el('div', null, `Ngày ${e.day + 1}: ${CORP_LOG[e.type] ? CORP_LOG[e.type](e) : e.type}`));
   card.append(ul); root.append(card);
+}
+
+/** Bảng 📜 Biên niên: bản sắc kinh tế (việc làm theo ngành), lịch sử đổi bản sắc, các sự kiện có nguyên nhân (lần ngược "vì sao"). */
+let chronKind = 'all';
+const CHRON_KINDS = { all: ['Tất cả', null], econ: ['Kinh tế', ['corp', 'close', 'supply', 'land', 'identity', 'policy', 'deal', 'housing']], life: ['Đời sống', ['jobless', 'demand', 'rent', 'rebound', 'housing', 'pollution', 'bonus']], gov: ['Chính quyền', ['policy', 'decision', 'dilemma', 'deal', 'halt']] };
+function renderChron(force) {
+  const c = city, C = c.chain;
+  if (!C) return;
+  const key = `${c.day}|${C.next}|${chronKind}`;
+  if (!force && renderChron.key === key) return;
+  renderChron.key = key;
+  const root = $('chronBody'); root.textContent = '';
+  { // bản sắc kinh tế
+    const m = c.econMix || S.economyMix(c), box = el('div', 'card');
+    box.append(el('b', null, `🧭 Bản sắc kinh tế: ${C.id ? C.id.name : m.name}`), el('br'), el('small', null, `Việc làm theo ngành: ${S.mixLine(m) || 'chưa có'} · ${fmt(m.jobs)} chỗ làm${C.id ? ` · giữ từ ngày ${C.id.since + 1}` : ''}${C.id && C.id.cand !== C.id.key ? ' · đang chuyển dịch' : ''}`));
+    if (C.idHist.length > 1) box.append(el('br'), el('small', null, 'Đã qua: ' + C.idHist.slice(-6).map((h) => `ngày ${h.day + 1} ${h.name}`).join(' → ')));
+    root.append(box);
+  }
+  { const row = el('div', 'opts'); for (const [k, [name]] of Object.entries(CHRON_KINDS)) { const b = el('button', 'mini' + (k === chronKind ? ' acc' : ''), name); b.onclick = () => { chronKind = k; renderChron(true); }; row.append(b); } root.append(row); }
+  root.append(el('small', null, 'Mỗi dòng là việc thật trong thành phố; "↳ vì" là sự kiện gây ra nó (game tự lần theo số liệu: mất việc → thất nghiệp quanh đó → hàng quán vắng → nhà trống, giá thuê hạ → doanh nghiệp mới mở; nhà cung cấp đóng cửa → nơi mua hàng phải nhập ngoài…).'));
+  const want = CHRON_KINDS[chronKind][1], list = C.log.filter((e) => !want || want.includes(e.kind)).slice(-80).reverse();
+  if (!list.length) root.append(el('p', null, 'Chưa có sự kiện nào.'));
+  for (const e of list) {
+    const d = el('div', 'chronEv');
+    d.append(el('span', null, `Ngày ${e.day + 1}: ${e.text}`));
+    if (e.cell >= 0) { const b = el('button', 'mini', '📍'); b.title = 'Xem chỗ trên bản đồ'; b.onclick = () => lookCell(e.cell); d.append(b); }
+    for (const w of S.causeChain(c, e.id, 3)) d.append(el('span', 'why', `↳ vì (ngày ${w.day + 1}): ${w.text}`));
+    const fx = S.effectsOf(c, e.id).length;
+    if (fx) d.append(el('span', 'why', `→ kéo theo ${fx} sự kiện sau`));
+    root.append(d);
+  }
 }
 
 function renderInbox(force) { keepFocus(() => renderInbox0(force)); }
@@ -1862,6 +1933,7 @@ function renderInbox0(force) {
   for (const it of pend) {
     const card = el('div', 'card'), opts = el('div', 'opts');
     card.append(el('b', null, `⚖️ ${it.title}`), el('p', null, it.story), el('small', null, `Còn ${Math.max(0, it.expires - c.day)} ngày; quá hạn thì thành phố tự chọn phương án cuối.`));
+    if (it.actor) { const lk = el('button', 'mini', '📍'); lk.title = 'Xem doanh nghiệp này trên bản đồ'; lk.onclick = () => lookCell(it.actor.cell); card.append(el('br'), el('small', null, `🏭 Doanh nghiệp liên quan: ${it.actor.name} `), lk); }
     const dq = it.chairAt != null && c.dist.on ? c.dist.list[it.district] : null;
     if (dq) card.append(el('small', 'pos', ` 🏙️ Việc của ${dq.name}: chủ tịch ${dq.chair} sẽ tự quyết sau ~${Math.max(0, it.chairAt - c.hour)} giờ${it.pick ? ' (đã chọn hướng)' : ''}; bạn vẫn quyết thay được.`));
     for (const o of it.options) {
@@ -1897,7 +1969,7 @@ function renderInbox0(force) {
     chat.scrollTop = chat.scrollHeight; // tin mới nhất
   }
   const act = K.deals.filter((d) => d.until >= c.day);
-  if (act.length) dbox.append(el('small', null, 'Hợp đồng đang chạy: ' + act.map((d) => `${d.who} (tới ngày ${d.until + 1}${d.type === 'grant' ? `, cam kết ${d.target} công trình chống ngập` : ''})`).join(' · ')));
+  if (act.length) dbox.append(el('small', null, 'Hợp đồng đang chạy: ' + act.map((d) => { const q = d.corp ? S.corpById(c, d.corp) : null; return `${d.who} (tới ngày ${d.until + 1}${d.type === 'grant' ? `, cam kết ${d.target} công trình chống ngập` : ''}${q ? `, công ty ${S.corpTitle(q)}: ${S.cellsBuilt(c, q).length} nhà máy${q.inv ? `, chờ đất cho ${q.inv.n}` : ''}` : ''})`; }).join(' · ')));
   // đánh giá
   const rbox = $('inboxReviews'), avg = S.ratingAvg(c); rbox.textContent = '';
   rbox.append(el('div', 'row', null));
@@ -1923,6 +1995,25 @@ function effectText(o) {
   if (o.rating) p.push(`đánh giá du khách ${o.rating > 0 ? 'tốt lên' : 'xấu đi'}`);
   if (o.fire) p.push('⚠️ có thể cháy nhà');
   return p.join(' · ');
+}
+
+/** Mặc cả đề xuất của công ty: AI đóng vai CEO (không có AI thì luật), game ép số vào khung và giới hạn nhượng bộ mỗi lượt. */
+async function corpNegotiate(a, text) {
+  const c = city;
+  a.chat.push({ from: 'us', text: text.replace(/[<>]/g, '').slice(0, 300) }); a.wait = true; renderCorp(true);
+  let d = await aiCall('corpNego', { city: citySummary(c, S), q: S.askBrief(c, a), chat: a.chat });
+  if (!d) d = S.corpCounterFallback(c, a);
+  a.wait = false;
+  if (city !== c || !c.corp.asks.includes(a)) return;
+  S.corpCounter(c, a.id, d.reply, d.offer, d.status);
+  renderCorp(true);
+}
+/** Đưa máy quay tới một ô (xem chỗ của đề xuất, sự kiện trong biên niên). */
+function lookCell(i) {
+  if (!(i >= 0)) return;
+  const cam = view.cam, x = ((i % S.N) + 0.5) * S.T - S.HALF, z = (((i / S.N) | 0) + 0.5) * S.T - S.HALF;
+  cam.dist = Math.max(140, Math.min(cam.dist, 280)); cam.pitch = Math.max(cam.pitch, 1.1);
+  const off = cam.dist * 0.22; cam.x = x - Math.sin(cam.yaw) * off; cam.z = z - Math.cos(cam.yaw) * off; view.panWorld(0, 0);
 }
 
 async function negotiate(it, text) {

@@ -157,6 +157,12 @@
   #bDist { position: fixed; left: 8px; bottom: 208px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
   #bCorp { position: fixed; left: 8px; bottom: 260px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
   #bCorp span { font-size: 12px; font-weight: 700; }
+  #bChron { position: fixed; left: 8px; bottom: 312px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
+  #bChron span { font-size: 12px; font-weight: 700; }
+  #bChron span:empty { display: none; }
+  .chronEv { padding: 6px 0; border-bottom: 1px solid rgba(127, 127, 127, 0.18); font-size: 12px; }
+  .chronEv .why { display: block; opacity: 0.75; margin-left: 14px; }
+  .chronEv button { margin-left: 4px; }
   #bCorp span:empty { display: none; }
   #bDist span { font-size: 12px; font-weight: 700; }
   #bDist span:empty { display: none; }
@@ -271,6 +277,11 @@
 <button class="panel" id="bFest" title="Lễ hội và mùa mưa bão: lịch âm, tổ chức lễ hội, bão, ngập (cũng mở được bằng cách bấm vào ô ngày giờ trên cùng)">🎎 <span id="festN"></span></button>
 <button class="panel" id="bDist" title="Quận và chủ tịch quận: tự làm, giao việc hay để chủ tịch tự chủ">🏙️ <span id="distN"></span></button>
 <button class="panel" id="bCorp" title="Tập đoàn: các công ty do AI điều hành, đề xuất xin đất, cam kết việc làm, lịch sử">🏢 <span id="corpN"></span></button>
+<button class="panel" id="bChron" title="Biên niên thành phố: bản sắc kinh tế và chuỗi sự kiện có nguyên nhân (mất việc, đứt nguồn hàng, nhà ở công nhân, tranh đất, đổi thuế…)">📜 <span id="chronN"></span></button>
+<div class="panel side win" id="chron">
+  <h3>📜 Biên niên thành phố <span><button data-close>✕</button></span></h3>
+  <div id="chronBody"></div>
+</div>
 <div class="panel side win" id="corp">
   <h3>🏢 Tập đoàn <span><button data-close>✕</button></span></h3>
   <div id="corpBody"></div>

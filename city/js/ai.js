@@ -26,6 +26,6 @@ export function citySummary(c, S) {
   return {
     name: c.name, map: S.MAPS[c.map] ? S.MAPS[c.map].name : '', pop: c.pp.count, happy: c.stats.happy, money: Math.round(c.money), day: c.day + 1,
     lunar: `${L.day}/${L.month} âm`, season: S.stormSeason(c) ? 'mùa mưa bão' : 'mùa khô', weather: S.WEATHER[c.inc.weather] ? S.WEATHER[c.inc.weather].name : '',
-    festival: fe ? fe.f.name : '', flooded: c.season ? c.season.houses : 0, congestion: Math.round((1 - (c.traffic.speedEma ?? 1)) * 100), rating: avg == null ? '' : avg.toFixed(1), services: S.svcNames(c),
+    festival: fe ? fe.f.name : '', flooded: c.season ? c.season.houses : 0, congestion: Math.round((1 - (c.traffic.speedEma ?? 1)) * 100), rating: avg == null ? '' : avg.toFixed(1), identity: S.identityName(c), services: S.svcNames(c), // identity: bản sắc kinh tế (chain.js)
   };
 }

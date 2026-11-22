@@ -614,6 +614,7 @@ export function districtHour(c) {
       const tot = D.list.reduce((s, q) => s + (q.stat ? q.stat.pop : 1) + 1, 0);
       let r = rng() * tot, d = 0;
       for (; d < D.list.length - 1; d++) { r -= (D.list[d].stat ? D.list[d].stat.pop : 1) + 1; if (r <= 0) break; }
+      if (it.actor && districtOf(c, it.actor.cell) >= 0) d = districtOf(c, it.actor.cell); // tình huống của một doanh nghiệp thật: giao cho quận nơi doanh nghiệp đóng
       it.district = d;
       if (D.list[d].mode === 'auto') { it.chairAt = Math.max(c.hour + 4, it.expires * 24 - 18); jobs.push({ task: 'pick', d, id: it.id }); }
     } else if (it.chairAt != null && c.hour >= it.chairAt) {
