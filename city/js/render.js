@@ -50,8 +50,8 @@ const SVC_MODELS = {
 const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
 // Tàu hoả bằng Meshy: đầu máy, toa khách (thân trắng, tô màu theo đoàn tàu), toa chở container. rotY đưa đầu tàu về +z.
 const TRAIN_MODELS = [{ key: 'loco', file: 'train_loco.glb', rotY: -Math.PI / 2 }, { key: 'coach', file: 'train_coach.glb', rotY: -Math.PI / 2 }, { key: 'wagon', file: 'train_wagon.glb', rotY: -Math.PI / 2 }];
-// Tàu khách trên sông bằng Meshy (mũi về +z); drop = hạ thân xuống để phần dưới ngập nước.
-const SHIP_MODELS = [{ idx: 0, file: 'ship_passenger.glb', len: 16, rotY: Math.PI / 2, drop: 0.85 }];
+// Tàu khách, tàu hàng trên sông bằng Meshy (mũi về +z); drop = hạ thân xuống để phần dưới ngập nước.
+const SHIP_MODELS = [{ idx: 0, file: 'ship_passenger.glb', len: 16, rotY: Math.PI / 2, drop: 0.85 }, { idx: 1, file: 'ship_cargo.glb', len: 30, rotY: Math.PI / 2, drop: 1.1 }];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
