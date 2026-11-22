@@ -1665,6 +1665,58 @@ export function lanternGeometry() {
 }
 
 /** Cờ đỏ sao vàng cắm chéo trên cột điện (trang trí lễ): gốc ở chỗ gắn vào cột, lá cờ hướng +x. */
+/** Bồn nước inox đứng trên chân sắt: nóc nhà phố, chung cư kiểu Việt Nam. */
+export function waterTankGeometry() {
+  const g = new GB();
+  for (const [x, z] of [[-0.42, -0.42], [0.42, -0.42], [0.42, 0.42], [-0.42, 0.42]]) g.box(x, 0, z, 0.08, 0.5, 0.08, 0x5b6168);
+  g.box(0, 0.48, 0, 1.0, 0.06, 1.0, 0x5b6168);
+  g.cyl(0, 0.54, 0, 0.5, 0.5, 1.35, 0xd9dde2, 12, 0xc4c9cf);
+  g.cyl(0, 1.89, 0, 0.5, 0.22, 0.16, 0xc4c9cf, 12);
+  return g.build();
+}
+
+/** Cục nóng điều hoà gắn mặt tiền (mặt quạt hướng +z). */
+export function acUnitGeometry() {
+  const g = new GB();
+  g.box(0, -0.28, -0.16, 0.82, 0.56, 0.32, 0xe9e8e2);
+  g.cyl(0.12, -0.04, 0.005, 0.2, 0.2, 0.02, 0x3a3d40, 10);
+  g.box(-0.6, -0.32, -0.16, 0.36, 0.05, 0.36, 0x7a7f86); // giá đỡ
+  return g.build();
+}
+
+/** Sào phơi đồ ngoài ban công: thanh ngang, quần áo nhiều màu treo rủ. */
+export function laundryGeometry() {
+  const g = new GB(), cols = [0xd8262e, 0x2f6fb0, 0xf2f2ee, 0xe6b422, 0x3d8a5a, 0xe07bb0, 0x5a4a8a];
+  g.box(0, 0, 0.35, 2.6, 0.05, 0.05, 0x8a8f96);
+  for (let k = 0; k < 6; k++) { const h = 0.45 + ((k * 37) % 5) * 0.08; g.box(-1.1 + k * 0.44, -h, 0.35, 0.36, h, 0.03, cols[(k * 3) % cols.length]); }
+  return g.build();
+}
+
+/** Chậu cây ngày Tết: kind 0 = đào (hoa hồng), 1 = mai (hoa vàng), 2 = quất (lá xanh, quả cam). */
+export function tetTreeGeometry(kind) {
+  const g = new GB();
+  g.cyl(0, 0, 0, 0.32, 0.42, 0.5, kind === 1 ? 0x2f6fb0 : 0xa33a22, 10, 0x4a3524); // chậu sành
+  g.cyl(0, 0.5, 0, 0.06, 0.05, 0.6, 0x5a3c26, 5);
+  if (kind === 2) {
+    g.blob(0, 1.35, 0, 0.55, 0.65, 0.55, 0x2f7d3a, 3, 1);
+    for (let k = 0; k < 14; k++) { const a = k * 2.4, y = 0.95 + (k % 5) * 0.17, r = 0.5 - Math.abs(y - 1.35) * 0.4; g.box(Math.cos(a) * r, y, Math.sin(a) * r, 0.11, 0.11, 0.11, 0xf08a1c); }
+  } else {
+    const fl = kind === 0 ? 0xf49ac1 : 0xf6c90e;
+    for (let k = 0; k < 4; k++) { const a = k * 1.6; g.blob(Math.cos(a) * 0.3, 1.3 + (k % 2) * 0.25, Math.sin(a) * 0.3, 0.38, 0.32, 0.38, fl, 5 + k, 1); }
+    g.blob(0, 1.6, 0, 0.35, 0.3, 0.35, kind === 0 ? 0xf7b3d1 : 0xffd93a, 9, 1);
+  }
+  return g.build();
+}
+
+/** Đèn hoa đăng thả sông: đế hoa sen hồng, nến vàng ở giữa. */
+export function lotusLampGeometry() {
+  const g = new GB();
+  g.cyl(0, 0, 0, 0.28, 0.42, 0.12, 0xf28fb3, 8, 0xf7c2d6);
+  for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; g.box(Math.cos(a) * 0.3, 0.1, Math.sin(a) * 0.3, 0.16, 0.18, 0.16, 0xf6a5c3); }
+  g.cyl(0, 0.12, 0, 0.07, 0.07, 0.16, 0xfff2b0, 6, 0xffd060);
+  return g.build();
+}
+
 /** Cờ đỏ sao vàng không cán, dán phẳng (mặt cờ hướng +z): treo sát mặt kính chung cư. */
 export function wallFlagGeometry(s = 1) {
   const g = new GB(), cx = 0, cy = 0;

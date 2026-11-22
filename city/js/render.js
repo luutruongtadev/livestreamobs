@@ -5,9 +5,10 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY, TRAIN_SLOT, AIRPORT_SLOT } from './transport3d.js';
-import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, wallFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
+import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, wallFlagGeometry, waterTankGeometry, acUnitGeometry, laundryGeometry, tetTreeGeometry, lotusLampGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
+import { CLIMATES, climateOf } from './base.js';
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
 const WATER_Y = -0.9;
 const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520, MAX_ANIMALS = 16, DOG_COUNT = 10, MAX_BEAMS = 900;
@@ -673,6 +674,15 @@ export class View {
     this.aptFlagMesh = this._inst(wallFlagGeometry(1.6), this.matBuilding, 6000, false); // ngày lễ quốc gia: cờ treo sát mặt kính chung cư
     this.houseFlagMesh = this._inst(poleFlagGeometry(), this.matBuilding, 6000, false); // nhà thường: cờ cắm chéo ra trước nhà
     this.aptPts = []; this.aptVer = 0;
+    // chi tiết phố Việt quanh năm: bồn nước inox trên mái, cục nóng điều hoà, sào phơi đồ ở ban công chung cư
+    this.tankMesh = this._inst(waterTankGeometry(), this.matBuilding, 5000, true);
+    this.acMesh = this._inst(acUnitGeometry(), this.matBuilding, 9000, false);
+    this.laundryMesh = this._inst(laundryGeometry(), this.matBuilding, 5000, false);
+    // dịp Tết: chậu đào, mai, quất trước cửa; băng rôn đỏ giăng ngang phố (Tết, lễ quốc gia); Rằm, Vu Lan: hoa đăng trên sông
+    this.tetMeshes = [0, 1, 2].map((k) => this._inst(tetTreeGeometry(k), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 4000, false));
+    this.bannerMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), 600);
+    this.bannerMesh.count = 0; this.bannerMesh.frustumCulled = false; s.add(this.bannerMesh); this.bannerTex = {};
+    this.lotusMesh = this._inst(lotusLampGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), 700, false);
     this.decoPts = []; this.decoKey = '';
     // đời sống đường phố: người ngồi quán, người đứng (đi chợ, học sinh, tập thể dục); chỗ đặt lấy từ nhà và công trình
     this.lifeSit = this._inst(sitGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 1500, false);
@@ -2473,7 +2483,7 @@ export class View {
 
   /** Cờ, đèn lồng trên cột điện trong dịp lễ (lễ có trường deco); chỉ dựng lại khi đổi lễ hoặc đổi đường. */
   _festDeco() {
-    const c = this.city, fn = c.style === 'vn' ? festivalNow(c) : null, deco = (fn && fn.f.deco) || '', key = `${deco}|${fn ? fn.f.id : ''}|${this.decoPts.length}|${fn && fn.f.nation ? this.aptVer : ''}`;
+    const c = this.city, fn = c.style === 'vn' ? festivalNow(c) : null, deco = (fn && fn.f.deco) || '', key = `${deco}|${fn ? fn.f.id : ''}|${this.decoPts.length}|${this.aptVer}|${this.urban ? 1 : 0}`;
     if (key === this.decoKey) return;
     this.decoKey = key;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
@@ -2510,9 +2520,123 @@ export class View {
     }
     this.aptFlagMesh.count = na; this.aptFlagMesh.instanceMatrix.needsUpdate = true;
     this.houseFlagMesh.count = nh; this.houseFlagMesh.instanceMatrix.needsUpdate = true;
+    this._tetDeco(fn); this._banners(fn); this._lotus(fn);
     this.lanternMesh.count = nl; this.flagMesh.count = nf;
     this.lanternMesh.instanceMatrix.needsUpdate = true; this.flagMesh.instanceMatrix.needsUpdate = true;
     if (this.lanternMesh.instanceColor) this.lanternMesh.instanceColor.needsUpdate = true;
+  }
+
+  /** Mái bằng của một mẫu nhà (khung đỉnh phẳng đủ rộng để đặt bồn nước), không có thì null. Lưu sẵn trong geometry. */
+  _roofOf(geo) {
+    if (geo.userData.roof !== undefined) return geo.userData.roof;
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const p = geo.attributes.position, nr = geo.attributes.normal, b = geo.boundingBox, lv = new Map(), foot = (b.max.x - b.min.x) * (b.max.z - b.min.z);
+    for (let k = 0; k < p.count; k++) { // các mặt nằm ngang hướng lên, gom theo cao độ
+      if (!nr || nr.getY(k) < 0.9) continue;
+      const y = Math.round(p.getY(k) * 20) / 20, x = p.getX(k), z = p.getZ(k);
+      let e = lv.get(y); if (!e) lv.set(y, (e = { x0: x, x1: x, z0: z, z1: z, y }));
+      e.x0 = Math.min(e.x0, x); e.x1 = Math.max(e.x1, x); e.z0 = Math.min(e.z0, z); e.z1 = Math.max(e.z1, z);
+    }
+    let best = null;
+    for (const e of lv.values()) if (e.y > 2 && e.x1 - e.x0 > 2.2 && e.z1 - e.z0 > 2.2 && (e.x1 - e.x0) * (e.z1 - e.z0) > 0.25 * foot && (!best || e.y > best.y)) best = e;
+    if (!best) return (geo.userData.roof = null);
+    // chỗ đặt bồn: bốn góc mái, bỏ góc nào có phần nhà cao hơn mái (mái dốc, tum thang) đè lên
+    const spots = [[best.x1 - 0.8, best.z0 + 0.8], [best.x0 + 0.8, best.z0 + 0.8], [best.x1 - 0.8, best.z1 - 0.8], [best.x0 + 0.8, best.z1 - 0.8]].filter(([sx, sz]) => {
+      for (let k = 0; k < p.count; k++) if (p.getY(k) > best.y + 0.15 && Math.abs(p.getX(k) - sx) < 0.9 && Math.abs(p.getZ(k) - sz) < 0.9) return false;
+      return true;
+    });
+    return (geo.userData.roof = spots.length ? { spots, y: best.y } : null);
+  }
+
+  /** Chi tiết nhà Việt quanh năm (chỉ kiểu Việt Nam): bồn nước inox trên mái bằng, cục nóng điều hoà mặt tiền, sào phơi đồ ban công chung cư. */
+  _homeDeco() {
+    const c = this.city, vn = c.style === 'vn', m = new THREE.Matrix4(), l = new THREE.Matrix4();
+    let nt = 0, na = 0, nl = 0;
+    const capT = this.tankMesh.userData.cap, capA = this.acMesh.userData.cap, capL = this.laundryMesh.userData.cap;
+    for (const a of vn ? this.aptPts : []) {
+      if (!a.geo.boundingBox) a.geo.computeBoundingBox();
+      const b = a.geo.boundingBox, w = b.max.x - b.min.x, top = b.max.y - 1.4, x0 = a.i % N, y0 = (a.i / N) | 0, rf = this._roofOf(a.geo), fz = b.max.z;
+      if (rf) { // bồn nước góc sau mái
+        const n = a.apt ? 1 + ((hash2(x0, y0, 301) * 3) | 0) : 1;
+        for (let k = 0; k < n && nt < capT; k++) {
+          if (k >= rf.spots.length) break;
+          const [tx, tz] = rf.spots[k];
+          this.tankMesh.setMatrixAt(nt++, m.multiplyMatrices(a.m, l.makeTranslation(tx, rf.y, tz)));
+        }
+      }
+      for (let y = 3.0, f = 0; y <= top; y += 3.1, f++) { // điều hoà, sào phơi từng tầng
+        const h = hash2(x0 * 7 + f, y0, 303);
+        if (h < (a.apt ? 0.45 : 0.6) && na < capA) this.acMesh.setMatrixAt(na++, m.multiplyMatrices(a.m, l.makeTranslation((hash2(x0, y0 * 3 + f, 305) - 0.5) * (w - 1.8), y, fz + 0.32)));
+        if (a.apt && h > 0.78 && nl < capL) this.laundryMesh.setMatrixAt(nl++, m.multiplyMatrices(a.m, l.makeTranslation((hash2(x0, y0 * 5 + f, 307) - 0.5) * (w - 3), y + 0.9, fz)));
+        if (!a.apt && f >= 1) break; // nhà thấp tầng: tối đa hai cục
+      }
+    }
+    for (const [mm, n] of [[this.tankMesh, nt], [this.acMesh, na], [this.laundryMesh, nl]]) { mm.count = n; mm.instanceMatrix.needsUpdate = true; }
+  }
+
+  /** Tết, chợ Tết: chậu đào (Bắc), mai (Nam), quất bày trước cửa nhà; chung cư hai chậu ở sảnh. */
+  _tetDeco(fn) {
+    const on = fn && (fn.f.id === 'tet' || fn.f.id === 'chotet'), cnt = [0, 0, 0], m = new THREE.Matrix4(), l = new THREE.Matrix4();
+    if (on) {
+      const cl = climateOf(this.city), north = cl === CLIMATES.bac || cl === CLIMATES.tayBac, south = cl === CLIMATES.nam || cl === CLIMATES.dao;
+      const pick = (h) => (h < 0.3 ? 2 : north ? 0 : south ? 1 : h < 0.65 ? 0 : 1);
+      for (const a of this.aptPts) {
+        if (!a.geo.boundingBox) a.geo.computeBoundingBox();
+        const b = a.geo.boundingBox, x0 = a.i % N, y0 = (a.i / N) | 0, z = Math.min(b.max.z + 0.7, 4.7);
+        const spots = a.apt ? [-1.6, 1.6] : hash2(x0, y0, 311) < 0.75 ? [hash2(x0, y0, 313) < 0.5 ? -3 : 3] : [];
+        for (let k = 0; k < spots.length; k++) {
+          const t = a.apt ? (hash2(x0, y0, 315) < 0.5 ? 2 : pick(0.9)) : pick(hash2(x0 + k, y0, 317)), mm = this.tetMeshes[t];
+          if (cnt[t] < mm.userData.cap) mm.setMatrixAt(cnt[t]++, m.multiplyMatrices(a.m, l.makeTranslation(spots[k], 0, z)));
+        }
+      }
+    }
+    this.tetMeshes.forEach((mm, k) => { mm.count = cnt[k]; mm.instanceMatrix.needsUpdate = true; });
+  }
+
+  /** Băng rôn đỏ chữ vàng giăng ngang phố dịp Tết và lễ quốc gia, mỗi ~70 m trên đường mặt đất ở khu có nhà. */
+  _banners(fn) {
+    const TEXT = { tet: 'CHÚC MỪNG NĂM MỚI', chotet: 'CHÚC MỪNG NĂM MỚI', giohung: 'GIỖ TỔ HÙNG VƯƠNG 10/3', thongnhat: 'MỪNG NGÀY THỐNG NHẤT 30/4', quockhanh: 'MỪNG QUỐC KHÁNH 2/9' };
+    const txt = fn && TEXT[fn.f.id], bm = this.bannerMesh, c = this.city;
+    let n = 0;
+    if (txt) {
+      let tex = this.bannerTex[txt];
+      if (!tex) {
+        const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 96;
+        const g = cv.getContext('2d'); g.fillStyle = '#c8102e'; g.fillRect(0, 0, 1024, 96); g.fillStyle = '#ffd400'; g.fillRect(0, 6, 1024, 3); g.fillRect(0, 87, 1024, 3);
+        g.font = 'bold 58px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 512, 50, 980);
+        tex = this.bannerTex[txt] = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+      }
+      bm.material.map = tex; bm.material.needsUpdate = true;
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(), U = this.urban;
+      for (const e of c.edges.values()) {
+        if (ROADS[e.type].elevated || e.len < 30) continue;
+        const wd = ROADS[e.type].w - 1;
+        for (let s = 20 + (e.id % 3) * 10; s < e.len - 10 && n < 600; s += 70) {
+          const pt = pointAt(e.pts, e.cum, s), gx = Math.floor((pt[0] + HALF) / T), gy = Math.floor((pt[1] + HALF) / T);
+          if (U && (gx < 0 || gy < 0 || gx >= N || gy >= N || U[gy * N + gx] < 0.08)) continue;
+          if (isWaterAt(c, pt[0], pt[1]) || n >= 600) continue;
+          q.setFromAxisAngle(up, Math.atan2(pt[2], pt[3]));
+          bm.setMatrixAt(n++, m.compose(p.set(pt[0], this.roadY(pt[0], pt[1]) + 5.6, pt[1]), q, sc.set(wd, wd * 0.094, 1)));
+        }
+      }
+    }
+    bm.count = n; bm.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Rằm tháng Giêng, Vu Lan: đèn hoa đăng thả trên sông, biển gần khu dân cư. */
+  _lotus(fn) {
+    const c = this.city, on = fn && (fn.f.id === 'ramgieng' || fn.f.id === 'vulan'), lm = this.lotusMesh, cap = lm.userData.cap, U = this.urban, m = new THREE.Matrix4();
+    let n = 0;
+    if (on && U) {
+      for (let i = 0; i < N * N && n < cap; i++) {
+        if (!c.water[i] || U[i] < 0.004) continue;
+        const x = cellX(i), z = cellZ(i);
+        if (heightAt(c, x, z) > WATER_Y - 0.3) continue; // chỉ sông, biển (hồ trên cao có mực nước riêng)
+        const k = 1 + ((hash2(i % N, (i / N) | 0, 321) * 3) | 0);
+        for (let j = 0; j < k && n < cap; j++) lm.setMatrixAt(n++, m.makeScale(1.6, 1.6, 1.6).setPosition(x + (hash2(i, j, 323) - 0.5) * T * 0.9, WATER_Y + 0.05, z + (hash2(i, j, 325) - 0.5) * T * 0.9));
+      }
+    }
+    lm.count = n; lm.instanceMatrix.needsUpdate = true;
   }
 
   /** Pháo hoa ban đêm ở nơi tổ chức lễ (đêm giao thừa, Trung thu, lễ hội quy mô vừa trở lên). */
@@ -3751,6 +3875,8 @@ export class View {
     if (d.lines) { this._lines(); d.lines = false; }
     if (d.buildings || this._animating) { this._animating = this._buildings(); d.buildings = false; d.zones = true; }
     if (d.trees) { this._trees(); d.trees = false; }
+    if (this._homeVer !== this.aptVer) { this._homeVer = this.aptVer; this._homeDeco(); }
+    if (this.lotusMesh.count) { this.lotusMesh.position.set(Math.sin(this.time * 0.13) * 1.5, Math.sin(this.time * 1.3) * 0.04, Math.cos(this.time * 0.11) * 1.5); } // hoa đăng trôi dập dềnh
     if (this._nightDirty && !(performance.now() - (this._nightAt ?? -1e9) < 1500)) { this._nightDirty = false; this._nightAt = performance.now(); this._nightCity(); } // dựng lại phố đêm tối đa 1,5 giây một lần
     if (d.services) { this._services(); this._hydro(); d.services = false; d.water = true; }
     if (d.transit) { this._transit(); d.transit = false; }
