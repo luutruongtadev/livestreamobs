@@ -21,6 +21,10 @@ const PED_MODELS = [
   { file: 'ped_woman.glb', foot: 0.4 },
   { file: 'ped_elder.glb', foot: 0.42 },
 ];
+// Xe tạo bằng Meshy: thay hình xe dựng bằng code cùng kiểu (look); len = chiều dài trong game, rotY đưa đầu xe về +z; tint=false giữ nguyên màu texture.
+const VEH_MODELS = [
+  { look: 'deliveryvan', file: 'van.glb', len: 4.5, rotY: Math.PI / 2, tint: false },
+];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
@@ -547,7 +551,7 @@ export class View {
     this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
     this.lifeShops = []; this.lifeSvc = [];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
-    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {};
+    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this._white = new THREE.Color(0xffffff);
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.strollMesh = this._inst(pedGeometry(), this.pedMesh.material, MAX_STROLL, true); this.strollMesh.count = 0; // người đi dạo trên lối đi bộ
@@ -627,13 +631,14 @@ export class View {
   }
 
   /** Gộp mọi mesh trong cảnh GLTF thành một BufferGeometry, dời tâm về gốc, đáy ở y=0, scale theo bề rộng chân đế mong muốn. */
-  _normalizeGltf(gltf, foot, tint) {
+  _normalizeGltf(gltf, foot, tint, rotY = 0) {
     gltf.scene.updateMatrixWorld(true);
     const parts = [];
     let mat = null;
     gltf.scene.traverse((o) => { if (o.isMesh && o.geometry) { const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld); parts.push(g); if (!mat && o.material) mat = o.material; } });
     if (!parts.length) throw new Error('mô hình không có mesh');
     const geo = parts.length > 1 ? mergeGeometries(parts, false) : parts[0];
+    if (rotY) geo.applyMatrix4(new THREE.Matrix4().makeRotationY(rotY));
     geo.computeBoundingBox();
     const bb = geo.boundingBox, size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
     const k = foot / Math.max(size.x, size.z, 0.001);
@@ -654,6 +659,15 @@ export class View {
         const { geo, mat, H, HX } = this._normalizeGltf(gltf, pm.foot);
         const gm = gaitMaterial(mat, { H, HX, piv: 0.5, mode: 0 });
         this.pedVariants.push(this._inst(this._gaitGeo(geo, MAX_PEDS), gm, MAX_PEDS, true));
+      }).catch(() => {});
+    }
+    for (const vm of VEH_MODELS) {
+      load(vm.file).then((gltf) => {
+        const { geo, mat } = this._normalizeGltf(gltf, vm.len, null, vm.rotY);
+        const old = this.vehMeshes[vm.look];
+        if (old) { this.scene.remove(old); old.dispose(); }
+        this.vehMeshes[vm.look] = this._inst(geo, mat, MAX_BIG, true);
+        if (vm.tint === false) this.vehModelLooks[vm.look] = true;
       }).catch(() => {});
     }
     load(ANIMAL_DOG.file).then((gltf) => {
@@ -3088,7 +3102,7 @@ export class View {
       if (!mesh) { mesh = this.vehMeshes[look] = this._inst(vehicleGeometry(look), this.vehMat, cap, true); vc[look] = 0; }
       const n = vc[look] || 0;
       if (n >= cap) return;
-      mesh.setMatrixAt(n, m); mesh.setColorAt(n, color); vc[look] = n + 1;
+      mesh.setMatrixAt(n, m); mesh.setColorAt(n, this.vehModelLooks[look] && !v_.wreck ? this._white : color); vc[look] = n + 1;
     };
     let v_ = null;
     for (const v of c.traffic.vehicles) {
