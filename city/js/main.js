@@ -16,7 +16,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 // nhóm công cụ ở thanh dưới; nhóm có `tool` thì bấm là cầm luôn
 const GROUPS = [
   { id: 'info', icon: '🖐️', label: 'Xem', tool: 'info' },
-  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:overpass3', 'road:tunnel', 'road:highway', 'roundabout', 'junction', 'sign'] },
+  { id: 'road', icon: '🛣️', label: 'Đường', items: ['road:small', 'road:large', 'road:oneway', 'road:overpass', 'road:overpass2', 'road:overpass3', 'road:tunnel', 'road:highway', 'roundabout', 'junction', 'sign', 'turn', 'bump'] },
   { id: 'zone', icon: '🎨', label: 'Quy hoạch', items: ['zone:1', 'zone:14', 'zone:13', 'zone:4', 'zone:7', 'zone:15', 'zone:16', 'zone:2', 'zone:5', 'zone:20', 'zone:17', 'zone:6', 'zone:18', 'zone:19', 'zone:3', 'zone:21', 'zone:0'] },
   { id: 'res', icon: '⛏️', label: 'Tài nguyên', items: ['zone:8', 'zone:12', 'zone:9', 'zone:10', 'zone:11'] },
   { id: 'power', icon: '⚡', label: 'Điện', items: ['wind', 'solar', 'hydro', 'coal', 'nuclear', 'line:power'] },
@@ -56,6 +56,8 @@ function toolInfo(id) {
   if (id === 'roundabout') return { kind: 'node', icon: '⭕', label: 'Vòng xuyến', desc: `<b>Vòng xuyến</b> · ${money(S.roundaboutCost())} · bấm vào ngã ba, ngã tư để đổi thành vòng xuyến một chiều: không đèn, xe trong vòng được đi trước, xe vào vòng nhường` };
   if (id === 'junction') return { kind: 'node', icon: '🚦', label: 'Đèn / biển', desc: '<b>Điều khiển nút giao</b> · miễn phí · bấm vào ngã ba, ngã tư để đổi lần lượt: tự động → luôn có đèn → biển dừng (xe dừng hẳn rồi lần lượt đi)' };
   if (id === 'sign') return { kind: 'sign', icon: '🚫', label: 'Biển cấm', desc: `<b>Biển cấm theo đoạn đường</b> · miễn phí · bấm vào một đoạn đường để đổi lần lượt: ${S.BANS.map((b) => `${b.icon} ${b.name.toLowerCase()}`).join(' → ')} · xe bị cấm phải đi đường khác, nhưng vẫn được vào nhà, cửa hàng nằm ngay trên đoạn đó · xe buýt, xe công vụ không bị cấm` };
+  if (id === 'turn') return { kind: 'turn', icon: '↰', label: 'Cấm rẽ', desc: `<b>Biển cấm rẽ ở nút</b> · miễn phí · bấm vào nút giao (hoặc một nút giữa đường) để đổi lần lượt: ${S.TURNS.map((t) => `${t.icon} ${t.name.toLowerCase()}`).join(' → ')} · áp cho mọi hướng xe đi vào nút; xe ưu tiên không bị cấm` };
+  if (id === 'bump') return { kind: 'bump', icon: '〰️', label: 'Gờ g.tốc', desc: `<b>Gờ giảm tốc</b> · ${money(S.BUMP_COST)} mỗi đoạn · bấm vào đoạn đường để làm / gỡ · xe chạy còn ${Math.round(S.BUMP_SLOW * 100)}% tốc độ, ít tai nạn hơn hẳn; xe đi xuyên sẽ chọn đường khác nhanh hơn · không làm trên cao tốc, cầu vượt` };
   if (kind === 'zone') {
     const z = S.ZDEF[+arg];
     if (!+arg) return { kind, zone: 0, icon: z.icon, label: 'Bỏ q.hoạch', desc: 'Kéo để bỏ quy hoạch (dỡ luôn nhà trong vùng)' };
@@ -593,6 +595,23 @@ function updatePreview() {
     renderHint(city.owned[lt] ? 'Ô đất này đã là của thành phố' : `Ô đất: <b>${money(r.price)}</b> · ${has ? `có ${has}` : 'không có tài nguyên'}${r.ok ? ' · bấm để mua' : ` · <b>${r.reason}</b>`}`);
     return;
   }
+  if (t.kind === 'turn') {
+    const n = hover && S.nodeAt(city, hover.wx, hover.wz, 14);
+    view.setRibbon(null); view.setMarker(n ? { x: n.x, z: n.z } : null, !!n);
+    if (!n) { renderHint('Bấm vào một nút giao để cắm hoặc đổi biển cấm rẽ'); return; }
+    const arms = (city.adj.get(n.id) || []).length, cur = S.TURNS[n.turn | 0], nx = S.TURNS[((n.turn | 0) + 1) % S.TURNS.length];
+    renderHint(arms < 2 ? '<b>Đầu đường cụt: xe phải quay đầu ở đây</b>' : n.rb ? '<b>Nút thuộc vòng xuyến</b>' : `Nút ${arms} nhánh · đang: <b>${cur.icon} ${cur.name}</b> · bấm để đổi sang <b>${nx.icon} ${nx.name}</b> (${nx.desc})`);
+    return;
+  }
+  if (t.kind === 'bump') {
+    const e = hover && S.edgeAt(city, hover.wx, hover.wz, 2);
+    view.setMarker(null);
+    if (!e) { view.setRibbon(null); renderHint('Bấm vào một đoạn đường để làm hoặc gỡ gờ giảm tốc'); return; }
+    const bad = e.type === 'highway' || S.ROADS[e.type].elevated;
+    view.setRibbon(e.pts, S.ROADS[e.type].w / 2, bad ? 0xff5b4a : 0xffc24a);
+    renderHint(bad ? '<b>Không làm gờ giảm tốc trên cao tốc, cầu vượt</b>' : e.bump ? 'Đoạn này có gờ giảm tốc · bấm để <b>gỡ</b>' : `Bấm để làm <b>gờ giảm tốc</b> · ${money(S.BUMP_COST)} · xe chạy chậm lại, ít tai nạn`);
+    return;
+  }
   if (t.kind === 'sign') {
     const e = hover && S.edgeAt(city, hover.wx, hover.wz, 2);
     view.setMarker(null);
@@ -935,6 +954,8 @@ function showInfo(tile) {
     const acc = c.inc.accidents.filter((a) => a.edge === edge).length;
     if (acc) add('Tai nạn trên đoạn này', `💥 ${acc} vụ, đang chờ công an / cứu hộ`);
     if (edge.ban) add('Biển cấm', `${S.BANS[edge.ban].icon} ${S.BANS[edge.ban].name}`);
+    if (edge.dban) add('Quận', `🚚 cấm xe tải nặng (Quận ${edge.dban})`);
+    if (edge.bump) add('Gờ giảm tốc', `〰️ có · xe chạy còn ${Math.round(S.BUMP_SLOW * 100)}% tốc độ`);
     add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
     { const wl = S.bridgeLen(city, edge); if (wl >= 4) { const B = S.BRIDGES[S.bridgeOf(edge)]; add('Cầu', `${B.icon} ${B.name} · ${Math.round(wl)} m qua sông · phí ${fmt(Math.round(wl * B.upkeep * S.RATE))} ₫/ngày (đổi kiểu: công cụ Đường → 🌉 Đổi cầu)`); } }
     if (d.elevated) { const lv = S.roadLvl(edge.type); add('Tầng', lv < 0 ? 'Hầm chui: chìm dưới mặt đất, đường bên trên bắc qua' : lv > 1 ? 'Cầu tầng 2: bắc qua cả cầu tầng 1 lẫn đường dưới đất' : 'Trên cao: bắc qua đường dưới, không có nhà hai bên'); }
@@ -1492,6 +1513,22 @@ function bindInput() {
       const r = S.placeService(city, tool, hover.x, hover.y);
       if (!r.ok) toast(r.reason);
       else { const d = S.SERVICES[tool]; if ((d.power || d.water || d.sewage) && !r.linked) toast(`${d.name} đang ở xa đường: kéo ${d.power ? 'dây điện' : 'ống nước'} từ nó tới đường`); }
+      updatePreview(); updateHud(true);
+      return;
+    }
+    if (tool === 'turn') {
+      const n = S.nodeAt(city, hover.wx, hover.wz, 14);
+      if (!n) { toast('Bấm vào một nút giao'); return; }
+      const r = S.setTurnBan(city, n.id, ((n.turn | 0) + 1) % S.TURNS.length);
+      toast(r.ok ? (r.turn ? `Đã cắm biển ${S.TURNS[r.turn].icon} ${S.TURNS[r.turn].name.toLowerCase()}` : 'Đã gỡ biển cấm rẽ') : r.reason);
+      updatePreview(); updateHud(true);
+      return;
+    }
+    if (tool === 'bump') {
+      const e = S.edgeAt(city, hover.wx, hover.wz, 2);
+      if (!e) { toast('Bấm vào một đoạn đường'); return; }
+      const r = S.setBump(city, e.id, !e.bump);
+      toast(r.ok ? (r.bump ? `Đã làm gờ giảm tốc · ${money(S.BUMP_COST)}` : 'Đã gỡ gờ giảm tốc') : r.reason);
       updatePreview(); updateHud(true);
       return;
     }
@@ -2202,6 +2239,10 @@ function renderDist0(force) {
     cap.addEventListener('change', () => { S.setCap(c, d, +cap.value); S.recalc(c); updateHud(true); renderDist(true); });
     body.append(lab, cap);
   } else { const lab = el('div', 'row'); lab.innerHTML = `<span>Đang chi</span><span><b>${money(cost)}</b>/ngày</span>`; body.append(lab); }
+  // chính sách giao thông của quận
+  const tbBtn = el('button', 'mini' + (q.truckBan ? ' on' : ''), q.truckBan ? '🚚 Đang cấm xe tải nặng · bấm để bỏ' : '🚚 Cấm xe tải nặng');
+  tbBtn.onclick = () => { S.setTruckBan(c, d, !q.truckBan); renderDist(true); renderCity(true); };
+  body.append(tbBtn, el('small', null, 'Xe tải không được đi xuyên quận; xe chở hàng tới hoặc từ chính quận này vẫn vào được, cao tốc không bị cấm. Bớt xe tải trong phố nhưng đường vành đai sẽ đông hơn.'));
   // chương trình
   body.append(el('h4', null, `Chương trình quận · hiệu quả ${Math.round(S.efficiency(q) * 100)}%`));
   for (const k of S.PKEYS) {

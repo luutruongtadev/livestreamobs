@@ -1,6 +1,6 @@
 // Phố Mới — giao thông thật trên graph đường: tìm đường theo thời gian đi (có tính xe đang đông),
 // xe bám làn, giữ khoảng cách, đổi làn, dừng đèn đỏ / nhường ở ngã ba, kẹt xe tự nhiên khi đường đầy.
-import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt, roadLvl } from './base.js';
+import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt, roadLvl, cellOf, N } from './base.js';
 
 export const VKIND = {
   car: { len: 3.4, speed: 24 },
@@ -57,13 +57,58 @@ export const BANS = [
   { id: 'notruck', icon: '🚚', name: 'Cấm xe tải', kinds: ['truck'], desc: 'xe tải chở hàng đi đường khác; nhà, cửa hàng trên đoạn này vẫn nhận hàng' },
   { id: 'nomoto', icon: '🛵', name: 'Cấm xe máy', kinds: ['moto'], desc: 'xe máy, xe đạp đi đường khác; hợp với đại lộ, đường lớn muốn dành cho ô tô' },
 ];
-/** Đoạn đường e có cấm loại xe kind không. */
+/** Đoạn đường e có cấm loại xe kind không (biển cấm cắm trên đoạn, chưa tính cấm xe tải theo quận). */
 export const banned = (e, kind) => !!e.ban && BANS[e.ban].kinds.includes(kind);
+
+/** Biển cấm rẽ ở nút giao (n.turn, cờ bit): 1 cấm rẽ trái, 2 cấm quay đầu. Áp cho mọi hướng xe đi vào nút. */
+export const TURNS = [
+  { icon: '⭕', name: 'Không biển', desc: 'rẽ, quay đầu tự do' },
+  { icon: '↰', name: 'Cấm rẽ trái', desc: 'xe đi vào nút không được rẽ trái; đi thẳng, rẽ phải, quay đầu vẫn được' },
+  { icon: '⤺', name: 'Cấm quay đầu', desc: 'xe không được quay đầu tại nút; dùng cả ở giữa đường (nút 2 nhánh) để chặn quay đầu' },
+  { icon: '🚫', name: 'Cấm rẽ trái và quay đầu', desc: 'chỉ còn đi thẳng hoặc rẽ phải' },
+];
+/** Hướng từ nút nid đi vào đoạn e (vector đơn vị trên mặt đất). */
+export function armDir(c, e, nid) {
+  const n = c.nodes.get(nid), atA = e.a === nid, p = pointAt(e.pts, e.cum, atA ? Math.min(6, e.len / 2) : Math.max(e.len - 6, e.len / 2));
+  const dx = p[0] - n.x, dz = p[1] - n.z, l = Math.hypot(dx, dz) || 1;
+  return [dx / l, dz / l];
+}
+/** Kiểu rẽ từ đoạn inE (đang đi tới nút nid) sang đoạn outE: 'u' quay đầu, 'l' rẽ trái, 'r' rẽ phải, 's' đi thẳng. Xe đi bên phải. */
+export function turnKind(c, nid, inE, outE) {
+  if (inE === outE) return 'u';
+  const a = armDir(c, inE, nid), hx = -a[0], hz = -a[1], [ox, oz] = armDir(c, outE, nid); // hướng xe đang chạy, hướng sắp đi
+  const dot = ox * hx + oz * hz, left = ox * hz - oz * hx; // left > 0: lệch sang trái người lái
+  return dot < -0.92 ? 'u' : left > 0.38 ? 'l' : left < -0.38 ? 'r' : 's';
+}
+/** Rẽ từ inE sang outE tại nút nid có bị biển cấm không. */
+export function turnBanned(c, nid, inE, outE) {
+  const t = c.nodes.get(nid)?.turn | 0;
+  if (!t) return false;
+  const k = turnKind(c, nid, inE, outE);
+  return (k === 'l' && !!(t & 1)) || (k === 'u' && !!(t & 2));
+}
+
+/**
+ * Cấm xe tải theo quận (chính sách quận q.truckBan): đánh dấu e.dban = số quận + 1 cho các đoạn mặt đất nằm trong quận cấm.
+ * Cao tốc, đường trên cao không bị cấm. Gọi khi đường, ranh giới quận hoặc chính sách đổi.
+ */
+export function markDistrictBans(c) {
+  const D = c.dist, map = c.dmap;
+  for (const e of c.edges.values()) {
+    delete e.dban;
+    if (!D || !D.on || !map || e.type === 'highway' || ROADS[e.type].elevated) continue;
+    const m = e.pts.length >> 1 & ~1, x = cellOf(e.pts[m]), y = cellOf(e.pts[m + 1]);
+    if (x < 0 || y < 0 || x >= N || y >= N) continue;
+    const d = map[y * N + x];
+    if (d !== 255 && D.list[d] && D.list[d].truckBan) e.dban = d + 1;
+  }
+}
 
 const laneKey = (e, fwd, lane) => e.id * 8 + (fwd ? 4 : 0) + lane;
 const dirKey = (e, fwd) => e.id * 2 + (fwd ? 1 : 0);
 const canTravel = (e, fwd, kind) => (kind === 'ped' || kind === 'tram' ? !ROADS[e.type].elevated && (kind === 'ped' || e.type !== 'oneway' || fwd) : e.type !== 'oneway' || fwd);
-const baseSpeed = (e, kind) => VKIND[kind].speed * ROADS[e.type].speed * (e.flood && kind !== 'ped' ? 0.35 : 1) * (kind === 'ped' ? 1 : (kind === 'bus' ? e.busMul : e.spMul) ?? 1); // đường ngập: xe lội nước chậm; vỉa hè bị lấn, làn riêng xe buýt
+export const BUMP_SLOW = 0.55; // gờ giảm tốc: xe chạy còn 55% tốc độ (xe ưu tiên 80%)
+const baseSpeed = (e, kind) => VKIND[kind].speed * ROADS[e.type].speed * (e.flood && kind !== 'ped' ? 0.35 : 1) * (e.bump && kind !== 'ped' ? (VKIND[kind].emergency ? 0.8 : BUMP_SLOW) : 1) * (kind === 'ped' ? 1 : (kind === 'bus' ? e.busMul : e.spMul) ?? 1); // đường ngập: xe lội nước chậm; vỉa hè bị lấn, làn riêng xe buýt
 
 /** Mức đông của một chiều đường: 0 thoáng → 1 kín xe. */
 export function loadOf(c, e, fwd) {
@@ -91,6 +136,7 @@ export function rampMerge(c, nid) {
 export function rebuildTraffic(c) {
   const tr = c.traffic;
   tr.signals.clear(); tr.busy.clear(); tr.reserve.clear();
+  markDistrictBans(c);
   for (const [nid, list] of c.adj) {
     if (list.length < 3) continue;
     const edges = list.map((id) => c.edges.get(id)), n = c.nodes.get(nid);
@@ -117,7 +163,7 @@ export function rebuildTraffic(c) {
   }
   // vừa cắm biển cấm trên đoạn xe sắp đi qua: tìm đường khác, không còn đường thì vẫn đi đường cũ cho xong chuyến
   for (const v of tr.vehicles) {
-    if (v.wreck || !v.steps.some((s, k) => k > v.pi && k < v.steps.length - 1 && banned(s.e, v.kind))) continue;
+    if (v.wreck || !routeBlocked(c, v)) continue;
     const st = v.steps[v.steps.length - 1];
     reroute(c, v, { edge: st.e, along: st.fwd ? v.endS : st.e.len - v.endS });
   }
@@ -165,30 +211,49 @@ export function findPath(c, from, to, kind = 'car') {
     else if (to.along < from.along && canTravel(fe, false, kind)) best = { steps: [{ e: fe, fwd: false }], startS: fe.len - from.along, endS: fe.len - to.along, cost: tcost(fe, false, from.along - to.along) };
     if (best) return best;
   }
+  // Dijkstra theo trạng thái "vừa đi hết đoạn e theo chiều fwd, đang đứng ở nút cuối" (khoá dirKey): biết xe tới từ đâu nên xét được biển cấm rẽ
+  const free = ped || emergency; // người đi bộ, xe ưu tiên: không theo biển cấm
+  const okD = new Set([fe.dban, te.dban]); // xe tải được vào quận cấm nếu điểm đi hoặc điểm đến nằm trong quận đó
+  const blocked = (e) => !free && (banned(e, kind) || (kind === 'truck' && !!e.dban && !okD.has(e.dban)));
+  const turnBad = (nid, inE, outE) => !free && turnBanned(c, nid, inE, outE);
   const dist = new Map(), prev = new Map(), heap = new Heap();
-  const relax = (nid, d, p) => { if (d < (dist.get(nid) ?? Infinity)) { dist.set(nid, d); prev.set(nid, p); heap.push(d, nid); } };
-  if (canTravel(fe, true, kind)) relax(fe.b, tcost(fe, true, fe.len - from.along), { e: fe, fwd: true, from: null });
-  if (canTravel(fe, false, kind)) relax(fe.a, tcost(fe, false, from.along), { e: fe, fwd: false, from: null });
+  const relax = (e, fwd, d, p) => { const k = dirKey(e, fwd); if (d < (dist.get(k) ?? Infinity)) { dist.set(k, d); prev.set(k, p); heap.push(d, k); } };
+  if (canTravel(fe, true, kind)) relax(fe, true, tcost(fe, true, fe.len - from.along), null);
+  if (canTravel(fe, false, kind)) relax(fe, false, tcost(fe, false, from.along), null);
   const done = new Set();
   let bestCost = Infinity, bestEnd = null;
   while (heap.size) {
-    const [d, nid] = heap.pop();
-    if (done.has(nid) || d > bestCost) continue;
-    done.add(nid);
-    if (nid === te.a && canTravel(te, true, kind)) { const t = d + tcost(te, true, to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: true }; } }
-    if (nid === te.b && canTravel(te, false, kind)) { const t = d + tcost(te, false, te.len - to.along); if (t < bestCost) { bestCost = t; bestEnd = { nid, fwd: false }; } }
+    const [d, k] = heap.pop();
+    if (done.has(k) || d > bestCost) continue;
+    done.add(k);
+    const e = c.edges.get(k >> 1), fwd = (k & 1) === 1, nid = fwd ? e.b : e.a;
+    if (nid === te.a && canTravel(te, true, kind) && !turnBad(nid, e, te)) { const t = d + tcost(te, true, to.along); if (t < bestCost) { bestCost = t; bestEnd = { k, fwd: true }; } }
+    if (nid === te.b && canTravel(te, false, kind) && !turnBad(nid, e, te)) { const t = d + tcost(te, false, te.len - to.along); if (t < bestCost) { bestCost = t; bestEnd = { k, fwd: false }; } }
     const wait = c.traffic.signals.has(nid) ? (emergency ? 0.3 : 2.2) : 0.5;
     for (const id of c.adj.get(nid) || []) {
-      const e = c.edges.get(id), fwd = e.a === nid;
-      if (!canTravel(e, fwd, kind) || banned(e, kind)) continue; // biển cấm: không đi xuyên qua (đầu và cuối chuyến tính riêng ở trên)
-      relax(fwd ? e.b : e.a, d + wait + tcost(e, fwd, e.len), { e, fwd, from: nid });
+      const e2 = c.edges.get(id), fwd2 = e2.a === nid;
+      if (!canTravel(e2, fwd2, kind) || blocked(e2) || turnBad(nid, e, e2)) continue; // biển cấm: không đi xuyên qua (đầu và cuối chuyến tính riêng ở trên)
+      relax(e2, fwd2, d + wait + tcost(e2, fwd2, e2.len), k);
     }
   }
   if (!bestEnd) return null;
   const steps = [{ e: te, fwd: bestEnd.fwd }];
-  for (let nid = bestEnd.nid; nid != null;) { const p = prev.get(nid); steps.unshift({ e: p.e, fwd: p.fwd }); nid = p.from; }
+  for (let k = bestEnd.k; k != null; k = prev.get(k)) steps.unshift({ e: c.edges.get(k >> 1), fwd: (k & 1) === 1 });
   const s0 = steps[0];
   return { steps, startS: s0.fwd ? from.along : fe.len - from.along, endS: bestEnd.fwd ? to.along : te.len - to.along, cost: bestCost };
+}
+
+/** Đường xe v sắp đi có vướng biển cấm (đoạn cấm ở giữa chuyến, cấm xe tải theo quận, hoặc chỗ rẽ bị cấm) không. */
+function routeBlocked(c, v) {
+  if (v.emergency || v.kind === 'ped') return false;
+  const st = v.steps, last = st.length - 1, okD = new Set([st[0].e.dban, st[last].e.dban]);
+  for (let k = v.pi + 1; k <= last; k++) {
+    const e = st[k].e;
+    if (k < last && (banned(e, v.kind) || (v.kind === 'truck' && e.dban && !okD.has(e.dban)))) return true;
+    const p = st[k - 1], nid = p.fwd ? p.e.b : p.e.a;
+    if (turnBanned(c, nid, p.e, e)) return true;
+  }
+  return false;
 }
 
 function place(v, path) {

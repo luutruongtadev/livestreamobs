@@ -1466,6 +1466,44 @@ export class View {
         st.at(null);
       }
     }
+    // biển cấm rẽ ở nút: mỗi nhánh đi vào nút một biển tròn viền đỏ, mũi tên đen, gạch chéo đỏ (đặt lùi sau đèn / biển dừng)
+    const R = 0xc8102e, rzS = new THREE.Matrix4().makeRotationZ(Math.PI / 4);
+    const arrowL = (g) => g.box(0.12, -0.3, 0.02, 0.09, 0.36, 0.15, K).box(-0.03, -0.01, 0.02, 0.3, 0.09, 0.15, K).box(-0.2, -0.1, 0.02, 0.07, 0.27, 0.15, K); // mũi tên rẽ trái: thân, ngang, đầu nhọn
+    const arrowU = (g) => g.box(0.13, -0.3, 0.02, 0.08, 0.42, 0.15, K).box(-0.13, -0.18, 0.02, 0.08, 0.3, 0.15, K).box(0, 0.08, 0.02, 0.34, 0.08, 0.15, K).box(-0.13, -0.27, 0.02, 0.22, 0.07, 0.15, K); // mũi tên quay đầu
+    for (const n of c.nodes.values()) {
+      if (!n.turn || n.rb) continue;
+      const y = nodeY.get(n.id), list = ends.get(n.id) || [];
+      if (y == null || list.length < 2) continue;
+      for (const en of list) {
+        if (en.e.type === 'oneway' && en.atA) continue; // đường một chiều chạy ra khỏi nút: không có xe đi vào từ nhánh này
+        const r = Math.min(trim.get(en.e.id)[en.atA ? 0 : 1] + 5, en.e.len / 2), px = n.x + en.ox * r + en.oz * (en.half - 0.4), pz = n.z + en.oz * r - en.ox * (en.half - 0.4);
+        const kinds = [n.turn & 1 ? arrowL : null, n.turn & 2 ? arrowU : null].filter(Boolean);
+        st.cyl(px, y, pz, 0.08, 0.08, 2.0 + kinds.length * 1.3, 0x8a949c, 5);
+        kinds.forEach((draw, j) => {
+          const base = new THREE.Matrix4().makeTranslation(px, y + 2.6 + j * 1.3, pz).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(en.ox, en.oz)));
+          st.at(base.clone().multiply(rxF)).cyl(0, -0.06, 0, 0.6, 0.6, 0.11, 0x8a949c, 14).at(null); // mặt sau
+          st.at(base.clone().multiply(rxB)).cyl(0, -0.06, 0, 0.6, 0.6, 0.12, R, 14).cyl(0, -0.05, 0, 0.47, 0.47, 0.125, 0xffffff, 14).at(null);
+          draw(st.at(base));
+          st.at(base.clone().multiply(rzS)).box(0, -0.45, 0.04, 0.1, 0.9, 0.15, R).at(null); // gạch chéo đỏ
+        });
+      }
+    }
+    // gờ giảm tốc: dải vàng – đen nổi ngang mặt đường, mỗi 30 m một gờ
+    for (const e of c.edges.values()) {
+      if (!e.bump) continue;
+      const w = ROADS[e.type].asphalt, t0 = trim.get(e.id), s0 = t0[0] + 4, s1 = e.len - t0[1] - 4;
+      if (s1 <= s0) continue;
+      const k = Math.max(1, Math.round((s1 - s0) / 30));
+      for (let j = 0; j < k; j++) {
+        const sAt = s0 + ((j + 0.5) / k) * (s1 - s0), p = pointAt(e.pts, e.cum, sAt), q = pointAt(e.pts, e.cum, Math.min(e.len, sAt + 1));
+        if (isWaterAt(c, p[0], p[1])) continue;
+        const y = this.roadY(p[0], p[1]) + this.edgeLift(e, sAt) + 0.05, base = new THREE.Matrix4().makeTranslation(p[0], y, p[1]).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(q[0] - p[0], q[1] - p[1])));
+        st.at(base);
+        const seg = Math.max(4, Math.round(w / 0.9));
+        for (let u = 0; u < seg; u++) st.box(-w / 2 + (u + 0.5) * (w / seg), 0, 0, w / seg, 0.12, 0.7, u % 2 ? 0x1a1a1a : 0xf2c200);
+        st.at(null);
+      }
+    }
     if (st.i.length) { const m = new THREE.Mesh(st.build(), this.matBuilding); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.roadGroup.add(m); }
     if (lamps.length) {
       const lg = new GB();

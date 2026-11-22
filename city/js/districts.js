@@ -9,6 +9,7 @@ import { MK, N, clamp, jobCap, resCap, SERVICES, RATE, ZDEF, RAW, PRODUCTS, prod
 import { DILEMMAS, decide, cleanText } from './council.js';
 import { stormSeason } from './seasons.js';
 import { world } from './ledger.js';
+import { rebuildTraffic } from './traffic.js';
 
 export const DIST_UNLOCK = 400; // số dân để lập quận
 export const MAX_LV = 3;
@@ -73,6 +74,18 @@ export function rebuildDmap(c) {
     D.list.forEach((q, k) => { const d = (q.x - x) ** 2 + (q.y - y) ** 2; if (d < bd) { bd = d; best = k; } });
     c.dmap[y * N + x] = best;
   }
+  if (c.traffic && c.edges) rebuildTraffic(c); // ranh giới đổi: tính lại đoạn nào thuộc quận cấm xe tải
+}
+
+/** Chính sách 🚚 cấm xe tải nặng của quận d: xe tải không đi xuyên quận, trừ xe chở hàng tới / từ chính quận đó; cao tốc không bị cấm. */
+export function setTruckBan(c, d, on) {
+  const q = c.dist && c.dist.list[d];
+  if (!q) return { ok: false, reason: 'Không có quận này' };
+  q.truckBan = !!on;
+  if (!q.truckBan) delete q.truckBan;
+  rebuildTraffic(c);
+  if (c.dirty) c.dirty.roads = true;
+  return { ok: true, on: !!q.truckBan };
 }
 
 /** Quận của một ô (-1 nếu chưa chia). */
@@ -676,7 +689,7 @@ export function initDistricts(c, o = {}) {
     name: `Quận ${j + 1}`, chair: String(q.chair || 'Chủ tịch'), persona: q.persona, skill: clamp(+q.skill || 0.5, 0.2, 1), since: q.since | 0, done: q.done | 0, failed: q.failed | 0,
     x: clamp(q.x | 0, 0, N - 1), y: clamp(q.y | 0, 0, N - 1), mode: MODES[q.mode] ? q.mode : 'auto', cap: clamp(+q.cap || 0, 0, 50000), prog: q.prog || {},
     order: q.order || null, reports: Array.isArray(q.reports) ? q.reports.slice(-8) : [], nextPlan: q.nextPlan | 0, nextReport: q.nextReport | 0, note: q.note || '', lastStat: q.lastStat || null, stat: q.stat || null, hall: Number.isFinite(+q.hall) && q.hall !== null ? +q.hall : null,
-    build: BUILD_MODES[q.build] ? q.build : 'ask', bcap: clamp(Number.isFinite(+q.bcap) && q.bcap !== null ? +q.bcap : 20000, 0, 200000), nextBuild: q.nextBuild | 0,
+    truckBan: q.truckBan ? true : undefined, build: BUILD_MODES[q.build] ? q.build : 'ask', bcap: clamp(Number.isFinite(+q.bcap) && q.bcap !== null ? +q.bcap : 20000, 0, 200000), nextBuild: q.nextBuild | 0,
     nope: q.nope && typeof q.nope === 'object' ? Object.fromEntries(Object.entries(q.nope).filter(([t]) => BUILDS.includes(t)).map(([t, v]) => [t, v | 0])) : {},
     xDays: Array.isArray(q.xDays) ? q.xDays.slice(-7).map(cleanX) : [], xToday: q.xToday ? cleanX(q.xToday) : null,
     asks: Array.isArray(q.asks) ? q.asks.slice(-6).map((a) => ({ day: a.day | 0, q: String(a.q || '').slice(0, 300), a: String(a.a || '').slice(0, 900), ai: !!a.ai })) : [],

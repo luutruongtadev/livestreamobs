@@ -256,7 +256,7 @@ export function incidentsStep(c, dt) {
   const fast = tr.vehicles.filter((v) => v.v > 8 && CRASH_KINDS.has(v.kind) && !v.wreck);
   if (fast.length && inc.accidents.length < 6 && rng() < CRASH_RATE * fast.length * crashFactor(c) * dt * 2) {
     const v = fast[(rng() * fast.length) | 0]; // chọn trong số xe đang chạy nhanh
-    if (rng() < 0.5 + (v.e.wear || 0)) crash(c, v);
+    if (rng() < (0.5 + (v.e.wear || 0)) * (v.e.bump ? 0.4 : 1)) crash(c, v); // gờ giảm tốc: ít tai nạn hơn hẳn
   }
   for (const acc of [...inc.accidents]) {
     if (!c.edges.has(acc.edge.id) || tr.time - acc.t0 > 90) clearAccident(c, acc); // đường bị phá, hoặc tự giải toả sau rất lâu

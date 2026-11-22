@@ -11,7 +11,7 @@ import { cityPay, cityGet, cityTake, citySet, world, resetLedger, ledgerDay, res
 import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } from './reserve.js';
 import { outside, reportDay } from './world.js';
 import { packLeague, unpackLeague, contract, tradeUse } from './league.js';
-import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad, BANS } from './traffic.js';
+import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad, BANS, TURNS } from './traffic.js';
 import { RETAIL, procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro, trimStaff } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
@@ -37,7 +37,7 @@ export * from './base.js';
 export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './world.js';
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
-export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge, BANS, banned } from './traffic.js';
+export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge, BANS, banned, TURNS, turnKind, turnBanned, BUMP_SLOW } from './traffic.js';
 export { bizKind, wageAt, rentAt, incomeOf, tierOf, rentDay, isTro, TRO_RENT, RETAIL, retailDay, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
@@ -50,7 +50,7 @@ export { FALLS, fallsOk, fallsInfo, fallsAttract, fallsCount, cellMid } from './
 export { DECOR, DECOR_KEYS, decorById, decorOk, decorCount, decorFx, decorUpkeep } from './decor.js';
 export { SIDEWALK, STREET_POLICY, FEE_MAX, setSidewalk, setPolicy, inCenter, vehicleOf, aqiLevel, computeAqi, streetBonus, centerOf } from './street.js';
 export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal, rejectDeal, applyCounter, counterFallback, ratingAvg, ratingK, visitorExperience, councilMod, taxBreak, dealCost, svcNames } from './council.js';
-export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
+export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, setTruckBan, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
 export { CLIMATES, climateOf } from './base.js';
 export { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, canAfford, pickHome } from './tiers.js';
 export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend, fitsZone, landFeeOf, askBounds, corpCounter, corpCounterFallback, askBrief, ASK_TURNS, brkWant, brkOf, taxOf, investorFound, actorOf, actorPay, actorCells } from './corp.js';
@@ -1099,6 +1099,7 @@ function splitEdge(c, e, ts) {
       if (e.br) part.br = e.br;
       if (e.ch) part.ch = 1;
       if (e.ban) part.ban = e.ban; // biển cấm giữ trên cả hai nửa đoạn bị cắt
+      if (e.bump) part.bump = 1; // gờ giảm tốc cũng vậy
     }
   }
   return res;
@@ -1539,6 +1540,32 @@ export function setRoadSign(c, edgeId, ban) {
   rebuildTraffic(c);
   c.dirty.roads = true;
   return { ok: true, ban: e.ban || 0 };
+}
+
+/** Cắm biển cấm rẽ ở nút (turn: chỉ số trong TURNS, cờ bit 1 cấm rẽ trái, 2 cấm quay đầu; 0 là gỡ). Miễn phí. */
+export function setTurnBan(c, nid, turn) {
+  const n = c.nodes.get(nid), list = c.adj.get(nid);
+  if (!n || !list) return { ok: false, reason: 'Bấm vào một nút đường' };
+  if (list.length < 2) return { ok: false, reason: 'Đầu đường cụt: xe phải quay đầu ở đây' };
+  if (n.rb) return { ok: false, reason: 'Vòng xuyến không cần biển cấm rẽ' };
+  n.turn = clamp(turn | 0, 0, TURNS.length - 1);
+  if (!n.turn) delete n.turn;
+  rebuildTraffic(c);
+  c.dirty.roads = true;
+  return { ok: true, turn: n.turn || 0 };
+}
+
+export const BUMP_COST = 300; // ₫ mỗi đoạn đường
+/** Đặt / gỡ gờ giảm tốc trên một đoạn đường. Xe chạy chậm, ít tai nạn; xe đi xuyên sẽ tìm đường khác. */
+export function setBump(c, edgeId, on) {
+  const e = c.edges.get(edgeId);
+  if (!e) return { ok: false, reason: 'Bấm vào một đoạn đường' };
+  if (e.type === 'highway' || ROADS[e.type].elevated) return { ok: false, reason: 'Không làm gờ giảm tốc trên cao tốc, cầu vượt' };
+  if (on && !e.bump) { if (c.money < BUMP_COST) return { ok: false, reason: 'Không đủ tiền' }; cityPay(c, 'build', BUMP_COST); }
+  if (on) e.bump = 1; else delete e.bump;
+  rebuildTraffic(c);
+  c.dirty.roads = true;
+  return { ok: true, bump: !!e.bump };
 }
 
 // ───────────────────────── di chuyển ─────────────────────────
@@ -2509,6 +2536,8 @@ export function serialize(c) {
       return a;
     }),
     bans: [...c.edges.values()].filter((e) => e.ban).map((e) => [e.id, e.ban]), // biển cấm theo đoạn đường
+    bumps: [...c.edges.values()].filter((e) => e.bump).map((e) => e.id), // gờ giảm tốc
+    turns: [...c.nodes.values()].filter((n) => n.turn).map((n) => [n.id, n.turn]), // biển cấm rẽ ở nút
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
     services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}), ...(s.dq ? { dq: s.dq, dby: s.dby } : {}), ...(s.type === 'hydro' && s.dam ? { dam: { cells: s.dam.cells, head: s.dam.head, q: r1(s.dam.q) } } : {}) })),
@@ -2597,6 +2626,8 @@ function deserializeAt(o) {
     if (e[8] === 1) made.ch = 1;
     c.nextId = Math.max(keep, id + 1);
   }
+  for (const id of Array.isArray(o.bumps) ? o.bumps : []) { const e = c.edges.get(id | 0); if (e) e.bump = 1; }
+  for (const t of Array.isArray(o.turns) ? o.turns : []) { const n = Array.isArray(t) && c.nodes.get(t[0] | 0); if (n && TURNS[t[1] | 0] && t[1] | 0) n.turn = t[1] | 0; }
   for (const b of Array.isArray(o.bans) ? o.bans : []) { const e = Array.isArray(b) && c.edges.get(b[0] | 0); if (e && BANS[b[1] | 0] && b[1] | 0) e.ban = b[1] | 0; }
   for (let i = 0; i < N * N; i++) if (c.level[i]) c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0;
   if (o.retail) { // giá bán lẻ từng cửa hàng và chỉ số giá chung: nạp lại không bị nhảy về ×1
