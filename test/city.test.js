@@ -123,6 +123,35 @@ test('city: nâng cấp, đảo chiều và san ủi đường', () => {
   assert.equal(c.edges.size, edges - 1);
 });
 
+test('city: biển cấm theo đoạn đường — xe bị cấm đi vòng, vẫn vào được nhà trên đoạn cấm, giữ khi cắt đường và khi lưu', () => {
+  const c = town(), sx = c.start.x;
+  const mid = S.edgeAt(c, W(sx), W(19), 1);
+  assert.ok(mid, 'đoạn trục dọc giữa hai đường ngang');
+  const from = S.cellPos(c, cell(sx - 7, 13)), to = S.cellPos(c, cell(sx + 7, 23));
+  const uses = (p) => p.steps.some((st) => st.e === mid);
+  assert.ok(uses(S.findPath(c, from, to, 'car')), 'không biển: ô tô đi thẳng qua trục giữa');
+  assert.equal(S.setRoadSign(c, mid.id, 1).ban, 1);
+  const car = S.findPath(c, from, to, 'car'), moto = S.findPath(c, from, to, 'moto'), bus = S.findPath(c, from, to, 'bus');
+  assert.ok(car && !uses(car), 'cấm ô tô: ô tô đi vòng');
+  assert.ok(!uses(S.findPath(c, from, to, 'truck')), 'cấm ô tô cấm cả xe tải');
+  assert.ok(uses(moto) && uses(bus), 'xe máy, xe buýt vẫn đi qua');
+  assert.ok(car.cost > moto.cost, 'đi vòng lâu hơn');
+  const onMid = { edge: mid, along: mid.len / 2 };
+  assert.ok(S.findPath(c, from, onMid, 'car') && S.findPath(c, onMid, to, 'car'), 'vẫn vào / ra được nhà ngay trên đoạn cấm');
+  S.setRoadSign(c, mid.id, 3);
+  assert.ok(uses(S.findPath(c, from, to, 'car')) && !uses(S.findPath(c, from, to, 'moto')), 'cấm xe máy: ô tô đi thẳng, xe máy đi vòng');
+  S.setRoadSign(c, mid.id, 2);
+  assert.ok(uses(S.findPath(c, from, to, 'car')) && !uses(S.findPath(c, from, to, 'truck')), 'cấm xe tải: chỉ xe tải đi vòng');
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(c2.edges.get(mid.id).ban, 2, 'lưu / nạp giữ biển');
+  // cắt ngang đoạn có biển: cả hai nửa đều giữ biển
+  assert.ok(road(c, sx - 4, 18, sx, 18).ok, 'ngã ba cắt đoạn có biển');
+  const parts = [S.edgeAt(c, W(sx), W(16), 1), S.edgeAt(c, W(sx), W(21), 1)];
+  assert.ok(parts.every((e) => e && e !== mid && e.ban === 2), 'hai nửa đoạn bị cắt giữ biển cấm');
+  assert.equal(S.setRoadSign(c, parts[0].id, 0).ban, 0);
+  assert.equal(parts[0].ban, undefined, 'gỡ biển');
+});
+
 test('city: tìm đường theo graph, tôn trọng đường một chiều; ngã tư có đèn', () => {
   const c = cross(), sx = c.start.x;
   const from = S.cellPos(c, cell(sx - 8, 21)), to = S.cellPos(c, cell(sx + 1, 12));

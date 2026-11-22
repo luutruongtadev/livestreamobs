@@ -47,6 +47,19 @@ export function initTraffic(c) {
   c.traffic = { vehicles: [], peds: [], time: 0, pending: [], signals: new Map(), busy: new Map(), reserve: new Map(), load: new Map(), lanes: new Map(), nextId: 1, speedEma: 1, stats: { spawned: 0, abstract: 0, stuck: 0, arrived: 0, noPath: 0 } };
 }
 
+/**
+ * Biển cấm theo từng đoạn đường (e.ban: chỉ số trong bảng). Xe bị cấm không được đi xuyên qua đoạn đó,
+ * nhưng vẫn được xuất phát hoặc dừng ngay trên đoạn ấy (về nhà, giao hàng tận cửa). Xe buýt, tàu điện, xe công vụ không bị cấm.
+ */
+export const BANS = [
+  { id: 'none', icon: '⭕', name: 'Không biển', kinds: [], desc: 'mọi xe đi qua bình thường' },
+  { id: 'nocar', icon: '🚗', name: 'Cấm ô tô', kinds: ['car', 'truck'], desc: 'ô tô con và xe tải không đi xuyên qua; xe máy, xe buýt, xe công vụ vẫn đi' },
+  { id: 'notruck', icon: '🚚', name: 'Cấm xe tải', kinds: ['truck'], desc: 'xe tải chở hàng đi đường khác; nhà, cửa hàng trên đoạn này vẫn nhận hàng' },
+  { id: 'nomoto', icon: '🛵', name: 'Cấm xe máy', kinds: ['moto'], desc: 'xe máy, xe đạp đi đường khác; hợp với đại lộ, đường lớn muốn dành cho ô tô' },
+];
+/** Đoạn đường e có cấm loại xe kind không. */
+export const banned = (e, kind) => !!e.ban && BANS[e.ban].kinds.includes(kind);
+
 const laneKey = (e, fwd, lane) => e.id * 8 + (fwd ? 4 : 0) + lane;
 const dirKey = (e, fwd) => e.id * 2 + (fwd ? 1 : 0);
 const canTravel = (e, fwd, kind) => (kind === 'ped' || kind === 'tram' ? !ROADS[e.type].elevated && (kind === 'ped' || e.type !== 'oneway' || fwd) : e.type !== 'oneway' || fwd);
@@ -101,6 +114,12 @@ export function rebuildTraffic(c) {
   if (lost.length) {
     tr.vehicles = tr.vehicles.filter((v) => !lost.includes(v));
     for (const v of lost) c.onArrive(c, v.cb, null);
+  }
+  // vừa cắm biển cấm trên đoạn xe sắp đi qua: tìm đường khác, không còn đường thì vẫn đi đường cũ cho xong chuyến
+  for (const v of tr.vehicles) {
+    if (v.wreck || !v.steps.some((s, k) => k > v.pi && k < v.steps.length - 1 && banned(s.e, v.kind))) continue;
+    const st = v.steps[v.steps.length - 1];
+    reroute(c, v, { edge: st.e, along: st.fwd ? v.endS : st.e.len - v.endS });
   }
 }
 
@@ -161,7 +180,7 @@ export function findPath(c, from, to, kind = 'car') {
     const wait = c.traffic.signals.has(nid) ? (emergency ? 0.3 : 2.2) : 0.5;
     for (const id of c.adj.get(nid) || []) {
       const e = c.edges.get(id), fwd = e.a === nid;
-      if (!canTravel(e, fwd, kind)) continue;
+      if (!canTravel(e, fwd, kind) || banned(e, kind)) continue; // biển cấm: không đi xuyên qua (đầu và cuối chuyến tính riêng ở trên)
       relax(fwd ? e.b : e.a, d + wait + tcost(e, fwd, e.len), { e, fwd, from: nid });
     }
   }

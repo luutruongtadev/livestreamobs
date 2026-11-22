@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps, BANS } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY, TRAIN_SLOT, AIRPORT_SLOT } from './transport3d.js';
 import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, wallFlagGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
@@ -1443,6 +1443,27 @@ export class View {
         st.at(m4.makeTranslation((px + hx) / 2, y + 5.3, (pz + hz) / 2).multiply(my.makeRotationY(Math.atan2(hx - px, hz - pz)))).box(0, 0, 0, 0.18, 0.18, Math.hypot(hx - px, hz - pz) + 0.3, 0x3a3f46).at(null);
         st.box(hx, y + 3.95, hz, 1.05, 2.4, 1.05, 0x22262b);
         this.sigArms.push({ nid, eid: en.e.id, x: hx - en.ox * 0.15, y: y + 4.6, z: hz - en.oz * 0.15 });
+      }
+    }
+    // biển cấm (🚫 theo đoạn đường): cột ở mép phải lối vào đoạn đường, biển tròn viền đỏ nền trắng, hình xe màu đen quay về phía xe đi tới
+    const rxF = new THREE.Matrix4().makeRotationX(-Math.PI / 2), rxB = new THREE.Matrix4().makeRotationX(Math.PI / 2), K = 0x1a1a1a;
+    const icon = { // hình xe nhìn ngang, trong khung bán kính ~0,45 m
+      nocar: (g) => g.box(0, -0.16, -0.02, 0.66, 0.16, 0.15, K).box(-0.02, 0, -0.02, 0.36, 0.13, 0.15, K).box(-0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K).box(0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K),
+      notruck: (g) => g.box(0.08, -0.15, -0.02, 0.42, 0.34, 0.15, K).box(-0.24, -0.15, -0.02, 0.18, 0.24, 0.15, K).box(-0.22, -0.24, -0.02, 0.11, 0.08, 0.15, K).box(0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K),
+      nomoto: (g) => g.box(-0.22, -0.34, -0.02, 0.17, 0.17, 0.15, K).box(0.22, -0.34, -0.02, 0.17, 0.17, 0.15, K).box(0, -0.24, -0.02, 0.36, 0.07, 0.15, K).box(-0.06, -0.17, -0.02, 0.26, 0.07, 0.15, K).box(-0.06, -0.1, -0.02, 0.11, 0.26, 0.15, K).box(-0.05, 0.19, -0.02, 0.11, 0.11, 0.15, K).box(0.19, -0.26, -0.02, 0.05, 0.3, 0.15, K).box(0.07, 0.02, -0.02, 0.18, 0.05, 0.15, K), // xe máy có người ngồi: hai bánh, khung, yên, người, đầu, càng lái, tay
+    };
+    for (const e of c.edges.values()) {
+      if (!e.ban) continue;
+      for (const atA of e.type === 'oneway' ? [true] : [true, false]) { // đường một chiều: chỉ cắm ở đầu xe đi vào
+        const nid = atA ? e.a : e.b, n = c.nodes.get(nid), en = (ends.get(nid) || []).find((o) => o.e === e && o.atA === atA);
+        if (!n || !en) continue;
+        const y = nodeY.get(nid), r = Math.min(trim.get(e.id)[atA ? 0 : 1] + 6, e.len / 2), px = n.x + en.ox * r - en.oz * (en.half - 0.4), pz = n.z + en.oz * r + en.ox * (en.half - 0.4);
+        st.cyl(px, y, pz, 0.08, 0.08, 2.55, 0x8a949c, 5);
+        const base = new THREE.Matrix4().makeTranslation(px, y + 2.95, pz).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(en.ox, en.oz)));
+        st.at(base.clone().multiply(rxB)).cyl(0, -0.06, 0, 0.6, 0.6, 0.11, 0x8a949c, 14).at(null); // mặt sau biển
+        st.at(base.clone().multiply(rxF)).cyl(0, -0.06, 0, 0.6, 0.6, 0.12, 0xc8102e, 14).cyl(0, -0.05, 0, 0.47, 0.47, 0.125, 0xffffff, 14).at(null);
+        icon[BANS[e.ban].id](st.at(base));
+        st.at(null);
       }
     }
     if (st.i.length) { const m = new THREE.Mesh(st.build(), this.matBuilding); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.roadGroup.add(m); }

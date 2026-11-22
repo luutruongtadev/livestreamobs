@@ -11,7 +11,7 @@ import { cityPay, cityGet, cityTake, citySet, world, resetLedger, ledgerDay, res
 import { initReserve, reserveDay, applyDepletion, packReserve, unpackReserve } from './reserve.js';
 import { outside, reportDay } from './world.js';
 import { packLeague, unpackLeague, contract, tradeUse } from './league.js';
-import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad } from './traffic.js';
+import { initTraffic, rebuildTraffic, stepTraffic, edgeLoad, BANS } from './traffic.js';
 import { RETAIL, procure, householdPay, wageAt, removeCitizen, saleIncome, initPeople, peopleHour, onArrive, onBuildingCleared, quickStats, packPeople, unpackPeople, bizKind, die, touristSpend, outsidePositions, addCitizen, isTro, trimStaff } from './people.js';
 import { initTransit, maintainTransit, stepTransit, transitHour, transitUpkeep, addLine } from './transit.js';
 import { stepFerries, canalToSea, syncFerries } from './ships.js';
@@ -37,7 +37,7 @@ export * from './base.js';
 export { outside, registerWorld, dailyReport, prosperity, AI_WORLD } from './world.js';
 export { RESERVE, reserveLeft } from './reserve.js';
 export { RURAL, checkPop } from './ledger.js';
-export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge } from './traffic.js';
+export { edgeLoad, signalState, findPath, cellPos, VKIND, LOOKS, pickLook, rampMerge, BANS, banned } from './traffic.js';
 export { bizKind, wageAt, rentAt, incomeOf, tierOf, rentDay, isTro, TRO_RENT, RETAIL, retailDay, outsidePositions, ST, die, touristSpend, needOf, productOf, recipeOf } from './people.js';
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
@@ -1098,6 +1098,7 @@ function splitEdge(c, e, ts) {
       const part = addEdge(c, chain[k].node, chain[k + 1].node, e.type, m[0], m[1]);
       if (e.br) part.br = e.br;
       if (e.ch) part.ch = 1;
+      if (e.ban) part.ban = e.ban; // biển cấm giữ trên cả hai nửa đoạn bị cắt
     }
   }
   return res;
@@ -1527,6 +1528,17 @@ export function setJunction(c, nid, ctl) {
   rebuildTraffic(c);
   c.dirty.roads = true;
   return { ok: true, ctl: n.ctl };
+}
+
+/** Cắm biển cấm lên một đoạn đường (ban: chỉ số trong BANS, 0 là gỡ biển). Miễn phí. */
+export function setRoadSign(c, edgeId, ban) {
+  const e = c.edges.get(edgeId);
+  if (!e) return { ok: false, reason: 'Bấm vào một đoạn đường' };
+  e.ban = clamp(ban | 0, 0, BANS.length - 1);
+  if (!e.ban) delete e.ban;
+  rebuildTraffic(c);
+  c.dirty.roads = true;
+  return { ok: true, ban: e.ban || 0 };
 }
 
 // ───────────────────────── di chuyển ─────────────────────────
@@ -2496,6 +2508,7 @@ export function serialize(c) {
       if (e.ch) a.push(1); // độ cao tuỳ chỉnh theo nút
       return a;
     }),
+    bans: [...c.edges.values()].filter((e) => e.ban).map((e) => [e.id, e.ban]), // biển cấm theo đoạn đường
     lines: c.lines.map((l) => [l.kind, r1(l.ax), r1(l.az), r1(l.bx), r1(l.bz)]),
     rings: c.rings.map((g) => [g.x, g.z]),
     services: c.services.map((s) => ({ type: s.type, x: s.x, y: s.y, dir: s.dir, ...(s.mods && s.mods.length ? { mods: s.mods } : {}), ...(s.fill ? { fill: Math.round(s.fill) } : {}), ...(s.build ? { build: s.build, buildTot: s.buildTot } : {}), ...(s.sea ? { sea: 1 } : {}), ...(s.dq ? { dq: s.dq, dby: s.dby } : {}), ...(s.type === 'hydro' && s.dam ? { dam: { cells: s.dam.cells, head: s.dam.head, q: r1(s.dam.q) } } : {}) })),
@@ -2584,6 +2597,7 @@ function deserializeAt(o) {
     if (e[8] === 1) made.ch = 1;
     c.nextId = Math.max(keep, id + 1);
   }
+  for (const b of Array.isArray(o.bans) ? o.bans : []) { const e = Array.isArray(b) && c.edges.get(b[0] | 0); if (e && BANS[b[1] | 0] && b[1] | 0) e.ban = b[1] | 0; }
   for (let i = 0; i < N * N; i++) if (c.level[i]) c.biz.sin[i] = jobCap(c.zone[i], c.level[i]) ? 10 : 0;
   if (o.retail) { // giá bán lẻ từng cửa hàng và chỉ số giá chung: nạp lại không bị nhảy về ×1
     for (const p of Array.isArray(o.retail.rp) ? o.retail.rp : []) if (Array.isArray(p) && p[0] >= 0 && p[0] < N * N && c.level[p[0]]) c.biz.rp[p[0] | 0] = clamp(+p[1] || 1, RETAIL.min, RETAIL.max);
