@@ -42,9 +42,11 @@ const VEH_MODELS = [
 // Công trình biểu tượng tạo bằng Meshy: thay khối chính của công trình (nền / móng vẫn dựng bằng code). rotY đưa mặt tiền về +z.
 const SVC_MODELS = {
   pagoda: { file: 'lm_pagoda.glb' }, museum: { file: 'lm_museum.glb' }, theater: { file: 'lm_theater.glb' }, dhall: { file: 'lm_dhall.glb' },
-  tvtower: { file: 'lm_tvtower.glb' }, stadium: { file: 'lm_stadium.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
+  tvtower: { file: 'lm_tvtower.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
   train: { file: 'lm_train.glb', slot: TRAIN_SLOT }, airport: { file: 'lm_airport.glb', slot: AIRPORT_SLOT }, // ga, sân bay: chỉ thay nhà ga, đường ray / đường băng và tàu / máy bay chạy giữ nguyên
-  hotel: { file: 'lm_hotel.glb' }, resort: { file: 'lm_resort.glb' }, hospital: { file: 'lm_hospital.glb' }, university: { file: 'lm_university.glb' },
+  hotel: { file: 'lm_hotel.glb' }, resort: { file: 'lm_resort.glb' }, university: { file: 'lm_university.glb' },
+  // Tạm bỏ lm_hospital.glb, lm_stadium.glb: lưới Meshy hỏng (bệnh viện thủng tường, mất mái, mảnh rời lơ lửng; sân vận động
+  // có vòm khung nghiêng gãy). Dùng mô hình dựng bằng code cho tới khi tạo lại bản lưới kín.
 };
 // Xe buýt, tàu điện: thân trắng, tô màu theo từng xe
 const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
