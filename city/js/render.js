@@ -23,6 +23,9 @@ const PED_MODELS = [
 ];
 // Xe tạo bằng Meshy: thay hình xe dựng bằng code cùng kiểu (look); len = chiều dài trong game, rotY đưa đầu xe về +z; tint=false giữ nguyên màu texture (mặc định tô màu theo màu đỉnh).
 const VEH_MODELS = [
+  { looks: ['scooter', 'ebike', 'motorbike'], file: 'scooter.glb', len: 1.9, rotY: Math.PI / 2, // xe máy có người lái: thân tô màu theo xe, áo + mũ chọn theo từng xe trong bảng dưới
+    jackets: [0x2d3640, 0xc0392b, 0x3d8a5a, 0xd8b93a, 0x6b7a8f, 0xe9e9e9, 0x8a5a36, 0x2f6fb0, 0xe07b2e, 0x7a3fa0],
+    helmets: [0x1e1f22, 0xe9e9e9, 0xc0392b, 0xd8b93a, 0x2f6fb0, 0x3d8a5a, 0xe07b2e] },
   { look: 'deliveryvan', file: 'van.glb', len: 4.5, rotY: Math.PI / 2 }, // thân tô màu theo từng xe (màu đỉnh trắng), bánh / kính / đèn giữ màu riêng
 ];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
@@ -551,7 +554,7 @@ export class View {
     this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
     this.lifeShops = []; this.lifeSvc = [];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
-    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this._white = new THREE.Color(0xffffff);
+    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this.vehVariants = {}; this._white = new THREE.Color(0xffffff);
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.strollMesh = this._inst(pedGeometry(), this.pedMesh.material, MAX_STROLL, true); this.strollMesh.count = 0; // người đi dạo trên lối đi bộ
@@ -665,10 +668,24 @@ export class View {
       load(vm.file).then((gltf) => {
         const { geo, mat } = this._normalizeGltf(gltf, vm.len, null, vm.rotY);
         if (geo.attributes.color) mat.vertexColors = true;
-        const old = this.vehMeshes[vm.look];
-        if (old) { this.scene.remove(old); old.dispose(); }
-        this.vehMeshes[vm.look] = this._inst(geo, mat, MAX_BIG, true);
-        if (vm.tint === false) this.vehModelLooks[vm.look] = true;
+        let geos = [geo];
+        const pa = geo.attributes._part; // nhãn bộ phận từng đỉnh: 2 = áo, 3 = mũ (đổi màu theo biến thể)
+        if (pa && vm.jackets) {
+          const tmp = new THREE.Color();
+          geos = vm.jackets.map((jc, k) => {
+            const g = geo.clone(), ca = geo.attributes.color.clone(), hc = vm.helmets[(k * 3 + 1) % vm.helmets.length];
+            for (let i = 0; i < pa.count; i++) { const p = pa.getX(i); if (p === 2) { tmp.set(jc); ca.setXYZ(i, tmp.r, tmp.g, tmp.b); } else if (p === 3) { tmp.set(hc); ca.setXYZ(i, tmp.r, tmp.g, tmp.b); } }
+            g.setAttribute('color', ca);
+            return g;
+          });
+        }
+        for (const look of vm.looks || [vm.look]) {
+          for (const key of Object.keys(this.vehMeshes)) if (key === look || key.startsWith(look + '#')) { const old = this.vehMeshes[key]; this.scene.remove(old); old.dispose(); delete this.vehMeshes[key]; }
+          const cap = look === 'scooter' || look === 'ebike' || look === 'motorbike' ? MAX_MOTO : MAX_BIG;
+          if (geos.length > 1) { this.vehVariants[look] = geos.length; geos.forEach((g, k) => { this.vehMeshes[`${look}#${k}`] = this._inst(g, mat, cap, true); }); }
+          else this.vehMeshes[look] = this._inst(geos[0], mat, cap, true);
+          if (vm.tint === false) this.vehModelLooks[look] = true;
+        }
       }).catch(() => {});
     }
     load(ANIMAL_DOG.file).then((gltf) => {
@@ -3099,11 +3116,12 @@ export class View {
     let nb = 0;
     const put = (look, cap, color) => {
       if (beams && nb < MAX_BEAMS && !v_.wreck) this.beamMesh.setMatrixAt(nb++, m);
-      let mesh = this.vehMeshes[look];
-      if (!mesh) { mesh = this.vehMeshes[look] = this._inst(vehicleGeometry(look), this.vehMat, cap, true); vc[look] = 0; }
-      const n = vc[look] || 0;
+      const nv = this.vehVariants[look], key = nv ? `${look}#${v_.id % nv}` : look; // xe máy Meshy: nhiều biến thể áo / mũ
+      let mesh = this.vehMeshes[key];
+      if (!mesh) { mesh = this.vehMeshes[key] = this._inst(vehicleGeometry(look), this.vehMat, cap, true); vc[key] = 0; }
+      const n = vc[key] || 0;
       if (n >= cap) return;
-      mesh.setMatrixAt(n, m); mesh.setColorAt(n, this.vehModelLooks[look] && !v_.wreck ? this._white : color); vc[look] = n + 1;
+      mesh.setMatrixAt(n, m); mesh.setColorAt(n, this.vehModelLooks[look] && !v_.wreck ? this._white : color); vc[key] = n + 1;
     };
     let v_ = null;
     for (const v of c.traffic.vehicles) {
