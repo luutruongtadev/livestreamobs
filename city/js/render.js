@@ -27,12 +27,26 @@ const VEH_MODELS = [
     jackets: [0x2d3640, 0xc0392b, 0x3d8a5a, 0xd8b93a, 0x6b7a8f, 0xe9e9e9, 0x8a5a36, 0x2f6fb0, 0xe07b2e, 0x7a3fa0],
     helmets: [0x1e1f22, 0xe9e9e9, 0xc0392b, 0xd8b93a, 0x2f6fb0, 0x3d8a5a, 0xe07b2e] },
   { look: 'deliveryvan', file: 'van.glb', len: 4.5, rotY: Math.PI / 2 },
+  { look: 'container', file: 'truck_container.glb', len: 11.5, rotY: Math.PI / 2 },
+  { look: 'boxtruck', file: 'truck_box.glb', len: 6.4, rotY: Math.PI / 2 },
+  { look: 'ambulance', file: 'veh_ambulance.glb', len: 5, rotY: Math.PI / 2, tint: false },
+  { look: 'fire', file: 'veh_fire.glb', len: 7.2, rotY: Math.PI / 2, tint: false },
+  { look: 'garbage', file: 'veh_garbage.glb', len: 7, rotY: Math.PI / 2, tint: false },
+  { look: 'police', file: 'veh_police.glb', len: 3.4, rotY: Math.PI / 2, tint: false },
   // ô tô con: một mẫu sedan thân trắng (texture), game nhân màu riêng từng xe; hatch / SUV / taxi dùng chung mẫu, khác chiều dài
   { look: 'sedan', file: 'car_sedan.glb', len: 3.4, rotY: Math.PI / 2 },
   { look: 'hatch', file: 'car_sedan.glb', len: 3, rotY: Math.PI / 2 },
   { look: 'suv', file: 'car_sedan.glb', len: 3.9, rotY: Math.PI / 2 },
   { look: 'taxi', file: 'car_sedan.glb', len: 3.4, rotY: Math.PI / 2 }, // thân tô màu theo từng xe (màu đỉnh trắng), bánh / kính / đèn giữ màu riêng
 ];
+// Công trình biểu tượng tạo bằng Meshy: thay khối chính của công trình (nền / móng vẫn dựng bằng code). rotY đưa mặt tiền về +z.
+const SVC_MODELS = {
+  pagoda: { file: 'lm_pagoda.glb' }, museum: { file: 'lm_museum.glb' }, theater: { file: 'lm_theater.glb' }, dhall: { file: 'lm_dhall.glb' },
+  tvtower: { file: 'lm_tvtower.glb' }, stadium: { file: 'lm_stadium.glb' }, monument: { file: 'lm_monument.glb' }, skytower: { file: 'lm_skytower.glb' },
+  hotel: { file: 'lm_hotel.glb' }, resort: { file: 'lm_resort.glb' }, hospital: { file: 'lm_hospital.glb' }, university: { file: 'lm_university.glb' },
+};
+// Xe buýt, tàu điện: thân trắng, tô màu theo từng xe
+const BUS_MODELS = [{ prop: 'busMesh', file: 'bus.glb', len: 7.2, rotY: Math.PI / 2 }, { prop: 'tramMesh', file: 'tram.glb', len: 13, rotY: Math.PI / 2 }];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
@@ -559,7 +573,7 @@ export class View {
     this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
     this.lifeShops = []; this.lifeSvc = [];
     const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
-    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this.vehVariants = {}; this._white = new THREE.Color(0xffffff);
+    this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this.vehVariants = {}; this.svcModels = {}; this.nightMats = []; this._white = new THREE.Color(0xffffff);
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
     this.strollMesh = this._inst(pedGeometry(), this.pedMesh.material, MAX_STROLL, true); this.strollMesh.count = 0; // người đi dạo trên lối đi bộ
@@ -626,7 +640,7 @@ export class View {
     this.lineGroup = new THREE.Group(); s.add(this.lineGroup);
     this.ghostGroup = new THREE.Group(); s.add(this.ghostGroup);
     this.pipeMat = new THREE.MeshBasicMaterial({ color: 0x35b6ff, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
-    this.svcCache = {}; this.modCache = {};
+    this.svcCache = {}; this.modCache = {}; this._svcBase = {};
     this.spinners = [];
   }
 
@@ -639,7 +653,7 @@ export class View {
   }
 
   /** Gộp mọi mesh trong cảnh GLTF thành một BufferGeometry, dời tâm về gốc, đáy ở y=0, scale theo bề rộng chân đế mong muốn. */
-  _normalizeGltf(gltf, foot, tint, rotY = 0) {
+  _normalizeGltf(gltf, foot, tint, rotY = 0, opt = {}) {
     gltf.scene.updateMatrixWorld(true);
     const parts = [];
     let mat = null;
@@ -649,9 +663,16 @@ export class View {
     if (rotY) geo.applyMatrix4(new THREE.Matrix4().makeRotationY(rotY));
     geo.computeBoundingBox();
     const bb = geo.boundingBox, size = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
-    const k = foot / Math.max(size.x, size.z, 0.001);
+    let k = foot / Math.max(size.x, size.z, 0.001);
+    if (opt.maxH) k = Math.min(k, opt.maxH / Math.max(size.y, 0.001)); // công trình cao, mảnh (tháp): giới hạn theo chiều cao
+    if (opt.baseCenter) { // cây nghiêng: lấy tâm theo gốc cây (phần thấp nhất) để cây mọc đúng chỗ
+      const pa = geo.attributes.position, lim = bb.min.y + size.y * 0.04; let sx = 0, sz = 0, n = 0;
+      for (let i = 0; i < pa.count; i++) if (pa.getY(i) < lim) { sx += pa.getX(i); sz += pa.getZ(i); n++; }
+      if (n) { c.x = sx / n; c.z = sz / n; }
+    }
     geo.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-c.x, -bb.min.y, -c.z)));
-    geo.computeVertexNormals(); geo.computeBoundingSphere();
+    if (!(opt.keepNormals && geo.attributes.normal)) geo.computeVertexNormals();
+    geo.computeBoundingSphere();
     mat = mat ? mat.clone() : new THREE.MeshStandardMaterial();
     mat.metalness = 0; mat.roughness = 0.85;
     if (tint) mat.color.set(tint);
@@ -693,6 +714,23 @@ export class View {
           for (const key of Object.keys(this.vehMeshes)) if (key === look || key.startsWith(look + '#')) this.vehMeshes[key].receiveShadow = false; // mô hình chi tiết bị lốm đốm khi tự đổ bóng
           if (vm.tint === false) this.vehModelLooks[look] = true;
         }
+      }).catch(() => {});
+    }
+    const plain = (mat) => { if (mat.map) { mat.normalMap = null; mat.metalnessMap = null; mat.roughnessMap = null; } return mat; };
+    for (const bm of BUS_MODELS) {
+      load(bm.file).then((gltf) => {
+        const { geo, mat } = this._normalizeGltf(gltf, bm.len, null, bm.rotY, { keepNormals: true });
+        const old = this[bm.prop]; if (old) { this.scene.remove(old); old.dispose(); }
+        this[bm.prop] = this._inst(geo, plain(mat), MAX_BUS, true);
+      }).catch(() => {});
+    }
+    for (const [type, sm] of Object.entries(SVC_MODELS)) {
+      load(sm.file).then((gltf) => {
+        const def = SERVICES[type], orig = serviceModel(type, def.size).geometry; orig.computeBoundingBox();
+        const { geo, mat } = this._normalizeGltf(gltf, def.size * 10 * 0.9, null, sm.rotY || 0, { maxH: Math.max(8, orig.boundingBox.max.y * 1.1), keepNormals: true });
+        plain(mat); mat.emissive = new THREE.Color(0xffe2a8); mat.emissiveMap = mat.map; mat.emissiveIntensity = 0; this.nightMats.push(mat); // ban đêm cửa sổ sáng đèn
+        this.svcModels[type] = { geometry: geo, material: mat };
+        if (this.city) this.city.dirty.services = true;
       }).catch(() => {});
     }
     load(ANIMAL_DOG.file).then((gltf) => {
@@ -2891,11 +2929,15 @@ export class View {
   }
 
   _serviceObject(type, mat) {
-    const model = this._svc(type), grp = new THREE.Group();
-    const mesh = new THREE.Mesh(model.geometry, mat || this.matBuilding);
+    const model = this._svc(type), grp = new THREE.Group(), sm = this.svcModels[type];
+    const mesh = new THREE.Mesh(sm ? sm.geometry : model.geometry, mat || (sm ? sm.material : this.matBuilding));
     mesh.castShadow = !mat; mesh.receiveShadow = !mat;
+    if (sm) mesh.position.y = 0.14; // đặt mô hình Meshy lên nền lát, móng dựng bằng code bên dưới
     grp.add(mesh);
-    for (const sp of model.spin || []) {
+    if (sm) {
+      const S = SERVICES[type].size * 10, e = S - 0.3, bg = this._svcBase[S] || (this._svcBase[S] = (() => { const b = new GB(); b.box(0, -7, 0, e, 7, e, 0x8d887e); b.box(0, 0, 0, e, 0.14, e, 0xb9b5aa); return b.build(); })());
+      const bm = new THREE.Mesh(bg, mat || this.matBuilding); bm.castShadow = !mat; bm.receiveShadow = !mat; grp.add(bm);
+    } else for (const sp of model.spin || []) {
       const b = new THREE.Mesh(sp.geometry, mat || this.matBuilding);
       b.position.set(...sp.pos); b.castShadow = !mat; b.userData.spin = true;
       grp.add(b);
@@ -3431,6 +3473,7 @@ export class View {
     wu.uLight.value = (0.32 + 0.68 * day) * (wet ? 0.8 : 1);
     // đèn đêm: bật từ lúc chạng vạng
     const lights = this.lights = 1 - sstep(-0.1, 0.2, e);
+    for (const nm of this.nightMats) nm.emissiveIntensity = lights * 0.6;
     this.matBuilding.emissiveIntensity = lights * 1.5;
     this.glowMat.opacity = lights * 0.5; this.beamMat.opacity = lights * 0.55;
     this.lampHeadMat.color.set(0x8d897c).lerp(A.tmp.set(0xfff1c4), lights);
