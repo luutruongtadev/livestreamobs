@@ -23,14 +23,17 @@ function nextDay(day, month, k) {
  * intl khách quốc tế, comm thuế thương mại cộng thêm, ind năng suất xưởng / nhà máy; happy: dân vui thêm.
  */
 // deco: trang trí phố trong dịp lễ (render.js): lantern = đèn lồng treo dây điện, flag = cờ trên cột điện
+// nation: ngày lễ quốc gia, nhà nhà treo cờ đỏ sao vàng ở ban công, cửa sổ chung cư
 export const FESTIVALS = [
   { id: 'chotet', deco: 'lantern flag', name: 'Chợ Tết, sắm Tết', icon: '🌸', month: 12, k0: 7, k1: 9, tour: 1.15, comm: 0.15, happy: 2, desc: 'Chợ hoa, mua sắm cuối năm: cửa hàng đắt khách, đường phố đông' },
-  { id: 'tet', deco: 'lantern flag', name: 'Tết Nguyên Đán', icon: '🧧', month: 1, k0: 0, k1: 2, tour: 1.5, intl: 1.6, comm: 0.1, ind: 0.3, happy: 6, fireworks: true, desc: 'Nhà máy nghỉ Tết, Việt kiều và du khách về đông, pháo hoa đêm giao thừa' },
+  { id: 'tet', deco: 'lantern flag', nation: true, name: 'Tết Nguyên Đán', icon: '🧧', month: 1, k0: 0, k1: 2, tour: 1.5, intl: 1.6, comm: 0.1, ind: 0.3, happy: 6, fireworks: true, desc: 'Nhà máy nghỉ Tết, Việt kiều và du khách về đông, pháo hoa đêm giao thừa' },
   { id: 'saute', name: 'Sau Tết', icon: '🧳', month: 1, k0: 3, k1: 4, ind: 0.65, desc: 'Công nhân chưa về đủ, xưởng thiếu người' },
   { id: 'ramgieng', deco: 'lantern', name: 'Rằm tháng Giêng, lễ chùa', icon: '🏮', month: 1, k0: 5, k1: 5, tour: 1.35, happy: 2, venue: 'pagoda', desc: 'Người đi lễ chùa đông: chùa cổ hút khách gấp đôi' },
-  { id: 'giohung', deco: 'flag', name: 'Giỗ Tổ Hùng Vương', icon: '🏯', month: 3, k0: 3, k1: 3, tour: 1.2, happy: 3, desc: 'Ngày nghỉ lễ, dân đi chơi, dâng hương' },
+  { id: 'giohung', deco: 'flag', nation: true, name: 'Giỗ Tổ Hùng Vương', icon: '🏯', month: 3, k0: 3, k1: 3, tour: 1.2, happy: 3, desc: 'Ngày nghỉ lễ, dân đi chơi, dâng hương' },
+  { id: 'thongnhat', deco: 'flag', nation: true, name: 'Ngày Thống nhất 30/4, Quốc tế Lao động 1/5', icon: '🇻🇳', month: 3, k0: 9, k1: 9, tour: 1.25, ind: 0.8, happy: 3, desc: 'Nghỉ lễ dài ngày (30/4 dương lịch, lịch game rút gọn): phố phường, chung cư rợp cờ đỏ sao vàng, dân đi chơi xa' },
   { id: 'doanngo', deco: 'flag', name: 'Tết Đoan Ngọ, đua thuyền', icon: '🚣', month: 5, k0: 1, k1: 1, tour: 1.3, happy: 2, venue: 'beach', desc: 'Đua thuyền trên sông: tổ chức ở bãi biển / bờ sông thì hút khách mạnh' },
   { id: 'vulan', deco: 'lantern', name: 'Lễ Vu Lan', icon: '🪷', month: 7, k0: 5, k1: 5, tour: 1.1, happy: 2, venue: 'pagoda', desc: 'Mùa báo hiếu, người đi chùa' },
+  { id: 'quockhanh', deco: 'flag', nation: true, name: 'Quốc khánh 2/9', icon: '🇻🇳', month: 7, k0: 9, k1: 9, tour: 1.25, ind: 0.8, happy: 4, fireworks: true, desc: 'Ngày độc lập (2/9 dương lịch, lịch game rút gọn): cờ đỏ sao vàng treo khắp ban công chung cư, pháo hoa đêm lễ' },
   { id: 'trungthu', deco: 'lantern', name: 'Tết Trung Thu', icon: '🥮', month: 8, k0: 4, k1: 5, tour: 1.3, intl: 1.15, comm: 0.08, happy: 4, fireworks: true, desc: 'Rước đèn, phá cỗ: trẻ em vui, phố lồng đèn hút khách' },
 ];
 const FEST = Object.fromEntries(FESTIVALS.map((f) => [f.id, f]));

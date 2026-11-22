@@ -1665,6 +1665,16 @@ export function lanternGeometry() {
 }
 
 /** Cờ đỏ sao vàng cắm chéo trên cột điện (trang trí lễ): gốc ở chỗ gắn vào cột, lá cờ hướng +x. */
+/** Cờ đỏ sao vàng không cán, dán phẳng (mặt cờ hướng +z): treo sát mặt kính chung cư. */
+export function wallFlagGeometry(s = 1) {
+  const g = new GB(), cx = 0, cy = 0;
+  g.box(cx, -0.5 * s, 0, 1.5 * s, s, 0.04 * s, 0xda251d);
+  const R = 0.3 * s, r = 0.12 * s, pts = [], zz = 0.03 * s;
+  for (let k = 0; k < 10; k++) { const a = Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r : R; pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+  for (let k = 0; k < 10; k++) { const a = pts[k], b = pts[(k + 1) % 10]; g.poly([[cx, cy, zz], [a[0], a[1], zz], [b[0], b[1], zz]], [0, 0, 1], 0xffde00); }
+  return g.build();
+}
+
 export function poleFlagGeometry() {
   const g = new GB();
   g.at(new THREE.Matrix4().makeRotationZ(-0.5));
