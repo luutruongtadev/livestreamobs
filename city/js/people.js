@@ -191,7 +191,12 @@ function go(c, id, dest, purpose) {
   mode.car++; if (ch.kind === 'car') mode.cars = (mode.cars || 0) + 1; else mode.moto = (mode.moto || 0) + 1;
   const kind = ch.kind; // kiểu Việt Nam: gần như ai cũng xe máy, giàu lên mới mua ô tô
   if (kind === 'car') cb.car = true; // chỉ ô tô mới phải tìm chỗ đỗ
-  if (!trip(c, kind, from, dest, cb, Math.random() < c.carSample, hue)) later(c, 6, { ...cb, fail: true });
+  const phys = Math.random() < c.carSample;
+  if (trip(c, kind, from, dest, cb, phys, hue)) return;
+  // biển cấm chặn hết lối (ví dụ hẻm cấm ô tô): ô tô đổi sang xe máy, xe máy thì đi bộ
+  if (kind === 'car') { delete cb.car; if (trip(c, 'moto', from, dest, cb, phys, hue)) return; }
+  if (walk(c, from, dest, cb, hue)) return;
+  later(c, 6, { ...cb, fail: true });
 }
 
 function settle(c, id, cb) {

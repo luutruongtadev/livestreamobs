@@ -123,6 +123,74 @@ test('city: nâng cấp, đảo chiều và san ủi đường', () => {
   assert.equal(c.edges.size, edges - 1);
 });
 
+test('city: biển cấm theo đoạn đường — xe bị cấm đi vòng, vẫn vào được nhà trên đoạn cấm, giữ khi cắt đường và khi lưu', () => {
+  const c = town(), sx = c.start.x;
+  const mid = S.edgeAt(c, W(sx), W(19), 1);
+  assert.ok(mid, 'đoạn trục dọc giữa hai đường ngang');
+  const from = S.cellPos(c, cell(sx - 7, 13)), to = S.cellPos(c, cell(sx + 7, 23));
+  const uses = (p) => p.steps.some((st) => st.e === mid);
+  assert.ok(uses(S.findPath(c, from, to, 'car')), 'không biển: ô tô đi thẳng qua trục giữa');
+  assert.equal(S.setRoadSign(c, mid.id, 1).ban, 1);
+  const car = S.findPath(c, from, to, 'car'), moto = S.findPath(c, from, to, 'moto'), bus = S.findPath(c, from, to, 'bus');
+  assert.ok(car && !uses(car), 'cấm ô tô: ô tô đi vòng');
+  assert.ok(!uses(S.findPath(c, from, to, 'truck')), 'cấm ô tô cấm cả xe tải');
+  assert.ok(uses(moto) && uses(bus), 'xe máy, xe buýt vẫn đi qua');
+  assert.ok(car.cost > moto.cost, 'đi vòng lâu hơn');
+  const onMid = { edge: mid, along: mid.len / 2 };
+  assert.ok(S.findPath(c, from, onMid, 'car') && S.findPath(c, onMid, to, 'car'), 'vẫn vào / ra được nhà ngay trên đoạn cấm');
+  S.setRoadSign(c, mid.id, 3);
+  assert.ok(uses(S.findPath(c, from, to, 'car')) && !uses(S.findPath(c, from, to, 'moto')), 'cấm xe máy: ô tô đi thẳng, xe máy đi vòng');
+  S.setRoadSign(c, mid.id, 2);
+  assert.ok(uses(S.findPath(c, from, to, 'car')) && !uses(S.findPath(c, from, to, 'truck')), 'cấm xe tải: chỉ xe tải đi vòng');
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(c2.edges.get(mid.id).ban, 2, 'lưu / nạp giữ biển');
+  // cắt ngang đoạn có biển: cả hai nửa đều giữ biển
+  assert.ok(road(c, sx - 4, 18, sx, 18).ok, 'ngã ba cắt đoạn có biển');
+  const parts = [S.edgeAt(c, W(sx), W(16), 1), S.edgeAt(c, W(sx), W(21), 1)];
+  assert.ok(parts.every((e) => e && e !== mid && e.ban === 2), 'hai nửa đoạn bị cắt giữ biển cấm');
+  assert.equal(S.setRoadSign(c, parts[0].id, 0).ban, 0);
+  assert.equal(parts[0].ban, undefined, 'gỡ biển');
+});
+
+test('city: cấm rẽ trái / quay đầu ở nút, gờ giảm tốc, cấm xe tải nặng theo quận', () => {
+  const c = town(), sx = c.start.x;
+  const node = S.nodeAt(c, W(sx), W(14));
+  const from = S.cellPos(c, cell(sx - 7, 13)), to = S.cellPos(c, cell(sx + 1, 10)); // từ phía tây rẽ lên nhánh cụt phía bắc
+  const turnsAt = (p, nid) => p.steps.slice(1).map((st, k) => { const a = p.steps[k], n = a.fwd ? a.e.b : a.e.a; return n === nid ? S.turnKind(c, nid, a.e, st.e) : null; }).filter(Boolean);
+  assert.deepEqual(turnsAt(S.findPath(c, from, to, 'car'), node.id), ['l'], 'không biển: rẽ trái thẳng vào');
+  assert.equal(S.setTurnBan(c, node.id, 1).turn, 1);
+  const p1 = S.findPath(c, from, to, 'car');
+  assert.ok(p1 && !turnsAt(p1, node.id).includes('l'), 'cấm rẽ trái: đi vòng');
+  assert.ok(turnsAt(S.findPath(c, from, to, 'ambulance'), node.id).includes('l'), 'xe ưu tiên không theo biển');
+  S.setTurnBan(c, node.id, 3);
+  const p3 = S.findPath(c, from, to, 'car');
+  assert.ok(p3 && turnsAt(p3, node.id).every((k) => k === 's' || k === 'r'), 'cấm cả rẽ trái và quay đầu: chỉ đi thẳng / rẽ phải');
+  const dead = [...c.nodes.values()].find((n) => c.adj.get(n.id).length === 1);
+  assert.equal(S.setTurnBan(c, dead.id, 2).ok, false, 'đầu cụt không cấm quay đầu');
+  // gờ giảm tốc
+  const mid = S.edgeAt(c, W(sx), W(19), 1), a = S.cellPos(c, cell(sx + 1, 16)), b = S.cellPos(c, cell(sx + 1, 22));
+  const before = S.findPath(c, a, b, 'car').cost, money = c.money;
+  assert.ok(S.setBump(c, mid.id, true).bump);
+  assert.ok(S.findPath(c, a, b, 'car').cost > before * 1.4, 'qua gờ chậm hơn hẳn');
+  assert.equal(c.money, money - S.BUMP_COST);
+  const c2 = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
+  assert.equal(c2.edges.get(mid.id).bump, 1, 'lưu gờ giảm tốc');
+  assert.equal(c2.nodes.get(node.id).turn, 3, 'lưu biển cấm rẽ');
+  // cấm xe tải nặng theo quận: chia hai quận đông / tây, cấm ở quận tây
+  S.setTurnBan(c, node.id, 0);
+  c.dist = { on: true, nextId: 1, list: [{ x: sx - 7, y: 20, prog: {} }, { x: sx + 7, y: 20, prog: {} }] };
+  S.rebuildDmap(c);
+  assert.ok(S.setTruckBan(c, 0, true).on);
+  const west = [...c.edges.values()].filter((e) => e.dban === 1);
+  assert.ok(west.length > 2, 'đánh dấu đường trong quận cấm');
+  const e1 = S.cellPos(c, cell(sx + 7, 13)), e2 = S.cellPos(c, cell(sx + 7, 33)), w1 = S.cellPos(c, cell(sx - 7, 33));
+  const tr = S.findPath(c, e1, e2, 'truck');
+  assert.ok(tr && tr.steps.every((st) => st.e.dban !== 1), 'xe tải đi qua quận khác thì vòng ngoài');
+  assert.ok(S.findPath(c, e1, w1, 'truck'), 'xe tải chở hàng vào chính quận cấm vẫn đi được');
+  assert.ok(!S.setTruckBan(c, 0, false).on);
+  assert.equal([...c.edges.values()].filter((e) => e.dban).length, 0, 'bỏ cấm');
+});
+
 test('city: tìm đường theo graph, tôn trọng đường một chiều; ngã tư có đèn', () => {
   const c = cross(), sx = c.start.x;
   const from = S.cellPos(c, cell(sx - 8, 21)), to = S.cellPos(c, cell(sx + 1, 12));
@@ -2626,6 +2694,7 @@ test('city: tập đoàn Phase 5 — kho bãi (chỗ chứa, giao nhanh), giá n
     const r = S.corpAct(c, q, { type: 'build', cells: [site], ware: true });
     assert.ok(r.ok, JSON.stringify(r));
     assert.ok(c.ware[site] === 1 && q.wares.includes(site) && q.log.some((e) => e.type === 'warehouse'));
+    c.inc.weather = 'clear'; c.inc.wUntil = c.hour + 24 * 20; // giữ trời quang: nắng nóng (điện nước +30%) làm mạng hết chỗ dư, kho không xây được — không phải điều test này kiểm
     for (let h = 0; h < 24 * 12 && !c.level[site]; h++) S.tick(c); // công ty đã trả tiền: xây ngay khi đủ điện nước, không chờ nhu cầu công nghiệp
     assert.ok(c.level[site] > 0, 'kho được xây');
     let rebuilt = false; for (let h = 0; h < 24 * 4 && !rebuilt; h++) { S.tick(c); rebuilt = c.corpStore[q.id] > 0; }

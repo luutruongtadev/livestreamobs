@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps, BANS } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY, TRAIN_SLOT, AIRPORT_SLOT } from './transport3d.js';
 import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, wallFlagGeometry, waterTankGeometry, acUnitGeometry, laundryGeometry, tetTreeGeometry, lotusLampGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
@@ -1453,6 +1453,65 @@ export class View {
         st.at(m4.makeTranslation((px + hx) / 2, y + 5.3, (pz + hz) / 2).multiply(my.makeRotationY(Math.atan2(hx - px, hz - pz)))).box(0, 0, 0, 0.18, 0.18, Math.hypot(hx - px, hz - pz) + 0.3, 0x3a3f46).at(null);
         st.box(hx, y + 3.95, hz, 1.05, 2.4, 1.05, 0x22262b);
         this.sigArms.push({ nid, eid: en.e.id, x: hx - en.ox * 0.15, y: y + 4.6, z: hz - en.oz * 0.15 });
+      }
+    }
+    // biển cấm (🚫 theo đoạn đường): cột ở mép phải lối vào đoạn đường, biển tròn viền đỏ nền trắng, hình xe màu đen quay về phía xe đi tới
+    const rxF = new THREE.Matrix4().makeRotationX(-Math.PI / 2), rxB = new THREE.Matrix4().makeRotationX(Math.PI / 2), K = 0x1a1a1a;
+    const icon = { // hình xe nhìn ngang, trong khung bán kính ~0,45 m
+      nocar: (g) => g.box(0, -0.16, -0.02, 0.66, 0.16, 0.15, K).box(-0.02, 0, -0.02, 0.36, 0.13, 0.15, K).box(-0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K).box(0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K),
+      notruck: (g) => g.box(0.08, -0.15, -0.02, 0.42, 0.34, 0.15, K).box(-0.24, -0.15, -0.02, 0.18, 0.24, 0.15, K).box(-0.22, -0.24, -0.02, 0.11, 0.08, 0.15, K).box(0.2, -0.24, -0.02, 0.11, 0.08, 0.15, K),
+      nomoto: (g) => g.box(-0.22, -0.34, -0.02, 0.17, 0.17, 0.15, K).box(0.22, -0.34, -0.02, 0.17, 0.17, 0.15, K).box(0, -0.24, -0.02, 0.36, 0.07, 0.15, K).box(-0.06, -0.17, -0.02, 0.26, 0.07, 0.15, K).box(-0.06, -0.1, -0.02, 0.11, 0.26, 0.15, K).box(-0.05, 0.19, -0.02, 0.11, 0.11, 0.15, K).box(0.19, -0.26, -0.02, 0.05, 0.3, 0.15, K).box(0.07, 0.02, -0.02, 0.18, 0.05, 0.15, K), // xe máy có người ngồi: hai bánh, khung, yên, người, đầu, càng lái, tay
+    };
+    for (const e of c.edges.values()) {
+      if (!e.ban) continue;
+      for (const atA of e.type === 'oneway' ? [true] : [true, false]) { // đường một chiều: chỉ cắm ở đầu xe đi vào
+        const nid = atA ? e.a : e.b, n = c.nodes.get(nid), en = (ends.get(nid) || []).find((o) => o.e === e && o.atA === atA);
+        if (!n || !en) continue;
+        const y = nodeY.get(nid), r = Math.min(trim.get(e.id)[atA ? 0 : 1] + 6, e.len / 2), px = n.x + en.ox * r - en.oz * (en.half - 0.4), pz = n.z + en.oz * r + en.ox * (en.half - 0.4);
+        st.cyl(px, y, pz, 0.08, 0.08, 2.55, 0x8a949c, 5);
+        const base = new THREE.Matrix4().makeTranslation(px, y + 2.95, pz).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(en.ox, en.oz)));
+        st.at(base.clone().multiply(rxB)).cyl(0, -0.06, 0, 0.6, 0.6, 0.11, 0x8a949c, 14).at(null); // mặt sau biển
+        st.at(base.clone().multiply(rxF)).cyl(0, -0.06, 0, 0.6, 0.6, 0.12, 0xc8102e, 14).cyl(0, -0.05, 0, 0.47, 0.47, 0.125, 0xffffff, 14).at(null);
+        icon[BANS[e.ban].id](st.at(base));
+        st.at(null);
+      }
+    }
+    // biển cấm rẽ ở nút: mỗi nhánh đi vào nút một biển tròn viền đỏ, mũi tên đen, gạch chéo đỏ (đặt lùi sau đèn / biển dừng)
+    const R = 0xc8102e, rzS = new THREE.Matrix4().makeRotationZ(Math.PI / 4);
+    const arrowL = (g) => g.box(0.12, -0.3, 0.02, 0.09, 0.36, 0.15, K).box(-0.03, -0.01, 0.02, 0.3, 0.09, 0.15, K).box(-0.2, -0.1, 0.02, 0.07, 0.27, 0.15, K); // mũi tên rẽ trái: thân, ngang, đầu nhọn
+    const arrowU = (g) => g.box(0.13, -0.3, 0.02, 0.08, 0.42, 0.15, K).box(-0.13, -0.18, 0.02, 0.08, 0.3, 0.15, K).box(0, 0.08, 0.02, 0.34, 0.08, 0.15, K).box(-0.13, -0.27, 0.02, 0.22, 0.07, 0.15, K); // mũi tên quay đầu
+    for (const n of c.nodes.values()) {
+      if (!n.turn || n.rb) continue;
+      const y = nodeY.get(n.id), list = ends.get(n.id) || [];
+      if (y == null || list.length < 2) continue;
+      for (const en of list) {
+        if (en.e.type === 'oneway' && en.atA) continue; // đường một chiều chạy ra khỏi nút: không có xe đi vào từ nhánh này
+        const r = Math.min(trim.get(en.e.id)[en.atA ? 0 : 1] + 5, en.e.len / 2), px = n.x + en.ox * r + en.oz * (en.half - 0.4), pz = n.z + en.oz * r - en.ox * (en.half - 0.4);
+        const kinds = [n.turn & 1 ? arrowL : null, n.turn & 2 ? arrowU : null].filter(Boolean);
+        st.cyl(px, y, pz, 0.08, 0.08, 2.0 + kinds.length * 1.3, 0x8a949c, 5);
+        kinds.forEach((draw, j) => {
+          const base = new THREE.Matrix4().makeTranslation(px, y + 2.6 + j * 1.3, pz).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(en.ox, en.oz)));
+          st.at(base.clone().multiply(rxF)).cyl(0, -0.06, 0, 0.6, 0.6, 0.11, 0x8a949c, 14).at(null); // mặt sau
+          st.at(base.clone().multiply(rxB)).cyl(0, -0.06, 0, 0.6, 0.6, 0.12, R, 14).cyl(0, -0.05, 0, 0.47, 0.47, 0.125, 0xffffff, 14).at(null);
+          draw(st.at(base));
+          st.at(base.clone().multiply(rzS)).box(0, -0.45, 0.04, 0.1, 0.9, 0.15, R).at(null); // gạch chéo đỏ
+        });
+      }
+    }
+    // gờ giảm tốc: dải vàng – đen nổi ngang mặt đường, mỗi 30 m một gờ
+    for (const e of c.edges.values()) {
+      if (!e.bump) continue;
+      const w = ROADS[e.type].asphalt, t0 = trim.get(e.id), s0 = t0[0] + 4, s1 = e.len - t0[1] - 4;
+      if (s1 <= s0) continue;
+      const k = Math.max(1, Math.round((s1 - s0) / 30));
+      for (let j = 0; j < k; j++) {
+        const sAt = s0 + ((j + 0.5) / k) * (s1 - s0), p = pointAt(e.pts, e.cum, sAt), q = pointAt(e.pts, e.cum, Math.min(e.len, sAt + 1));
+        if (isWaterAt(c, p[0], p[1])) continue;
+        const y = this.roadY(p[0], p[1]) + this.edgeLift(e, sAt) + 0.05, base = new THREE.Matrix4().makeTranslation(p[0], y, p[1]).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(q[0] - p[0], q[1] - p[1])));
+        st.at(base);
+        const seg = Math.max(4, Math.round(w / 0.9));
+        for (let u = 0; u < seg; u++) st.box(-w / 2 + (u + 0.5) * (w / seg), 0, 0, w / seg, 0.12, 0.7, u % 2 ? 0x1a1a1a : 0xf2c200);
+        st.at(null);
       }
     }
     if (st.i.length) { const m = new THREE.Mesh(st.build(), this.matBuilding); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.roadGroup.add(m); }
