@@ -21,9 +21,9 @@ const PED_MODELS = [
   { file: 'ped_woman.glb', foot: 0.4 },
   { file: 'ped_elder.glb', foot: 0.42 },
 ];
-// Xe tạo bằng Meshy: thay hình xe dựng bằng code cùng kiểu (look); len = chiều dài trong game, rotY đưa đầu xe về +z; tint=false giữ nguyên màu texture.
+// Xe tạo bằng Meshy: thay hình xe dựng bằng code cùng kiểu (look); len = chiều dài trong game, rotY đưa đầu xe về +z; tint=false giữ nguyên màu texture (mặc định tô màu theo màu đỉnh).
 const VEH_MODELS = [
-  { look: 'deliveryvan', file: 'van.glb', len: 4.5, rotY: Math.PI / 2, tint: false },
+  { look: 'deliveryvan', file: 'van.glb', len: 4.5, rotY: Math.PI / 2 }, // thân tô màu theo từng xe (màu đỉnh trắng), bánh / kính / đèn giữ màu riêng
 ];
 const ANIMAL_DOG = { file: 'animal_dog.glb', foot: 0.5, tint: 0x9c7a52 };
 const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3) -> góc quay mặt tiền
@@ -664,6 +664,7 @@ export class View {
     for (const vm of VEH_MODELS) {
       load(vm.file).then((gltf) => {
         const { geo, mat } = this._normalizeGltf(gltf, vm.len, null, vm.rotY);
+        if (geo.attributes.color) mat.vertexColors = true;
         const old = this.vehMeshes[vm.look];
         if (old) { this.scene.remove(old); old.dispose(); }
         this.vehMeshes[vm.look] = this._inst(geo, mat, MAX_BIG, true);
