@@ -436,24 +436,101 @@ void main() {
   });
 }
 
-/** Cửa sổ sáng đèn ban đêm: mỗi ô cửa bật / tắt ngẫu nhiên theo vị trí toà nhà, có ô đèn vàng, có ô đèn trắng xanh. */
-function litWindows(mat) {
+/** Mật độ đô thị (0..1) đọc trong shader theo toạ độ thế giới xz: trung tâm phố → 1, làng quê, đồng ruộng → 0. */
+const GLSL_URBAN = `uniform sampler2D uUrban;
+uniform vec2 uUrbanM;
+float urbanAt(vec2 xz) { return texture2D(uUrban, (xz + uUrbanM.x) / uUrbanM.y).r; }`;
+
+/**
+ * Mật độ đô thị từng ô, làm mờ trong bán kính 5 ô (khoảng 110 m): thương mại, văn phòng, hỗn hợp nặng nhất,
+ * chung cư vừa, nhà riêng, nhà máy nhẹ, ruộng và mỏ không tính. Dùng để trung tâm rực đèn, làng quê ít đèn.
+ */
+export function urbanField(c) {
+  const n = N * N, w = new Float32Array(n), t = new Float32Array(n), out = new Float32Array(n), R = 5;
+  for (let i = 0; i < n; i++) {
+    const L = c.level[i], z = c.zone[i], d = L && ZDEF[z];
+    if (!d) continue;
+    w[i] = L * (d.cat === 'c' || d.cat === 'o' || z === 7 ? 1 : z === 4 ? 0.7 : d.cat === 'r' ? (z === 1 ? 0.15 : 0.35) : d.cat === 'i' ? 0.2 : 0);
+  }
+  const blur = (src, dst, step, line) => { // cửa sổ trượt 2R+1 ô theo một chiều
+    for (let a = 0; a < N; a++) {
+      const o = a * line;
+      let sum = 0;
+      for (let b = 0; b <= R && b < N; b++) sum += src[o + b * step];
+      for (let b = 0; b < N; b++) {
+        dst[o + b * step] = sum;
+        if (b + R + 1 < N) sum += src[o + (b + R + 1) * step];
+        if (b - R >= 0) sum -= src[o + (b - R) * step];
+      }
+    }
+  };
+  blur(w, t, 1, N); blur(t, out, N, 1);
+  const k = 1 / ((2 * R + 1) * (2 * R + 1) * 1.1);
+  for (let i = 0; i < n; i++) out[i] = clamp(out[i] * k, 0, 1);
+  return out;
+}
+
+/** Cửa sổ sáng đèn ban đêm: mỗi ô cửa bật / tắt ngẫu nhiên theo vị trí toà nhà, có ô đèn vàng, có ô đèn trắng xanh. Phố đông nhiều ô sáng, làng quê thưa đèn. */
+function litWindows(mat, U) {
   mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vLitSeed;').replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.uniforms.uUrban = U.tex; sh.uniforms.uUrbanM = U.m;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>\n${GLSL_URBAN}\nvarying vec2 vLitSeed;\nvarying float vLitU;`).replace('#include <begin_vertex>', `#include <begin_vertex>
   #ifdef USE_INSTANCING
     vLitSeed = instanceMatrix[3].xz + modelMatrix[3].xz;
   #else
     vLitSeed = modelMatrix[3].xz;
-  #endif`);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vLitSeed;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
+  #endif
+  vLitU = urbanAt(vLitSeed);`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vLitSeed;\nvarying float vLitU;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
     vec4 emissiveColor = texture2D( emissiveMap, vEmissiveMapUv );
     float lr = fract(sin(dot(floor(vEmissiveMapUv) + floor(vLitSeed) * 0.37, vec2(12.9898, 78.233))) * 43758.5453);
-    totalEmissiveRadiance *= emissiveColor.rgb * step(0.46, lr) * mix(vec3(1.0, 0.84, 0.58), vec3(0.78, 0.9, 1.0), step(0.88, lr)) * (0.5 + lr);
+    float uK = smoothstep(0.05, 0.5, vLitU);
+    totalEmissiveRadiance *= emissiveColor.rgb * step(mix(0.84, 0.42, uK), lr) * mix(vec3(1.0, 0.84, 0.58), vec3(0.78, 0.9, 1.0), step(0.88, lr)) * (0.5 + lr) * mix(0.75, 1.0, uK);
   #endif`);
   };
   mat.customProgramCacheKey = () => 'litwin';
   return mat;
 }
+
+/**
+ * Đèn đường theo mật độ: thuộc tính aLamp = (x, z, số ngẫu nhiên) của từng cột. Phố đông: cột nào cũng sáng;
+ * làng quê: chỉ khoảng 3/10 cột sáng và sáng yếu hơn. head: bóng đèn (tắt thì xám), không thì vệt sáng dưới chân cột.
+ */
+function lampLit(mat, U, head) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uUrban = U.tex; sh.uniforms.uUrbanM = U.m;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>\n${GLSL_URBAN}\nattribute vec3 aLamp;\nvarying float vLampK;`).replace('#include <begin_vertex>', `#include <begin_vertex>
+  float lu = urbanAt(aLamp.xy);
+  vLampK = step(aLamp.z, mix(0.3, 1.0, smoothstep(0.05, 0.4, lu))) * mix(0.55, 1.0, smoothstep(0.08, 0.5, lu));`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vLampK;').replace('#include <color_fragment>', head ? '#include <color_fragment>\n  diffuseColor.rgb = mix(vec3(0.55, 0.54, 0.49), diffuseColor.rgb, vLampK);' : '#include <color_fragment>\n  diffuseColor.rgb *= vLampK;');
+  };
+  mat.customProgramCacheKey = () => (head ? 'lampHead' : 'lampGlow');
+  return mat;
+}
+
+/** Gắn thuộc tính aLamp cho hình gộp của các cột đèn (mỗi cột cùng số đỉnh, theo thứ tự lamps). */
+function lampAttr(geo, lamps) {
+  const n = geo.attributes.position.count, per = n / lamps.length, a = new Float32Array(n * 3);
+  for (let k = 0; k < n; k++) {
+    const l = lamps[Math.min(lamps.length - 1, (k / per) | 0)];
+    a[k * 3] = l[0]; a[k * 3 + 1] = l[2]; a[k * 3 + 2] = hash2(Math.round(l[0] * 4), Math.round(l[2] * 4), 97);
+  }
+  geo.setAttribute('aLamp', new THREE.BufferAttribute(a, 3));
+  return geo;
+}
+
+/** Hình đèn pha (trắng ấm) + đèn hậu (đỏ) phát sáng, đặt theo khung bao của mô hình xe. */
+function vehLightGeometry(geo) {
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const b = geo.boundingBox, w = b.max.x - b.min.x, h = b.max.y - b.min.y, two = w > 1, g = new GB();
+  const y = b.min.y + (two ? clamp(h * 0.3, 0.42, 0.9) : Math.min(0.78, h * 0.42)), zf = b.max.z + 0.04, zb = b.min.z - 0.04;
+  if (two) for (const sx of [-1, 1]) { g.box(sx * (w / 2 - 0.28), y, zf, 0.36, 0.2, 0.08, 0xfff4d8); g.box(sx * (w / 2 - 0.26), y, zb, 0.32, 0.18, 0.08, 0xff2216); }
+  else { g.box(0, y, zf, 0.22, 0.18, 0.08, 0xfff4d8); g.box(0, y - 0.2, zb, 0.16, 0.12, 0.08, 0xff2216); }
+  return { geo: g.build(), zb: b.min.z };
+}
+
+const NEON = [0xff2d95, 0x24e0ff, 0xb44dff, 0xffb02e, 0x5dff6a, 0xff3b30, 0x3d7bff, 0xfff04a];
+const NEON_Z = new Set([2, 5, 6, 7, 17, 18, 19, 20]); // cửa hàng, siêu thị, văn phòng, hỗn hợp, ăn chơi, chợ
 
 /** Tán cây đung đưa theo gió: ngọn lắc nhiều, gốc đứng yên; mỗi cây lệch pha theo vị trí. */
 function windSway(mat, uTime, sunV, sunCol) {
@@ -500,7 +577,9 @@ export class View {
     this.sunDir = new THREE.Vector3(-0.55, 0.75, 0.42).normalize();
 
     this.winTex = windowTexture();
-    this.matBuilding = litWindows(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.winTex, emissiveMap: windowLightTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.82, metalness: 0.02 }));
+    const ut = new THREE.DataTexture(new Uint8Array([60, 0, 0, 255]), 1, 1); ut.needsUpdate = true;
+    this.urbanU = { tex: { value: ut }, m: { value: new THREE.Vector2(HALF, N * T) } }; // mật độ đô thị cho shader đèn đêm
+    this.matBuilding = litWindows(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.winTex, emissiveMap: windowLightTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.82, metalness: 0.02 }), this.urbanU);
     this.raycaster = new THREE.Raycaster();
     this._static();
     this.puffs = [];
@@ -541,7 +620,7 @@ export class View {
     for (const t of Object.keys(ROADS)) this.roadMats[t] = new THREE.MeshStandardMaterial({ map: roadTexture(t), roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     this.junctionMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.roadGroup = new THREE.Group(); s.add(this.roadGroup);
-    this.lampHeadMat = new THREE.MeshBasicMaterial({ color: 0xfff1c4 }); // bóng đèn đường
+    this.lampHeadMat = lampLit(new THREE.MeshBasicMaterial({ color: 0xfff1c4 }), this.urbanU, true); // bóng đèn đường
 
     // nhà tự mọc: 3 khu x 3 cấp x 3 biến thể
     this.growMeshes = {}; // tạo dần khi có toà nhà loại đó: khoá "khu-cấp-biến thể"
@@ -552,10 +631,26 @@ export class View {
     this.rockMesh = this._inst(rockGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), MAX_ROCKS, false);
     this.treeMeshes[4].castShadow = false; // bụi cây thấp: bóng không đáng kể, bỏ cho nhẹ
     // vệt sáng trên mặt đường: đèn đường (dựng trong _roads) và đèn pha xe (mỗi xe một vệt), chỉ hiện khi trời tối
-    this.glowMat = new THREE.MeshBasicMaterial({ map: glowTexture(false), color: 0xffd9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    this.glowMat = lampLit(new THREE.MeshBasicMaterial({ map: glowTexture(false), color: 0xffd9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), this.urbanU, false);
     this.beamMat = new THREE.MeshBasicMaterial({ map: glowTexture(true), color: 0xfff2cc, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
     this.beamMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(3.4, 8).rotateX(-Math.PI / 2).translate(0, 0.12, 5.2), this.beamMat, MAX_BEAMS);
     this.beamMesh.count = 0; this.beamMesh.frustumCulled = false; this.beamMesh.renderOrder = 2; s.add(this.beamMesh);
+    // đèn pha, đèn hậu phát sáng trên thân xe (mỗi kiểu xe một lớp) + vệt đỏ đèn hậu hắt xuống đường
+    this.vlMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, toneMapped: false, depthWrite: false, fog: false });
+    this.vehLights = {};
+    this.tailMat = new THREE.MeshBasicMaterial({ map: glowTexture(false), color: 0xff3020, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    this.tailMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.4, 2.8).rotateX(-Math.PI / 2), this.tailMat, MAX_BEAMS);
+    this.tailMesh.count = 0; this.tailMesh.frustumCulled = false; this.tailMesh.renderOrder = 2; s.add(this.tailMesh);
+    // phố đêm: biển hộp đèn màu trước cửa hàng, quầng sáng màu hắt xuống vỉa hè, dây đèn màu giăng dọc phố trung tâm
+    const nm = () => new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, toneMapped: false, depthWrite: false, fog: false });
+    this.neonMat = nm(); this.bulbMatA = nm(); this.bulbMatB = nm();
+    this.poolMat = new THREE.MeshBasicMaterial({ map: glowTexture(false), color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+    const boxG = new GB(); boxG.cyl(0, 0, 0, 0.06, 0.06, 0.4, 0x666666, 4); boxG.box(0, 0.4, 0, 1.2, 1.8, 0.3, 0xffffff); // biển hộp đứng trên vỉa hè
+    const night = (geo, mat, cap) => { const mm = new THREE.InstancedMesh(geo, mat, cap); mm.count = 0; mm.frustumCulled = false; mm.visible = false; mm.renderOrder = 2; mm.userData.cap = cap; s.add(mm); return mm; };
+    this.neonMesh = night(boxG.build(), this.neonMat, 3000);
+    this.poolMesh = night(new THREE.PlaneGeometry(12, 8).rotateX(-Math.PI / 2), this.poolMat, 3000);
+    const bulb = new THREE.SphereGeometry(0.24, 6, 4);
+    this.bulbA = night(bulb, this.bulbMatA, 8000); this.bulbB = night(bulb, this.bulbMatB, 8000);
     this.signMat = new THREE.MeshBasicMaterial({ map: signAtlas() }); this.signMeshes = [];
     for (let k = 0; k < SIGN_WORDS.length; k++) {
       const pg = new THREE.PlaneGeometry(1, 1), uv = pg.attributes.uv, v0 = 1 - (k + 1) / SIGN_WORDS.length, v1 = 1 - k / SIGN_WORDS.length;
@@ -1351,14 +1446,14 @@ export class View {
     if (lamps.length) {
       const lg = new GB();
       for (const [x, y, z] of lamps) lg.box(x, y, z, 0.7, 0.22, 0.45, 0xffffff);
-      const m = new THREE.Mesh(lg.build(), this.lampHeadMat); m.frustumCulled = false; this.roadGroup.add(m);
+      const m = new THREE.Mesh(lampAttr(lg.build(), lamps), this.lampHeadMat); m.frustumCulled = false; this.roadGroup.add(m);
       // vệt sáng dưới chân từng cột đèn
       const gt = new Tris(false);
       for (const [x, , z, gy] of lamps) {
         const y = gy + 0.16, r = 7.5, q4 = [gt.v(x - r, y, z - r, 0, 0), gt.v(x + r, y, z - r, 1, 0), gt.v(x + r, y, z + r, 1, 1), gt.v(x - r, y, z + r, 0, 1)];
         gt.tri(q4[0], q4[1], q4[2], true); gt.tri(q4[0], q4[2], q4[3], true);
       }
-      const gm = new THREE.Mesh(gt.build(), this.glowMat); gm.frustumCulled = false; gm.renderOrder = 2; this.roadGroup.add(gm);
+      const gm = new THREE.Mesh(lampAttr(gt.build(), lamps), this.glowMat); gm.frustumCulled = false; gm.renderOrder = 2; this.roadGroup.add(gm);
     }
   }
 
@@ -3199,6 +3294,63 @@ export class View {
     this.marker.visible = true;
   }
 
+  /**
+   * Phố đêm theo mật độ đô thị: cập nhật bản đồ mật độ cho shader (cửa sổ, đèn đường), dựng biển hộp đèn màu
+   * trước cửa hàng, văn phòng ở khu đông, quầng sáng màu hắt xuống vỉa hè, dây đèn màu giăng dọc phố trung tâm.
+   * Làng quê, ruộng đồng (mật độ thấp) không có đèn màu.
+   */
+  _nightCity() {
+    const c = this.city, U = (this.urban = urbanField(c)), uu = this.urbanU;
+    let tx = uu.tex.value;
+    if (tx.image.width !== N) { tx.dispose(); tx = uu.tex.value = new THREE.DataTexture(new Uint8Array(N * N * 4), N, N); tx.magFilter = tx.minFilter = THREE.LinearFilter; }
+    const d = tx.image.data;
+    for (let i = 0; i < N * N; i++) { d[i * 4] = (U[i] * 255) | 0; d[i * 4 + 3] = 255; }
+    tx.needsUpdate = true; uu.m.value.set(HALF, N * T);
+    const m = new THREE.Matrix4(), l = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(T / 10, T / 10, T / 10), col = new THREE.Color();
+    let nn = 0, np = 0;
+    for (let i = 0; i < N * N && nn < this.neonMesh.userData.cap; i++) {
+      const z = c.zone[i], u = U[i];
+      if (!c.level[i] || !NEON_Z.has(z) || u < 0.22 || (ZDEF[z].cat === 'o' && u < 0.45)) continue;
+      const x = i % N, y = (i / N) | 0;
+      if (hash2(x, y, 151) > 0.2 + u * 0.8) continue;
+      col.setHex(NEON[(hash2(x, y, 153) * NEON.length) | 0]);
+      q.setFromAxisAngle(up, ROT[c.dir[i] & 3]); p.set(cellCenter(x), c.cellH[i] + 0.02, cellCenter(y)); m.compose(p, q, sc);
+      const sx = hash2(x, y, 155) < 0.5 ? -3.6 : 3.6;
+      this.neonMesh.setMatrixAt(nn, l.multiplyMatrices(m, l.clone().makeTranslation(sx, 0, 5.7))); this.neonMesh.setColorAt(nn++, col);
+      this.poolMesh.setMatrixAt(np, l.multiplyMatrices(m, l.clone().makeTranslation(0, 0.22, 6.4))); this.poolMesh.setColorAt(np++, col.multiplyScalar(0.35 + u * 0.65));
+    }
+    // dây đèn màu: hai bên vỉa hè các phố mặt đất có mật độ cao, võng xuống giữa hai điểm treo cách nhau 12 m
+    let na = 0, nb = 0;
+    const cap = this.bulbA.userData.cap;
+    for (const e of c.edges.values()) {
+      if (ROADS[e.type].elevated || e.len < 6) continue;
+      const half = ROADS[e.type].w / 2 - 0.6;
+      for (let s = 1.5, k = 0; s < e.len - 1.5; s += 2.2, k++) {
+        const pt = pointAt(e.pts, e.cum, s), gx = Math.floor((pt[0] + HALF) / T), gy = Math.floor((pt[1] + HALF) / T);
+        if (gx < 0 || gy < 0 || gx >= N || gy >= N || U[gy * N + gx] < 0.42) continue;
+        const sag = Math.sin(Math.PI * ((s % 12) / 12)) * 0.7, u = U[gy * N + gx];
+        if (u >= 0.6 && s % 24 < 2.2 && na < cap) { // phố lõi trung tâm: dây đèn giăng ngang qua đường
+          const nx = Math.max(3, Math.round((half * 2) / 1.5));
+          for (let j = 0; j <= nx && na < cap; j++) {
+            const f = j / nx, o = (f * 2 - 1) * half, bx = pt[0] - pt[3] * o, bz = pt[1] + pt[2] * o;
+            this.bulbA.setMatrixAt(na, m.makeTranslation(bx, this.roadY(bx, bz) + 5.2 - Math.sin(Math.PI * f) * 0.9, bz));
+            this.bulbA.setColorAt(na++, col.setHex(NEON[(j + e.id + k) % NEON.length]));
+          }
+        }
+        for (const sd of [-1, 1]) {
+          const bx = pt[0] - pt[3] * half * sd, bz = pt[1] + pt[2] * half * sd;
+          if (isWaterAt(c, bx, bz)) continue;
+          const mesh = (k + (sd > 0 ? 1 : 0)) % 2 ? this.bulbB : this.bulbA, n = mesh === this.bulbA ? na : nb;
+          if (n >= cap) continue;
+          mesh.setMatrixAt(n, m.makeTranslation(bx, this.roadY(bx, bz) + 4.6 - sag, bz));
+          mesh.setColorAt(n, col.setHex(NEON[(k + e.id) % NEON.length]));
+          if (mesh === this.bulbA) na++; else nb++;
+        }
+      }
+    }
+    for (const [mm, n] of [[this.neonMesh, nn], [this.poolMesh, np], [this.bulbA, na], [this.bulbB, nb]]) { mm.count = n; mm.instanceMatrix.needsUpdate = true; if (mm.instanceColor) mm.instanceColor.needsUpdate = true; }
+  }
+
   /** Vẽ xe thật của mô phỏng giao thông (xe con, xe tải / xe dịch vụ, xe buýt) và tàu metro. */
   _vehicles(realDt) {
     const c = this.city, m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), s = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
@@ -3210,8 +3362,17 @@ export class View {
     const vc = this.vehCount;
     for (const k in vc) vc[k] = 0;
     const CONT = [0xc0392b, 0x2f6fb0, 0x3d8a5a, 0xe07b2e, 0x8a949c, 0x7a3fa0, 0xd8b93a];
-    const beams = this.lights > 0.12;
-    let nb = 0;
+    const beams = this.lights > 0.12, vl = this.vlCount || (this.vlCount = {});
+    for (const k in vl) vl[k] = 0;
+    let nb = 0, ntl = 0;
+    const glow = (key, geo) => { // đèn pha + đèn hậu sáng trên thân xe, vệt đỏ sau đuôi
+      let L = this.vehLights[key];
+      if (!L) { const lg = vehLightGeometry(geo); L = this.vehLights[key] = { mesh: new THREE.InstancedMesh(lg.geo, this.vlMat, MAX_BEAMS), zb: lg.zb }; L.mesh.count = 0; L.mesh.frustumCulled = false; this.scene.add(L.mesh); }
+      const n = vl[key] || 0;
+      if (n < MAX_BEAMS) { L.mesh.setMatrixAt(n, m); vl[key] = n + 1; }
+      if (ntl < MAX_BEAMS) this.tailMesh.setMatrixAt(ntl++, tmM.multiplyMatrices(m, this._tailOff.makeTranslation(0, 0.1, L.zb - 1.1)));
+    };
+    this._tailOff = this._tailOff || new THREE.Matrix4();
     const put = (look, cap, color) => {
       if (beams && nb < MAX_BEAMS && !v_.wreck) this.beamMesh.setMatrixAt(nb++, m);
       const nv = this.vehVariants[look], key = nv ? `${look}#${v_.id % nv}` : look; // xe máy Meshy: nhiều biến thể áo / mũ
@@ -3219,6 +3380,7 @@ export class View {
       if (!mesh) { mesh = this.vehMeshes[key] = this._inst(vehicleGeometry(look), this.vehMat, cap, true); vc[key] = 0; }
       const n = vc[key] || 0;
       if (n >= cap) return;
+      if (beams && !v_.wreck) glow(key, mesh.geometry);
       mesh.setMatrixAt(n, m); mesh.setColorAt(n, this.vehModelLooks[look] && !v_.wreck ? this._white : color); vc[key] = n + 1;
     };
     let v_ = null;
@@ -3241,7 +3403,7 @@ export class View {
         if (look === 'taxi' && this.taxiSign && !v.wreck && ns < MAX_CARS) this.taxiSign.setMatrixAt(ns++, tmM.copy(m).multiply(this._taxiSignM));
       }
       else if (v.kind === 'police') put('police', MAX_BIG, col.set(0xf2f2f2));
-      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, c.style === 'vn' ? col.set(v.color < 0.5 ? 0xf2b705 : 0x1f9e55) : col.setHSL(v.color, 0.75, 0.52)); } } // kiểu Việt Nam: xe buýt vàng hoặc xanh lá
+      else if (v.kind === 'bus') { if (beams && nb < MAX_BEAMS) this.beamMesh.setMatrixAt(nb++, m); if (beams) glow('bus', this.busMesh.geometry); if (nu < MAX_BUS) { this.busMesh.setMatrixAt(nu, m); this.busMesh.setColorAt(nu++, c.style === 'vn' ? col.set(v.color < 0.5 ? 0xf2b705 : 0x1f9e55) : col.setHSL(v.color, 0.75, 0.52)); } } // kiểu Việt Nam: xe buýt vàng hoặc xanh lá
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
       else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
       else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));
@@ -3281,6 +3443,8 @@ export class View {
     }
     s.set(1, 1, 1);
     this.beamMesh.count = nb; this.beamMesh.instanceMatrix.needsUpdate = true;
+    this.tailMesh.count = ntl; this.tailMesh.instanceMatrix.needsUpdate = true;
+    for (const k in this.vehLights) { const mm = this.vehLights[k].mesh; mm.count = vl[k] || 0; mm.instanceMatrix.needsUpdate = true; }
     for (const k in this.vehMeshes) { const mesh = this.vehMeshes[k]; mesh.count = vc[k] || 0; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
     if (this.taxiSign) { this.taxiSign.count = ns; this.taxiSign.instanceMatrix.needsUpdate = true; }
     for (const [mesh, n] of [[this.busMesh, nu], [this.tramMesh, nt], [this.pedMesh, np], [this.metroMesh, nm], [this.metroStripe, nm]]) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; }
@@ -3529,6 +3693,11 @@ export class View {
     for (const nm of this.nightMats) nm.emissiveIntensity = lights * 0.6;
     this.matBuilding.emissiveIntensity = lights * 1.5;
     this.glowMat.opacity = lights * 0.5; this.beamMat.opacity = lights * 0.55;
+    this.vlMat.opacity = lights; this.tailMat.opacity = lights * 0.7;
+    const on = lights > 0.03, tw = this.time * 2.2;
+    this.neonMat.opacity = lights * (0.9 + 0.1 * Math.sin(this.time * 9)); this.poolMat.opacity = lights * 0.85; // biển đèn hơi chập chờn
+    this.bulbMatA.opacity = lights * (0.7 + 0.3 * Math.max(0, Math.sin(tw))); this.bulbMatB.opacity = lights * (0.7 + 0.3 * Math.max(0, -Math.sin(tw))); // hai dãy bóng nháy so le
+    for (const mm of [this.neonMesh, this.poolMesh, this.bulbA, this.bulbB, this.tailMesh]) mm.visible = on;
     this.lampHeadMat.color.set(0x8d897c).lerp(A.tmp.set(0xfff1c4), lights);
     this.sky.position.copy(this.camera.position);
   }
@@ -3545,11 +3714,13 @@ export class View {
       if (!this.bornAt || this.bornCity !== c) { this.bornAt = new Float32Array(N * N).fill(-9); this.bornKey = new Uint8Array(N * N); this.bornCity = c; for (let i = 0; i < N * N; i++) this.bornKey[i] = c.level[i]; }
       for (let i = 0; i < N * N; i++) if (c.level[i] !== this.bornKey[i]) { if (c.level[i]) this.bornAt[i] = this.time; this.bornKey[i] = c.level[i]; }
     }
+    if (d.buildings || d.roads || this._nightFor !== c) { this._nightDirty = true; this._nightFor = c; }
     if (d.land) { this._land(); d.land = false; }
     if (d.roads) { this._roads(); d.roads = false; if (this.showNodes) this._nodeMarks(); }
     if (d.lines) { this._lines(); d.lines = false; }
     if (d.buildings || this._animating) { this._animating = this._buildings(); d.buildings = false; d.zones = true; }
     if (d.trees) { this._trees(); d.trees = false; }
+    if (this._nightDirty && !(performance.now() - (this._nightAt ?? -1e9) < 1500)) { this._nightDirty = false; this._nightAt = performance.now(); this._nightCity(); } // dựng lại phố đêm tối đa 1,5 giây một lần
     if (d.services) { this._services(); this._hydro(); d.services = false; d.water = true; }
     if (d.transit) { this._transit(); d.transit = false; }
     if (d.fx) { this.fireCells = []; for (let i = 0; i < N * N; i++) if (c.fire[i] || c.inc.wild[i]) this.fireCells.push(i); d.fx = false; }
