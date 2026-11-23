@@ -10,11 +10,13 @@ import { actorOf, actorPay, actorCells, corpById, corpLog } from './corp.js';
 // ───────────────────────── hiệu ứng tạm thời ─────────────────────────
 
 /** Hiệu ứng có hạn: { key: 'happy' | 'pull' | 'comm' (cộng) | 'tour' | 'intl' (nhân), v, until (ngày) }. */
+export const MOD_FLOOR = 6;
 export function councilMod(c, key) {
   const add = key === 'happy' || key === 'pull' || key === 'comm';
   let v = add ? 0 : 1;
   if (!c.council) return v;
   for (const m of c.council.mods) if (m.key === key && m.until >= c.day) v = add ? v + m.v : v * m.v;
+  if (key === 'happy') v = Math.max(v, -MOD_FLOOR); // nhiều quyết định xấu (hay thư quá hạn) chồng lên nhau: tối đa −6 điểm vui, không kéo sập cả thành phố
   for (const d of c.council.deals) if (d.until >= c.day) {
     if (d.type === 'investor' && key === 'pull') v += 0.05;
     if (d.type === 'airline' && key === 'intl') v *= 1 + d.boost / 100;

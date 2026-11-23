@@ -276,7 +276,7 @@ export function incidentsHour(c) {
     const K = climateOf(c), wet = K.wetMonths.includes(lunar(c.day).month), pRain = wet ? K.rainWet : K.rainDry, pDry = pRain + (wet ? K.dryWet : K.dryDry); // mùa mưa / mùa khô theo vùng
     inc.weather = seasonWeather(c, r) || (r < pRain ? 'rain' : r < pDry ? 'dry' : r < pDry + 0.02 && c.pp.count >= 400 ? 'hail' : r < pDry + 0.02 + 0.14 * K.heat && hotSeason(c) ? 'heat' : 'clear');
     inc.wUntil = c.hour + (inc.weather === 'hail' ? 3 : 24 - h + (inc.weather === 'dry' || inc.weather === 'heat' ? 24 : 0));
-    if (inc.weather === 'heat') c.events.push({ type: 'council', text: '🥵 Nắng nóng gay gắt hai ngày: điện, nước dùng tăng mạnh, người già dễ ốm; dân ở gần cây xanh, công viên đỡ khổ hơn' });
+    if (inc.weather === 'heat') { const s = c.stats, tight = s && s.powerCap > 0 && s.powerUse * 1.3 > s.powerCap; c.events.push({ type: 'council', text: `🥵 Nắng nóng gay gắt hai ngày: điện dùng tăng 30%, nước 15%, người già dễ ốm; dân ở gần cây xanh, công viên đỡ khổ hơn${tight ? ' · ⚠️ lưới điện không đủ, một phần khu phố sẽ bị cắt điện luân phiên' : ''}` }); }
     if (inc.weather === 'hail') c.events.push({ type: 'hail' });
   }
   // mặt đường mòn theo lượng xe, trạm bảo trì sửa dần trong bán kính

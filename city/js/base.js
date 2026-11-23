@@ -17,7 +17,7 @@ export function setMapSize(n, t = T) {
   return N;
 }
 export const HOUR_SEC = 5; // một giờ trong game dài bao nhiêu giây ở tốc độ 1 (một ngày = 2 phút)
-export const RATE = 6; // hệ số quy phí / thuế "mỗi kỳ" cũ sang "mỗi ngày"
+export const RATE = 10; // hệ số quy phí "mỗi kỳ" cũ sang "mỗi ngày". Đo bằng người chơi ảo 80 ngày: ở 6 thu gấp 2,4 lần chi, ngân sách hút cạn tiền của thế giới bên ngoài (xuất khẩu, văn phòng, du lịch teo dần); ở 10 đầu game phải tính toán, giữa game dư vừa phải. Phí bảo trì trả cho doanh nghiệp trong thành phố nên tiền quay vòng
 
 export const idx = (x, y) => y * N + x;
 export const inMap = (x, y) => x >= 0 && y >= 0 && x < N && y < N;

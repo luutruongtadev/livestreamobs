@@ -910,6 +910,9 @@ export function corpHour(c) {
   const h = c.hour % 24;
   if (h === 23) for (const q of C.list) for (const [i] of q.cells) {
     if (!built(c, i)) continue;
+    // vốn lưu động: cơ sở đang âm tiền (mới xây chưa có vốn, chờ nguyên liệu mà vẫn trả lương) được công ty bù từ quỹ, giữ lại mức dự phòng.
+    // Trước đây công ty chỉ hút lãi lên mà không bao giờ bù lỗ, nên gần hết nhà máy của tập đoàn âm tiền tới sát ngưỡng phá sản.
+    if (c.biz.money[i] < 0) { const d = Math.min(-c.biz.money[i], q.cash - CORP.reserve * MK); if (d > 0) { q.cash -= d; c.biz.money[i] += d; } continue; }
     const ex = c.biz.money[i] - CORP.sweepFrom * MK;
     if (ex > 0) { const d = ex * CORP.sweepRate; c.biz.money[i] -= d; q.cash += d; }
   }

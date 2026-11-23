@@ -1721,13 +1721,14 @@ export function computeNetworks(c) {
     const L2 = c.level[i];
     if (L2) { const u = utilUse(c.zone[i], L2); pUse[rootP[i]] += u * hk.power; wUse[rootW[i]] += u * hk.water; } // nắng nóng: dùng nhiều điện, nước hơn
   }
-  const flag = (sup, use) => (sup <= 0 ? 0 : use > sup ? 2 : 1);
+  // thiếu điện / nước theo tỷ lệ: mạng thiếu 10% thì chừng 10% số ô bị cắt luân phiên (đổi theo ngày), không phải cả mạng cùng chập chờn
+  const flag = (sup, use, i, salt) => netFlag(sup, use, i, c.day + salt);
   let noP = 0, noW = 0, noU = 0;
   for (let i = 0; i < N * N; i++) {
     if (rootP[i] < 0) { c.pOk[i] = c.wOk[i] = c.sOk[i] = 0; continue; }
-    c.pOk[i] = flag(pSup[rootP[i]], pUse[rootP[i]]);
-    c.wOk[i] = flag(wSup[rootW[i]], wUse[rootW[i]]);
-    c.sOk[i] = flag(sSup[rootW[i]], wUse[rootW[i]]);
+    c.pOk[i] = flag(pSup[rootP[i]], pUse[rootP[i]], i, 0);
+    c.wOk[i] = flag(wSup[rootW[i]], wUse[rootW[i]], i, 31);
+    c.sOk[i] = flag(sSup[rootW[i]], wUse[rootW[i]], i, 57);
     if (c.level[i]) { const p = c.pOk[i] !== 1, w = c.wOk[i] !== 1 || c.sOk[i] !== 1; if (p) noP++; if (w) noW++; if (p || w) noU++; }
   }
   // tình trạng theo các ô đã quy hoạch: none = mạng không có nguồn, tight = hết công suất dư
@@ -2178,9 +2179,14 @@ export function computeMaps(c) {
 }
 
 /** Mức hài lòng của một ô nhà (0..100) và những thứ đang thiếu. */
+/** Trạng thái điện / nước của ô i trong mạng: 0 không có, 1 đủ, 2 bị cắt (thiếu thì chỉ chừng phần thiếu số ô bị cắt, đổi theo ngày). */
+export const netFlag = (sup, use, i, day) => (sup <= 0 ? 0 : use <= sup ? 1 : hash2(i, day, 97) < 1 - sup / use ? 2 : 1);
+
+/** Mỗi điểm thuế dân cư trên 9% trừ bấy nhiêu điểm vui (trước đây 3: thuế 12% làm dân bỏ đi hàng loạt). */
+export const TAX_MOOD = 1.5;
 export function cellHappy(c, i) {
   const needs = [], pop = c.pp.count;
-  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * 3 + c.bonus.happy + distFx(c, i, 'culture') * 2.5;
+  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * TAX_MOOD + c.bonus.happy + distFx(c, i, 'culture') * 2.5;
   if (flooded(c, i)) { h -= 18; needs.push('🌊 Nhà đang bị ngập nước'); }
   if (c.alley && c.alley[i]) { h -= 3; needs.push('Nhà trong hẻm chật chội'); }
   if (c.pOk[i] !== 1) { h -= 30; needs.push(c.pOk[i] ? 'Điện chập chờn' : 'Không có điện'); }
@@ -2260,13 +2266,13 @@ export function recalc(c) {
   exp.district = distCost(c); // chương trình các quận (đã tính theo ngày) // quảng bá du lịch quốc tế, trợ giá đường bay (đã tính theo ngày)
   for (const ln of c.loans) exp.loans += ln.daily;
   const jobs = jc + ji + jo, pop = ps.pop, workers = ps.workers, employed = ps.employed, unemployed = workers - employed, vacJobs = Math.max(0, jobs - employed);
-  const inc = { r: 0, c: 0, i: 0, t: 0, u: 0, e: 0 };
-  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; inc.u += slot.u || 0; inc.e += slot.e || 0; }
+  const inc = { r: 0, c: 0, i: 0, t: 0, u: 0 };
+  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; inc.u += slot.u || 0; }
   for (const k in inc) inc[k] = Math.round(inc[k]);
   Object.assign(s, {
     pop, jobs, jobsBy: { c: jc, i: ji, o: jo }, housing, workers, employed, unemployed, vacJobs, companies, happy: ps.happy,
     powerCap: pCap, powerUse: Math.round(use * heatUse(c).power), waterCap: wCap, waterUse: Math.round(use * heatUse(c).water), sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
-    inc, income: inc.r + inc.c + inc.i + inc.t + inc.u + inc.e, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
+    inc, income: inc.r + inc.c + inc.i + inc.t + inc.u, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
   });
   // nhu cầu: dân tới khi có việc và nhà trống ít; việc làm mở thêm khi có người làm và người mua
   const tm = (t) => (9 - t) * 0.05;
@@ -2448,7 +2454,7 @@ function hourTick(c) {
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
   const fares = c.transit.income - c.fareSeen; c.fareSeen = c.transit.income;
   smoothWeek(c, h);
-  c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms, e: c.hourUtil || 0 }; c.hourUtil = 0; // e: hoá đơn điện nước dân trả (đã vào ngân sách lúc thu)
+  c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms };
   recalc(c);
   c.taxBreakK = taxBreak(c); // nhà đầu tư được miễn một phần thuế thương mại, công nghiệp (áp lúc doanh nghiệp bị trừ thuế, people.js)
   cityTake(c, 'tax', c.hourInc.r + c.hourInc.c + c.hourInc.i); c.hourInc.r = c.hourInc.c = c.hourInc.i = 0; // thuế: phần đã trừ thật của dân, doanh nghiệp; thuế phát sinh sau đây (thầu bảo trì) sang giờ sau mới thu

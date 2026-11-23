@@ -2345,27 +2345,43 @@ test('city: Việt Nam hoá Phase 4 — nắng nóng, kênh rạch hôi, nhà tr
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
 });
 
-test('cân bằng: dân trả tiền điện nước, cửa hàng mở cuối tuần, giá điện theo bậc, sức mua theo của cải; sổ tiền khớp', async () => {
+test('cân bằng: cửa hàng mở cả tuần (nhân viên nghỉ luân phiên), giá điện theo bậc, sức mua theo của cải, cửa hàng đông khách tăng giá; sổ tiền khớp', async () => {
   const P = await import('../city/js/people.js');
   const c = town(); run(c, 24 * 6); LG.resetLedger(c);
-  // giá điện mỗi đơn vị: nhà máy lớn rẻ hơn, nhiệt điện rẻ hơn điện sạch
   const per = (k) => S.SERVICES[k].upkeep / S.SERVICES[k].power;
   assert.ok(per('wind') > per('solar') && per('solar') > per('coal') && per('coal') > per('nuclear'), 'điện theo bậc');
-  // hoá đơn điện nước: một nửa chi phí điện + nước + rác, tính theo phần dùng của nhà
-  const rate = P.utilRate(c), s0 = c.stats;
-  assert.ok(Math.abs(rate * s0.powerUse - P.UTIL.share * (s0.exp.power + s0.exp.water + s0.exp.trash)) < 1, 'giá theo chi phí thật');
-  const home = [...c.level.keys()].find((i) => c.level[i] && c.resCount[i] > 0);
-  assert.ok(P.homeBill(c, home, rate) > 0);
-  run(c, 24 * 2);
-  assert.ok(c.stats.inc.e > 0, 'ngân sách có dòng thu tiền điện nước');
-  assert.ok((LG.ledgerSummary(c, 'last').inner.find((r) => r.key === 'util') || {}).v > 0, 'sổ ghi tiền điện nước dân trả');
-  // sức mua theo của cải: nhiều tiền tiết kiệm thì tiêu nhiều hơn, có trần
   assert.ok(P.wealthK(200 * S.MK) > P.wealthK(20 * S.MK) && P.wealthK(1e9) === P.WEALTH.max);
+  // cửa hàng bán hết sức nhân viên thì tăng giá, dù kệ còn đầy
+  const shop = [...c.level.keys()].find((i) => c.level[i] && S.ZDEF[c.zone[i]].biz === 'shop');
+  const b = c.biz; b.sin[shop] = 40; b.rp[shop] = 1; b.rs[shop] = 9; b.sc[shop] = 10; b.sh[shop] = 40 * 6; b.nh = 6;
+  P.retailDay(c, [shop]);
+  assert.ok(b.rp[shop] > 1, 'đông khách: tăng giá');
+  b.rs[shop] = 1; b.sc[shop] = 10; b.sh[shop] = 40 * 6; b.nh = 6; const p0 = b.rp[shop];
+  P.retailDay(c, [shop]);
+  assert.ok(b.rp[shop] < p0, 'kệ đầy, vắng khách: hạ giá');
   // cửa hàng có người bán vào cuối tuần
   while (c.day % 7 !== 5 || c.hour % 24 !== 11) S.tick(c);
   let staff = 0; for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && S.ZDEF[c.zone[i]].biz === 'shop') staff += c.present[i];
   assert.ok(staff > 0, 'thứ bảy cửa hàng vẫn mở');
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
+test('cân bằng: thiếu điện nước chỉ cắt phần thiếu, thư quá hạn tối đa −6 điểm vui, thuế trừ vui nhẹ hơn', async () => {
+  const CO = await import('../city/js/council.js');
+  const cut = (sup, use) => { let n = 0; for (let i = 0; i < 4000; i++) if (S.netFlag(sup, use, i, 3) === 2) n++; return n / 4000; };
+  assert.equal(cut(100, 90), 0, 'đủ điện: không ô nào bị cắt');
+  assert.ok(Math.abs(cut(90, 100) - 0.1) < 0.03, `thiếu 10% → chừng 10% ô bị cắt (${cut(90, 100)})`);
+  assert.ok(Math.abs(cut(50, 100) - 0.5) < 0.04, 'thiếu một nửa → chừng một nửa');
+  assert.equal(S.netFlag(0, 10, 1, 1), 0, 'không có nhà máy: mất điện hẳn');
+  const c = town();
+  c.council.mods = [1, 2, 3, 4, 5].map((k) => ({ key: 'happy', v: -3, until: c.day + 5, from: 't' + k }));
+  assert.equal(CO.councilMod(c, 'happy'), -CO.MOD_FLOOR, 'trừ vui chồng chất có trần');
+  c.council.mods.push({ key: 'happy', v: 4, until: c.day + 5, from: 'tốt' });
+  assert.equal(CO.councilMod(c, 'happy'), -CO.MOD_FLOOR, 'trần áp lên tổng');
+  run(c, 24 * 2); c.council.mods = [];
+  const home = [...c.level.keys()].find((i) => c.level[i] && c.resCount[i] > 0);
+  const h9 = S.cellHappy(c, home).happy; c.tax.r = 13;
+  assert.ok(Math.abs(h9 - S.cellHappy(c, home).happy - 4 * S.TAX_MOOD) < 1e-9 || S.cellHappy(c, home).happy === 0, 'thuế 13%: trừ 6 điểm');
 });
 
 test('tập đoàn: mỗi bản đồ một bộ công ty (tên, CEO theo mã bản đồ); ngưỡng làm ăn ế theo hiệu suất chung', () => {
