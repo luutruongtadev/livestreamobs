@@ -3,7 +3,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
-import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps, BANS, railCrossings, crossingsClosed, pointAt as pointAtE } from './sim.js';
+import { N, T, HALF, LAND, LT, SERVICES, ROADS, ZDEF, RAW, TRANSIT, LIFT, ROUNDABOUT_R, clamp, garbageLimit, vnoise, hash2, mulberry32, heightAt, heightFn, makeField, MAPS, hasResource, cellCenter, cellX, cellZ, isWaterAt, signalState, edgeLoad, metroPoint, liftAt, nodeElevated, nodeH, roadLvl, outsidePositions, shipRoutes, ferryPoint, bridgeOf, nearestOnEdge, rampMerge, wetNear, tunnelWetR, simTime, DOCK_H, SAIL_H, HOUR_SEC, fireworksAt, festivalNow, lineGeo, railGates, railNet, trainsAt, computeFlow, seasonFlow, fallGeom, reservoirLevel, damSpan, fallsInfo, cellMid, fisheryAreas, landGaps, BANS, railCrossings, crossingsClosed, pointAt as pointAtE } from './sim.js';
 import { metroGeometry, planeGeometry, trainParts, bar, RUNWAY, TRAIN_SLOT, AIRPORT_SLOT } from './transport3d.js';
 import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, farmGeometry, GB, growable, growableVN, hasVN, MALL_SIGN, shopFrontGeometry, parkedBikesGeometry, lanternGeometry, poleFlagGeometry, wallFlagGeometry, waterTankGeometry, acUnitGeometry, laundryGeometry, tetTreeGeometry, lotusLampGeometry, FRONT_OF_SIGN, FRONT_KINDS, palmGeometry, treeGeometry, rockGeometry, vehicleGeometry, pedGeometry, busGeometry, tramGeometry, stopGeometry, serviceModel, moduleGeometry, windowTexture, windowLightTexture, pylonParts, shipGeometry, siteVehicle, towerCrane } from './models.js';
 
@@ -401,7 +401,7 @@ ${GLSL_NOISE}
 float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++) { s += a * nNoise(p); p = p * 2.03 + vec2(17.0, 3.0); a *= 0.5; } return s; }
 void main() {
   vec3 d = normalize(vDir);
-  vec3 col = mix(uHor, uTop, pow(max(d.y, 0.0), 0.5));
+  vec3 col = mix(uHor, uTop, pow(smoothstep(0.0, 0.62, d.y), 0.72)); // sát chân trời mờ sáng một dải rồi mới xanh đậm dần (trước đây sẫm lại đột ngột, lộ mép cứng trên mặt biển chìm sương)
   // bình minh / hoàng hôn: dải sáng cam đỏ sát chân trời phía mặt trời, lên cao ngả hồng tím; phía đối diện có vành tím nhạt
   vec2 hz = normalize(d.xz + 1e-5), sz = normalize(uSunD.xz + 1e-5);
   float az = dot(hz, sz) * 0.5 + 0.5, low = exp(-max(d.y, 0.0) * 7.0);
@@ -564,8 +564,8 @@ export class View {
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xbfd9ee);
-    this.scene.fog = new THREE.Fog(new THREE.Color(0xbfd9ee), 700, 2600);
-    this.camera = new THREE.PerspectiveCamera(42, 1, 2, 6000);
+    this.scene.fog = new THREE.Fog(new THREE.Color(0xbfd9ee), 650, 3600);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 2, 11000); // xa đủ để mặt biển chạm đường chân trời
     this.cam = { x: 0, z: 0, y: 0, dist: 260, yaw: 0.6, pitch: 0.82 };
     this.hemi = new THREE.HemisphereLight(0xdcebff, 0x6f7f55, 0.8);
     this.scene.add(this.hemi);
@@ -603,7 +603,7 @@ export class View {
       uSkyTop: { value: new THREE.Color(0x3f86d4) }, uSkyHor: { value: new THREE.Color(0xbfd9ee) }, uDeep: { value: new THREE.Color(0x1d5f96) }, uShallow: { value: new THREE.Color(0x4fb7c4) },
       tH: { value: this.depthTex }, uMap: { value: new THREE.Vector4(1 / T, HALF, BORDER, TV) }, tFlow: { value: this._flowTex() }, uN: { value: N }, uFlowK: { value: 1 }, uLevel: { value: WATER_Y }, uRes: { value: 0 }, uTSeg: TRENCH.seg, uTHw: TRENCH.hw, uTN: TRENCH.n, uTBox: TRENCH.box,
     });
-    const water = this.water = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000).rotateX(-Math.PI / 2), waterMaterial(wu));
+    const water = this.water = new THREE.Mesh(new THREE.PlaneGeometry(24000, 24000).rotateX(-Math.PI / 2), waterMaterial(wu));
     water.position.y = WATER_Y; water.renderOrder = 1;
     s.add(water);
     // vòm trời
@@ -954,6 +954,88 @@ export class View {
     this.overlay = this._overlayMesh(this.city);
     this.scene.add(this.terrain, this.overlay);
     this._depthSync();
+    this._backdrop(); this._farForest();
+  }
+
+  /** Cao độ vùng địa hình (gồm viền trang trí) tại toạ độ lưới gx, gy (nội suy từ lưới đã dựng). */
+  _terrH(gx, gy) {
+    const V = N + 2 * BORDER + 1, u = clamp(gx + BORDER, 0, V - 1.001), v = clamp(gy + BORDER, 0, V - 1.001), i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, P = this.terrPos;
+    const h = (a, b) => P[(b * V + a) * 3 + 1];
+    return (h(i, j) * (1 - fu) + h(i + 1, j) * fu) * (1 - fv) + (h(i, j + 1) * (1 - fu) + h(i + 1, j + 1) * fu) * fv;
+  }
+
+  /**
+   * Dãy núi phông nền quanh bản đồ (tới ~3,2 km): mép trong bám khít mép ngoài vùng đồi viền, xa dần lên núi cao có sống, khe rãnh.
+   * Chỉ mọc ở hướng có đất liền (theo trường địa hình của bản đồ: hướng biển vẫn là biển, sông kéo dài thành khe nước).
+   * Chân núi rừng xanh, lên cao cỏ khô vàng nâu, khe tối hơn; sương mù làm núi xa mờ xanh như không khí thật.
+   */
+  _backdrop() {
+    const c = this.city;
+    if (this.backdrop) { this.scene.remove(this.backdrop); this.backdrop.geometry.dispose(); }
+    const f = makeField(c.seed, MAPS[c.map] ? c.map : 'river'), seed = c.seed, E = HALF + BORDER * T - 2, R1 = 3200, A = 288, RN = 18;
+    const pos = new Float32Array(A * (RN + 1) * 3), col = new Float32Array(A * (RN + 1) * 3), hh = new Float32Array(A * (RN + 1));
+    const rg = (x, y, fq, sd) => { const v = 1 - Math.abs(2 * vnoise(x * fq, y * fq, seed + sd) - 1); return v * v; };
+    const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+    for (let a = 0; a < A; a++) {
+      const th = (a / A) * Math.PI * 2, ca = Math.cos(th), sa = Math.sin(th), s0 = E / Math.max(Math.abs(ca), Math.abs(sa));
+      const hEdge = this._terrH((ca * s0 + HALF) / T, (sa * s0 + HALF) / T);
+      for (let r = 0; r <= RN; r++) {
+        const t = r / RN, rad = s0 + (R1 - s0) * Math.pow(t, 1.35), x = ca * rad, z = sa * rad, gx = (x + HALF) / T, gy = (z + HALF) / T, k = a * (RN + 1) + r;
+        const land = clamp(f(gx, gy) / 9, 0, 1), base = land > 0.05 ? 6 + land * 10 : -8;
+        const ridge = 0.55 * rg(gx, gy, 0.012, 71) + 0.45 * vnoise(gx * 0.014, gy * 0.014, seed + 72); // sống núi mềm: nửa gợn, nửa đồi tròn
+        const peak = Math.pow(land, 1.3) * sm(0.04, 0.45, t) * (1 - 0.35 * sm(0.8, 1, t)) * (50 + 190 * ridge + 55 * rg(gx, gy, 0.035, 73) + 25 * vnoise(gx * 0.08, gy * 0.08, seed + 75));
+        const h = hEdge + (base + peak - hEdge) * sm(0, 0.1, t);
+        pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z; hh[k] = h;
+      }
+    }
+    // màu: rừng ở chân, cỏ khô vàng nâu trên cao, đá ở vách dốc, khe núi tối hơn sống núi
+    const forest = new THREE.Color(0x3b6331), forest2 = new THREE.Color(0x4f7a3a), dryG = new THREE.Color(0xa69472), rockC = new THREE.Color(0x8d8476), cc = new THREE.Color();
+    for (let a = 0; a < A; a++) for (let r = 0; r <= RN; r++) {
+      const k = a * (RN + 1) + r, h = hh[k], kn = (aa, rr) => hh[((aa + A) % A) * (RN + 1) + clamp(rr, 0, RN)];
+      const conc = (kn(a - 1, r) + kn(a + 1, r) + kn(a, r - 1) + kn(a, r + 1)) / 4 - h, slope = Math.abs(kn(a + 1, r) - kn(a - 1, r)) / 70 + Math.abs(kn(a, r + 1) - kn(a, r - 1)) / 260;
+      const x = pos[k * 3], z = pos[k * 3 + 2];
+      cc.copy(forest).lerp(forest2, vnoise(x * 0.004, z * 0.004, seed + 77)).lerp(dryG, sm(110, 230, h + (vnoise(x * 0.006, z * 0.006, seed + 79) - 0.5) * 70)).lerp(rockC, clamp((slope - 0.5) * 0.8, 0, 0.5));
+      const shade = clamp(1 - conc * 0.012, 0.7, 1.1);
+      col[k * 3] = cc.r * shade; col[k * 3 + 1] = cc.g * shade; col[k * 3 + 2] = cc.b * shade;
+    }
+    const idx = [];
+    for (let a = 0; a < A; a++) for (let r = 0; r < RN; r++) { const p = a * (RN + 1) + r, q = ((a + 1) % A) * (RN + 1) + r; idx.push(p, q, p + 1, q, q + 1, p + 1); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const m = this.backdrop = new THREE.Mesh(g, this.backdropMat || (this.backdropMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide })));
+    m.frustumCulled = false; m.receiveShadow = false;
+    this.scene.add(m);
+  }
+
+  /** Rừng trên vùng đồi viền ngoài bản đồ: cây thấp đa giác (tán tròn và thông), dày theo mảng, không mọc dưới nước, bãi cát, chỗ quá cao. */
+  _farForest() {
+    const c = this.city;
+    if (!this.farTrees) {
+      const leaf = new GB(), pine = new GB();
+      leaf.cyl(0, 0, 0, 0.35, 0.28, 3, 0x5a4330, 5); leaf.cyl(0, 2.4, 0, 2.4, 3.2, 2.2, 0x4f7f38, 7); leaf.cyl(0, 4.6, 0, 3.2, 0.6, 2.6, 0x4a7835, 7, 0x4a7835);
+      pine.cyl(0, 0, 0, 0.3, 0.25, 2, 0x5a4330, 5); pine.cyl(0, 1.6, 0, 2.4, 0.2, 7.5, 0x335f33, 7);
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+      this.farTrees = [leaf, pine].map((b) => { const m = new THREE.InstancedMesh(b.build(), mat, 6000); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; this.scene.add(m); return m; });
+    }
+    const seed = c.seed, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), n = [0, 0];
+    for (let gy = -BORDER; gy < N + BORDER; gy++) for (let gx = -BORDER; gx < N + BORDER; gx++) {
+      if (gx >= -1 && gy >= -1 && gx <= N && gy <= N) continue; // trong bản đồ: cây của thành phố
+      const dens = vnoise(gx * 0.07, gy * 0.07, seed + 91);
+      if (dens < 0.38) continue;
+      const cnt = dens > 0.62 ? 3 : dens > 0.5 ? 2 : 1;
+      for (let k = 0; k < cnt; k++) {
+        const ux = gx + hash2(gx * 3 + k, gy, seed + 92), uy = gy + hash2(gx, gy * 3 + k, seed + 93), h = this._terrH(ux, uy);
+        const slope = Math.abs(this._terrH(ux + 0.5, uy) - this._terrH(ux - 0.5, uy)) + Math.abs(this._terrH(ux, uy + 0.5) - this._terrH(ux, uy - 0.5));
+        if (h < 1.2 || h > 95 || slope > 9) continue;
+        const pine = h > 35 ? hash2(gx, gy, k + 94) < 0.75 : hash2(gx, gy, k + 94) < 0.2, kind = pine ? 1 : 0, mesh = this.farTrees[kind];
+        if (n[kind] >= 6000) continue;
+        const s = 0.8 + hash2(k, gx, gy) * 0.7;
+        p.set(ux * T - HALF, h - 0.3, uy * T - HALF); q.setFromAxisAngle(up, hash2(gy, gx, k) * 6.28); sc.set(s, s * (0.85 + hash2(gx + k, gy, 95) * 0.4), s);
+        mesh.setMatrixAt(n[kind], m4.compose(p, q, sc));
+        mesh.setColorAt(n[kind]++, col.setHSL(0.24 + hash2(gx, k, gy) * 0.1, 0.25, 0.7 + hash2(k, gy, gx) * 0.3));
+      }
+    }
+    this.farTrees.forEach((m, k) => { m.count = n[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   }
 
   /** Đang đào đắp dở: chỉ chép cao độ mới vào lưới có sẵn (màu đất tính lại sau khi nhả chuột). */
@@ -981,7 +1063,7 @@ export class View {
     const W = N + 2 * BORDER, V = W + 1;
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
     const soil = new THREE.Color(0x9a7b55);
-    const beachSand = new THREE.Color(0xeedfae), grass = new THREE.Color(0x5b933f), grass2 = new THREE.Color(0x6fa349), meadow = new THREE.Color(0x98a25a), lushDark = new THREE.Color(0x46773a), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), highland = new THREE.Color(0x7c7f55), c = new THREE.Color(), tint = new THREE.Color();
+    const beachSand = new THREE.Color(0xeedfae), grass = new THREE.Color(0x5a8a3f), grass2 = new THREE.Color(0x6a9645), meadow = new THREE.Color(0x9a9d62), lushDark = new THREE.Color(0x44703a), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), highland = new THREE.Color(0x7c7f55), c = new THREE.Color(), tint = new THREE.Color();
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
       const gx = i - BORDER, gy = j - BORDER, k = j * V + i;
       const inside = gx >= 0 && gy >= 0 && gx <= N && gy <= N;
@@ -3412,7 +3494,7 @@ export class View {
       m.compose(p, q, s);
       this.treeMeshes[kind].setMatrixAt(n[kind], m);
       // tông màu từng cây: lá xanh đậm / xanh lục / xanh vàng / ô liu xen nhau, thông xanh sẫm hơi lam; phượng giữ màu đỏ của mô hình
-      this.treeMeshes[kind].setColorAt(n[kind]++, kind === 5 ? col.setHSL(0, 0, 0.9 + light * 0.1) : kind === 3 ? col.setHSL(0.3 + hue * 0.12, 0.25 + hue * 0.15, 0.68 + light * 0.2) : col.setHSL(0.16 + hue * 0.17, 0.2 + light * 0.3, 0.72 + light * 0.28));
+      this.treeMeshes[kind].setColorAt(n[kind]++, kind === 5 ? col.setHSL(0, 0, 0.9 + light * 0.1) : kind === 3 ? col.setHSL(0.3 + hue * 0.12, 0.22 + hue * 0.12, 0.62 + light * 0.2) : col.setHSL(0.17 + hue * 0.15, 0.18 + light * 0.22, 0.64 + light * 0.26)); // tông trầm, ít chói
     };
     for (let i = 0; i < N * N; i++) {
       if (!c.tree[i]) continue;
@@ -4070,7 +4152,7 @@ export class View {
     this.scene.fog.color.copy(su.uHor.value); this.scene.background.copy(su.uHor.value);
     { // bụi mịn: trời mù, sương khói ngả xám nâu, nhìn không xa
       const aqi = this.city && this.city.street ? this.city.street.aqi : 0, k = clamp((aqi - 90) / 220, 0, 0.65);
-      this.scene.fog.near = 700 - k * 600; this.scene.fog.far = 2600 - k * 1900;
+      this.scene.fog.near = 650 - k * 550; this.scene.fog.far = 3600 - k * 2900; // không khí xa gần: núi phông nền mờ dần ra chân trời
       if (k > 0) { this._haze = this._haze || new THREE.Color(0x9c9284); this.scene.fog.color.lerp(this._haze, k); this.scene.background.lerp(this._haze, k * 0.8); }
     }
     wu.uSun.value.copy(this.sunDir); wu.uSunCol.value.copy(this.sun.color).multiplyScalar(this.sun.intensity / 3.1);

@@ -3,7 +3,8 @@
 Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối TikTok / livestream, không thuộc `games/`.
 
 - Địa chỉ: `https://<PLAY_DOMAIN>/city` (gateway phục vụ thư mục này ở `/city`). Chạy thử trên máy: `node gateway/index.js` rồi mở `http://localhost:8787/city`.
-- **Địa hình:** bản đồ tạo mới (đời 3) có núi với sống núi, khe rãnh và rừng phủ sườn; màu đất theo mảng cỏ khô, cỏ đậm; núi không phủ tuyết; cây nhiều tông xanh. Bản lưu cũ giữ nguyên cao độ.
+- **Địa hình:** bản đồ tạo mới (đời 3) có núi với sống núi, khe rãnh và rừng phủ sườn; màu đất theo mảng cỏ khô, cỏ đậm; núi không phủ tuyết; cây nhiều tông xanh trầm. Bản lưu cũ giữ nguyên cao độ.
+- **Phong cảnh quanh bản đồ:** đồi viền có rừng; xa hơn là dãy núi phông nền tới chân trời (chỉ ở hướng đất liền, sông kéo dài thành khe nước, hướng biển vẫn là biển): chân núi rừng xanh, đỉnh cỏ khô vàng nâu; sương mù xa gần làm núi mờ dần, trời sát chân trời mờ sáng.
 - Bản lưu nằm trong `localStorage` của trình duyệt: tự lưu 20 giây một lần, 3 ô lưu tay, xuất / nhập file `.json`. Server không giữ gì. Bản lưu đời trước vẫn mở được: bản chưa có người dân thì đường và nhà giữ nguyên, dân tự dọn về lại; bản đồ 96 × 96 của các bản lưu cũ vẫn mở đúng cỡ, kiểu Sông và biển; bản chưa có núi thì địa hình giữ kiểu cũ (không có núi), điểm phát triển tính bù theo mốc dân số đã đạt.
 
 ## Cách chơi
