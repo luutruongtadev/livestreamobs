@@ -9,10 +9,11 @@ import { warehouseGeometry, corpGateGeometry, sitGeometry, fishBoatGeometry, far
 
 const BORDER = 30; // số ô địa hình trang trí quanh bản đồ
 import { CLIMATES, climateOf } from './base.js';
+import { Scenery, GLSL_LAND } from './scenery.js';
 const _v3 = new THREE.Vector3(), _v3b = new THREE.Vector3(), _q0 = new THREE.Quaternion();
 const WATER_Y = -0.9;
 const MAX_CARS = 480, MAX_BIG = 220, MAX_BUS = 90, MAX_MOTO = 480, MAX_PEDS = 520, MAX_ANIMALS = 16, DOG_COUNT = 10, MAX_BEAMS = 900;
-const TREE_CAP = [5000, 3500, 3000, 4500, 5000, 900], MAX_ROCKS = 2500, MAX_STROLL = 400; // cây tán tròn, tán xoè, dừa, thông, bụi, phượng
+const TREE_CAP = [5000, 3500, 3000, 4500, 5000, 900], MAX_ROCKS = 2500, MAX_STROLL = 400, MAX_PUFF = 900; // cây tán tròn, tán xoè, dừa, thông, bụi, phượng
 const SITE_H = {}; // chiều cao mô hình công trình (để dựng giàn giáo)
 const GLASS = 0x2f3b45;
 const sstep = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -294,6 +295,207 @@ float nHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453)
 float nNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(nHash(i), nHash(i + vec2(1.0, 0.0)), f.x), mix(nHash(i + vec2(0.0, 1.0)), nHash(i + vec2(1.0, 1.0)), f.x), f.y); }`;
 
+/*
+ * ── Cảnh quan (đưa từ landscape.html vào game) ──
+ * Sương mù khí quyển: loãng dần theo độ cao (nhìn từ trên cao thấy rõ, nhìn ngang ra chân trời mờ dần) + một lớp sương mỏng
+ * nằm sát mặt nước, đáy thung lũng. Thay công thức của three.js cho mọi vật liệu có sương. Tham số vẫn là fog.near / fog.far:
+ * far = tầm nhìn; phần nguyên của near = khoảng cách bắt đầu mờ, phần lẻ = độ dày sương thung lũng (0..1).
+ */
+THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\nvarying float vFogDepth;\nvarying vec3 vFogWP;\n#endif\n';
+THREE.ShaderChunk.fog_vertex = '#ifdef USE_FOG\nvFogDepth = - mvPosition.z;\nvFogWP = transpose(mat3(viewMatrix)) * (mvPosition.xyz - viewMatrix[3].xyz);\n#endif\n';
+THREE.ShaderChunk.fog_pars_fragment = `#ifdef USE_FOG
+uniform vec3 fogColor;
+varying float vFogDepth;
+varying vec3 vFogWP;
+#ifdef FOG_EXP2
+uniform float fogDensity;
+#else
+uniform float fogNear;
+uniform float fogFar;
+#endif
+#endif
+`;
+THREE.ShaderChunk.fog_fragment = `#ifdef USE_FOG
+{
+  vec3 fv_ = vFogWP - cameraPosition; float fd_ = length(fv_);
+#ifdef FOG_EXP2
+  float fogFactor = 1.0 - exp(- fogDensity * fogDensity * fd_ * fd_);
+#else
+  float st_ = floor(fogNear), mk_ = fract(fogNear);
+  float y0_ = max(cameraPosition.y, 0.0), y1_ = max(vFogWP.y, 0.0), dy_ = y1_ - y0_;
+  float hs_ = 1.0 / 520.0, g0_ = exp(-y0_ * hs_), g1_ = exp(-y1_ * hs_);
+  float avA_ = abs(dy_) > 0.5 ? (g0_ - g1_) / (hs_ * dy_) : g0_;           // không khí loãng dần lên cao
+  float ms_ = 1.0 / 11.0, m0_ = exp(-(y0_ + 0.9) * ms_), m1_ = exp(-(y1_ + 0.9) * ms_);
+  float avM_ = abs(dy_) > 0.5 ? (m0_ - m1_) / (ms_ * dy_) : m0_;           // sương nằm sát mặt nước
+  float xa_ = max(fd_ - st_, 0.0) / max(fogFar - st_, 1.0);
+  float fogFactor = 1.0 - exp(-(pow(xa_, 1.8) * 2.8 * avA_ + mk_ * 0.0016 * fd_ * avM_));
+  fogFactor = max(fogFactor, smoothstep(fogFar * 1.05, fogFar * 1.5, fd_));
+#endif
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, linearToOutputTexel(vec4(fogColor, 1.0)).rgb, clamp(fogFactor, 0.0, 1.0)); // sương trộn sau khi đã đổi sang không gian hiển thị: đổi màu sương theo, khớp màu trời ở chân trời
+}
+#endif
+`;
+
+/** Uniform dùng chung cho mặt đất, núi, cây, nhà, đường: bóng mây trôi, hướng nắng. */
+const LS = { uCsAmt: { value: 0 }, uCsCov: { value: 0.3 }, uCsTime: { value: 0 }, uCsSun: { value: new THREE.Vector3(0, 1, 0) }, uLsBump: { value: 1 },
+  uClouds: { value: Array.from({ length: 16 }, () => new THREE.Vector4(1e6, 1e6, 100, 0)) }, uCloudAlt: { value: 750 },
+  uBk: { value: null }, uBkM: { value: new THREE.Vector4(0, 0, 1, 0) }, uShadowC: { value: new THREE.Vector4(0, 0, 0, 500) } };
+const GLSL_LS = `uniform float uCsAmt, uCsCov, uCsTime, uLsBump, uCloudAlt;
+uniform vec3 uCsSun;
+uniform vec4 uClouds[16];
+uniform sampler2D uBk;
+uniform vec4 uBkM, uShadowC;
+float lsH2(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float lsN(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(lsH2(i), lsH2(i + vec2(1.0, 0.0)), u.x), mix(lsH2(i + vec2(0.0, 1.0)), lsH2(i + vec2(1.0, 1.0)), u.x), u.y); }
+float lsH3(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+float lsN3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(lsH3(i), lsH3(i + vec3(1, 0, 0)), f.x), mix(lsH3(i + vec3(0, 1, 0)), lsH3(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(lsH3(i + vec3(0, 0, 1)), lsH3(i + vec3(1, 0, 1)), f.x), mix(lsH3(i + vec3(0, 1, 1)), lsH3(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+// bóng mây: chiếu theo hướng nắng lên tầng mây, đúng chỗ từng đám mây 3D đang trôi (uClouds: tâm xz, bán kính, độ đậm)
+float cloudSh(vec3 w) {
+  if (uCsAmt < 0.01) return 1.0;
+  vec2 q = w.xz + uCsSun.xz / max(uCsSun.y, 0.15) * (uCloudAlt - w.y);
+  float nn = lsN(q * 0.009) * 0.6 + lsN(q * 0.027) * 0.4, s = 1.0;
+  for (int i = 0; i < 16; i++) {
+    vec4 c = uClouds[i];
+    vec2 dd = (q - c.xy) / vec2(c.z, c.z * 0.72);
+    s *= 1.0 - c.w * smoothstep(1.0, 0.3, length(dd) + (nn - 0.5) * 0.7);
+  }
+  return 1.0 - (1.0 - s) * clamp(uCsAmt / 0.42, 0.0, 1.0);
+}
+// bóng núi nướng sẵn: dùng ở ngoài tầm shadow map (gần camera đã có bóng thật)
+float bakedSh(vec3 w) {
+  if (uBkM.w < 0.5) return 1.0;
+  vec2 uv = (w.xz - uBkM.xy) * uBkM.z;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0;
+  float k = smoothstep(uShadowC.w * 0.6, uShadowC.w * 0.95, length(w.xz - uShadowC.xz));
+  return mix(1.0, texture2D(uBk, uv).r, k);
+}`;
+/**
+ * Gắn bóng mây (và với mặt đất / núi: chất liệu chi tiết theo độ dốc, độ cao) vào một vật liệu, giữ nguyên chỉnh sửa shader có sẵn
+ * (khoét hầm, cửa sổ sáng đèn, cây đung đưa...). kind: 'cloud' | 'ground' | 'mount'.
+ */
+function landscapeLit(mat, kind = 'cloud') {
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev.call(mat, sh, r);
+    Object.assign(sh.uniforms, LS);
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', `${GLSL_LS}\n${kind === 'cloud' ? '' : GLSL_GROUND}\n${kind === 'land' ? GLSL_LAND : ''}\nvoid main() {`);
+    if (kind === 'land') {
+      // mặt đất: trong bản đồ giữ màu của game (quy hoạch, tài nguyên, bãi biển) + chi tiết; viền ngoài chuyển dần sang chất liệu cảnh quan
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aD1, aD2;\nattribute float aMix;\nvarying vec4 vD1, vD2;\nvarying float vLsMix;\nvarying vec3 vLsN;')
+        .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvLsN = normalize(mat3(modelMatrix) * objectNormal); vD1 = aD1; vD2 = aD2; vLsMix = aMix;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vD1, vD2;\nvarying float vLsMix;\nvarying vec3 vLsN;')
+        .replace('#include <color_fragment>', `#include <color_fragment>
+vec3 lsB = vec3(0.0); float lsAO = 1.0;
+#ifdef USE_FOG
+{ vec3 nw = normalize(vLsN);
+  if (vLsMix < 0.99) lsB = groundDetail(diffuseColor.rgb, vFogWP, nw, 0.0);
+  if (vLsMix > 0.01) { vec3 lc; float lr; vec3 lb = landColor(lc, lr, vFogWP, nw, vD1, vD2); diffuseColor.rgb = mix(diffuseColor.rgb, lc, vLsMix); lsB = mix(lsB, lb, vLsMix);
+    lsAO = mix(1.0, (1.0 - 0.3 * vD1.w) * clamp(1.12 - (vD1.z - 0.5) * 1.4, 0.65, 1.2), vLsMix); } }
+#endif`)
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + mat3(viewMatrix) * lsB);')
+        .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= lsAO;');
+    } else if (kind !== 'cloud') {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vLsN;').replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvLsN = normalize(mat3(modelMatrix) * objectNormal);');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vLsN;')
+        .replace('#include <color_fragment>', `#include <color_fragment>\n#ifdef USE_FOG\nvec3 lsB = groundDetail(diffuseColor.rgb, vFogWP, normalize(vLsN), ${kind === 'mount' ? '1.0' : '0.0'});\n#else\nvec3 lsB = vec3(0.0);\n#endif`)
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + mat3(viewMatrix) * lsB);');
+    }
+    sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+#ifdef USE_FOG
+{ float cs_ = cloudSh(vFogWP) * bakedSh(vFogWP); reflectedLight.directDiffuse *= cs_; reflectedLight.directSpecular *= cs_; }
+#endif`);
+  };
+  mat.customProgramCacheKey = () => `${prevKey}|ls-${kind}`;
+  return mat;
+}
+/**
+ * Chất liệu mặt đất từng điểm ảnh (đè lên màu đỉnh của địa hình): biến thiên màu nhiều thang để không lặp ô,
+ * mảng cỏ khô ngả vàng, đá lộ ở chỗ dốc (vệt nước chảy dọc + tầng đá ngang), cát ướt sẫm màu sát mép nước,
+ * vân lồi lõm khi nhìn gần. Trả về độ lệch pháp tuyến (hệ thế giới).
+ */
+const GLSL_GROUND = `vec3 groundDetail(inout vec3 col, vec3 P, vec3 Nw, float mount) {
+  float dist = length(P - cameraPosition), slope = 1.0 - Nw.y;
+  float fadeN = 1.0 - smoothstep(50.0, 420.0, dist), fadeM = 1.0 - smoothstep(250.0, 2600.0, dist);
+  float n1 = lsN(P.xz * 0.011), n2 = lsN(P.xz * 0.052 + 5.0), n3 = lsN(P.xz * 0.3 + 9.0), n4 = lsN(P.xz * 1.7);
+  float green = smoothstep(0.0, 0.08, col.g - max(col.r, col.b));
+  col *= 0.88 + 0.2 * n1 * fadeM + 0.12 * (n2 - 0.5) * fadeM + (0.1 * (n3 - 0.5) + 0.06 * (n4 - 0.5)) * fadeN;
+  col = mix(col, col * vec3(1.18, 1.02, 0.7), green * smoothstep(0.58, 0.82, n1) * 0.45);   // mảng cỏ khô
+  col = mix(col, col * vec3(0.78, 0.9, 0.78), green * smoothstep(0.6, 0.85, n2) * 0.35);    // mảng cỏ đậm, bụi cây
+  // đá: vệt dọc do nước chảy + tầng ngang + đốm, ấm ở đồi thấp, xám ở núi cao
+  float rf = lsN3(P * 0.08) * 0.4 + lsN3(P * 0.26) * 0.35 + lsN3(P * 0.8) * 0.25;
+  float streak = lsN3(vec3(P.x * 0.25, P.y * 0.03, P.z * 0.25)) * 0.65 + lsN3(vec3(P.x * 0.8, P.y * 0.08, P.z * 0.8)) * 0.35;
+  float strata = sin(P.y * 0.9 + lsN3(P * 0.03) * 6.0);
+  vec3 rock = mix(vec3(0.10, 0.095, 0.085), vec3(0.27, 0.25, 0.22), rf * 0.55 + streak * 0.45);   // màu tuyến tính
+  rock = mix(rock, vec3(0.24, 0.17, 0.11), smoothstep(0.3, 0.9, strata) * 0.3);
+  rock *= 1.0 - smoothstep(0.55, 0.85, streak) * 0.22;
+  float thr = mix(0.2, 0.15, mount);
+  float rockT = smoothstep(thr - 0.04, thr + 0.07, slope + (n2 - 0.5) * 0.1);
+  col = mix(col, rock, rockT * 0.85);
+  // cát ướt sát mép nước
+  float wl = P.y + 0.9;
+  col *= 1.0 - 0.22 * (1.0 - smoothstep(0.0, 0.55, wl)) * step(-0.3, wl) * (1.0 - mount);
+  vec3 b = vec3(0.0);
+  if (uLsBump > 0.5 && fadeN > 0.0) {
+    vec3 q = P * 0.9;
+    float f0 = lsN3(q), fx = lsN3(q + vec3(0.5, 0.0, 0.0)), fy = lsN3(q + vec3(0.0, 0.5, 0.0)), fz = lsN3(q + vec3(0.0, 0.0, 0.5));
+    vec3 g = vec3(fx - f0, fy - f0, fz - f0) / 0.5;
+    g -= Nw * dot(g, Nw);
+    b = -g * (rockT * 0.9 + 0.12) * fadeN;
+  }
+  return b;
+}`;
+
+/** Sprite mềm (nhiều vệt tròn chồng lên nhau) cho khói, sương. */
+function puffTexture(blobs, seed, soft) {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const g = cv.getContext('2d'), r = mulberry32(seed);
+  for (let i = 0; i < blobs; i++) {
+    const a = r() * 6.283, rr = r() * 0.26 * S, x = S / 2 + Math.cos(a) * rr, y = S / 2 + Math.sin(a) * rr * 0.9, rad = S * (0.13 + r() * 0.15);
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(255,255,255,${soft})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+/** Khói dạng sprite quay mặt về camera: vị trí, cỡ, độ mờ, độ đậm từng hạt do CPU tính (đã xếp xa → gần). */
+function smokeMaterial(tex, U) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, fog: true,
+    uniforms: Object.assign(THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), { uTex: { value: tex }, uLit: U.lit, uShade: U.shade }),
+    vertexShader: `attribute vec4 aP; attribute vec4 aA;
+varying vec2 vUv; varying vec2 vA; varying float vShade;
+#include <fog_pars_vertex>
+void main() {
+  vUv = uv;
+  float rot = aA.z * 6.283;
+  vec2 c = mat2(cos(rot), -sin(rot), sin(rot), cos(rot)) * ((uv - 0.5) * aP.w);
+  vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]), up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  vec3 wp = aP.xyz + right * c.x + up * c.y;
+  vShade = clamp(0.5 + (wp.y - aP.y) / aP.w * 1.1, 0.0, 1.0);
+  vA = aA.xy;
+  vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`,
+    fragmentShader: `uniform sampler2D uTex; uniform vec3 uLit, uShade;
+varying vec2 vUv; varying vec2 vA; varying float vShade;
+#include <common>
+#include <fog_pars_fragment>
+void main() {
+  float a = texture2D(uTex, vUv).a * vA.x;
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(mix(uShade, uLit, vShade) * vA.y, a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  #include <fog_fragment>
+}`,
+  });
+}
+
 /**
  * Mặt nước: sóng gợn chạy theo thời gian, phản chiếu trời theo góc nhìn (Fresnel), ánh nắng lấp lánh,
  * nước nông trong xanh dần sang sâu đậm màu theo cao độ đáy (tH), bọt trắng viền bờ. Vẫn khoét lỗ theo lòng hầm chui.
@@ -406,7 +608,7 @@ void main() {
   vec2 hz = normalize(d.xz + 1e-5), sz = normalize(uSunD.xz + 1e-5);
   float az = dot(hz, sz) * 0.5 + 0.5, low = exp(-max(d.y, 0.0) * 7.0);
   vec3 glowC = mix(uGlow, vec3(0.93, 0.52, 0.62), smoothstep(0.02, 0.3, d.y));
-  col += glowC * uDusk * low * pow(az, 2.2) * 0.95;
+  col += glowC * uDusk * low * pow(az, 2.2) * 0.95 * smoothstep(-0.005, 0.07, d.y); // sát chân trời trùng màu sương (mặt biển xa không cắt thành vạch)
   col += vec3(0.5, 0.4, 0.62) * uDusk * exp(-max(d.y, 0.0) * 5.0) * pow(1.0 - az, 3.0) * 0.22;
   float sd = max(dot(d, uBody), 0.0);
   float disc = smoothstep(0.9990 - uDusk * 0.0006, 0.9995 - uDusk * 0.0004, sd); // mặt trời to hơn khi sát chân trời
@@ -430,7 +632,7 @@ void main() {
   cc = mix(cc, mix(vec3(0.86, 0.5, 0.58), uGlow * 1.25, lit), uDusk * 0.75);
   cc += uBodyCol * uSunUp * pow(sun, 10.0) * 0.6 * (1.0 - cl * 0.5);
   col = mix(col, cc, cl * 0.82);
-  if (d.y < 0.0) col = uHor;
+  col = mix(uHor, col, smoothstep(0.0, 0.05, d.y)); // sát chân trời trùng đúng màu sương: mặt biển, núi xa không cắt thành vạch
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`,
@@ -580,9 +782,12 @@ export class View {
     this.winTex = windowTexture();
     const ut = new THREE.DataTexture(new Uint8Array([60, 0, 0, 255]), 1, 1); ut.needsUpdate = true;
     this.urbanU = { tex: { value: ut }, m: { value: new THREE.Vector2(HALF, N * T) } }; // mật độ đô thị cho shader đèn đêm
-    this.matBuilding = litWindows(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.winTex, emissiveMap: windowLightTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.82, metalness: 0.02 }), this.urbanU);
+    this.matBuilding = landscapeLit(litWindows(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.winTex, emissiveMap: windowLightTexture(), emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.82, metalness: 0.02 }), this.urbanU));
     this.raycaster = new THREE.Raycaster();
     this._static();
+    // mặt đất chung cho bản đồ và cảnh quan quanh bản đồ (cách dựng của landscape.html)
+    this.groundMat = landscapeLit(trenchCut(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.noiseTex || (this.noiseTex = noiseTexture()), roughness: 1 })), 'land');
+    this.scenery = new Scenery(this, { groundMat: this.groundMat, treeMat: this.treeMeshes[0].material, rockMat: this.rockMesh.material, treeGeos: [treeGeometry(0), treeGeometry(3), treeGeometry(4)], rockGeo: rockGeometry(), LS, cloudTex: puffTexture(30, 9, 0.22) });
     this.puffs = [];
     this.time = 0;
     this.overlayMode = 'zones';
@@ -618,8 +823,8 @@ export class View {
 
     // đường: một mesh cho mỗi loại + mesh nút giao
     this.roadMats = {};
-    for (const t of Object.keys(ROADS)) this.roadMats[t] = new THREE.MeshStandardMaterial({ map: roadTexture(t), roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-    this.junctionMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    for (const t of Object.keys(ROADS)) this.roadMats[t] = landscapeLit(new THREE.MeshStandardMaterial({ map: roadTexture(t), roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    this.junctionMat = landscapeLit(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     this.roadGroup = new THREE.Group(); s.add(this.roadGroup);
     this.lampHeadMat = lampLit(new THREE.MeshBasicMaterial({ color: 0xfff1c4 }), this.urbanU, true); // bóng đèn đường
 
@@ -627,9 +832,9 @@ export class View {
     this.growMeshes = {}; // tạo dần khi có toà nhà loại đó: khoá "khu-cấp-biến thể"
 
     this.sunV = { value: new THREE.Vector3(0, 1, 0) }; this.sunCol = { value: new THREE.Color(0xfff1d6) }; // hướng nắng trong hệ camera (cho tán lá xuyên sáng)
-    const treeMat = windSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }), this.uTime, this.sunV, this.sunCol);
+    const treeMat = landscapeLit(windSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 }), this.uTime, this.sunV, this.sunCol));
     this.treeMeshes = TREE_CAP.map((cap, k) => this._inst(k === 2 ? palmGeometry() : treeGeometry(k), treeMat, cap, true));
-    this.rockMesh = this._inst(rockGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), MAX_ROCKS, false);
+    this.rockMesh = this._inst(rockGeometry(), landscapeLit(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })), MAX_ROCKS, false);
     this.treeMeshes[4].castShadow = false; // bụi cây thấp: bóng không đáng kể, bỏ cho nhẹ
     // vệt sáng trên mặt đường: đèn đường (dựng trong _roads) và đèn pha xe (mỗi xe một vệt), chỉ hiện khi trời tối
     this.glowMat = lampLit(new THREE.MeshBasicMaterial({ map: glowTexture(false), color: 0xffd9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), this.urbanU, false);
@@ -688,7 +893,7 @@ export class View {
     this.lifeSit = this._inst(sitGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 1500, false);
     this.lifeStand = this._inst(pedGeometry(), this.lifeSit.material, 2000, false);
     this.lifeShops = []; this.lifeSvc = [];
-    const vehMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 });
+    const vehMat = landscapeLit(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.2 }));
     this.vehMat = vehMat; this.vehMeshes = {}; this.vehCount = {}; this.vehModelLooks = {}; this.vehVariants = {}; this.svcModels = {}; this.nightMats = []; this._white = new THREE.Color(0xffffff);
     this.siteVeh = {}; this.siteCrane = {}; this.siteAnims = []; // xe công trình, cần cẩu tháp (dựng khi cần) // mỗi kiểu xe một InstancedMesh, tạo khi kiểu đó xuất hiện lần đầu
     this.pedMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), MAX_PEDS, true);
@@ -739,9 +944,17 @@ export class View {
     s.add(this.ribbon, this.marker);
 
     // khói ống khói
-    this.smokeMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: 0xe8e8e8, transparent: true, opacity: 0.55, depthWrite: false }), 240);
-    this.smokeMesh.count = 0; this.smokeMesh.frustumCulled = false;
-    s.add(this.smokeMesh);
+    { // sprite mềm quay về camera, nở dần, loãng dần, trôi theo gió (thay cho khối cầu)
+      this.smokeU = { lit: { value: new THREE.Color(0xffffff) }, shade: { value: new THREE.Color(0x9aa0a8) } };
+      const sg = new THREE.InstancedBufferGeometry(), base = new THREE.PlaneGeometry(1, 1);
+      sg.index = base.index; sg.setAttribute('position', base.attributes.position); sg.setAttribute('uv', base.attributes.uv);
+      sg.setAttribute('aP', new THREE.InstancedBufferAttribute(new Float32Array(MAX_PUFF * 4), 4).setUsage(THREE.DynamicDrawUsage));
+      sg.setAttribute('aA', new THREE.InstancedBufferAttribute(new Float32Array(MAX_PUFF * 4), 4).setUsage(THREE.DynamicDrawUsage));
+      sg.instanceCount = 0;
+      this.smokeMesh = new THREE.Mesh(sg, smokeMaterial(puffTexture(16, 5, 0.32), this.smokeU));
+      this.smokeMesh.frustumCulled = false; this.smokeMesh.renderOrder = 2;
+      s.add(this.smokeMesh);
+    }
 
     // thời tiết, thiên tai
     const funnel = new THREE.ConeGeometry(16, 44, 18, 6, true); funnel.translate(0, 22, 0); funnel.rotateX(Math.PI); funnel.translate(0, 44, 0);
@@ -950,11 +1163,32 @@ export class View {
   /** Dựng lại toàn bộ mặt đất (màu theo cao độ, bờ nước) và lớp phủ; gọi khi đổi thành phố hoặc sau một lượt đào đắp. */
   _rebuildTerrain() {
     for (const o of [this.terrain, this.overlay]) if (o) { this.scene.remove(o); o.geometry.dispose(); }
+    if (this.scenery.build(this.city, heightFn(this.city), BORDER)) console.log(`cảnh quan: ${this.scenery.ms.toFixed(0)} ms, ${this.scenery.trees} cây, núi cao ${this.scenery.maxH.toFixed(0)} m`);
     this.terrain = this._terrain(this.city);
     this.overlay = this._overlayMesh(this.city);
     this.scene.add(this.terrain, this.overlay);
     this._depthSync();
-    this._backdrop(); this._farForest();
+    this._riverMist();
+  }
+
+  /** Sương mỏng nằm trên mặt sông, hồ: những mảng mờ phẳng sát mặt nước, dày lúc sáng sớm, tan dần khi nắng lên. */
+  _riverMist() {
+    const c = this.city, R = mulberry32((c.seed | 0) + 4242), CAP = 90;
+    if (!this.mistMesh) {
+      const mat = new THREE.MeshBasicMaterial({ map: puffTexture(10, 13, 0.25), transparent: true, opacity: 0, depthWrite: false, fog: true, color: 0xffffff });
+      this.mistMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat, CAP);
+      this.mistMesh.frustumCulled = false; this.mistMesh.renderOrder = 2; this.scene.add(this.mistMesh);
+    }
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
+    let n = 0;
+    for (let tr = 0; tr < 6000 && n < CAP; tr++) {
+      const x = (R() - 0.5) * N * T, z = (R() - 0.5) * N * T;
+      if (!isWaterAt(c, x, z)) continue;
+      const sz = T * (6 + R() * 8);
+      p.set(x, WATER_Y + 1.5 + R() * 4, z); q.setFromAxisAngle(up, R() * 6.28); sc.set(sz, 1, sz * (0.6 + R() * 0.5));
+      this.mistMesh.setMatrixAt(n++, m4.compose(p, q, sc));
+    }
+    this.mistMesh.count = n; this.mistMesh.instanceMatrix.needsUpdate = true;
   }
 
   /** Cao độ vùng địa hình (gồm viền trang trí) tại toạ độ lưới gx, gy (nội suy từ lưới đã dựng). */
@@ -962,80 +1196,6 @@ export class View {
     const V = N + 2 * BORDER + 1, u = clamp(gx + BORDER, 0, V - 1.001), v = clamp(gy + BORDER, 0, V - 1.001), i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, P = this.terrPos;
     const h = (a, b) => P[(b * V + a) * 3 + 1];
     return (h(i, j) * (1 - fu) + h(i + 1, j) * fu) * (1 - fv) + (h(i, j + 1) * (1 - fu) + h(i + 1, j + 1) * fu) * fv;
-  }
-
-  /**
-   * Dãy núi phông nền quanh bản đồ (tới ~3,2 km): mép trong bám khít mép ngoài vùng đồi viền, xa dần lên núi cao có sống, khe rãnh.
-   * Chỉ mọc ở hướng có đất liền (theo trường địa hình của bản đồ: hướng biển vẫn là biển, sông kéo dài thành khe nước).
-   * Chân núi rừng xanh, lên cao cỏ khô vàng nâu, khe tối hơn; sương mù làm núi xa mờ xanh như không khí thật.
-   */
-  _backdrop() {
-    const c = this.city;
-    if (this.backdrop) { this.scene.remove(this.backdrop); this.backdrop.geometry.dispose(); }
-    const f = makeField(c.seed, MAPS[c.map] ? c.map : 'river'), seed = c.seed, E = HALF + BORDER * T - 2, R1 = 3200, A = 288, RN = 18;
-    const pos = new Float32Array(A * (RN + 1) * 3), col = new Float32Array(A * (RN + 1) * 3), hh = new Float32Array(A * (RN + 1));
-    const rg = (x, y, fq, sd) => { const v = 1 - Math.abs(2 * vnoise(x * fq, y * fq, seed + sd) - 1); return v * v; };
-    const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-    for (let a = 0; a < A; a++) {
-      const th = (a / A) * Math.PI * 2, ca = Math.cos(th), sa = Math.sin(th), s0 = E / Math.max(Math.abs(ca), Math.abs(sa));
-      const hEdge = this._terrH((ca * s0 + HALF) / T, (sa * s0 + HALF) / T);
-      for (let r = 0; r <= RN; r++) {
-        const t = r / RN, rad = s0 + (R1 - s0) * Math.pow(t, 1.35), x = ca * rad, z = sa * rad, gx = (x + HALF) / T, gy = (z + HALF) / T, k = a * (RN + 1) + r;
-        const land = clamp(f(gx, gy) / 9, 0, 1), base = land > 0.05 ? 6 + land * 10 : -8;
-        const ridge = 0.55 * rg(gx, gy, 0.012, 71) + 0.45 * vnoise(gx * 0.014, gy * 0.014, seed + 72); // sống núi mềm: nửa gợn, nửa đồi tròn
-        const peak = Math.pow(land, 1.3) * sm(0.04, 0.45, t) * (1 - 0.35 * sm(0.8, 1, t)) * (50 + 190 * ridge + 55 * rg(gx, gy, 0.035, 73) + 25 * vnoise(gx * 0.08, gy * 0.08, seed + 75));
-        const h = hEdge + (base + peak - hEdge) * sm(0, 0.1, t);
-        pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z; hh[k] = h;
-      }
-    }
-    // màu: rừng ở chân, cỏ khô vàng nâu trên cao, đá ở vách dốc, khe núi tối hơn sống núi
-    const forest = new THREE.Color(0x3b6331), forest2 = new THREE.Color(0x4f7a3a), dryG = new THREE.Color(0xa69472), rockC = new THREE.Color(0x8d8476), cc = new THREE.Color();
-    for (let a = 0; a < A; a++) for (let r = 0; r <= RN; r++) {
-      const k = a * (RN + 1) + r, h = hh[k], kn = (aa, rr) => hh[((aa + A) % A) * (RN + 1) + clamp(rr, 0, RN)];
-      const conc = (kn(a - 1, r) + kn(a + 1, r) + kn(a, r - 1) + kn(a, r + 1)) / 4 - h, slope = Math.abs(kn(a + 1, r) - kn(a - 1, r)) / 70 + Math.abs(kn(a, r + 1) - kn(a, r - 1)) / 260;
-      const x = pos[k * 3], z = pos[k * 3 + 2];
-      cc.copy(forest).lerp(forest2, vnoise(x * 0.004, z * 0.004, seed + 77)).lerp(dryG, sm(110, 230, h + (vnoise(x * 0.006, z * 0.006, seed + 79) - 0.5) * 70)).lerp(rockC, clamp((slope - 0.5) * 0.8, 0, 0.5));
-      const shade = clamp(1 - conc * 0.012, 0.7, 1.1);
-      col[k * 3] = cc.r * shade; col[k * 3 + 1] = cc.g * shade; col[k * 3 + 2] = cc.b * shade;
-    }
-    const idx = [];
-    for (let a = 0; a < A; a++) for (let r = 0; r < RN; r++) { const p = a * (RN + 1) + r, q = ((a + 1) % A) * (RN + 1) + r; idx.push(p, q, p + 1, q, q + 1, p + 1); }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
-    const m = this.backdrop = new THREE.Mesh(g, this.backdropMat || (this.backdropMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide })));
-    m.frustumCulled = false; m.receiveShadow = false;
-    this.scene.add(m);
-  }
-
-  /** Rừng trên vùng đồi viền ngoài bản đồ: cây thấp đa giác (tán tròn và thông), dày theo mảng, không mọc dưới nước, bãi cát, chỗ quá cao. */
-  _farForest() {
-    const c = this.city;
-    if (!this.farTrees) {
-      const leaf = new GB(), pine = new GB();
-      leaf.cyl(0, 0, 0, 0.35, 0.28, 3, 0x5a4330, 5); leaf.cyl(0, 2.4, 0, 2.4, 3.2, 2.2, 0x4f7f38, 7); leaf.cyl(0, 4.6, 0, 3.2, 0.6, 2.6, 0x4a7835, 7, 0x4a7835);
-      pine.cyl(0, 0, 0, 0.3, 0.25, 2, 0x5a4330, 5); pine.cyl(0, 1.6, 0, 2.4, 0.2, 7.5, 0x335f33, 7);
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
-      this.farTrees = [leaf, pine].map((b) => { const m = new THREE.InstancedMesh(b.build(), mat, 6000); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; this.scene.add(m); return m; });
-    }
-    const seed = c.seed, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color(), n = [0, 0];
-    for (let gy = -BORDER; gy < N + BORDER; gy++) for (let gx = -BORDER; gx < N + BORDER; gx++) {
-      if (gx >= -1 && gy >= -1 && gx <= N && gy <= N) continue; // trong bản đồ: cây của thành phố
-      const dens = vnoise(gx * 0.07, gy * 0.07, seed + 91);
-      if (dens < 0.38) continue;
-      const cnt = dens > 0.62 ? 3 : dens > 0.5 ? 2 : 1;
-      for (let k = 0; k < cnt; k++) {
-        const ux = gx + hash2(gx * 3 + k, gy, seed + 92), uy = gy + hash2(gx, gy * 3 + k, seed + 93), h = this._terrH(ux, uy);
-        const slope = Math.abs(this._terrH(ux + 0.5, uy) - this._terrH(ux - 0.5, uy)) + Math.abs(this._terrH(ux, uy + 0.5) - this._terrH(ux, uy - 0.5));
-        if (h < 1.2 || h > 95 || slope > 9) continue;
-        const pine = h > 35 ? hash2(gx, gy, k + 94) < 0.75 : hash2(gx, gy, k + 94) < 0.2, kind = pine ? 1 : 0, mesh = this.farTrees[kind];
-        if (n[kind] >= 6000) continue;
-        const s = 0.8 + hash2(k, gx, gy) * 0.7;
-        p.set(ux * T - HALF, h - 0.3, uy * T - HALF); q.setFromAxisAngle(up, hash2(gy, gx, k) * 6.28); sc.set(s, s * (0.85 + hash2(gx + k, gy, 95) * 0.4), s);
-        mesh.setMatrixAt(n[kind], m4.compose(p, q, sc));
-        mesh.setColorAt(n[kind]++, col.setHSL(0.24 + hash2(gx, k, gy) * 0.1, 0.25, 0.7 + hash2(k, gy, gx) * 0.3));
-      }
-    }
-    this.farTrees.forEach((m, k) => { m.count = n[k]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   }
 
   /** Đang đào đắp dở: chỉ chép cao độ mới vào lưới có sẵn (màu đất tính lại sau khi nhả chuột). */
@@ -1062,6 +1222,7 @@ export class View {
     const hf = heightFn(city), { f, isWater } = hf, seed = city.seed;
     const W = N + 2 * BORDER, V = W + 1;
     const pos = new Float32Array(V * V * 3), col = new Float32Array(V * V * 3), uv = new Float32Array(V * V * 2);
+    const a1 = new Uint8Array(V * V * 4), a2 = new Uint8Array(V * V * 4), mixA = new Float32Array(V * V);
     const soil = new THREE.Color(0x9a7b55);
     const beachSand = new THREE.Color(0xeedfae), grass = new THREE.Color(0x5a8a3f), grass2 = new THREE.Color(0x6a9645), meadow = new THREE.Color(0x9a9d62), lushDark = new THREE.Color(0x44703a), sand = new THREE.Color(0xd9ca94), bed = new THREE.Color(0x4b7466), rock = new THREE.Color(0x8b8a78), forest = new THREE.Color(0x3f7a3a), dry = new THREE.Color(0x86a650), highland = new THREE.Color(0x7c7f55), c = new THREE.Color(), tint = new THREE.Color();
     for (let j = 0; j < V; j++) for (let i = 0; i < V; i++) {
@@ -1078,14 +1239,14 @@ export class View {
         if (mt > 0) c.lerp(forest, Math.min(0.75, mt / 16)).lerp(highland, clamp((h - 22) / 18, 0, 0.55)); // núi: sườn rừng xanh, lên cao cỏ tranh xám nâu (Việt Nam không có núi tuyết); đá chỉ lộ ở vách dốc (lượt hai)
         if (inside) { const tv = city.terra[gy * (N + 1) + gx]; if (tv) c.lerp(soil, clamp(0.18 + Math.abs(tv) * 0.012, 0, 0.5)); } // đất mới đào đắp lộ màu đất
         if (out > 0) {
-          const s = Math.min(1, out / BORDER), e = s * s * (3 - 2 * s), land = Math.min(1, Math.max(0, f(gx, gy) / 9));
-          const rg = (fq, sd) => { const v = 1 - Math.abs(2 * vnoise(gx * fq, gy * fq, seed + sd) - 1); return v * v; }; // sống núi, khe rãnh: đồi quanh bản đồ không còn tròn trơn
-          const m = e * land * (vnoise(gx * 0.05, gy * 0.05, seed + 31) * 70 + rg(0.08, 35) * 26 + rg(0.19, 37) * 10 + vnoise(gx * 0.17, gy * 0.17, seed + 33) * 8);
-          h += m;
-          c.lerp(forest, Math.min(1, m / 18)).lerp(rock, Math.min(1, Math.max(0, (m - 34) / 30)));
+          c.lerp(forest, 0.3 * Math.min(1, out / BORDER)); // viền: chuyển dần sang chất liệu cảnh quan (shader)
         } else if (isWater(gx - 2, gy) || isWater(gx + 1, gy) || isWater(gx, gy - 2) || isWater(gx, gy + 1) || isWater(gx - 2, gy - 1) || isWater(gx - 1, gy - 2) || isWater(gx + 1, gy - 1) || isWater(gx - 1, gy + 1)) c.lerp(sand, 0.45);
       }
       if (inside && city.beach && [[gx - 1, gy - 1], [gx, gy - 1], [gx - 1, gy], [gx, gy]].some(([a, b]) => a >= 0 && b >= 0 && a < N && b < N && city.beach[b * N + a])) c.copy(beachSand).lerp(sand, wn > 0 ? 0.6 : 0.12 * vnoise(gx * 0.7, gy * 0.7, seed + 91)); // bãi biển tô theo ô: cát sáng, mép nước cát ướt
+      if (!inside) h = this.scenery.heightCell(gx, gy); // viền: cùng độ cao với lưới cảnh quan bên ngoài (liền mạch, có xói mòn)
+      { const out = Math.max(0, -gx, gx - N, -gy, gy - N), sk = (gy + this.scenery.K) * this.scenery.V + gx + this.scenery.K, A1 = this.scenery.A1, A2 = this.scenery.A2;
+        mixA[k] = out > 0 ? sstep(0, BORDER * 0.6, out) : 0;
+        if (out > 0 && A1) for (let q = 0; q < 4; q++) { a1[k * 4 + q] = A1[sk * 4 + q]; a2[k * 4 + q] = A2[sk * 4 + q]; } else a1[k * 4 + 2] = 128; }
       pos[k * 3] = gx * T - HALF; pos[k * 3 + 1] = h; pos[k * 3 + 2] = gy * T - HALF;
       col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
       uv[k * 2] = gx * 0.5; uv[k * 2 + 1] = gy * 0.5;
@@ -1112,8 +1273,9 @@ export class View {
     this.terrPos = pos;
     const g = this._gridGeometry(W, pos, uv);
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('aD1', new THREE.BufferAttribute(a1, 4, true)); g.setAttribute('aD2', new THREE.BufferAttribute(a2, 4, true)); g.setAttribute('aMix', new THREE.BufferAttribute(mixA, 1));
     g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, trenchCut(new THREE.MeshStandardMaterial({ vertexColors: true, map: this.noiseTex || (this.noiseTex = noiseTexture()), roughness: 1 })));
+    const mesh = new THREE.Mesh(g, this.groundMat);
     mesh.receiveShadow = true;
     return mesh;
   }
@@ -1223,6 +1385,7 @@ export class View {
     this.sun.target.position.set(c.x, c.y, c.z);
     this.sun.position.copy(this.sun.target.position).addScaledVector(this.sunDir, 700);
     if (sc.right !== size) { sc.left = -size; sc.right = size; sc.top = size; sc.bottom = -size; sc.near = 50; sc.far = 1500; sc.updateProjectionMatrix(); }
+    LS.uShadowC.value.set(c.x, c.y, c.z, size);
   }
 
   /** mode: 'zones' | 'value' | 'pollution' | 'service' | 'power' | 'water'; strong: đang cầm công cụ quy hoạch */
@@ -4087,22 +4250,26 @@ export class View {
   }
 
   _smoke(dt) {
-    const c = this.city, ch = [...(this.chimneys || [])];
-    for (const i of this.fireCells || []) if (c.fire[i]) ch.push({ x: cellCenter(i % N), y: c.cellH[i] + 7, z: cellCenter((i / N) | 0) });
+    const c = this.city, ch = [...(this.chimneys || [])].map((p) => ({ x: p.x, y: p.y, z: p.z, fire: 0 }));
+    for (const i of this.fireCells || []) if (c.fire[i]) ch.push({ x: cellCenter(i % N), y: c.cellH[i] + 7, z: cellCenter((i / N) | 0), fire: 1 });
     this._smokeAcc = (this._smokeAcc || 0) + dt;
-    if (this._smokeAcc > 0.35 && ch.length) {
+    if (this._smokeAcc > 0.22 && ch.length) {
       this._smokeAcc = 0;
-      for (const pt of ch) if (this.puffs.length < 240) this.puffs.push({ x: pt.x, y: pt.y, z: pt.z, age: 0, life: 5 + Math.random() * 2 });
+      for (const pt of ch) if (this.puffs.length < MAX_PUFF) this.puffs.push({ x: pt.x + (Math.random() - 0.5) * 0.8, y: pt.y, z: pt.z + (Math.random() - 0.5) * 0.8, age: 0, life: 9 + Math.random() * 4, fire: pt.fire, r: Math.random(), w: Math.random() });
     }
-    const m = new THREE.Matrix4();
-    let n = 0;
     this.puffs = this.puffs.filter((pf) => (pf.age += dt) < pf.life);
+    const cam = this.camera.position, g = this.smokeMesh.geometry, P = g.attributes.aP.array, A = g.attributes.aA.array, list = [];
     for (const pf of this.puffs) {
-      const a = pf.age, sc = 1.6 + a * 1.5;
-      m.makeScale(sc, sc, sc).setPosition(pf.x + a * 2.6, pf.y + a * 4.5, pf.z + a * 0.8);
-      this.smokeMesh.setMatrixAt(n++, m);
+      const a = pf.age, t = a / pf.life, drift = a * (0.3 + 0.7 * Math.min(1, a / 3));
+      const x = pf.x + drift * 2.6 + Math.sin(a * 0.5 + pf.r * 20) * a * 0.25, z = pf.z + drift * 0.8 + Math.cos(a * 0.4 + pf.w * 20) * a * 0.25;
+      const y = pf.y + 6 * (1 - Math.exp(-a / 2.2)) * 2.2 + a * 0.7;
+      const size = (pf.fire ? 5 : 3) + (pf.fire ? 30 : 22) * Math.pow(t, 0.7) * (0.8 + 0.4 * pf.w);
+      const alpha = (pf.fire ? 0.62 : 0.42) * sstep(0, 0.06, t) * Math.pow(1 - t, 1.5);
+      list.push([(x - cam.x) ** 2 + (y - cam.y) ** 2 + (z - cam.z) ** 2, x, y, z, size, alpha, pf.fire ? 0.42 : 1, pf.r + a * 0.01]);
     }
-    this.smokeMesh.count = n; this.smokeMesh.instanceMatrix.needsUpdate = true;
+    list.sort((p, q) => q[0] - p[0]);
+    list.forEach((p, k) => { P[k * 4] = p[1]; P[k * 4 + 1] = p[2]; P[k * 4 + 2] = p[3]; P[k * 4 + 3] = p[4]; A[k * 4] = p[5]; A[k * 4 + 1] = p[6]; A[k * 4 + 2] = p[7]; });
+    g.instanceCount = list.length; g.attributes.aP.needsUpdate = true; g.attributes.aA.needsUpdate = true;
   }
 
   /** Giờ trong ngày (0..24) dùng để dựng ánh sáng: theo đồng hồ game, hoặc cố định buổi sáng khi tắt chu kỳ ngày đêm. */
@@ -4152,9 +4319,20 @@ export class View {
     this.scene.fog.color.copy(su.uHor.value); this.scene.background.copy(su.uHor.value);
     { // bụi mịn: trời mù, sương khói ngả xám nâu, nhìn không xa
       const aqi = this.city && this.city.street ? this.city.street.aqi : 0, k = clamp((aqi - 90) / 220, 0, 0.65);
-      this.scene.fog.near = 650 - k * 550; this.scene.fog.far = 3600 - k * 2900; // không khí xa gần: núi phông nền mờ dần ra chân trời
+      // không khí xa gần: núi phông nền mờ dần ra chân trời; sương nằm sát mặt sông, đáy thung lũng dày buổi sớm (phần lẻ của near)
+      const hr = this.timeOfDay(), mist = clamp(0.1 + 0.85 * sstep(9.5, 6, hr) * sstep(4, 5.5, hr) + 0.35 * sstep(16.5, 19, hr) * sstep(23, 20, hr) + (wet ? 0.3 : 0), 0, 0.95);
+      this.mistK = mist;
+      this.scene.fog.near = Math.floor(420 - k * 360) + mist * 0.999; this.scene.fog.far = 3900 - k * 3100;
       if (k > 0) { this._haze = this._haze || new THREE.Color(0x9c9284); this.scene.fog.color.lerp(this._haze, k); this.scene.background.lerp(this._haze, k * 0.8); }
     }
+    // bóng mây trôi trên mặt đất, nhà, cây (theo lượng mây của thời tiết; trời mưa âm u thì bóng nhoè, gần như không còn)
+    LS.uCsTime.value = this.time; LS.uCsSun.value.copy(this.sunDir); LS.uCsCov.value = su.uCloud.value;
+    LS.uCsAmt.value += ((sunUp ? 0.42 * day * (wet || storm ? 0.25 : 1) : 0) - LS.uCsAmt.value) * k;
+    this.smokeU.lit.value.copy(this.sun.color).multiplyScalar(this.sun.intensity * 0.2).add(A.tmp.copy(this.hemi.color).multiplyScalar(this.hemi.intensity * 0.75));
+    if (this.mistMesh) { const mm = this.mistMesh.material; mm.opacity = clamp((this.mistK || 0) - 0.12, 0, 1) * 0.6 * (0.35 + 0.65 * day); mm.color.copy(su.uHor.value).lerp(A.tmp.set(0xffffff), 0.5); this.mistMesh.visible = mm.opacity > 0.01; this.mistMesh.position.set(Math.sin(this.time * 0.015) * 25, 0, Math.cos(this.time * 0.011) * 18); }
+    { const cu = this.scenery.cloudU, lum = sunUp ? 1 : 0.25; cu.lit.value.copy(this.sun.color).multiplyScalar(this.sun.intensity * 0.3).add(A.tmp.copy(this.hemi.color).multiplyScalar(this.hemi.intensity * 0.85)).multiplyScalar(wet || storm ? 0.6 : 1);
+      cu.shade.value.copy(this.hemi.color).multiplyScalar(this.hemi.intensity * (wet || storm ? 0.45 : 0.7) * lum + 0.02); }
+    this.smokeU.shade.value.copy(this.hemi.color).multiplyScalar(this.hemi.intensity * 0.55);
     wu.uSun.value.copy(this.sunDir); wu.uSunCol.value.copy(this.sun.color).multiplyScalar(this.sun.intensity / 3.1);
     wu.uSkyTop.value.copy(su.uTop.value); wu.uSkyHor.value.copy(su.uHor.value);
     wu.uLight.value = (0.32 + 0.68 * day) * (wet ? 0.8 : 1);
@@ -4240,6 +4418,7 @@ export class View {
     }
     this._camera(dt);
     this._sky(dt);
+    this.scenery.update(this.camera, this.time, { sunDir: this.sunDir, cloud: this.skyU.uCloud.value, shadowR: LS.uShadowC.value.w * 1.3, trees: 1 });
     this.renderer.render(this.scene, this.camera);
   }
 }
