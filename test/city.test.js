@@ -2345,6 +2345,46 @@ test('city: Việt Nam hoá Phase 4 — nắng nóng, kênh rạch hôi, nhà tr
   const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
 });
 
+test('cân bằng: dân trả tiền điện nước, cửa hàng mở cuối tuần, giá điện theo bậc, sức mua theo của cải; sổ tiền khớp', async () => {
+  const P = await import('../city/js/people.js');
+  const c = town(); run(c, 24 * 6); LG.resetLedger(c);
+  // giá điện mỗi đơn vị: nhà máy lớn rẻ hơn, nhiệt điện rẻ hơn điện sạch
+  const per = (k) => S.SERVICES[k].upkeep / S.SERVICES[k].power;
+  assert.ok(per('wind') > per('solar') && per('solar') > per('coal') && per('coal') > per('nuclear'), 'điện theo bậc');
+  // hoá đơn điện nước: một nửa chi phí điện + nước + rác, tính theo phần dùng của nhà
+  const rate = P.utilRate(c), s0 = c.stats;
+  assert.ok(Math.abs(rate * s0.powerUse - P.UTIL.share * (s0.exp.power + s0.exp.water + s0.exp.trash)) < 1, 'giá theo chi phí thật');
+  const home = [...c.level.keys()].find((i) => c.level[i] && c.resCount[i] > 0);
+  assert.ok(P.homeBill(c, home, rate) > 0);
+  run(c, 24 * 2);
+  assert.ok(c.stats.inc.e > 0, 'ngân sách có dòng thu tiền điện nước');
+  assert.ok((LG.ledgerSummary(c, 'last').inner.find((r) => r.key === 'util') || {}).v > 0, 'sổ ghi tiền điện nước dân trả');
+  // sức mua theo của cải: nhiều tiền tiết kiệm thì tiêu nhiều hơn, có trần
+  assert.ok(P.wealthK(200 * S.MK) > P.wealthK(20 * S.MK) && P.wealthK(1e9) === P.WEALTH.max);
+  // cửa hàng có người bán vào cuối tuần
+  while (c.day % 7 !== 5 || c.hour % 24 !== 11) S.tick(c);
+  let staff = 0; for (let i = 0; i < S.N * S.N; i++) if (c.level[i] && S.ZDEF[c.zone[i]].biz === 'shop') staff += c.present[i];
+  assert.ok(staff > 0, 'thứ bảy cửa hàng vẫn mở');
+  const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
+});
+
+test('tập đoàn: mỗi bản đồ một bộ công ty (tên, CEO theo mã bản đồ); ngưỡng làm ăn ế theo hiệu suất chung', () => {
+  const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });
+  try {
+    const firsts = [];
+    for (const seed of [11, 9001, 424242]) {
+      const c = town(); c.seed = seed; run(c, 24 * 6);
+      const q = c.corp.list[0];
+      assert.ok(q, 'có công ty');
+      firsts.push(`${q.name}/${q.ceo}`);
+    }
+    assert.ok(new Set(firsts).size >= 2, `công ty đầu tiên khác nhau giữa các bản đồ: ${firsts.join(', ')}`);
+    const c = town(); c.pstats.eff = 0.3;
+    assert.ok(Math.abs(S.lowEff(c) - 0.225) < 1e-9, 'ế = dưới 75% hiệu suất chung');
+    c.pstats.eff = 0.9; assert.equal(S.lowEff(c), 0.35, 'tối đa 0,35');
+  } finally { Object.assign(S.CORP, keep); }
+});
+
 test('city: tập đoàn Phase 1 — lập công ty từ nhà máy có sẵn, mở rộng, xin dự án, cam kết, lưu, sổ tiền vẫn khớp', () => {
   const c = town(); run(c, 120); LG.resetLedger(c);
   const keep = { ...S.CORP }; Object.assign(S.CORP, { foundMin: 0, foundEvery: 1 });

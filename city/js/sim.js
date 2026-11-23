@@ -53,7 +53,7 @@ export { DILEMMAS, DEALS, clampOffer, defaultOption, MAX_TURNS, decide, signDeal
 export { DIST_UNLOCK, PROGRAMS, PKEYS, PERSONAS, MODES, KPIS, MAX_LV, maxDistricts, canSplit, splitDistricts, moveSeat, dissolve, districtOf, progCost, planCost, clampPlan, efficiency, setProgram, setMode, setCap, replaceChair, districtStats, distSummary, autoPlan, orderFallback, applyOrder, applyPlan, chairPick, distFx, distCost, rebuildDmap, BUILDS, BUILD_MODES, buildUpkeep, setBuildMode, setBuildCap, buildSpent, buildCands, buildPick, approveBuild, setTruckBan, districtBrief, askFallback, askTopics, noteAsk, noteExport } from './districts.js';
 export { CLIMATES, climateOf } from './base.js';
 export { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, canAfford, pickHome } from './tiers.js';
-export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend, fitsZone, landFeeOf, askBounds, corpCounter, corpCounterFallback, askBrief, ASK_TURNS, brkWant, brkOf, taxOf, investorFound, actorOf, actorPay, actorCells } from './corp.js';
+export { CORP, CEOS, STAGES, maxCorps, corpTitle, corpById, corpLog, cellsBuilt, jobsOf, effOf, corpSector, stageOf, influence, corpStats, corpAct, approveAsk, rejectAsk, counterAsk, corpCash, rootOf, subsOf, corpOptions, corpDo, corpBrief, corpResolve, corpNote, corpHour, marketShare, jobShare, monopolyOf, protectSme, inviteRival, hubScan, signals, signalOf, OPTS, TERMS, TERM_KEYS, termLine, termsFor, payDividend, fitsZone, landFeeOf, askBounds, corpCounter, corpCounterFallback, askBrief, ASK_TURNS, brkWant, brkOf, taxOf, investorFound, actorOf, actorPay, actorCells, lowEff } from './corp.js';
 export { CHAIN, chron, chronById, causeChain, effectsOf, placeName, bizName, whoAt, areaStats, workerHousing, housingShort, freeIndustrial, landK, economyMix, mixLine, identityName, haltCell, dumpCell, fundCells } from './chain.js';
 export { isIntlAirport, isAirport, flyHappy } from './intl.js';
 export { VISA, PROMO, intlOutlook, simTime, FLY_H, SAIL_H, DOCK_H } from './intl.js';
@@ -2260,13 +2260,13 @@ export function recalc(c) {
   exp.district = distCost(c); // chương trình các quận (đã tính theo ngày) // quảng bá du lịch quốc tế, trợ giá đường bay (đã tính theo ngày)
   for (const ln of c.loans) exp.loans += ln.daily;
   const jobs = jc + ji + jo, pop = ps.pop, workers = ps.workers, employed = ps.employed, unemployed = workers - employed, vacJobs = Math.max(0, jobs - employed);
-  const inc = { r: 0, c: 0, i: 0, t: 0, u: 0 };
-  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; inc.u += slot.u || 0; }
+  const inc = { r: 0, c: 0, i: 0, t: 0, u: 0, e: 0 };
+  for (const slot of c.econ.ring) { inc.r += slot.r; inc.c += slot.c; inc.i += slot.i; inc.t += slot.t || 0; inc.u += slot.u || 0; inc.e += slot.e || 0; }
   for (const k in inc) inc[k] = Math.round(inc[k]);
   Object.assign(s, {
     pop, jobs, jobsBy: { c: jc, i: ji, o: jo }, housing, workers, employed, unemployed, vacJobs, companies, happy: ps.happy,
     powerCap: pCap, powerUse: Math.round(use * heatUse(c).power), waterCap: wCap, waterUse: Math.round(use * heatUse(c).water), sewCap: sCap, trashCap: tCap, trashUse: Math.round(use * 2.2), roadLen,
-    inc, income: inc.r + inc.c + inc.i + inc.t + inc.u, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
+    inc, income: inc.r + inc.c + inc.i + inc.t + inc.u + inc.e, expense: Object.values(exp).reduce((a, b) => a + b, 0), exp,
   });
   // nhu cầu: dân tới khi có việc và nhà trống ít; việc làm mở thêm khi có người làm và người mua
   const tm = (t) => (9 - t) * 0.05;
@@ -2280,7 +2280,8 @@ export function recalc(c) {
   c.pull = clamp(early + clamp((vacJobs - unemployed) / Math.max(40, workers * 0.3), -1, 0.6) + (ps.happy - 45) / 80 - (ps.burdenShare || 0) * 0.3 + tm(c.tax.r) + bonus.pull, -1, 1); // tiền nhà quá nặng với nhiều hộ: bớt người muốn đến
   c.demand.x = clamp(0.7 + tm(c.tax.i) * 2 - short * 2, -1, 1); // khu chuyên biệt bán ra ngoài được nên chỉ cần có người làm
   c.demand.r = clamp(c.pull - spare, -1, 1);
-  c.demand.c = clamp((needC - jc) / Math.max(30, needC) + tm(c.tax.c) - short, -1, 1);
+  const gap = pop > 150 ? clamp((0.8 - (c.econ.shopFill ?? 1)) * 1.2, 0, 0.5) : 0; // dân có tiền mà không mua được (kệ trống, ít cửa hàng): cần thêm cửa hàng
+  c.demand.c = clamp((needC - jc) / Math.max(30, needC) + tm(c.tax.c) - short + gap, -1, 1);
   c.demand.i = clamp((needI - ji) / Math.max(30, needI) + tm(c.tax.i) - short, -1, 1);
   c.demand.o = zoneUnlocked(c, 6) ? clamp((needO - jo) / Math.max(30, needO) + tm(c.tax.c) - short, -1, 1) : 0;
   { const kB = c.league && c.league.alloc && +c.league.alloc.invest > 0 ? +c.league.alloc.invest : 1; // nhóm cạnh tranh: đầu tư máy chủ chia theo môi trường kinh doanh
@@ -2447,7 +2448,7 @@ function hourTick(c) {
   // sổ thu chi: thuế thu ngay trong giờ, phí bảo trì chia đều 24 giờ
   const fares = c.transit.income - c.fareSeen; c.fareSeen = c.transit.income;
   smoothWeek(c, h);
-  c.econ.ring[h] ={ r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms };
+  c.econ.ring[h] = { r: c.hourInc.r, c: c.hourInc.c, i: c.hourInc.i, t: fares, u: rooms, e: c.hourUtil || 0 }; c.hourUtil = 0; // e: hoá đơn điện nước dân trả (đã vào ngân sách lúc thu)
   recalc(c);
   c.taxBreakK = taxBreak(c); // nhà đầu tư được miễn một phần thuế thương mại, công nghiệp (áp lúc doanh nghiệp bị trừ thuế, people.js)
   cityTake(c, 'tax', c.hourInc.r + c.hourInc.c + c.hourInc.i); c.hourInc.r = c.hourInc.c = c.hourInc.i = 0; // thuế: phần đã trừ thật của dân, doanh nghiệp; thuế phát sinh sau đây (thầu bảo trì) sang giờ sau mới thu

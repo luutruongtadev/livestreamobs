@@ -58,6 +58,9 @@ Game xây thành phố 3D chơi một mình trên trình duyệt. Không nối T
 9. **Học vấn**: tiểu học, trung học, đại học có số chỗ và bán kính. Cửa hàng lớn, nhà máy cấp cao và nhất là văn phòng cần lao động có trình độ.
 10. **Môi trường**: bốn lớp ô nhiễm riêng (không khí, đất, nước, tiếng ồn). Ô nhiễm làm dân ốm và giảm giá đất; cây xanh và công viên lọc bớt bụi và tiếng ồn.
 11. **Tiền**: thuế riêng cho dân cư / thương mại / công nghiệp thu theo lương và doanh thu thật (thuế ngày thường giữ lại 2/7 chia đều cho cuối tuần, thứ bảy chủ nhật không hụt thu), tiền vé, phí bảo trì mỗi ngày, vay tối đa 3 khoản. Nợ quá 30.000 ₫ hoặc âm tiền 4 ngày liền thì phá sản.
+   - **Tiền điện nước:** mỗi hộ trả một nửa chi phí vận hành điện, nước, rác theo lượng nhà mình dùng (nắng nóng dùng nhiều hơn); tiền về ngân sách, hiện ở dòng "tiền điện nước dân trả".
+   - **Giá điện theo bậc** (mỗi đơn vị mỗi ngày): gió 6 ₫, mặt trời 4,6 ₫, nhiệt điện 3,5 ₫ (rẻ nhưng khói), thuỷ điện 3,3 ₫, hạt nhân 3 ₫.
+   - **Vòng tiền khép kín:** cửa hàng, chợ, quán ăn, giải trí mở cả cuối tuần; dân càng có tiền tiết kiệm càng mua sắm, ăn uống nhiều hơn; cửa hàng đặt lô hàng theo cỡ cửa hàng; dân có tiền mà không mua được (kệ trống, ít cửa hàng) thì nhu cầu khu thương mại tăng.
 12. **Địa hình và tài nguyên**: ngoài sông, hồ, biển và đồi thoải, bản đồ mới có dãy núi ở xa điểm xuất phát (ô quá dốc chỉ làm đường được). Mỗi vùng có tài nguyên riêng: đất màu mỡ ven nước, rừng, khoáng sản trên núi, dầu, vùng nước có cá. Lớp xem 🗺️ *tài nguyên* chỉ ra chỗ nào có gì.
 13. **Khu chuyên biệt** (nhóm ⛏️): nông trại, lâm trường, mỏ, giếng dầu, bến cá. Mỗi khu chỉ mọc trên ô có đúng loại tài nguyên, bán nguyên liệu cho nhà máy cùng ngành trong thành phố, thừa thì xuất khẩu. Mỏ và giếng dầu gây ô nhiễm; nông trại, bến cá gần như không.
 13b. **Lễ hội và mùa mưa bão** (bấm vào ô ngày giờ trên cùng để mở bảng 🎎):

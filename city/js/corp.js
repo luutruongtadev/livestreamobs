@@ -59,6 +59,8 @@ export function termsFor(c, q) {
 }
 
 const cur = (c) => (c.corp ? c.corp : null);
+/** Muối theo bản đồ: mỗi thành phố một bộ công ty, tên và CEO khác nhau (trước đây chỉ theo số thứ tự công ty nên bản đồ nào cũng giống nhau). */
+const salt = (c) => ((c.seed >>> 0) % 9973) + 1;
 const vnd = (v) => `${Math.round(v).toLocaleString('vi-VN')} ₫`;
 export const corpById = (c, id) => (c.corp ? c.corp.list.find((q) => q.id === id) : undefined);
 const built = (c, i) => c.level[i] > 0;
@@ -236,6 +238,11 @@ const buildZone = (q) => (q.kind === 'trade' ? 2 : 3);
 const powerOk = (c) => !c.stats || !c.stats.powerCap || c.stats.powerUse < c.stats.powerCap * 0.97;
 /** Số ô tối đa theo bậc. */
 const capCells = (q) => 4 + q.stage * 4;
+/**
+ * Ngưỡng "làm ăn ế": so với hiệu suất chung của doanh nghiệp trong thành phố (ca làm lệch nhau nên hiệu suất bình thường chỉ quanh 0,4).
+ * Trước đây cố định 0,35 nên gần một nửa số công ty bị coi là khủng hoảng và chỉ thu hẹp. Tối đa 0,35, tối thiểu 0,15.
+ */
+export const lowEff = (c) => clamp(0.75 * (c.pstats && c.pstats.eff > 0 ? c.pstats.eff : 0.47), 0.15, 0.35);
 
 /**
  * Cổng duy nhất: act = { type: 'build', cells: [i…], approved?: bool } | { type: 'release', cell } | { type: 'ask', sites }.
@@ -599,14 +606,14 @@ function subsidiaryPlan(c, q) {
 /** Các hành động CEO đang có thể làm (đã kiểm tra điều kiện), kèm lựa chọn mặc định của luật. */
 export function corpOptions(c, q) {
   const ceo = CEOS[q.ceo], ids = [], mine = cellsBuilt(c, q).length, eff = effOf(c, q), tEff = taxOf(c, q) * (1 - brkOf(c, q));
-  if (q.cash < CORP.reserve * MK * 0.5 && eff < 0.35) { // khủng hoảng: vay, thu hẹp, bán / đóng cơ sở yếu, hoặc chịu
+  if (q.cash < CORP.reserve * MK * 0.5 && eff < lowEff(c)) { // khủng hoảng: vay, thu hẹp, bán / đóng cơ sở yếu, hoặc chịu
     if (loanPlan(c, q)) ids.push('loan');
     if (shrinkSite(c, q) >= 0) ids.push('downsize');
     if (mine > 1) ids.push('release', 'close');
     const def = ids.includes('loan') && ceo.risk >= 0.3 ? 'loan' : ids.includes('downsize') ? 'downsize' : ids.includes('release') ? 'release' : ids.includes('loan') ? 'loan' : 'hold';
     return ids.length ? { ids: [...ids, 'hold'], def } : { ids: [], def: 'hold' };
   }
-  if (eff < 0.35) { // chạy ế kéo dài (≥ 5 ngày): thu hẹp hoặc đóng bớt, không thì chờ
+  if (eff < lowEff(c)) { // chạy ế kéo dài (≥ 5 ngày): thu hẹp hoặc đóng bớt, không thì chờ
     if ((q.low || 0) < 5) return { ids: [], def: 'hold' };
     if (shrinkSite(c, q) >= 0) ids.push('downsize');
     if (mine > 2) ids.push('close');
@@ -778,9 +785,9 @@ function found(c, opt = {}) {
   for (let i = 0; i < N * N; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'ind' && c.biz.money[i] * (0.5 + signalOf(c, prodOf(c, i))) > bm && (!opt.avoid || prodOf(c, i) !== opt.avoid)) { bm = c.biz.money[i] * (0.5 + signalOf(c, prodOf(c, i))); seed = i; } // ưu tiên ngành đang được giá
   if (seed < 0) return null;
   C.foundAt = c.day;
-  const id = C.nextId, ceo = CEO_KEYS[(hash2(id, 5, 17) * CEO_KEYS.length) | 0];
+  const id = C.nextId, ceo = CEO_KEYS[(hash2(id, salt(c), 17) * CEO_KEYS.length) | 0];
   const taken = new Set(C.list.map((q) => q.name));
-  let base = BASES[(hash2(id, 9, 3) * BASES.length) | 0];
+  let base = BASES[(hash2(id, salt(c) + 9, 3) * BASES.length) | 0];
   for (let k = 0; taken.has(base) && k < BASES.length; k++) base = BASES[(BASES.indexOf(base) + 1) % BASES.length];
   const q = makeCorp(c, base, ceo, productAt(seed, c.zone[seed] === 21 ? 21 : 3), 0, 0);
   claim(c, q, seed);
@@ -835,7 +842,9 @@ export function payDividend(c, q, gross) {
 }
 /** Chia lãi dư: công ty con chuyển lên công ty mẹ (nội bộ nhóm), công ty gốc chia cổ tức (payDividend). */
 function payout(c, q) {
-  const ceo = CEOS[q.ceo], chest = (CORP.cellFee * 3 + CORP.reserve) * MK, over = q.cash - chest;
+  // giữ lại đủ vốn cho dự án kế tiếp (CEO càng liều càng giữ nhiều để lớn nhanh); trước đây chỉ giữ 3 ô nên quỹ không bao giờ đủ xin dự án 4–5 ô
+  const ceo = CEOS[q.ceo], n = Math.min(5, 2 + q.stage), grow = q.cells.length < capCells(q) ? projNeed(termsFor(c, q), n, c) * (1 + ceo.risk * 0.5) : 0;
+  const chest = Math.max((CORP.cellFee * 3 + CORP.reserve) * MK, grow), over = q.cash - chest;
   if (!(over > 0) || q.debt > 0) return;
   const d = over * ceo.payout * 0.5;
   if (!(d > 1)) return;
@@ -872,7 +881,7 @@ function daily(c) {
     q.sector = corpSector(c, q) || q.sector;
     evalDeals(c, q);
     if (q.inv) investorBuild(c, q);
-    if (q.cells.length) { q.low = effOf(c, q) < 0.35 ? (q.low || 0) + 1 : 0; taxReact(c, q); debtDay(c, q); markupCheck(c, q); exportCheck(c, q); payCheck(c, q); watch(c, q); ceoDecide(c, q); payout(c, q); }
+    if (q.cells.length) { q.low = effOf(c, q) < lowEff(c) ? (q.low || 0) + 1 : 0; taxReact(c, q); debtDay(c, q); markupCheck(c, q); exportCheck(c, q); payCheck(c, q); watch(c, q); ceoDecide(c, q); payout(c, q); }
     if (c.day % 14 === 0) corpLog(c, q, 'season', { jobs: jobsOf(c, q), cells: cellsBuilt(c, q).length, intern: Math.round(q.intern), xunits: Math.round(q.xunits) });
     if (q.goal && jobsOf(c, q) >= q.goal.jobs) { corpLog(c, q, 'goal', { jobs: q.goal.jobs }); q.goal = { jobs: Math.round(q.goal.jobs * 1.8) }; }
   }
@@ -959,7 +968,7 @@ function acquirePlan(c, q) {
     if (r.id === q.id || r.id === root || r.parent || r.partners || (r.kind || 'ind') !== (q.kind || 'ind')) continue; // chỉ mua lại đối thủ cùng loại
     if (subsOf(c, q).length + 1 + subsOf(c, r).length > CORP.maxSubs + 1) continue; // nhóm không quá 3 công ty con (+ 1 công ty con thương mại)
     const bl = cellsBuilt(c, r);
-    if (!bl.length || !(r.cash < CORP.reserve * MK * 0.5 || effOf(c, r) < 0.35)) continue;
+    if (!bl.length || !(r.cash < CORP.reserve * MK * 0.5 || effOf(c, r) < lowEff(c))) continue;
     const price = Math.round(bl.reduce((s, i) => s + valueOf(c, i), 0) * 0.5);
     if (q.cash < price + CORP.reserve * MK || monopolizes(c, root, bl)) continue;
     if (!best || price < best.price) best = { corp: r.id, price, cells: bl.length };
@@ -992,6 +1001,7 @@ function jvPlan(c, q) {
   let best = null;
   for (const r of c.corp.list) {
     if (r.id === q.id || r.parent || r.partners || (r.kind || 'ind') !== (q.kind || 'ind') || !cellsBuilt(c, r).length || r.cash < need / 2 + CORP.reserve * MK) continue; // chỉ liên doanh cùng loại (sản xuất với sản xuất, thương mại với thương mại)
+    if (c.corp.list.some((j) => j.partners && j.partners.includes(q.id) && j.partners.includes(r.id))) continue; // mỗi cặp chỉ một liên doanh: muốn lớn thì liên doanh đó tự mở rộng
     if (!(hash2(r.id, c.day, 71) < 0.45 + (1 - CEOS[r.ceo].risk) * 0.25 + r.trust * 0.04)) continue; // đối tác đồng ý hay không
     if (!best || r.cash > best.cash) best = r;
   }
@@ -1037,7 +1047,7 @@ function payCheck(c, q) {
 /** Theo dõi rủi ro của nhóm: khủng hoảng, độc quyền, phụ thuộc (ghi nhật ký một lần khi bắt đầu). */
 function watch(c, q) {
   const root = rootOf(c, q.id);
-  if (q.cash < CORP.reserve * MK * 0.5 && effOf(c, q) < 0.35 && c.day - (q.crisisAt ?? -99) >= 10) {
+  if (q.cash < CORP.reserve * MK * 0.5 && effOf(c, q) < lowEff(c) && c.day - (q.crisisAt ?? -99) >= 10) {
     q.crisisAt = c.day; corpLog(c, q, 'crisis', { cash: Math.round(q.cash), eff: Math.round(effOf(c, q) * 100) });
     news(c, `📉 ${corpTitle(q)} lâm vào khủng hoảng: hết tiền, nhà máy chạy ế`);
   }
@@ -1196,8 +1206,8 @@ function foundTrade(c) {
   for (let i = 0; i < N * N && near3.length < 4; i++) if (c.level[i] && !c.owner[i] && ZDEF[c.zone[i]].biz === 'shop' && Math.hypot((i % N) - sx, ((i / N) | 0) - sy) <= 6) near3.push(i);
   if (near3.length < 3) return null; // cần ít nhất 3 cửa hàng gần nhau
   C.foundTradeAt = c.day;
-  const id = C.nextId, ceo = CEO_KEYS[(hash2(id, 7, 29) * CEO_KEYS.length) | 0], taken = new Set(C.list.map((q) => q.name));
-  let base = BASES[(hash2(id, 11, 5) * BASES.length) | 0];
+  const id = C.nextId, ceo = CEO_KEYS[(hash2(id, salt(c) + 7, 29) * CEO_KEYS.length) | 0], taken = new Set(C.list.map((q) => q.name));
+  let base = BASES[(hash2(id, salt(c) + 11, 5) * BASES.length) | 0];
   for (let k = 0; (taken.has(base) || taken.has(`${base} Thương mại`)) && k < BASES.length; k++) base = BASES[(BASES.indexOf(base) + 1) % BASES.length];
   const q = makeCorp(c, `${base} Thương mại`, ceo, null, 0, 0, 'trade');
   for (const i of near3) claim(c, q, i);

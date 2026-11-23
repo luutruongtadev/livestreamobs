@@ -2,7 +2,7 @@
 // Người: tuổi, học vấn, nhà, chỗ làm, tiền, hạnh phúc, sức khoẻ; vòng đời sinh → học → làm → nghỉ hưu → mất;
 // lịch hằng ngày sinh ra chuyến đi thật trên đường. Doanh nghiệp: tiền, kho, lương, lãi lỗ, phá sản;
 // hàng đi theo chuỗi nguyên liệu → nhà máy → cửa hàng bằng xe tải, thiếu thì nhập, thừa thì xuất.
-import { MK, N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, PRODUCTS, PRODUCT_KINDS, SHOP_KINDS, productAt, recipeAt, importMultOf, priceOf, factoryNeed, svcVal, resCap, jobCap, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
+import { MK, N, ZDEF, SERVICES, PRICE, RAW, RAW_KINDS, PRODUCTS, PRODUCT_KINDS, SHOP_KINDS, productAt, recipeAt, importMultOf, priceOf, factoryNeed, svcVal, resCap, jobCap, utilUse, reqEdu, garbageLimit, cellX, cellZ, clamp, nearestOnEdge, hash2 } from './base.js';
 import { festMul } from './seasons.js';
 import { TIERS, TIER_CFG, tierByWage, tierByEdu, homeTier, dayIncome, burden, pickHome } from './tiers.js';
 import { chooseVehicle, countTrip, inCenter, aqiSick } from './street.js';
@@ -143,6 +143,35 @@ const isLeisure = (c, i) => c.level[i] > 0 && ZDEF[c.zone[i]].biz === 'leisure';
 const whoOf = (c, i) => ZDEF[c.zone[i]].who;
 /** Người id có được ở nhà dành cho nhóm `who` không. */
 const fits = (pp, id, who) => (who === 'senior' ? pp.age[id] >= 65 : who === 'student' ? pp.age[id] >= 18 && pp.age[id] < 25 && pp.edu[id] >= 2 && pp.work[id] < 0 : true);
+/** Nơi làm việc mở cả thứ bảy, chủ nhật (bán hàng, chợ, ăn uống, giải trí): cuối tuần là lúc dân đi mua sắm nhiều nhất. */
+const servesWeekend = (c, i) => { const k = ZDEF[c.zone[i]] && ZDEF[c.zone[i]].biz; return k === 'shop' || k === 'market' || k === 'leisure'; };
+
+/**
+ * Sức mua theo của cải: dân có nhiều tiền tiết kiệm thì mua nhiều hơn, chi nhiều hơn cho ăn uống, giải trí (khép vòng tiền: lương → tiêu dùng →
+ * doanh thu → lương). avgPurse: tiền tiết kiệm bình quân mỗi người. 1 ở mức WEALTH.ref; mua hàng tăng chậm (căn bậc hai), dịch vụ tăng nhanh hơn.
+ */
+export const WEALTH = { ref: 60, min: 0.5, max: 2.5, fun: 0.45 };
+
+/**
+ * Hoá đơn điện, nước, rác của hộ dân: mỗi ngày hộ trả UTIL.share chi phí vận hành thật (điện + nước + rác của ngân sách) theo phần dùng của nhà mình.
+ * Tiền về ngân sách (khép vòng: lương → hoá đơn → ngân sách → thầu bảo trì cho doanh nghiệp → lương). Trước đây dân không trả hoá đơn nào ngoài tiền nhà.
+ */
+export const UTIL = { share: 0.5 };
+/** Giá một đơn vị điện nước mỗi ngày theo chi phí hiện tại của thành phố. */
+export function utilRate(c) {
+  const s = c.stats, e = s.exp || {}, use = s.powerUse || 0;
+  return use > 0 ? (UTIL.share * ((e.power || 0) + (e.water || 0) + (e.trash || 0))) / use : 0;
+}
+/** Hoá đơn một ngày của cả nhà ở ô i (chỉ phần nhà ở; phần cửa hàng, văn phòng trong nhà hỗn hợp không tính). */
+export function homeBill(c, i, rate = utilRate(c)) {
+  const z = c.zone[i], L = c.level[i], res = resCap(z, L);
+  if (!res) return 0;
+  const jobs = jobCap(z, L) * (z === 3 ? 1.6 : 1.2);
+  return rate * utilUse(z, L) * (res / (res + jobs)) * heatK(c);
+}
+const heatK = (c) => (c.inc && c.inc.weather === 'heat' ? 1.3 : 1); // nắng nóng: bật điều hoà, hoá đơn tăng
+export const wealthK = (avgPurse) => clamp(avgPurse / (WEALTH.ref * MK), WEALTH.min, WEALTH.max);
+
 /** Loại doanh nghiệp ở ô i: 'raw' khu chuyên biệt khai thác nguyên liệu, 'factory', 'shop', 'leisure', 'office' hoặc null. */
 export function bizKind(c, i) {
   if (!c.level[i]) return null;
@@ -480,7 +509,7 @@ export function peopleHour(c) {
     }
     if (st === ST.HOME) {
       const w = pp.work[id];
-      if (w >= 0 && !weekend && h === 4 + (id % 7) && pp.home[id] >= 0) go(c, id, w, 'work');
+      if (w >= 0 && (!weekend || servesWeekend(c, w)) && h === 4 + (id % 7) && pp.home[id] >= 0) go(c, id, w, 'work'); // cửa hàng, chợ, quán ăn mở cả cuối tuần
       else if (age >= 14 && (shops.length || leisure.length) && pp.home[id] >= 0 && !pp.sick[id] && rng() < (weekend || w < 0 ? (h >= 8 && h <= 18 ? 0.06 : h >= 18 && h <= 22 && leisure.length ? 0.03 : 0) : h >= 18 && h <= 21 ? 0.04 : 0)) {
         const fun = leisure.length && (!shops.length || rng() < (h >= 17 ? 0.6 : 0.3)), pool = fun ? leisure : shops; // tối thì đi ăn, đi chơi nhiều hơn
         let best = pool[(rng() * pool.length) | 0];
@@ -595,7 +624,8 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   const totK = presAll ? Math.pow(presRp / presAll, -RETAIL.total) : 1; // mặt bằng giá cao: cả thành phố mua ít đi
   const shareOf = (i) => (shopW ? (c.present[i] * Math.pow(b.rp[i] || 1, -RETAIL.swap)) / shopW : 0) * totK;
   b.nh++;
-  const demand = c.pp.count * DEMAND_PER_HEAD * (open ? 1.5 : 0.2) * (1 + c.bonus.comm);
+  const wk = wealthK(Number.isFinite(budget) ? budget / (0.01 * Math.max(1, c.pp.count)) : WEALTH.ref * MK); // budget = 1% tiền tiết kiệm của dân
+  const demand = c.pp.count * DEMAND_PER_HEAD * (open ? 1.5 : 0.2) * (1 + c.bonus.comm) * Math.sqrt(wk);
   let budgetLeft = budget; // tiền dân sẵn sàng chi cho nhu cầu gộp trong giờ
   const needs = {}, supply = {}, needShop = [], broke = [];
   for (const k of [...RAW_KINDS, ...PRODUCT_KINDS]) { needs[k] = []; supply[k] = []; } // nhu cầu: [ô, khe nguyên liệu]
@@ -626,7 +656,7 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
       b.sin[i] -= sold; b.rs[i] += sold; b.sh[i] += b.sin[i];
       if (sold > 0) { saleIncome(c, i, sold * unitV, 'c'); bought += sold * unitV; budgetLeft -= sold * unitV; }
       if (pres && b.sin[i] <= 0.01) active = false;
-      if (b.sin[i] < 6 && !b.incoming[i]) needShop.push(i);
+      if (b.sin[i] < Math.max(6, cap * 0.3 * 4) && !b.incoming[i]) needShop.push(i); // còn dưới chừng 4 giờ bán thì đặt hàng
     } else if (kind === 'market') { // chợ: bán thẳng nông sản, cá; sạp nhỏ nên bán chậm hơn cửa hàng một chút
       const rp = b.rp[i] || 1, pm = PRICE.market * rp;
       const sold = Math.max(0, Math.min(b.sin[i], demand * shareOf(i), pres * 0.26 * prod, budgetLeft / pm));
@@ -635,7 +665,11 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
       if (pres && b.sin[i] <= 0.01) active = false;
       if (b.sin[i] < 6 && !b.incoming[i]) needs[needOf(c, i)].push([i, 0]);
     } else if (kind === 'leisure') {
-      if (pres && open) saleIncome(c, i, pres * 0.35 * MK * (1 + c.bonus.comm), 'c', 'visitor'); // khách vãng lai ngoài số dân tự đi chơi
+      if (pres && open) {
+        saleIncome(c, i, pres * 0.35 * MK * (1 + c.bonus.comm), 'c', 'visitor'); // khách vãng lai ngoài số dân tự đi chơi
+        const fun = Math.min(budgetLeft, pres * WEALTH.fun * MK * wk); // dân trong thành phố đi ăn uống, giải trí: trả bằng tiền tiết kiệm, không cần hàng
+        if (fun > 0) { saleIncome(c, i, fun, 'c'); bought += fun; budgetLeft -= fun; }
+      }
     } else if (kind === 'office' && pres) saleIncome(c, i, pres * (0.5 * MK + wageAt(c, i)) * (ZDEF[c.zone[i]].inc || 1) * (c.zone[i] === 18 && c.cover.sci[i] > 0.05 ? 1.3 : 1), 'c', 'office');
     if (h >= 9 && h <= 17 && c.day % 7 < 5) b.eff[i] += ((active ? Math.min(1, pres / Math.max(1, cap * 0.5)) : 0) - b.eff[i]) * 0.06; // ca làm lệch giờ nhau nên có mặt một nửa đã là đủ người
     effSum += b.eff[i];
@@ -652,11 +686,13 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
   const og = (i) => (c.corpGroup && c.owner ? c.corpGroup[c.owner[i]] | 0 : 0); // nhóm công ty của ô: hàng trong nhóm ưu tiên giao cho nhau
   const deliver = (list, kinds, importKind) => {
     for (const [to, slot] of list.slice(0, 24)) {
-      const qty = bizKind(c, to) === 'factory' ? clamp(Math.round(factoryUse(c, to) * 8), PRICE.load, PRICE.loadF) : PRICE.load; // nhà máy: xe to, đủ chạy chừng 8 giờ
+      const bk0 = bizKind(c, to), qty = bk0 === 'factory' ? clamp(Math.round(factoryUse(c, to) * 8), PRICE.load, PRICE.loadF) : bk0 === 'shop' ? clamp(Math.round(jobCap(c.zone[to], c.level[to]) * 0.3 * 10), PRICE.load, PRICE.loadF) : PRICE.load; // nhà máy: xe to, đủ chạy chừng 8 giờ; cửa hàng: đủ bán chừng 10 giờ
       let best = -1, bk = null, bd = Infinity;
-      for (const k of kinds) for (const s of supply[k]) { if (b.sout[s] < qty) continue; const d = dist(s, to) * (og(s) && og(s) === og(to) ? (c.corpStore && c.corpStore[c.owner[s]] ? 0.42 : 0.55) : 1); if (d < bd) { bd = d; best = s; bk = k; } }
+      const need = Math.min(qty, PRICE.load); // nhà cung cấp có từ một xe thường trở lên thì giao được (lô cửa hàng lớn hơn: giao phần đang có)
+      for (const k of kinds) for (const s of supply[k]) { if (b.sout[s] < need) continue; const d = dist(s, to) * (og(s) && og(s) === og(to) ? (c.corpStore && c.corpStore[c.owner[s]] ? 0.42 : 0.55) : 1); if (d < bd) { bd = d; best = s; bk = k; } }
       if (best >= 0) {
-        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= qty; b.incoming[to] = 1; trucks++; if (c.supLink) c.supLink[to] = best; if (og(best) && og(best) === og(to)) c.fn.corpNote(c, 'intern', best, qty); continue; } // supLink: ai cấp hàng cho ai (đứt cung ứng, chain.js)
+        const lot = Math.min(qty, b.sout[best]);
+        if (trip(c, 'truck', best, to, { t: 'cargo', to, from: best, kind: bk, qty: lot, slot }, trucks < MAX_TRUCKS)) { b.sout[best] -= lot; b.incoming[to] = 1; trucks++; if (c.supLink) c.supLink[to] = best; if (og(best) && og(best) === og(to)) c.fn.corpNote(c, 'intern', best, lot); continue; } // supLink: ai cấp hàng cho ai (đứt cung ứng, chain.js)
       }
       const out = nearestOutside(c, to);
       if (out && trip(c, 'truck', out, to, { t: 'cargo', to, kind: importKind(), qty, imp: true, slot }, trucks < MAX_TRUCKS)) { b.incoming[to] = 1; trucks++; }
@@ -672,6 +708,10 @@ function bizHour(c, companies, shops, h, budget = Infinity) {
     if (b.sout[s] < Math.max(lot, c.corpExp && c.corpExp[c.owner[s]] ? 16 : 30)) continue; // công ty đẩy xuất khẩu: xuất sớm hơn
     const out = nearestOutside(c, s);
     if (out && trip(c, 'truck', s, out, { t: 'export', from: s, kind, qty: lot }, trucks < MAX_TRUCKS)) { b.sout[s] -= lot; trucks++; if (c.owner && c.owner[s]) c.fn.corpNote(c, 'export', s, lot); }
+  }
+  if (open && Number.isFinite(budget) && c.pp.count > 0) { // sức mua chưa được đáp ứng (kệ trống, thiếu cửa hàng): đẩy nhu cầu khu thương mại
+    const want = Math.min(budget, demand * PRICE.retail * (c.retailIdx || 1));
+    if (want > 1) c.econ.shopFill = (c.econ.shopFill ?? 1) + (clamp(bought / want, 0, 1) - (c.econ.shopFill ?? 1)) * 0.05;
   }
   for (const i of broke) {
     c.econ.bankrupt++; c.econ.day.bankrupt++;
@@ -747,7 +787,8 @@ function peopleDay(c) {
   let hs = 0, cs = 0, cn = 0;
   const pumpDirty = c.dirtyWater ? 0.03 : 0;
   const tierN = [0, 0, 0], tierHp = [0, 0, 0], homeCap = [0, 0, 0], homeFree = [0, 0, 0];
-  let burdenN = 0, homedAdults = 0;
+  let burdenN = 0, homedAdults = 0, utilPaid = 0;
+  const rate = utilRate(c);
   for (let i = 0; i < N * N; i++) { // nhà ở theo mức giá: tổng chỗ và chỗ trống (không tính nhà dưỡng lão, ký túc xá)
     if (!c.level[i]) continue;
     const rc = resCap(c.zone[i], c.level[i]);
@@ -780,6 +821,7 @@ function peopleDay(c) {
     // tiền nhà, hài lòng, bỏ đi
     const adult = age >= 18 && age < 65;
     if (pp.home[id] >= 0 && age >= 18) { const rent = rentAt(c, pp.home[id]) * (whoOf(c, pp.home[id]) === 'student' ? 0.4 : 1); pp.money[id] -= rent; c.biz.money[pp.home[id]] += rent; inner(c, 'rent', rent); } // tiền nhà về chủ nhà (ví của toà nhà)
+    if (pp.home[id] >= 0 && age >= 18 && pp.money[id] > 0) { const hm2 = pp.home[id], bill = Math.min(pp.money[id], homeBill(c, hm2, rate) / Math.max(1, c.resCount[hm2])); if (bill > 0) { pp.money[id] -= bill; cityTake(c, 'util', bill); utilPaid += bill; } } // hoá đơn điện nước rác chia đều người trong nhà
     { const m0 = pp.money[id]; pp.money[id] = clamp(m0, -200 * MK, 3000 * MK); world(c, 'clamp', pp.money[id] - m0); }
     // gánh nặng tiền nhà: quá sức thì tìm nhà rẻ hơn, người khá giả ở nhà rẻ thì dọn lên nhà tốt hơn (nhường nhà rẻ)
     let bd = 0;
@@ -812,6 +854,7 @@ function peopleDay(c) {
     if (age >= 18) { const t = tierOf(c, id); tierN[t]++; tierHp[t] += hpy; if (pp.home[id] >= 0 && !whoOf(c, pp.home[id])) { homedAdults++; if (bd > TIER_CFG.strain) burdenN++; } }
     if (pp.work[id] >= 0 && pp.commute[id]) { cs += pp.commute[id]; cn++; }
   }
+  c.hourUtil = (c.hourUtil || 0) + utilPaid; ps.utilRate = rate; // tiền điện nước dân trả hôm nay (sổ thu ngân sách, sim.js)
   Object.assign(ps, { tier: tierN, tierHappy: tierN.map((n, k) => (n ? tierHp[k] / n : 0)), burdenN, burdenShare: homedAdults ? burdenN / homedAdults : 0, homeTier: { cap: homeCap, free: homeFree } });
   Object.assign(ps, count, { pop: pp.count, edu, unemployed: count.workers - count.employed, happy: pp.count ? hs / pp.count : 55, commute: cn ? cs / cn : 0 });
   crimeDay(c);

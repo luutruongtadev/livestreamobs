@@ -1401,7 +1401,7 @@ function updateHud(force) {
   for (const b of $('speed').children) b.classList.toggle('on', +b.dataset.s === speed);
   // ngân sách
   $('taxRv').textContent = `${c.tax.r}% · +${fmt(s.inc.r)}`; $('taxCv').textContent = `${c.tax.c}% · +${fmt(s.inc.c)}`; $('taxIv').textContent = `${c.tax.i}% · +${fmt(s.inc.i)}`;
-  $('bInc').textContent = `+${fmt(s.income)}`; $('bFare').textContent = `+${fmt(s.inc.t)}`; $('bRoom').textContent = `+${fmt(s.inc.u || 0)}`;
+  $('bInc').textContent = `+${fmt(s.income)}`; $('bFare').textContent = `+${fmt(s.inc.t)}`; $('bRoom').textContent = `+${fmt(s.inc.u || 0)}`; $('bUtil').textContent = `+${fmt(s.inc.e || 0)}`;
   $('bExp').textContent = `−${fmt(s.expense)}`;
   $('bNet').textContent = `${net >= 0 ? '+' : ''}${fmt(net)} ₫`; $('bNet').className = net >= 0 ? 'pos' : 'neg';
   const meter = (bar, txt, use, cap) => { $(txt).textContent = `${fmt(use)} / ${fmt(cap)}`; $(bar).style.width = `${cap ? Math.min(100, (use / cap) * 100) : use ? 100 : 0}%`; $(bar).classList.toggle('over', use >= cap && use > 0); };
