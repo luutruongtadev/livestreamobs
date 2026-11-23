@@ -1,0 +1,1512 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phố Mới — Cảnh quan 3D</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#a9bccd;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  canvas{display:block;touch-action:none}
+  #ui{position:fixed;top:12px;left:12px;width:262px;max-width:calc(100vw - 48px);background:rgba(18,26,34,.74);color:#e9eef2;border-radius:10px;padding:12px 14px;font-size:13px;backdrop-filter:blur(6px);box-shadow:0 4px 18px rgba(0,0,0,.25);user-select:none}
+  #ui h1{font-size:15px;margin:0 0 8px;font-weight:650;letter-spacing:.2px}
+  #ui .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
+  #ui input[type=range]{width:100%;accent-color:#f0b35a}
+  #ui button{width:100%;padding:8px;border:0;border-radius:7px;background:#f0b35a;color:#1c1a16;font-weight:650;cursor:pointer;font-size:13px}
+  #ui button:hover{background:#f5c47a}
+  #ui label{cursor:pointer}
+  #ui .chk{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin:8px 0}
+  #ui select{background:#24303b;color:#e9eef2;border:1px solid #3b4955;border-radius:5px;padding:2px 4px}
+  #ui .mut{color:#9fb0bd;font-size:12px}
+  #ui details{margin-top:6px}
+  #ui summary{cursor:pointer;color:#cfd9e0}
+  #stats{font-variant-numeric:tabular-nums}
+  #load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(160,182,200,.55);backdrop-filter:blur(3px);transition:opacity .4s}
+  #load.hide{opacity:0;pointer-events:none}
+  #load .box{background:rgba(18,26,34,.85);color:#e9eef2;padding:18px 22px;border-radius:10px;width:280px;font-size:14px}
+  #load .bar{height:6px;background:#33414d;border-radius:3px;margin-top:10px;overflow:hidden}
+  #load .bar i{display:block;height:100%;width:0;background:#f0b35a;transition:width .15s}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Cảnh quan — Phố Mới</h1>
+  <div class="row"><span>Giờ trong ngày</span><b id="hourV">16:30</b></div>
+  <input type="range" id="hour" min="5.5" max="19" step="0.05" value="16.5">
+  <div class="row" style="margin-top:10px"><button id="regen">Tạo địa hình mới</button></div>
+  <div class="row mut"><span>Mã địa hình: <b id="seedV"></b></span><span id="genT"></span></div>
+  <div class="chk">
+    <label><input type="checkbox" id="cClouds" checked> Mây</label>
+    <label><input type="checkbox" id="cSmoke" checked> Khói</label>
+    <label><input type="checkbox" id="cMist" checked> Sương</label>
+    <label><input type="checkbox" id="cBorder"> Ranh giới 4 km</label>
+  </div>
+  <div class="row"><span>Chất lượng</span>
+    <select id="qual"><option value="0">Thấp</option><option value="1" selected>Vừa</option><option value="2">Cao</option></select></div>
+  <div id="stats" class="mut"></div>
+  <details><summary>Điều khiển</summary>
+    <div class="mut" style="line-height:1.5;margin-top:4px">Chuột trái kéo: di chuyển<br>Chuột phải / giữa kéo: xoay, nghiêng<br>Lăn chuột: zoom về chỗ con trỏ<br>WASD / mũi tên: đi · Q E: xoay · R F: zoom<br>Cảm ứng: 1 ngón kéo, 2 ngón zoom/xoay</div>
+  </details>
+</div>
+<div id="load"><div class="box"><div id="loadT">Đang tạo địa hình…</div><div class="bar"><i id="loadB"></i></div></div></div>
+
+<script type="module">
+let THREE;
+try { THREE = await import('./vendor/three.module.min.js'); }
+catch (e) { THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js'); }
+
+// ───────────────────────── hằng số thế giới
+// Địa hình chi tiết 6×6 km (bản đồ chơi 4×4 km ở giữa), vòng núi xa tới 16 km.
+const WORLD = 6000, HALF = 3000, MAPH = 2000;
+const GN = 768, GV = GN + 1, CELL = WORLD / GN;       // ô 7,8 m
+const CH = 128, NCH = GN / CH;                        // 6×6 mảnh, mỗi mảnh 1 km
+const LOD_STEPS = [1, 2, 4, 8];
+const FAR = 32000, FN = 256, FSTEP = FAR / FN;        // vòng xa: ô 125 m
+const BAKE = 256;                                     // bóng núi nướng sẵn
+
+// ───────────────────────── tiện ích
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+function sstep(e0, e1, x) { let t = (x - e0) / (e1 - e0); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+const srgb = (r, g, b) => [r ** 2.2, g ** 2.2, b ** 2.2];
+
+// Nhiễu simplex 2D có seed
+function makeSimplex(seed) {
+  const r = mulberry32(seed), p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) { const j = (r() * (i + 1)) | 0; const t = p[i]; p[i] = p[j]; p[j] = t; }
+  const perm = new Uint8Array(512), pm = new Uint8Array(512);
+  for (let i = 0; i < 512; i++) { perm[i] = p[i & 255]; pm[i] = perm[i] % 12; }
+  const gx = new Int8Array([1, -1, 1, -1, 1, -1, 1, -1, 0, 0, 0, 0]), gy = new Int8Array([1, 1, -1, -1, 0, 0, 0, 0, 1, -1, 1, -1]);
+  const F2 = 0.5 * (Math.sqrt(3) - 1), G2 = (3 - Math.sqrt(3)) / 6;
+  return function (xin, yin) {
+    const s = (xin + yin) * F2, i = Math.floor(xin + s), j = Math.floor(yin + s);
+    const t = (i + j) * G2, x0 = xin - (i - t), y0 = yin - (j - t);
+    const i1 = x0 > y0 ? 1 : 0, j1 = 1 - i1;
+    const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2, x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+    const ii = i & 255, jj = j & 255;
+    let n = 0, t0 = 0.5 - x0 * x0 - y0 * y0;
+    if (t0 > 0) { const g = pm[ii + perm[jj]]; t0 *= t0; n += t0 * t0 * (gx[g] * x0 + gy[g] * y0); }
+    let t1 = 0.5 - x1 * x1 - y1 * y1;
+    if (t1 > 0) { const g = pm[ii + i1 + perm[jj + j1]]; t1 *= t1; n += t1 * t1 * (gx[g] * x1 + gy[g] * y1); }
+    let t2 = 0.5 - x2 * x2 - y2 * y2;
+    if (t2 > 0) { const g = pm[ii + 1 + perm[jj + 1]]; t2 *= t2; n += t2 * t2 * (gx[g] * x2 + gy[g] * y2); }
+    return 70 * n;
+  };
+}
+function fbm(N, x, y, oct, lac = 2.03, gain = 0.5) {
+  let s = 0, a = 1, f = 1, norm = 0;
+  for (let i = 0; i < oct; i++) { s += a * N(x * f + i * 17.3, y * f - i * 9.1); norm += a; a *= gain; f *= lac; }
+  return s / norm;
+}
+// Ridged multifractal (Musgrave): sống núi sắc, các lớp nhỏ bám theo sống lớn
+function ridged(N, x, y, oct) {
+  let sum = 0, f = 1, a = 1, w = 1, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    let n = 1 - Math.abs(N(x * f + i * 31.7, y * f - i * 12.9));
+    n *= n; n *= w;
+    w = clamp(n * 1.9, 0, 1);
+    sum += n * a; norm += a;
+    a *= 0.52; f *= 2.07;
+  }
+  return sum / norm;
+}
+
+// ───────────────────────── hàm độ cao giải tích (chưa xói mòn)
+function createWorld(seed) {
+  const N1 = makeSimplex(seed), N2 = makeSimplex(seed + 101), N3 = makeSimplex(seed + 202);
+  const R = mulberry32(seed * 9301 + 49297);
+  const rv = (a, b) => a + (b - a) * R();
+  const ph = [rv(0, 6.283), rv(0, 6.283)];
+  const rz0 = rv(-40, 160), ra1 = rv(150, 230), ra2 = rv(60, 110);
+  const riverZ0 = (x) => rz0 + ra1 * Math.sin(x * 0.00105 + ph[0]) + ra2 * Math.sin(x * 0.0024 + ph[1]) + 40 * N3(x * 0.0035, 4.7);
+  // bảng tra đường sông (mỗi 10 m) để tính khoảng cách thật tới sông
+  const RX0 = -18000, RDX = 10, RN = 3601, RT = new Float32Array(RN);
+  for (let i = 0; i < RN; i++) RT[i] = riverZ0(RX0 + i * RDX);
+  const riverZ = (x) => { const f = clamp((x - RX0) / RDX, 0, RN - 1.001), i = f | 0; return RT[i] + (RT[i + 1] - RT[i]) * (f - i); };
+  const riverDist = (x, z) => {
+    let best = Math.abs(z - riverZ(x));
+    if (best > 1 && best < 1900) for (let k = 1; k * 25 <= best; k++) {
+      const a = Math.abs(z - riverZ(x + k * 25)), b = Math.abs(z - riverZ(x - k * 25)), dx2 = (k * 25) ** 2;
+      const d = Math.sqrt(Math.min(a, b) ** 2 + dx2); if (d < best) best = d;
+    }
+    return best;
+  };
+  const isl = [{ x: rv(-1500, -500), len: rv(150, 230), w: rv(32, 50) }, { x: rv(300, 1500), len: rv(120, 200), w: rv(28, 45) }];
+  const riverW = (x) => { let w = 60 + 20 * N3(x * 0.0016, 1.9); for (const s of isl) { const g = (x - s.x) / (s.len * 1.5); w += (s.w * 2.2 + 25) * Math.exp(-g * g); } return w; };
+  const side = R() < 0.5 ? -1 : 1;                    // hồ một bên, nhánh núi bên kia
+  const lake = { x: side * rv(800, 1450), z: rv(-900, -650), r: rv(210, 270) };
+  lake.z = Math.min(lake.z, riverZ(lake.x) - lake.r - 430);
+  const spur = -side;
+  // đồi thấp gần thành phố (tiền cảnh)
+  const hills = [];
+  for (let k = 0; k < 40 && hills.length < 3; k++) {
+    const h = { x: rv(-1900, 1900), z: rv(550, 1700), r: rv(230, 380), h: rv(45, 85) };
+    const dr = Math.abs(h.z - riverZ(h.x));
+    if (dr < h.r + 420) continue;
+    if (hills.some((o) => Math.hypot(o.x - h.x, o.z - h.z) < o.r + h.r + 250)) continue;
+    hills.push(h);
+  }
+  const quarry = hills.length ? { hill: hills[0], ang: rv(0, 6.283) } : null;
+  if (quarry) { const hl = quarry.hill; quarry.x = hl.x + Math.cos(quarry.ang) * hl.r * 0.45; quarry.z = hl.z + Math.sin(quarry.ang) * hl.r * 0.45; quarry.a = 150; quarry.b = 95; }
+  // nhà máy (để có khói)
+  const fac = [];
+  for (let k = 0; k < 60 && fac.length < 2; k++) {
+    const f = { x: rv(-1800, 1800), z: rv(650, 1550), r: 120, rot: rv(0, 6.283), tower: fac.length === 1 };
+    if (Math.abs(f.z - riverZ(f.x)) < 330) continue;
+    if (hills.some((o) => Math.hypot(o.x - f.x, o.z - f.z) < o.r + 230)) continue;
+    if (fac.some((o) => Math.hypot(o.x - f.x, o.z - f.z) < 900)) continue;
+    fac.push(f);
+  }
+
+  function H(x, z, noPads) {
+    // làm cong không gian để sống núi và đồi không thẳng hàng
+    const qx = x + 400 * fbm(N2, x * 0.00032 + 5.2, z * 0.00032 + 1.3, 3);
+    const qz = z + 400 * fbm(N2, x * 0.00032 - 3.7, z * 0.00032 + 8.1, 3);
+    // đồng bằng nhấp nhô, gò, trũng
+    let h = 6 + 4.5 * fbm(N3, x * 0.0016, z * 0.0016, 4) + 1.6 * N1(x * 0.011, z * 0.011);
+    // đồi trung cảnh
+    const hm = 0.5 + 0.5 * fbm(N2, x * 0.0010 + 40, z * 0.0010 - 7, 5);
+    const hillAmp = 25 + 115 * sstep(900, -600, z);
+    h += hillAmp * Math.pow(Math.max(0, hm - 0.42) / 0.58, 1.6);
+    // dãy núi phía bắc + một nhánh núi bên hông
+    const front = -620 + 280 * N1(x * 0.00045 + 3.3, 0.7);
+    let m = sstep(front, front - 1350, qz);
+    const me = sstep(1300, 2500, qx * spur) * sstep(300, -700, qz);
+    m = Math.max(m, 0.85 * me);
+    const dl = Math.hypot(x - lake.x, z - lake.z);
+    m *= sstep(lake.r * 0.8, lake.r * 2.6, dl);
+    // núi thấp dần về phía sông: chân núi thành đồi, không thành vách cụt bên bãi bồi
+    const zc = riverZ(x), dr = riverDist(x, z), w = riverW(x);
+    m *= sstep(w + 250, w + 1300, dr);
+    if (m > 0.001) {
+      // khối núi lớn (nhiễu thấp tần) + sống núi ridged + gò, mỏm nhỏ
+      const r = ridged(N1, qx * 0.00030, qz * 0.00030, 7);
+      const mass = clamp(0.55 + 0.6 * fbm(N3, x * 0.00021 + 11, z * 0.00021, 3), 0.2, 1.1);
+      const mid = fbm(N2, qx * 0.0021, qz * 0.0021, 3);
+      const mm = m * m * (3 - 2 * m);
+      h += mm * (110 + mass * (400 + 820 * r) + 40 * mid * mm);
+    }
+    // đồi xa ngoài vùng chi tiết cho đường chân trời không phẳng
+    const ext = Math.max(Math.abs(x), Math.abs(z));
+    if (ext > HALF) h += sstep(HALF, 7000, ext) * 220 * (0.5 + 0.5 * fbm(N3, x * 0.0004, z * 0.0004, 3));
+    // đồi gần thành phố
+    for (const hl of hills) {
+      const d2 = ((x - hl.x) ** 2 + (z - hl.z) ** 2) / (hl.r * hl.r);
+      if (d2 < 9) h += hl.h * Math.exp(-d2 * 1.5) * (1 + 0.22 * N2(x * 0.006, z * 0.006));
+    }
+    // mỏ đá: bậc thang cắt vào sườn đồi, lộ vách
+    if (quarry) {
+      const c = Math.cos(quarry.ang), s = Math.sin(quarry.ang);
+      const lx = (x - quarry.x) * c + (z - quarry.z) * s, lz = -(x - quarry.x) * s + (z - quarry.z) * c;
+      const e = Math.hypot(lx / quarry.a, lz / quarry.b) + 0.08 * N1(x * 0.02, z * 0.02);
+      if (e < 1.1) {
+        const base = 6, step = 9;
+        const cut = base + (h - base) * 0.5;
+        const t = (cut - base) / step, fl = Math.floor(t);
+        const terr = base + step * (fl + sstep(0.8, 1, t - fl));
+        h = lerp(h, Math.min(h, terr), sstep(1.08, 0.86, e));
+      }
+    }
+    // bãi bồi hai bên sông
+    const fp = 2.4 + 1.0 * N3(x * 0.005, z * 0.005);
+    const band = w + 380 + 160 * N2(x * 0.0012, 3.3);
+    h = fp + (h - fp) * sstep(w + 20, band, dr);
+    // hồ trong thung lũng, vách đá bao quanh (thoải ở phía nam)
+    if (dl < lake.r * 4) {
+      const th = Math.atan2(z - lake.z, x - lake.x);
+      const rr = lake.r * (1 + 0.22 * N3(Math.cos(th) * 1.4 + 9.1, Math.sin(th) * 1.4 - 3.3));
+      const south = Math.pow(0.5 + 0.5 * Math.sin(th), 2);
+      const cw = 26 + 150 * south;
+      const rim = (55 + 45 * (0.5 + 0.5 * N1(x * 0.003 + 2, z * 0.003))) * (1 - 0.75 * south);
+      const ring = dl < rr + cw ? 1 : Math.exp(-(dl - rr - cw) / 280);
+      const hOut = h + rim * ring;
+      if (dl < rr + cw) {
+        const bed = -1.5 - 16 * Math.max(0, 1 - (dl / rr) ** 2);
+        h = bed + (hOut - bed) * Math.pow(sstep(rr - 8, rr + cw, dl), 0.8);
+      } else h = hOut;
+    }
+    // lòng sông
+    const bed = -6.5 - 1.5 * N1(x * 0.01, z * 0.01);
+    h = bed + (h - bed) * sstep(w * 0.45, w + 16, dr);
+    // cù lao
+    for (const s of isl) {
+      const ex = (x - s.x) / s.len, ez = (z - zc) / s.w;
+      const e = Math.sqrt(ex * ex + ez * ez) + 0.15 * N1(x * 0.02, z * 0.02);
+      if (e < 1.3) { const ih = 3 + 1.8 * (0.5 + 0.5 * N2(x * 0.01, z * 0.01)); h = Math.max(h, -4 + (ih + 4) * sstep(1.25, 0.6, e)); }
+    }
+    // nền nhà máy
+    if (!noPads) for (const f of fac) {
+      const d = Math.hypot(x - f.x, z - f.z);
+      if (d < f.r + 90) h = h + (f.h - h) * sstep(f.r + 90, f.r, d);
+    }
+    return h;
+  }
+  for (const f of fac) f.h = Math.max(2.5, H(f.x, f.z, true));
+  const fN = (x, z) => fbm(N2, x * 0.0022, z * 0.0022, 3);
+  return { seed, H, riverZ, riverDist, riverW, lake, hills, quarry, fac, isl, N1, N2, N3, R, fN };
+}
+
+// ───────────────────────── xói mòn thủy lực (giọt nước)
+function erode(h, mask, flow, depo, count, rnd, onProg) {
+  const W = GV, MAXX = GV - 2;
+  const inertia = 0.3, capK = 0.12, minCap = 0.02, depK = 0.25, eroK = 0.13, evap = 0.022, grav = 0.35, life = 50;
+  const BR = 4, bo = [], bw = [];
+  let ws = 0;
+  for (let oz = -BR; oz <= BR; oz++) for (let ox = -BR; ox <= BR; ox++) {
+    const d = Math.hypot(ox, oz); if (d > BR) continue;
+    const wgt = 1 - d / (BR + 0.5); bo.push(oz * W + ox); bw.push(wgt); ws += wgt;
+  }
+  for (let k = 0; k < bw.length; k++) bw[k] /= ws;
+  const bil = (px, pz) => {
+    const ix = px | 0, iz = pz | 0, fx = px - ix, fz = pz - iz, i = iz * W + ix;
+    return h[i] * (1 - fx) * (1 - fz) + h[i + 1] * fx * (1 - fz) + h[i + W] * (1 - fx) * fz + h[i + W + 1] * fx * fz;
+  };
+  const batch = 8000;
+  return (async () => {
+    for (let d0 = 0; d0 < count; d0 += batch) {
+      for (let d = d0; d < Math.min(count, d0 + batch); d++) {
+        let px = 0, pz = 0;
+        for (let tr = 0; tr < 40; tr++) {
+          px = 5 + rnd() * (W - 11); pz = 5 + rnd() * (W - 11);
+          if (rnd() < mask[(pz | 0) * W + (px | 0)]) break;
+        }
+        let dx = 0, dz = 0, speed = 1, water = 1, sed = 0;
+        for (let it = 0; it < life; it++) {
+          const ix = px | 0, iz = pz | 0, fx = px - ix, fz = pz - iz, i = iz * W + ix;
+          const h00 = h[i], h10 = h[i + 1], h01 = h[i + W], h11 = h[i + W + 1];
+          const gx = (h10 - h00) * (1 - fz) + (h11 - h01) * fz, gz = (h01 - h00) * (1 - fx) + (h11 - h10) * fx;
+          const hc = h00 * (1 - fx) * (1 - fz) + h10 * fx * (1 - fz) + h01 * (1 - fx) * fz + h11 * fx * fz;
+          dx = dx * inertia - gx * (1 - inertia); dz = dz * inertia - gz * (1 - inertia);
+          const len = Math.hypot(dx, dz);
+          if (len < 1e-7) break;
+          dx /= len; dz /= len; px += dx; pz += dz;
+          if (px < 5 || pz < 5 || px >= MAXX - 4 || pz >= MAXX - 4) break;
+          flow[i] += water;
+          const dh = bil(px, pz) - hc;
+          const cap = Math.max(-dh * speed * water * capK, minCap);
+          if (sed > cap || dh > 0) {
+            const amt = dh > 0 ? Math.min(dh, sed) : (sed - cap) * depK;
+            sed -= amt;
+            h[i] += amt * (1 - fx) * (1 - fz); h[i + 1] += amt * fx * (1 - fz); h[i + W] += amt * (1 - fx) * fz; h[i + W + 1] += amt * fx * fz;
+            depo[i] += amt;
+          } else {
+            const amt = Math.min((cap - sed) * eroK, -dh);
+            for (let k = 0; k < bo.length; k++) h[i + bo[k]] -= amt * bw[k];
+            sed += amt;
+          }
+          speed = Math.min(8, Math.sqrt(Math.max(0, speed * speed - dh * grav)));
+          water *= 1 - evap;
+        }
+      }
+      onProg(Math.min(1, (d0 + batch) / count));
+      await frame();
+    }
+  })();
+}
+
+function boxBlur(src, W, r, passes = 1) {
+  let a = Float32Array.from(src); const b = new Float32Array(src.length), inv = 1 / (2 * r + 1);
+  const ci = (v) => v < 0 ? 0 : v > W - 1 ? W - 1 : v;
+  for (let p = 0; p < passes; p++) {
+    for (let y = 0; y < W; y++) {
+      const row = y * W; let s = 0;
+      for (let x = -r; x <= r; x++) s += a[row + ci(x)];
+      for (let x = 0; x < W; x++) { b[row + x] = s * inv; s += a[row + ci(x + r + 1)] - a[row + ci(x - r)]; }
+    }
+    for (let x = 0; x < W; x++) {
+      let s = 0;
+      for (let y = -r; y <= r; y++) s += b[ci(y) * W + x];
+      for (let y = 0; y < W; y++) { a[y * W + x] = s * inv; s += b[ci(y + r + 1) * W + x] - b[ci(y - r) * W + x]; }
+    }
+  }
+  return a;
+}
+
+// ───────────────────────── GLSL dùng chung (đặt vào fog_pars_fragment để mọi vật liệu đều có)
+const COMMON = /* glsl */`
+uniform vec3 uSunDir; uniform vec3 uSunLight; uniform vec3 uSunGlow; uniform vec3 uAmb;
+uniform vec3 uFogCol; uniform vec3 uFogSun; uniform float uFogDen; uniform float uFogHD; uniform float uFogFall; uniform float uFogBase;
+uniform vec3 uSkyZen; uniform vec3 uSkyHor; uniform float uTime;
+uniform vec4 uClouds[16]; uniform float uCloudAlt; uniform float uCloudOn;
+uniform sampler2D uBaked; uniform vec4 uShadowC; uniform float uMist; uniform float uSnowH;
+#ifdef USE_FOG
+varying vec3 vFogWP;
+#endif
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y)*p3.z); }
+float vnoise(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); vec2 u = f*f*(3.0-2.0*f);
+  return mix(mix(hash12(i), hash12(i+vec2(1.0,0.0)), u.x), mix(hash12(i+vec2(0.0,1.0)), hash12(i+vec2(1.0,1.0)), u.x), u.y); }
+float fbm3(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ s += a*vnoise(p); p = mat2(1.6,1.2,-1.2,1.6)*p + 3.7; a *= 0.5; } return s/0.875; }
+vec3 fogColDir(vec3 d){ float s = pow(max(dot(d, uSunDir), 0.0), 6.0); return mix(uFogCol, uFogSun, s*0.75); }
+float fogAmount(vec3 wp){
+  vec3 v = wp - cameraPosition; float d = length(v);
+  float b = uFogFall;
+  float y0 = cameraPosition.y - uFogBase, y1 = wp.y - uFogBase, dy = y1 - y0;
+  float e0 = exp(-b*max(y0, -20.0)), e1 = exp(-b*max(y1, -20.0));
+  float avg = abs(dy) > 0.5 ? (e0 - e1)/(b*dy) : e0;
+  float hs = 1.0/2200.0;
+  float g0 = exp(-max(y0, 0.0)*hs), g1 = exp(-max(y1, 0.0)*hs);
+  float avgB = abs(dy) > 0.5 ? (g0 - g1)/(hs*dy) : g0;
+  float a = 1.0 - exp(-(d*uFogDen*avgB + uFogHD*avg*d));
+  return max(a, smoothstep(12000.0, 16000.0, d));
+}
+vec3 skyGrad(vec3 d){
+  float y = max(d.y, 0.0);
+  vec3 c = mix(uSkyHor, uSkyZen, pow(smoothstep(0.0, 0.8, y), 0.6));
+  float sd = max(dot(d, uSunDir), 0.0);
+  c += uSunGlow*(0.10*pow(sd, 4.0) + 0.35*pow(sd, 48.0));
+  return mix(fogColDir(d), c, smoothstep(-0.03, 0.13, d.y));
+}
+float cloudShadow(vec3 wp){
+  if (uCloudOn < 0.5) return 1.0;
+  vec2 q = wp.xz + uSunDir.xz/max(uSunDir.y, 0.12)*(uCloudAlt - wp.y);
+  float nn = vnoise(q*0.0035)*0.6 + vnoise(q*0.011)*0.4;
+  float s = 1.0;
+  for (int i = 0; i < 16; i++){
+    vec4 c = uClouds[i];
+    vec2 dd = (q - c.xy)/vec2(c.z, c.z*0.72);
+    float r = length(dd) + (nn - 0.5)*0.7;
+    s *= 1.0 - c.w*smoothstep(1.0, 0.3, r);
+  }
+  return s;
+}
+float bakedRaw(vec3 wp){ vec2 uv = (wp.xz + ${HALF.toFixed(1)})/${WORLD.toFixed(1)}; if (uv.x<0.0||uv.y<0.0||uv.x>1.0||uv.y>1.0) return 1.0; return texture2D(uBaked, uv).r; }
+float bakedShadow(vec3 wp){ float w = smoothstep(uShadowC.w*0.55, uShadowC.w*0.92, length(wp.xz - uShadowC.xz)); return mix(1.0, bakedRaw(wp), w); }
+`;
+// Sương mù khí quyển áp dụng trong không gian tuyến tính, trước tone mapping, để khớp màu bầu trời
+const FOG_LIN = /* glsl */`
+#ifdef USE_FOG
+{ float fa_ = fogAmount(vFogWP); gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColDir(normalize(vFogWP - cameraPosition)), fa_); }
+#endif
+`;
+THREE.ShaderChunk.fog_pars_vertex = '#ifdef USE_FOG\nvarying vec3 vFogWP;\n#endif\n';
+THREE.ShaderChunk.fog_vertex = '#ifdef USE_FOG\n{ vec4 fw_ = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n fw_ = instanceMatrix*fw_;\n#endif\n vFogWP = (modelMatrix*fw_).xyz; }\n#endif\n';
+THREE.ShaderChunk.fog_pars_fragment = COMMON;
+THREE.ShaderChunk.fog_fragment = '';
+THREE.ShaderChunk.tonemapping_fragment = FOG_LIN + THREE.ShaderChunk.tonemapping_fragment;
+
+const U = {
+  uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunLight: { value: new THREE.Color() }, uSunGlow: { value: new THREE.Color() },
+  uAmb: { value: new THREE.Color() }, uFogCol: { value: new THREE.Color() }, uFogSun: { value: new THREE.Color() },
+  uFogDen: { value: 1 / 23000 }, uFogHD: { value: 0.0002 }, uFogFall: { value: 0.011 }, uFogBase: { value: 0 },
+  uSkyZen: { value: new THREE.Color() }, uSkyHor: { value: new THREE.Color() }, uTime: { value: 0 },
+  uClouds: { value: Array.from({ length: 16 }, () => new THREE.Vector4(1e6, 1e6, 100, 0)) }, uCloudAlt: { value: 2100 }, uCloudOn: { value: 1 },
+  uBaked: { value: null }, uShadowC: { value: new THREE.Vector4(0, 0, 0, 1000) },
+  uBump: { value: 1 }, uBorder: { value: 0 }, uMist: { value: 0.5 }, uSnowH: { value: 1000 },
+};
+
+// ───────────────────────── shader địa hình: trộn chất liệu theo độ cao, độ dốc, dòng chảy
+const TERRAIN_PARS = /* glsl */`
+varying vec3 vWP; varying vec3 vWN; varying vec4 vD1; varying vec4 vD2;
+uniform float uBump; uniform float uBorder;
+vec3 L(vec3 c){ return pow(c, vec3(2.2)); }
+float hash13(vec3 p3){ p3 = fract(p3*0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y)*p3.z); }
+float vnoise3(vec3 p){ vec3 i = floor(p); vec3 f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(mix(hash13(i), hash13(i+vec3(1,0,0)), f.x), mix(hash13(i+vec3(0,1,0)), hash13(i+vec3(1,1,0)), f.x), f.y),
+             mix(mix(hash13(i+vec3(0,0,1)), hash13(i+vec3(1,0,1)), f.x), mix(hash13(i+vec3(0,1,1)), hash13(i+vec3(1,1,1)), f.x), f.y), f.z); }
+float rockField(vec3 p){ return vnoise3(p*0.09)*0.55 + vnoise3(p*0.27)*0.3 + vnoise3(p*0.85)*0.15; }
+`;
+const TERRAIN_COLOR = /* glsl */`
+vec3 t_P = vWP; vec3 t_N = normalize(vWN);
+float t_dist = length(t_P - cameraPosition);
+float t_slope = 1.0 - t_N.y;
+float t_fade = 1.0 - smoothstep(700.0, 3500.0, t_dist);
+float t_fadeN = 1.0 - smoothstep(120.0, 800.0, t_dist);
+float t_nA = fbm3(t_P.xz*0.0023);
+float t_nB = vnoise(t_P.xz*0.017);
+float t_nC = vnoise(t_P.xz*0.085 + 13.1);
+float t_nD = vnoise(t_P.xz*0.41 + 7.7);
+float t_flow = vD1.x, t_depo = vD1.y, t_curv = vD1.z, t_forest = vD1.w;
+float t_cliff = vD2.x, t_path = vD2.y, t_moist = vD2.z, t_dryN = vD2.w;
+float t_hh = t_P.y + (t_nA - 0.5)*110.0 + (t_nB - 0.5)*30.0;
+// cỏ xanh, đậm nhạt theo nhiễu nhiều thang
+vec3 t_col = mix(L(vec3(0.34,0.42,0.20)), L(vec3(0.43,0.49,0.24)), smoothstep(0.3, 0.75, t_nA));
+t_col = mix(t_col, L(vec3(0.28,0.38,0.16)), smoothstep(0.45, 0.85, t_nB)*0.6);
+t_col *= 0.86 + 0.26*t_nC*t_fade + 0.2*(t_nD - 0.5)*t_fadeN + 0.1*(vnoise(t_P.xz*1.7) - 0.5)*t_fadeN;
+t_col = mix(t_col, L(vec3(0.50,0.52,0.25)), smoothstep(0.55, 0.85, vnoise(t_P.xz*0.035 + 70.0))*0.35*(1.0 - t_forest));
+t_col = mix(t_col, L(vec3(0.28,0.41,0.17)), t_moist*0.45);
+t_col = mix(t_col, L(vec3(0.17,0.23,0.11)), t_forest*0.85);
+// cỏ khô vàng nâu: sườn giữa và mảng khô ở đồng bằng
+float t_dry = smoothstep(150.0, 380.0, t_hh)*(1.0 - t_forest*0.6);
+t_dry = max(t_dry, smoothstep(0.66, 0.86, t_nB*0.55 + t_dryN*0.55)*(1.0 - t_moist)*(1.0 - t_forest)*0.75);
+vec3 t_dryC = mix(L(vec3(0.58,0.51,0.35)), L(vec3(0.46,0.41,0.28)), t_nC);
+t_dryC = mix(t_dryC, L(vec3(0.47,0.47,0.29)), smoothstep(0.45, 0.85, t_nB)*0.55);
+t_col = mix(t_col, t_dryC, clamp(t_dry, 0.0, 1.0));
+// bụi cây lác đác
+float t_shrub = smoothstep(0.7, 0.8, vnoise(t_P.xz*0.15 + 4.0))*clamp(t_dry, 0.0, 1.0)*t_fade;
+t_col = mix(t_col, L(vec3(0.23,0.27,0.14)), t_shrub*0.75);
+// đất trọc nâu cát: sườn cao, chỗ bị xói
+float t_soil = smoothstep(0.6, 0.95, t_slope*2.2*smoothstep(300.0, 700.0, t_hh) + t_flow*0.55*smoothstep(120.0, 400.0, t_hh) + (t_nB - 0.5)*0.4);
+t_col = mix(t_col, mix(L(vec3(0.58,0.48,0.35)), L(vec3(0.47,0.38,0.28)), t_nC), t_soil*0.85);
+// lối mòn, bãi trống
+float t_clear = smoothstep(0.86, 0.93, vnoise(t_P.xz*0.006 + 31.0))*smoothstep(0.3, 0.7, t_nC)*(1.0 - t_forest)*(1.0 - smoothstep(40.0, 120.0, t_P.y));
+t_col = mix(t_col, mix(L(vec3(0.48,0.39,0.28)), L(vec3(0.56,0.47,0.35)), t_nD), clamp(t_path*1.2 + t_clear*0.5, 0.0, 1.0));
+// sỏi đá ở chân vách và quạt bồi tích
+float t_grav = clamp(t_cliff*1.5 + t_depo*0.9 - 0.15, 0.0, 1.0)*(0.6 + 0.4*t_nC);
+t_col = mix(t_col, mix(L(vec3(0.56,0.54,0.50)), L(vec3(0.44,0.42,0.39)), t_nD), t_grav);
+// cát bờ sông, cát ướt, đáy nước
+float t_sand = 1.0 - smoothstep(1.2, 3.1, t_P.y + (t_nC - 0.5)*1.6);
+t_col = mix(t_col, mix(L(vec3(0.78,0.71,0.55)), L(vec3(0.70,0.63,0.48)), t_nD), t_sand);
+t_col = mix(t_col, L(vec3(0.52,0.47,0.37)), (1.0 - smoothstep(0.0, 0.7, t_P.y))*t_sand);
+t_col = mix(t_col, L(vec3(0.30,0.36,0.30)), smoothstep(0.0, 7.0, -t_P.y));
+// đá lộ ở chỗ dốc > ~40°
+float t_rockThr = 0.27 - 0.08*smoothstep(850.0, 1250.0, t_hh);
+float t_rock = smoothstep(t_rockThr - 0.04, t_rockThr + 0.05, t_slope + (t_nB - 0.5)*0.1 + (t_curv - 0.5)*-0.12);
+float t_rf = vnoise3(t_P*0.06)*0.35 + vnoise3(t_P*0.21)*0.4 + vnoise3(t_P*0.7)*0.25;
+float t_streak = vnoise3(vec3(t_P.x*0.22, t_P.y*0.018, t_P.z*0.22))*0.65 + vnoise3(vec3(t_P.x*0.7, t_P.y*0.05, t_P.z*0.7))*0.35;
+float t_strata = sin(t_P.y*0.42 + vnoise3(t_P*0.015)*7.0 + t_nB*2.0);
+vec3 t_rockC = mix(L(vec3(0.40,0.37,0.34)), L(vec3(0.63,0.59,0.53)), t_rf*0.55 + t_streak*0.45);
+t_rockC = mix(t_rockC, L(vec3(0.58,0.50,0.40)), smoothstep(0.3, 0.9, t_strata)*0.35);
+t_rockC *= 1.0 - smoothstep(0.55, 0.85, t_streak)*0.25;
+t_rockC = mix(t_rockC, L(vec3(0.55,0.43,0.31)), smoothstep(200.0, 60.0, t_hh)*0.35*smoothstep(0.35, 0.65, t_nB));   // vách đất/taluy ở đồi thấp
+t_rockC *= 0.85 + 0.25*t_rf - max(t_curv - 0.5, 0.0)*0.6;
+t_col = mix(t_col, t_rockC, t_rock);
+// tuyết mỏng chỉ nằm trong khe rãnh trên cao
+float t_snow = smoothstep(uSnowH - 60.0, uSnowH + 50.0, t_P.y + (t_nA - 0.5)*160.0 + (t_nB - 0.5)*60.0)
+             * smoothstep(0.5, 0.58, t_curv + t_flow*0.3 + (t_nC - 0.5)*0.12)
+             * (1.0 - smoothstep(0.4, 0.6, t_slope));
+t_col = mix(t_col, L(vec3(0.92,0.94,0.97)), t_snow);
+t_col *= 1.0 - t_flow*0.12*(1.0 - t_snow);
+// ranh giới bản đồ 4 km
+if (uBorder > 0.5) {
+  float t_bd = abs(max(abs(t_P.x), abs(t_P.z)) - ${MAPH.toFixed(1)});
+  t_col = mix(t_col, vec3(1.0), (1.0 - smoothstep(0.0, max(2.5, t_dist*0.002), t_bd))*0.75);
+}
+diffuseColor.rgb = t_col;
+float t_rough = mix(0.95, 0.78, t_rock);
+t_rough = mix(t_rough, 0.5, t_snow);
+t_rough = mix(t_rough, 0.55, (1.0 - smoothstep(0.0, 0.7, t_P.y))*t_sand);
+vec3 t_bump = vec3(0.0);
+if (uBump > 0.5 && t_fadeN > 0.0) {
+  vec3 t_q = t_P*vec3(1.4, 0.9, 1.4);
+  float f0 = rockField(t_q), fx = rockField(t_q + vec3(0.8,0.0,0.0)), fy = rockField(t_q + vec3(0.0,0.8,0.0)), fz = rockField(t_q + vec3(0.0,0.0,0.8));
+  vec3 g = vec3(fx - f0, fy - f0, fz - f0)/0.8;
+  g -= t_N*dot(g, t_N);
+  t_bump = -g*(t_rock*2.2 + t_grav*0.8 + 0.35)*t_fadeN;
+}
+`;
+const TERRAIN_LIGHT = /* glsl */`
+{ float t_sh = cloudShadow(vWP)*bakedShadow(vWP);
+  reflectedLight.directDiffuse *= t_sh; reflectedLight.directSpecular *= t_sh;
+  reflectedLight.indirectDiffuse *= (1.0 - 0.3*t_forest)*clamp(1.12 - (t_curv - 0.5)*1.4, 0.65, 1.2); }
+`;
+function terrainMaterial() {
+  const m = new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 });
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aD1; attribute vec4 aD2;\nvarying vec3 vWP; varying vec3 vWN; varying vec4 vD1; varying vec4 vD2;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWP = (modelMatrix*vec4(transformed,1.0)).xyz; vWN = normalize(mat3(modelMatrix)*objectNormal); vD1 = aD1; vD2 = aD2;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('void main() {', TERRAIN_PARS + '\nvoid main() {')
+      .replace('#include <color_fragment>', TERRAIN_COLOR)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = t_rough;')
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = normalize(normal + mat3(viewMatrix)*t_bump);')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + TERRAIN_LIGHT);
+  };
+  m.customProgramCacheKey = () => 'terrain1';
+  return m;
+}
+// Vật liệu cho cây, đá, nhà: thêm bóng mây, bóng núi nướng sẵn, cây đung đưa trong gió
+function litMaterial(opt = {}) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: opt.rough ?? 0.9, metalness: 0, flatShading: !!opt.flat, side: opt.side ?? THREE.FrontSide });
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform float uTime;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + (opt.sway ? `
+#ifdef USE_INSTANCING
+{ float sw = sin(uTime*1.1 + instanceMatrix[3].x*0.05 + instanceMatrix[3].z*0.07) + 0.4*sin(uTime*2.3 + instanceMatrix[3].z*0.11);
+  transformed.xz += vec2(sw, sw*0.6)*0.014*transformed.y*transformed.y; }
+#endif` : ''))
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n{ vec4 tw = vec4(transformed,1.0);\n#ifdef USE_INSTANCING\n tw = instanceMatrix*tw;\n#endif\n vWP = (modelMatrix*tw).xyz; }');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('void main() {', 'varying vec3 vWP;\nvoid main() {')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n{ float shd = cloudShadow(vWP)*bakedShadow(vWP); reflectedLight.directDiffuse *= shd; reflectedLight.directSpecular *= shd;' + (opt.foliage ? ' reflectedLight.indirectDiffuse *= 1.15;' : '') + ' }');
+  };
+  m.customProgramCacheKey = () => 'lit' + (opt.sway ? 1 : 0) + (opt.foliage ? 1 : 0) + (opt.flat ? 1 : 0);
+  return m;
+}
+
+// ───────────────────────── renderer, cảnh, đèn
+const STILL = location.search.includes('still');      // chế độ chụp ảnh: chỉ vẽ khi được gọi
+const renderer = new THREE.WebGLRenderer({ antialias: !STILL, powerPreference: 'high-performance', preserveDrawingBuffer: STILL });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xffffff, 1, 2);            // chỉ để bật USE_FOG; công thức sương là của mình
+const camera = new THREE.PerspectiveCamera(50, 1, 1, 60000);
+const sun = new THREE.DirectionalLight(0xffffff, 3);
+sun.castShadow = true;
+sun.shadow.camera.near = 10; sun.shadow.camera.far = 16000;
+scene.add(sun, sun.target);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x554433, 1);
+scene.add(hemi);
+
+const QUALITY = [
+  { pr: 0.85, shadow: 1024, trees: 0.4, bump: 0 },
+  { pr: 1.25, shadow: 2048, trees: 0.7, bump: 1 },
+  { pr: 2.0, shadow: 4096, trees: 1.0, bump: 1 },
+];
+let Q = QUALITY[1];
+function applyQuality(i) {
+  Q = QUALITY[i];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.pr));
+  U.uBump.value = Q.bump;
+  sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+  if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+}
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+}
+
+// Bầu trời
+const sky = new THREE.Mesh(new THREE.SphereGeometry(30000, 48, 24), new THREE.ShaderMaterial({
+  uniforms: U, side: THREE.BackSide, depthWrite: false,
+  vertexShader: 'varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position = p.xyww; }',
+  fragmentShader: `#include <fog_pars_fragment>
+varying vec3 vDir;
+void main(){ vec3 d = normalize(vDir); vec3 c = skyGrad(d);
+  float sd = dot(d, uSunDir); c += uSunGlow*smoothstep(0.99955, 0.99985, sd)*30.0*smoothstep(-0.03, 0.01, d.y);
+  gl_FragColor = vec4(c, 1.0);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
+}));
+sky.renderOrder = -10; sky.frustumCulled = false;
+scene.add(sky);
+
+// ───────────────────────── thời gian trong ngày
+const sunDir = new THREE.Vector3();
+let hour = 16.5;
+function applyTime(hr) {
+  hour = hr;
+  const dayF = (hr - 6) / 12.4;
+  const el = 58 * Math.sin(clamp(dayF, -0.06, 1.06) * Math.PI) * Math.PI / 180;
+  const az = lerp(105, -105, dayF) * Math.PI / 180;
+  sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).normalize();
+  U.uSunDir.value.copy(sunDir);
+  const e = el * 180 / Math.PI;
+  const warm = 1 - sstep(3, 42, e), low = 1 - sstep(-1, 7, e);
+  const day = sstep(-4, 10, e);
+  const sc = [lerp(1.0, 1.0, warm), lerp(0.95, 0.66, warm), lerp(0.88, 0.40, warm)];
+  sc[1] = lerp(sc[1], 0.42, low); sc[2] = lerp(sc[2], 0.2, low);
+  const si = 3.3 * sstep(-1.5, 6, e);
+  sun.color.setRGB(sc[0], sc[1], sc[2]); sun.intensity = si;
+  U.uSunLight.value.setRGB(sc[0] * si, sc[1] * si, sc[2] * si);
+  U.uSunGlow.value.setRGB(sc[0] * (0.8 + warm), sc[1] * (0.8 + warm), sc[2] * (0.8 + warm)).multiplyScalar(day);
+  // phía khuất sáng ngả lam tím
+  const amb = 0.25 + 0.75 * day;
+  hemi.color.setRGB(lerp(0.52, 0.50, warm) * amb, lerp(0.62, 0.52, warm) * amb, lerp(0.92, 0.80, warm) * amb);
+  hemi.groundColor.setRGB(0.36 * amb, 0.31 * amb, 0.24 * amb);
+  hemi.intensity = 1.05;
+  U.uAmb.value.copy(hemi.color).multiplyScalar(0.95);
+  U.uSkyZen.value.setRGB(lerp(0.13, 0.11, warm) * amb, lerp(0.31, 0.22, warm) * amb, lerp(0.72, 0.52, warm) * amb);
+  U.uSkyHor.value.setRGB(lerp(0.60, 0.92, warm * 0.85) * amb, lerp(0.72, 0.70, warm * 0.85) * amb, lerp(0.88, 0.58, warm * 0.85) * amb);
+  U.uFogCol.value.setRGB(lerp(0.56, 0.66, warm * 0.6) * amb, lerp(0.66, 0.66, warm * 0.6) * amb, lerp(0.80, 0.70, warm * 0.6) * amb);
+  U.uFogSun.value.setRGB(lerp(0.95, 1.15, warm) * amb, lerp(0.88, 0.75, warm) * amb, lerp(0.78, 0.48, warm) * amb);
+  // sương thung lũng: dày buổi sáng, mỏng buổi chiều
+  const morning = sstep(10.5, 6.5, hr), evening = sstep(16.5, 19, hr);
+  U.uFogHD.value = 0.00007 + 0.0005 * morning + 0.00012 * evening;
+  U.uMist.value = 0.25 + 0.75 * morning + 0.25 * evening;
+  const hh = Math.floor(hr), mm = Math.round((hr - hh) * 60);
+  document.getElementById('hourV').textContent = `${hh}:${String(mm % 60).padStart(2, '0')}`;
+}
+
+// ───────────────────────── trạng thái địa hình
+let W = null;           // world
+let HG = null;          // độ cao lưới chi tiết (đã xói mòn)
+let FARH = null;        // độ cao vòng xa (lưới FN+1)
+let maxH = 0;
+const terrainMat = terrainMaterial();
+const treeMat = litMaterial({ sway: true, foliage: true, rough: 0.85 });
+const rockMat = litMaterial({ flat: true, rough: 0.8 });
+const bushMat = litMaterial({ foliage: true, rough: 0.9 });
+const facMat = litMaterial({ rough: 0.7, side: THREE.DoubleSide });
+let worldGroup = null;
+const chunks = [];      // {lods:[mesh], cx, cz, minY, maxY, inst:[{mesh,n,kind}]}
+
+function sampleH(x, z) {
+  if (!HG) return 0;
+  const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+  if (fx < 0 || fz < 0 || fx >= GN || fz >= GN) {
+    if (FARH) {
+      const gx = (x + FAR / 2) / FSTEP, gz = (z + FAR / 2) / FSTEP;
+      if (gx < 0 || gz < 0 || gx >= FN || gz >= FN) return 0;
+      const ix = gx | 0, iz = gz | 0, ux = gx - ix, uz = gz - iz, i = iz * (FN + 1) + ix;
+      return lerp(lerp(FARH[i], FARH[i + 1], ux), lerp(FARH[i + FN + 1], FARH[i + FN + 2], ux), uz);
+    }
+    return 0;
+  }
+  const ix = fx | 0, iz = fz | 0, ux = fx - ix, uz = fz - iz, i = iz * GV + ix;
+  return lerp(lerp(HG[i], HG[i + 1], ux), lerp(HG[i + GV], HG[i + GV + 1], ux), uz);
+}
+
+// ───────────────────────── hình học cây, bụi, đá
+function mergeGeos(parts) {
+  let total = 0;
+  const gs = parts.map((p) => { const g = p.g.index ? p.g.toNonIndexed() : p.g; total += g.attributes.position.count; return [g, p]; });
+  const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3);
+  let o = 0;
+  for (const [g, p] of gs) {
+    const P = g.attributes.position.array, Nn = g.attributes.normal.array;
+    for (let i = 0; i < P.length / 3; i++) {
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      pos[o * 3] = x; pos[o * 3 + 1] = y; pos[o * 3 + 2] = z;
+      let nx = Nn[i * 3], ny = Nn[i * 3 + 1], nz = Nn[i * 3 + 2];
+      if (p.sphere) { nx = x - p.sphere[0]; ny = (y - p.sphere[1]) * 1.3 + 0.2; nz = z - p.sphere[2]; }
+      if (p.up) ny += p.up;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      nor[o * 3] = nx / l; nor[o * 3 + 1] = ny / l; nor[o * 3 + 2] = nz / l;
+      const c = typeof p.color === 'function' ? p.color(x, y, z) : p.color;
+      col[o * 3] = c[0]; col[o * 3 + 1] = c[1]; col[o * 3 + 2] = c[2];
+      o++;
+    }
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return out;
+}
+function jitter(g, amt, seed, cy = 0) {
+  const r = makeSimplex(seed), P = g.attributes.position.array;
+  for (let i = 0; i < P.length; i += 3) {
+    const x = P[i], y = P[i + 1], z = P[i + 2];
+    const n = r(x * 4.1 + z * 2.3, y * 4.7 - z * 1.7);
+    const l = Math.hypot(x, y - cy, z) || 1;
+    P[i] += x / l * n * amt; P[i + 1] += (y - cy) / l * n * amt; P[i + 2] += z / l * n * amt;
+  }
+  return g;
+}
+const TRUNK = srgb(0.32, 0.24, 0.17);
+function buildTreeGeos() {
+  // thông/vân sam: tầng nón, gốc tầng tối, chóp sáng
+  const spruce = [{ g: new THREE.CylinderGeometry(0.022, 0.04, 0.3, 5).translate(0, 0.15, 0), color: TRUNK }];
+  for (let t = 0; t < 4; t++) {
+    const r = 0.29 * (1 - t * 0.2), hgt = 0.36 - t * 0.03, y0 = 0.15 + t * 0.2;
+    const g = new THREE.ConeGeometry(r, hgt, 7, 1, false).rotateY(t * 0.9).translate(0, y0 + hgt / 2, 0);
+    spruce.push({ g, up: 0.6, color: (x, y) => { const k = clamp((y - y0) / hgt, 0, 1); return srgb(lerp(0.10, 0.22, k), lerp(0.17, 0.32, k), lerp(0.10, 0.16, k)); } });
+  }
+  // thông tán dù: thân cao, tán vón trên ngọn
+  const pine = [{ g: new THREE.CylinderGeometry(0.02, 0.035, 0.62, 5).translate(0, 0.31, 0), color: srgb(0.36, 0.26, 0.18) }];
+  [[0, 0.78, 0, 0.2], [0.09, 0.66, 0.05, 0.16], [-0.08, 0.7, -0.06, 0.15], [0.02, 0.92, -0.02, 0.13]].forEach(([x, y, z, r], k) => {
+    const g = jitter(new THREE.IcosahedronGeometry(r, 0), 0.035, 50 + k).scale(1, 0.62, 1).translate(x, y, z);
+    pine.push({ g, sphere: [0, 0.75, 0], color: (px, py) => { const kk = clamp((py - 0.55) / 0.45, 0, 1); return srgb(lerp(0.11, 0.24, kk), lerp(0.18, 0.33, kk), lerp(0.10, 0.15, kk)); } });
+  });
+  // cây lá rộng tán tròn
+  const round = [{ g: new THREE.CylinderGeometry(0.03, 0.05, 0.36, 5).translate(0, 0.18, 0), color: TRUNK }];
+  round.push({ g: jitter(new THREE.IcosahedronGeometry(0.42, 1), 0.09, 7).scale(1, 0.82, 1).translate(0, 0.6, 0), sphere: [0, 0.58, 0],
+    color: (x, y) => { const k = clamp((y - 0.3) / 0.6, 0, 1); return srgb(lerp(0.16, 0.36, k), lerp(0.24, 0.46, k), lerp(0.10, 0.18, k)); } });
+  // cây lá rộng nhiều chùm
+  const cluster = [{ g: new THREE.CylinderGeometry(0.028, 0.05, 0.34, 5).translate(0, 0.17, 0), color: TRUNK }];
+  [[0, 0.74, 0, 0.27], [0.2, 0.56, 0.05, 0.23], [-0.18, 0.6, -0.08, 0.24], [0.03, 0.52, 0.21, 0.22], [-0.05, 0.5, -0.22, 0.21], [0.12, 0.8, -0.12, 0.18]].forEach(([x, y, z, r], k) => {
+    cluster.push({ g: jitter(new THREE.IcosahedronGeometry(r, 0), 0.05, 80 + k).translate(x, y, z), sphere: [0, 0.55, 0],
+      color: (px, py) => { const kk = clamp((py - 0.35) / 0.6, 0, 1); return srgb(lerp(0.17, 0.38, kk), lerp(0.26, 0.47, kk), lerp(0.10, 0.17, kk)); } });
+  });
+  const bush = [{ g: jitter(new THREE.IcosahedronGeometry(0.5, 0), 0.12, 99).scale(1, 0.65, 1).translate(0, 0.3, 0), sphere: [0, 0.2, 0],
+    color: (x, y) => { const k = clamp(y / 0.6, 0, 1); return srgb(lerp(0.15, 0.32, k), lerp(0.20, 0.38, k), lerp(0.10, 0.16, k)); } }];
+  return { spruce: mergeGeos(spruce), pine: mergeGeos(pine), round: mergeGeos(round), cluster: mergeGeos(cluster), bush: mergeGeos(bush) };
+}
+function buildRockGeos() {
+  const out = [];
+  for (let k = 0; k < 3; k++) {
+    const g = new THREE.IcosahedronGeometry(1, k === 2 ? 2 : 1);
+    const n = makeSimplex(300 + k), P = g.attributes.position.array;
+    for (let i = 0; i < P.length; i += 3) {
+      const x = P[i], y = P[i + 1], z = P[i + 2];
+      const d = 1 + 0.28 * n(x * 1.3 + k, z * 1.3 + y) + 0.12 * n(x * 3.1, y * 3.1 + z);
+      P[i] = x * d; P[i + 1] = y * d * 0.62; P[i + 2] = z * d * (0.8 + k * 0.1);
+    }
+    g.computeVertexNormals();
+    const cnt = P.length / 3, col = new Float32Array(cnt * 3);
+    for (let i = 0; i < cnt; i++) { const t = 0.85 + 0.25 * (P[i * 3 + 1] + 0.6); const c = srgb(0.50 * t, 0.49 * t, 0.47 * t); col.set(c, i * 3); }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    out.push(g);
+  }
+  return out;
+}
+const TREE_GEO = buildTreeGeos(), ROCK_GEO = buildRockGeos();
+
+// ───────────────────────── nhà máy (nguồn khói)
+function buildFactory(f, emitters) {
+  const parts = [], R = mulberry32(f.x * 13 + f.z * 7 | 0);
+  const box = (w, h, d, x, y, z, c) => parts.push({ g: new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), color: c });
+  const concrete = srgb(0.72, 0.70, 0.65), roof = srgb(0.36, 0.38, 0.40), brick = srgb(0.55, 0.34, 0.26), metal = srgb(0.70, 0.72, 0.74);
+  box(120, 22, 56, 0, 0, 0, concrete); box(122, 2, 58, 0, 22, 0, roof);
+  for (let k = 0; k < 5; k++) parts.push({ g: new THREE.CylinderGeometry(0.01, 6, 112, 3, 1).rotateZ(Math.PI / 2).rotateX(Math.PI / 2 * 0).translate(0, 26, -22 + k * 11), color: roof });
+  box(64, 15, 40, -72, 0, 34, brick); box(66, 1.5, 42, -72, 15, 34, roof);
+  box(40, 9, 26, 70, 0, 40, concrete);
+  for (let k = 0; k < 3; k++) parts.push({ g: new THREE.CylinderGeometry(7, 7, 17, 14).translate(48 + k * 17, 8.5, -48), color: metal });
+  const chim = [];
+  for (let k = 0; k < 2; k++) {
+    const cx = 18 + k * 16, cz = 46, ch = 66 + k * 8;
+    parts.push({ g: new THREE.CylinderGeometry(2.6, 3.8, ch, 12).translate(cx, ch / 2, cz),
+      color: (x, y) => { const t = ch - y; return (t < 4 || (t > 8 && t < 12)) ? srgb(0.62, 0.18, 0.15) : (t < 16 ? srgb(0.88, 0.88, 0.86) : srgb(0.66, 0.63, 0.58)); } });
+    chim.push([cx, ch, cz]);
+  }
+  if (f.tower) {
+    const pts = [];
+    for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(17 + 11 * ((t - 0.66) / 0.66) ** 2, t * 64)); }
+    parts.push({ g: new THREE.LatheGeometry(pts, 28).translate(-40, 0, -70), color: srgb(0.74, 0.72, 0.68) });
+  }
+  const geo = mergeGeos(parts);
+  const mesh = new THREE.Mesh(geo, facMat);
+  mesh.position.set(f.x, f.h - 0.5, f.z); mesh.rotation.y = f.rot;
+  mesh.castShadow = mesh.receiveShadow = true;
+  const c = Math.cos(f.rot), s = Math.sin(f.rot);
+  const toW = (x, y, z) => [f.x + x * c + z * s, f.h + y, f.z - x * s + z * c];
+  for (const [x, y, z] of chim) emitters.push({ p: toW(x, y, z), kind: 0 });
+  if (f.tower) emitters.push({ p: toW(-40, 62, -70), kind: 1 });
+  return mesh;
+}
+
+// ───────────────────────── sprite mềm cho khói, mây, sương
+function puffTexture(blobs, seed, soft) {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const g = cv.getContext('2d'), r = mulberry32(seed);
+  for (let i = 0; i < blobs; i++) {
+    const a = r() * 6.283, rr = r() * 0.26 * S, x = S / 2 + Math.cos(a) * rr, y = S / 2 + Math.sin(a) * rr * 0.9, rad = S * (0.13 + r() * 0.15);
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, `rgba(255,255,255,${soft})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.NoColorSpace;
+  return t;
+}
+const SMOKE_TEX = puffTexture(16, 5, 0.32), CLOUD_TEX = puffTexture(30, 9, 0.22), MIST_TEX = puffTexture(10, 13, 0.25);
+
+const BB_VERT = /* glsl */`
+attribute vec3 aOrigin; attribute vec4 aSeed; attribute vec4 aPar;
+uniform vec3 uWind; uniform float uTime;
+varying vec2 vUv; varying float vA; varying float vShade; varying vec3 vFogWP;
+void main(){
+  vUv = uv;
+  vec3 p = aOrigin; float size; float alpha;
+#if defined(MODE_SMOKE)
+  float life = aPar.x;
+  float age = mod(uTime + aSeed.x*life, life);
+  float t = age/life;
+  p.y += aPar.y*(1.0 - exp(-age/4.0))*4.0 + age*0.9;
+  p += uWind*age*(0.15 + 0.85*smoothstep(0.0, 12.0, age));
+  p.x += sin(age*0.45 + aSeed.y*30.0)*age*0.35 + (aSeed.z - 0.5)*aSeed.w*6.0;
+  p.z += cos(age*0.38 + aSeed.z*30.0)*age*0.35;
+  size = aPar.z*(0.1 + 0.9*pow(t, 0.75))*(0.8 + 0.4*fract(aSeed.w));
+  alpha = aPar.w*smoothstep(0.0, 0.05, t)*pow(1.0 - t, 1.5);
+  float rot = aSeed.y*6.28 + age*0.06*(aSeed.z - 0.5);
+#elif defined(MODE_CLOUD)
+  size = aPar.x; alpha = aPar.y*smoothstep(150.0, 700.0, distance(p, cameraPosition));
+  float rot = aSeed.x*6.28;
+#else
+  size = aPar.x; alpha = aPar.y;
+  p.xz += uWind.xz*uTime*0.35;
+  p.xz = mod(p.xz - aSeed.zw + 400.0, 800.0) + aSeed.zw - 400.0;
+  float rot = aSeed.x*6.28 + uTime*0.004;
+#endif
+  vec2 c = (uv - 0.5)*size;
+  c = mat2(cos(rot), -sin(rot), sin(rot), cos(rot))*c;
+#if defined(MODE_MIST)
+  vec3 wp = p + vec3(c.x, 0.0, c.y);
+  vShade = 0.8;
+#else
+  vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+  vec3 wp = p + right*c.x + up*c.y;
+  vShade = clamp(0.5 + (wp.y - p.y)/size*1.1, 0.0, 1.0);
+  #if defined(MODE_CLOUD)
+  vShade = clamp(vShade*0.6 + aPar.z*0.6, 0.0, 1.0);
+  #endif
+#endif
+  vA = alpha;
+  vFogWP = wp;
+  gl_Position = projectionMatrix*viewMatrix*vec4(wp, 1.0);
+}`;
+const BB_FRAG = /* glsl */`
+#include <fog_pars_fragment>
+uniform sampler2D uTex; uniform float uTint; uniform float uOn;
+varying vec2 vUv; varying float vA; varying float vShade;
+void main(){
+  float a = texture2D(uTex, vUv).a*vA*uOn;
+#if defined(MODE_MIST)
+  a *= uMist;
+#endif
+  if (a < 0.003) discard;
+  vec3 lit = uSunLight*0.24*cloudShadow(vFogWP) + uAmb*0.62;
+  vec3 shade = uAmb*0.55 + uSunLight*0.05;
+  vec3 col = mix(shade, lit, vShade)*uTint;
+  gl_FragColor = vec4(col, a);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`;
+function billboards(n, mode, tex, tint) {
+  const g = new THREE.InstancedBufferGeometry();
+  const base = new THREE.PlaneGeometry(1, 1);
+  g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
+  const aO = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3), aS = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4), aP = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
+  g.setAttribute('aOrigin', aO); g.setAttribute('aSeed', aS); g.setAttribute('aPar', aP);
+  g.instanceCount = n;
+  const m = new THREE.ShaderMaterial({
+    uniforms: { ...U, uTex: { value: tex }, uTint: { value: tint }, uOn: { value: 1 }, uWind: { value: new THREE.Vector3(4.2, 0, -1.7) } },
+    vertexShader: BB_VERT, fragmentShader: BB_FRAG, defines: { USE_FOG: '', [mode]: '' },
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(g, m);
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+// ───────────────────────── nước: độ sâu, gợn sóng động, phản chiếu trời, lấp lánh, bọt bờ
+function waveNormalTexture() {
+  const S = 256, data = new Uint8Array(S * S * 4), R = mulberry32(77), waves = [];
+  for (let k = 0; k < 44; k++) {
+    let kx = 0, ky = 0;
+    while (kx === 0 && ky === 0) { kx = Math.round((R() * 2 - 1) * 14); ky = Math.round((R() * 2 - 1) * 14); }
+    const kl = Math.hypot(kx, ky); waves.push([kx, ky, 1 / Math.pow(kl, 1.3), R() * 6.283]);
+  }
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    let dx = 0, dy = 0;
+    for (const [kx, ky, a, p] of waves) { const c = Math.cos(2 * Math.PI * (kx * x + ky * y) / S + p) * a * 2 * Math.PI; dx += c * kx; dy += c * ky; }
+    dx *= 0.012; dy *= 0.012;
+    const l = Math.hypot(dx, dy, 1), i = (y * S + x) * 4;
+    data[i] = (-dx / l * 0.5 + 0.5) * 255; data[i + 1] = (-dy / l * 0.5 + 0.5) * 255; data[i + 2] = (1 / l * 0.5 + 0.5) * 255; data[i + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+const waterMat = new THREE.ShaderMaterial({
+  uniforms: { ...U, uDepth: { value: null }, uWaveN: { value: waveNormalTexture() } },
+  defines: { USE_FOG: '' }, transparent: true, depthWrite: false,
+  vertexShader: 'varying vec3 vWP; varying vec3 vFogWP; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vWP = w.xyz; vFogWP = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }',
+  fragmentShader: /* glsl */`
+#include <fog_pars_fragment>
+uniform sampler2D uDepth; uniform sampler2D uWaveN;
+varying vec3 vWP;
+vec3 L(vec3 c){ return pow(c, vec3(2.2)); }
+void main(){
+  vec2 uv = ((vWP.xz + ${HALF.toFixed(1)})/${CELL.toFixed(6)} + 0.5)/${GV.toFixed(1)};
+  float inside = step(0.0, uv.x)*step(uv.x, 1.0)*step(0.0, uv.y)*step(uv.y, 1.0);
+  float depth = mix(6.0, texture2D(uDepth, clamp(uv, 0.0, 1.0)).r*25.0, inside);
+  vec3 V = cameraPosition - vWP; float dist = length(V); V /= dist;
+  vec2 p = vWP.xz;
+  vec3 a = texture2D(uWaveN, p/52.0 + uTime*vec2(0.011, 0.007)).xyz*2.0 - 1.0;
+  vec3 b = texture2D(uWaveN, p/21.0 + uTime*vec2(-0.009, 0.016)).xyz*2.0 - 1.0;
+  vec3 c = texture2D(uWaveN, p/7.3 + uTime*vec2(0.021, -0.013)).xyz*2.0 - 1.0;
+  float amp = mix(1.0, 0.3, smoothstep(200.0, 3500.0, dist));
+  vec2 sl = (a.xy + b.xy*0.7 + c.xy*0.45*(1.0 - smoothstep(60.0, 500.0, dist)))*amp*0.5;
+  vec3 n = normalize(vec3(sl.x, 1.0, sl.y));
+  float ndv = max(dot(n, V), 0.0);
+  float fres = 0.02 + 0.98*pow(1.0 - ndv, 5.0);
+  vec3 R = reflect(-V, n); R.y = abs(R.y);
+  vec3 refl = skyGrad(R);
+  float sh = cloudShadow(vWP)*bakedRaw(vWP);
+  vec3 light = uAmb + uSunLight*max(uSunDir.y, 0.0)*sh*0.35;
+  vec3 deep = L(vec3(0.06,0.25,0.31)), shallow = L(vec3(0.20,0.50,0.48));
+  vec3 col = mix(shallow, deep, smoothstep(0.3, 9.0, depth))*light;
+  col = mix(col, refl, fres*0.85);
+  float sd = max(dot(R, uSunDir), 0.0);
+  col += uSunLight*sh*(pow(sd, 900.0)*5.0 + pow(sd, 110.0)*0.25 + pow(sd, 18.0)*0.025);
+  float fn = vnoise(p*0.15 + uTime*0.05)*0.6 + vnoise(p*0.5 - uTime*0.08)*0.4;
+  float band = smoothstep(0.85, 0.1, depth + (fn - 0.5)*0.7);
+  float foam = band*(0.55 + 0.45*sin(depth*9.0 - uTime*1.2 + fn*6.0))*inside*(1.0 - 0.6*smoothstep(600.0, 2500.0, dist));
+  col = mix(col, light*0.9, clamp(foam, 0.0, 1.0)*0.8);
+  float alpha = mix(0.16, 0.95, smoothstep(0.0, 6.5, depth));
+  alpha = max(alpha, fres*0.8); alpha = max(alpha, foam*0.85);
+  alpha = mix(alpha, 1.0, smoothstep(1500.0, 6000.0, dist));
+  gl_FragColor = vec4(col, alpha);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
+});
+const water = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000).rotateX(-Math.PI / 2), waterMat);
+water.renderOrder = 1; water.frustumCulled = false;
+scene.add(water);
+
+// ───────────────────────── tạo địa hình
+const loadEl = document.getElementById('load'), loadT = document.getElementById('loadT'), loadB = document.getElementById('loadB');
+async function prog(text, f) { loadT.textContent = text; loadB.style.width = `${Math.round(f * 100)}%`; await frame(); }
+
+let emitters = [], smoke = null, steam = null, clouds = null, cloudDefs = [], mist = null;
+let generating = false;
+
+async function generate(seed) {
+  if (generating) return; generating = true;
+  const t0 = performance.now();
+  loadEl.classList.remove('hide');
+  await prog('Dựng khối núi, sông, hồ…', 0.02);
+  if (worldGroup) { worldGroup.traverse((o) => { if (o.geometry && !o.userData.sharedGeo) o.geometry.dispose(); }); scene.remove(worldGroup); }
+  worldGroup = new THREE.Group(); chunks.length = 0;
+  W = createWorld(seed); window.__world = W;
+  const base = new Float32Array(GV * GV);
+  for (let iz = 0; iz < GV; iz++) {
+    const z = -HALF + iz * CELL;
+    for (let ix = 0; ix < GV; ix++) base[iz * GV + ix] = W.H(-HALF + ix * CELL, z);
+    if (iz % 96 === 0) await prog('Dựng khối núi, sông, hồ…', 0.02 + 0.2 * iz / GV);
+  }
+  // xói mòn: chỉ ở đồi núi, mờ dần ở mép để khớp vòng xa
+  const mask = new Float32Array(GV * GV);
+  for (let iz = 0; iz < GV; iz++) for (let ix = 0; ix < GV; ix++) {
+    const i = iz * GV + ix, x = -HALF + ix * CELL, z = -HALF + iz * CELL;
+    const border = sstep(HALF, HALF - 260, Math.max(Math.abs(x), Math.abs(z)));
+    mask[i] = sstep(25, 140, base[i]) * border;
+  }
+  const hE = Float32Array.from(base), flow = new Float32Array(GV * GV), depo = new Float32Array(GV * GV);
+  const te = performance.now();
+  await erode(hE, mask, flow, depo, 150000, mulberry32(seed * 3 + 1), (f) => { loadT.textContent = 'Xói mòn thủy lực…'; loadB.style.width = `${Math.round((0.22 + 0.35 * f) * 100)}%`; });
+  const erodeMs = performance.now() - te;
+  { const d = []; for (let i = 0; i < hE.length; i += 7) if (mask[i] > 0.5) d.push(hE[i] - base[i]); d.sort((a, b) => a - b); window.__ero = [d[0], d[(d.length * 0.01) | 0], d[(d.length * 0.1) | 0], d[(d.length * 0.5) | 0], d[(d.length * 0.99) | 0], d[d.length - 1]].map((v) => +v.toFixed(1)); }
+  // làm mịn nhẹ để xói mòn không để lại răng cưa trên sống núi
+  const hS = boxBlur(hE, GV, 1, 1);
+  HG = new Float32Array(GV * GV);
+  for (let i = 0; i < HG.length; i++) {
+    const k = mask[i] * sstep(3, 18, base[i]);
+    let d = lerp(hE[i], hS[i], 0.5 * mask[i]) - base[i];
+    d = d < 0 ? -28 * Math.tanh(-d / 28) : 14 * Math.tanh(d / 14);   // khe rãnh chữ V, không thành hẻm sâu
+    HG[i] = base[i] + d * k;
+  }
+  await prog('Tính độ dốc, khe rãnh, độ ẩm…', 0.6);
+  const fields = computeFields(HG, flow, depo);
+  await prog('Dựng lưới địa hình (LOD)…', 0.7);
+  buildTerrain(fields);
+  buildFar();
+  buildWaterDepth();
+  await prog('Trồng rừng, rải đá…', 0.8);
+  buildVegetation(fields, seed);
+  await prog('Nhà máy, khói, mây…', 0.92);
+  emitters = [];
+  for (const f of W.fac) worldGroup.add(buildFactory(f, emitters));
+  buildSmoke(); buildClouds(seed); buildMist(seed);
+  scene.add(worldGroup);
+  U.uSnowH.value = Math.max(700, maxH * 0.8);
+  bakeShadows();
+  ['cClouds', 'cSmoke', 'cMist'].forEach((id) => document.getElementById(id).dispatchEvent(new Event('change')));
+  await prog('Xong', 1);
+  loadEl.classList.add('hide');
+  document.getElementById('seedV').textContent = seed;
+  const ms = performance.now() - t0;
+  document.getElementById('genT').textContent = `${(ms / 1000).toFixed(1)} s`;
+  console.log(`tạo địa hình ${ms.toFixed(0)} ms (xói mòn ${erodeMs.toFixed(0)} ms), cao nhất ${maxH.toFixed(0)} m`);
+  window.__gen = { ero: window.__ero, ms, erodeMs, maxH, trees: chunks.reduce((s, c) => s + c.inst.filter((q) => q.kind === 'tree').reduce((a, q) => a + q.n, 0), 0) };
+  generating = false;
+}
+
+function computeFields(h, flow, depo) {
+  const n = GV * GV;
+  const nrm = new Float32Array(n * 3), slope = new Float32Array(n);
+  maxH = 0;
+  for (let iz = 0; iz < GV; iz++) for (let ix = 0; ix < GV; ix++) {
+    const i = iz * GV + ix;
+    const hl = h[iz * GV + Math.max(ix - 1, 0)], hr = h[iz * GV + Math.min(ix + 1, GV - 1)];
+    const hd = h[Math.max(iz - 1, 0) * GV + ix], hu = h[Math.min(iz + 1, GV - 1) * GV + ix];
+    const gx = (hr - hl) / (2 * CELL), gz = (hu - hd) / (2 * CELL);
+    const l = Math.hypot(gx, 1, gz);
+    nrm[i * 3] = -gx / l; nrm[i * 3 + 1] = 1 / l; nrm[i * 3 + 2] = -gz / l;
+    slope[i] = Math.hypot(gx, gz);
+    if (h[i] > maxH) maxH = h[i];
+  }
+  const blurH = boxBlur(h, GV, 3, 2);
+  const curv = new Float32Array(n), steep = new Float32Array(n), wet = new Float32Array(n);
+  for (let i = 0; i < n; i++) { curv[i] = clamp(0.5 + (blurH[i] - h[i]) / 14, 0, 1); steep[i] = slope[i] > 0.84 ? 1 : 0; wet[i] = h[i] < 0.3 ? 1 : 0; }
+  const cliff = boxBlur(steep, GV, 3, 2);
+  const moist0 = boxBlur(wet, GV, 9, 3);
+  const flowB = boxBlur(flow.map((v) => Math.log1p(v)), GV, 1, 1);
+  const depB = boxBlur(depo, GV, 2, 1);
+  // lối mòn
+  const path = new Float32Array(n);
+  const R = mulberry32(W.seed * 17 + 5);
+  const paint = (x, z, v) => {
+    const fx = (x + HALF) / CELL, fz = (z + HALF) / CELL;
+    for (let dz = -1; dz <= 2; dz++) for (let dx = -1; dx <= 2; dx++) {
+      const gx = Math.floor(fx) + dx, gz = Math.floor(fz) + dz;
+      if (gx < 0 || gz < 0 || gx >= GV || gz >= GV) continue;
+      const d = Math.hypot(gx - fx, gz - fz), w = clamp(1.4 - d, 0, 1) * v;
+      const i = gz * GV + gx; if (w > path[i]) path[i] = w;
+    }
+  };
+  const targets = [[W.lake.x, W.lake.z + W.lake.r * 1.15], ...W.hills.map((o) => [o.x, o.z]), ...W.fac.map((o) => [o.x, o.z])];
+  for (let t = 0; t < 7; t++) {
+    let x = (R() * 2 - 1) * 1800, z = R() * 1900 - 300;
+    if (sampleH(x, z) < 1.5) continue;
+    const [tx, tz] = targets[(R() * targets.length) | 0];
+    let ang = Math.atan2(tz - z, tx - x);
+    for (let s = 0; s < 700; s++) {
+      const want = Math.atan2(tz - z, tx - x);
+      let best = ang, bc = 1e9;
+      for (let k = -3; k <= 3; k++) {
+        const a = want + k * 0.3, nx = x + Math.cos(a) * 7, nz = z + Math.sin(a) * 7;
+        const hh = sampleH(nx, nz), c = Math.abs(hh - sampleH(x, z)) * 2 + Math.abs(k) * 0.4 + (hh < 1.2 ? 100 : 0) + R() * 0.6;
+        if (c < bc) { bc = c; best = a; }
+      }
+      ang = best; x += Math.cos(ang) * 7; z += Math.sin(ang) * 7;
+      paint(x, z, 0.85);
+      if (Math.hypot(tx - x, tz - z) < 40) break;
+    }
+  }
+  if (W.quarry) { const q = W.quarry, c = Math.cos(q.ang), sn = Math.sin(q.ang); for (let a = -q.a; a <= q.a; a += 5) for (let b = -q.b; b <= q.b; b += 5) { const e = Math.hypot(a / q.a, b / q.b); if (e < 0.95) paint(q.x + a * c - b * sn, q.z + a * sn + b * c, 0.9); } }
+  for (const f of W.fac) for (let a = 0; a < 6.283; a += 0.05) for (let r = 0; r < f.r + 40; r += 6) paint(f.x + Math.cos(a) * r, f.z + Math.sin(a) * r, 0.75);
+  // mật độ rừng
+  const forest = new Float32Array(n), dryN = new Float32Array(n), moist = new Float32Array(n);
+  for (let iz = 0; iz < GV; iz++) for (let ix = 0; ix < GV; ix++) {
+    const i = iz * GV + ix, x = -HALF + ix * CELL, z = -HALF + iz * CELL, hh = h[i];
+    const fl = clamp(flowB[i] / 5, 0, 1);
+    moist[i] = clamp(moist0[i] * 1.6 + fl * 0.35, 0, 1);
+    dryN[i] = 0.5 + 0.5 * W.N3(x * 0.004, z * 0.004);
+    let f = 0.5 + 0.5 * W.fN(x, z);
+    f = sstep(0.44, 0.62, f + moist[i] * 0.22 + 0.08 * W.N1(x * 0.012, z * 0.012));
+    const foot = sstep(70, 170, hh) * (1 - sstep(380, 640, hh + 60 * W.N2(x * 0.003, z * 0.003)));
+    f = Math.max(f, foot * sstep(0.3, 0.55, 0.5 + 0.5 * W.N1(x * 0.004 + 9, z * 0.004)));
+    f *= 1 - 0.55 * sstep(420, 700, hh);
+    f *= 1 - sstep(720, 900, hh + 70 * W.N3(x * 0.005, z * 0.005));
+    f *= 1 - sstep(0.5, 0.8, slope[i]);
+    f *= sstep(1.6, 3.6, hh);
+    f *= clamp(1 - path[i] * 1.4, 0, 1);
+    for (const fc of W.fac) f *= sstep(fc.r + 30, fc.r + 160, Math.hypot(x - fc.x, z - fc.z));
+    if (W.quarry) f *= sstep(1.0, 1.35, Math.hypot((x - W.quarry.x) / W.quarry.a, (z - W.quarry.z) / W.quarry.a));
+    forest[i] = f;
+  }
+  const forestB = boxBlur(forest, GV, 1, 1);
+  const pathB = boxBlur(path, GV, 1, 1);
+  const A1 = new Uint8Array(n * 4), A2 = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    A1[i * 4] = clamp(flowB[i] / 5, 0, 1) * 255;
+    A1[i * 4 + 1] = clamp(depB[i] * 1.5, 0, 1) * 255;
+    A1[i * 4 + 2] = curv[i] * 255;
+    A1[i * 4 + 3] = forestB[i] * 255;
+    A2[i * 4] = clamp(cliff[i] * 1.3, 0, 1) * (1 - sstep(0.7, 0.9, slope[i])) * 255;
+    A2[i * 4 + 1] = clamp(pathB[i], 0, 1) * 255;
+    A2[i * 4 + 2] = moist[i] * 255;
+    A2[i * 4 + 3] = dryN[i] * 255;
+  }
+  return { nrm, slope, A1, A2, forest, moist, cliff, path };
+}
+
+// lưới địa hình theo mảnh, 4 mức LOD, có váy che khe nối
+const IDX_CACHE = {};
+function chunkIndex(step) {
+  if (IDX_CACHE[step]) return IDX_CACHE[step];
+  const n = CH / step + 1, idx = [];
+  for (let b = 0; b < n - 1; b++) for (let a = 0; a < n - 1; a++) {
+    const i = b * n + a;
+    idx.push(i, i + n, i + 1, i + 1, i + n, i + n + 1);
+  }
+  const edges = [];
+  for (let k = 0; k < n; k++) edges.push([k, 0]);
+  const edgeList = [
+    Array.from({ length: n }, (_, k) => k),
+    Array.from({ length: n }, (_, k) => (n - 1) * n + k),
+    Array.from({ length: n }, (_, k) => k * n),
+    Array.from({ length: n }, (_, k) => k * n + n - 1),
+  ];
+  edgeList.forEach((list, e) => {
+    for (let k = 0; k < n - 1; k++) {
+      const a = list[k], b = list[k + 1], sa = n * n + e * n + k, sb = sa + 1;
+      idx.push(a, sa, b, b, sa, sb, a, b, sa, b, sb, sa);
+    }
+  });
+  return (IDX_CACHE[step] = { idx: new THREE.BufferAttribute(new Uint16Array(idx), 1), edgeList, n });
+}
+function buildTerrain(F) {
+  for (let cj = 0; cj < NCH; cj++) for (let ci = 0; ci < NCH; ci++) {
+    const lods = [];
+    let minY = 1e9, maxY = -1e9;
+    for (let li = 0; li < LOD_STEPS.length; li++) {
+      const step = LOD_STEPS[li], { idx, edgeList, n } = chunkIndex(step);
+      const vc = n * n + 4 * n;
+      const pos = new Float32Array(vc * 3), nor = new Float32Array(vc * 3), a1 = new Uint8Array(vc * 4), a2 = new Uint8Array(vc * 4);
+      const put = (v, gi, gx, gz, dy) => {
+        pos[v * 3] = -HALF + gx * CELL; pos[v * 3 + 1] = HG[gi] - dy; pos[v * 3 + 2] = -HALF + gz * CELL;
+        nor[v * 3] = F.nrm[gi * 3]; nor[v * 3 + 1] = F.nrm[gi * 3 + 1]; nor[v * 3 + 2] = F.nrm[gi * 3 + 2];
+        for (let k = 0; k < 4; k++) { a1[v * 4 + k] = F.A1[gi * 4 + k]; a2[v * 4 + k] = F.A2[gi * 4 + k]; }
+      };
+      for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) {
+        const gx = ci * CH + a * step, gz = cj * CH + b * step, gi = gz * GV + gx;
+        put(b * n + a, gi, gx, gz, 0);
+        if (HG[gi] < minY) minY = HG[gi]; if (HG[gi] > maxY) maxY = HG[gi];
+      }
+      edgeList.forEach((list, e) => {
+        const outer = (e === 0 && cj === 0) || (e === 1 && cj === NCH - 1) || (e === 2 && ci === 0) || (e === 3 && ci === NCH - 1);
+        const depth = outer ? 160 : 4 + step * 7;
+        for (let k = 0; k < n; k++) {
+          const v = list[k], a = v % n, b = (v / n) | 0;
+          const gx = ci * CH + a * step, gz = cj * CH + b * step;
+          put(n * n + e * n + k, gz * GV + gx, gx, gz, depth);
+        }
+      });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      g.setAttribute('aD1', new THREE.BufferAttribute(a1, 4, true));
+      g.setAttribute('aD2', new THREE.BufferAttribute(a2, 4, true));
+      g.setIndex(idx);
+      g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, terrainMat);
+      m.castShadow = li < 3; m.receiveShadow = true; m.visible = false;
+      worldGroup.add(m); lods.push(m);
+    }
+    chunks.push({ lods, ci, cj, x0: -HALF + ci * CH * CELL, z0: -HALF + cj * CH * CELL, minY, maxY, inst: [], lod: -1 });
+  }
+}
+// vòng xa tới chân trời (không có cây, bị sương phủ)
+function buildFar() {
+  const n = FN + 1, pos = new Float32Array(n * n * 3), nor = new Float32Array(n * n * 3), a1 = new Uint8Array(n * n * 4), a2 = new Uint8Array(n * n * 4);
+  FARH = new Float32Array(n * n);
+  for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) {
+    const x = -FAR / 2 + a * FSTEP, z = -FAR / 2 + b * FSTEP, i = b * n + a;
+    const inside = Math.abs(x) < HALF - 1 && Math.abs(z) < HALF - 1;
+    FARH[i] = inside ? sampleH(x, z) : W.H(x, z);
+    if (FARH[i] > maxH) maxH = FARH[i];
+  }
+  for (let b = 0; b < n; b++) for (let a = 0; a < n; a++) {
+    const i = b * n + a, x = -FAR / 2 + a * FSTEP, z = -FAR / 2 + b * FSTEP, h = FARH[i];
+    const gx = (FARH[b * n + Math.min(a + 1, n - 1)] - FARH[b * n + Math.max(a - 1, 0)]) / (2 * FSTEP);
+    const gz = (FARH[Math.min(b + 1, n - 1) * n + a] - FARH[Math.max(b - 1, 0) * n + a]) / (2 * FSTEP);
+    const l = Math.hypot(gx, 1, gz);
+    pos.set([x, h, z], i * 3); nor.set([-gx / l, 1 / l, -gz / l], i * 3);
+    const sl = Math.hypot(gx, gz);
+    let f = sstep(0.44, 0.62, 0.5 + 0.5 * W.fN(x, z)) * (1 - sstep(0.5, 0.8, sl)) * sstep(1.6, 3.6, h);
+    f = Math.max(f, sstep(70, 170, h) * (1 - sstep(380, 640, h)) * 0.8);
+    f *= 1 - sstep(720, 900, h);
+    a1.set([0, 0, 128, f * 255], i * 4);
+    a2.set([0, 0, h < 6 ? 120 : 30, (0.5 + 0.5 * W.N3(x * 0.004, z * 0.004)) * 255], i * 4);
+  }
+  const idx = [];
+  for (let b = 0; b < n - 1; b++) for (let a = 0; a < n - 1; a++) {
+    const x0 = -FAR / 2 + a * FSTEP, z0 = -FAR / 2 + b * FSTEP;
+    if (x0 >= -HALF && x0 + FSTEP <= HALF && z0 >= -HALF && z0 + FSTEP <= HALF) continue;
+    const i = b * n + a; idx.push(i, i + n, i + 1, i + 1, i + n, i + n + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('aD1', new THREE.BufferAttribute(a1, 4, true));
+  g.setAttribute('aD2', new THREE.BufferAttribute(a2, 4, true));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, terrainMat); m.receiveShadow = true;
+  worldGroup.add(m);
+}
+let depthTex = null;
+function buildWaterDepth() {
+  const d = new Uint8Array(GV * GV);
+  for (let i = 0; i < d.length; i++) d[i] = clamp(-HG[i] / 25, 0, 1) * 255;
+  if (depthTex) depthTex.dispose();
+  depthTex = new THREE.DataTexture(d, GV, GV, THREE.RedFormat, THREE.UnsignedByteType);
+  depthTex.magFilter = depthTex.minFilter = THREE.LinearFilter; depthTex.needsUpdate = true;
+  waterMat.uniforms.uDepth.value = depthTex;
+}
+
+// ───────────────────────── rừng, bụi, đá (InstancedMesh theo mảnh để cắt xén và giảm theo khoảng cách)
+function buildVegetation(F, seed) {
+  const R = mulberry32(seed * 31 + 7);
+  const per = chunks.map(() => ({ spruce: [], pine: [], round: [], cluster: [], bush: [], rock0: [], rock1: [], rock2: [] }));
+  const chunkOf = (x, z) => clamp(Math.floor((z + HALF) / (CH * CELL)), 0, NCH - 1) * NCH + clamp(Math.floor((x + HALF) / (CH * CELL)), 0, NCH - 1);
+  const dens = 0.55;
+  for (let iz = 0; iz < GN; iz++) for (let ix = 0; ix < GN; ix++) {
+    const i = iz * GV + ix, f = F.forest[i], sl = F.slope[i];
+    const x = -HALF + (ix + R()) * CELL, z = -HALF + (iz + R()) * CELL;
+    if (R() < f * dens) {
+      const h = sampleH(x, z);
+      if (h < 1.5) continue;
+      const nz = W.N2(x * 0.008, z * 0.008);
+      const conP = sstep(40, 240, h) * 0.85 + (nz > 0.45 ? 0.25 : 0) - F.moist[i] * 0.4;
+      let kind, s;
+      if (R() < conP) { kind = R() < 0.72 - sstep(300, 650, h) * 0.3 ? 'spruce' : 'pine'; s = lerp(15, 27, R()) * (1 - 0.45 * sstep(450, 850, h)); }
+      else { kind = R() < 0.55 ? 'round' : 'cluster'; s = lerp(9, 17, R()); }
+      per[chunkOf(x, z)][kind].push([x, h - 0.3, z, s, R()]);
+    } else if (R() < 0.045 * (f > 0.05 && f < 0.5 ? 1 : 0.35) * (1 - sstep(0.55, 0.8, sl)) && sampleH(x, z) > 2.5 && sampleH(x, z) < 950) {
+      per[chunkOf(x, z)].bush.push([x, sampleH(x, z) - 0.2, z, lerp(2, 4.5, R()), R()]);
+    }
+    // đá: ở chân vách (đá vụn), sườn núi, rải rác trên đồi
+    const cl = F.cliff[i];
+    const pr = (cl > 0.2 && sl < 0.8 ? 0.05 * cl : 0) + (sl < 0.85 ? 0.006 * sstep(450, 700, HG[i]) : 0) + (HG[i] > 6 && HG[i] < 300 ? 0.0012 : 0);
+    if (R() < pr) {
+      const h = sampleH(x, z);
+      if (h > 0.5) { const big = R() < 0.15; per[chunkOf(x, z)][big ? 'rock2' : (R() < 0.5 ? 'rock0' : 'rock1')].push([x, h, z, big ? lerp(4, 9, R()) : lerp(1, 3.5, R()), R()]); }
+    }
+  }
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const geoOf = { spruce: TREE_GEO.spruce, pine: TREE_GEO.pine, round: TREE_GEO.round, cluster: TREE_GEO.cluster, bush: TREE_GEO.bush, rock0: ROCK_GEO[0], rock1: ROCK_GEO[1], rock2: ROCK_GEO[2] };
+  per.forEach((lists, c) => {
+    for (const kind in lists) {
+      const L = lists[kind]; if (!L.length) continue;
+      for (let i = L.length - 1; i > 0; i--) { const j = (R() * (i + 1)) | 0; [L[i], L[j]] = [L[j], L[i]]; }
+      const isRock = kind.startsWith('rock'), isBush = kind === 'bush';
+      const mat = isRock ? rockMat : isBush ? bushMat : treeMat;
+      const mesh = new THREE.InstancedMesh(geoOf[kind], mat, L.length);
+      mesh.userData.sharedGeo = true;
+      L.forEach(([x, y, z, s, r], k) => {
+        if (isRock) { e.set((r - 0.5) * 0.6, r * 6.28, (R() - 0.5) * 0.6); sc.set(s * lerp(0.8, 1.3, R()), s, s * lerp(0.8, 1.2, R())); v.set(x, y - s * 0.25, z); }
+        else { e.set((r - 0.5) * 0.08, r * 6.28, (R() - 0.5) * 0.08); const w = lerp(0.85, 1.2, R()); sc.set(s * w, s, s * w); v.set(x, y, z); }
+        q.setFromEuler(e); m4.compose(v, q, sc); mesh.setMatrixAt(k, m4);
+        if (isRock) { const t = lerp(0.8, 1.15, R()); col.setRGB(t, t * lerp(0.95, 1.0, R()), t * lerp(0.9, 1.0, R())); }
+        else { const t = lerp(0.78, 1.15, R()), y2 = R() < 0.12 ? 1.12 : 1; col.setRGB(t * y2, t, t * lerp(0.85, 1.05, R())); }
+        mesh.setColorAt(k, col);
+      });
+      mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      mesh.castShadow = !isBush; mesh.receiveShadow = true;
+      worldGroup.add(mesh);
+      chunks[c].inst.push({ mesh, n: L.length, kind: isRock ? 'rock' : isBush ? 'bush' : 'tree' });
+    }
+  });
+}
+
+// ───────────────────────── khói, mây, sương
+function buildSmoke() {
+  if (smoke) { smoke.geometry.dispose(); worldGroup.remove(smoke); }
+  const PER = [170, 120], total = emitters.reduce((s, e) => s + PER[e.kind], 0);
+  smoke = billboards(Math.max(1, total), 'MODE_SMOKE', SMOKE_TEX, 1);
+  const g = smoke.geometry, O = g.attributes.aOrigin.array, S = g.attributes.aSeed.array, P = g.attributes.aPar.array;
+  const R = mulberry32(99); let k = 0;
+  for (const em of emitters) for (let i = 0; i < PER[em.kind]; i++, k++) {
+    O.set(em.p, k * 3);
+    S.set([i / PER[em.kind] + R() * 0.004, R(), R(), em.kind ? 1 + R() * 2 : R()], k * 4);
+    P.set(em.kind ? [26, 3.5, 85, 0.38] : [48, 3.2, 58, 0.3], k * 4);
+  }
+  smoke.material.uniforms.uTint.value = 1;
+  smoke.renderOrder = 3;
+  worldGroup.add(smoke);
+}
+function buildClouds(seed) {
+  const R = mulberry32(seed * 5 + 3); cloudDefs = [];
+  let total = 0;
+  for (let i = 0; i < 16; i++) {
+    const r = lerp(550, 1300, R()), puffs = [];
+    const np = 16 + ((R() * 14) | 0);
+    for (let k = 0; k < np; k++) {
+      const a = R() * 6.283, d = Math.sqrt(R());
+      const ox = Math.cos(a) * d * r * 0.85, oz = Math.sin(a) * d * r * 0.6;
+      const oy = (R() * 0.5 - 0.1) * r * 0.35 * (1 - d * 0.5);
+      puffs.push([ox, oy, oz, r * lerp(0.55, 0.95, R()) * (1 - d * 0.35), clamp(0.5 + oy / (r * 0.3), 0, 1)]);
+    }
+    cloudDefs.push({ x: lerp(-7000, 7000, R()), z: lerp(-7000, 7000, R()), y: lerp(1950, 2350, R()), r, puffs });
+    total += np;
+  }
+  if (clouds) { clouds.geometry.dispose(); worldGroup.remove(clouds); }
+  clouds = billboards(total, 'MODE_CLOUD', CLOUD_TEX, 1.0);
+  clouds.renderOrder = 5;
+  clouds.userData.order = [];
+  worldGroup.add(clouds);
+}
+function buildMist(seed) {
+  const R = mulberry32(seed * 11 + 1), items = [];
+  for (let i = 0; i < 14; i++) { const a = R() * 6.283, d = Math.sqrt(R()) * W.lake.r; items.push([W.lake.x + Math.cos(a) * d, 4 + R() * 10, W.lake.z + Math.sin(a) * d, lerp(180, 320, R()), lerp(0.25, 0.45, R())]); }
+  for (let i = 0; i < 34; i++) { const x = lerp(-2900, 2900, R()); items.push([x, 5 + R() * 14, W.riverZ(x) + (R() - 0.5) * 260, lerp(220, 420, R()), lerp(0.2, 0.4, R())]); }
+  if (mist) { mist.geometry.dispose(); worldGroup.remove(mist); }
+  mist = billboards(items.length, 'MODE_MIST', MIST_TEX, 1.05);
+  const g = mist.geometry;
+  items.forEach(([x, y, z, s, a], k) => { g.attributes.aOrigin.array.set([x, y, z], k * 3); g.attributes.aSeed.array.set([R(), R(), x, z], k * 4); g.attributes.aPar.array.set([s, a, 0, 0], k * 4); });
+  mist.renderOrder = 2;
+  worldGroup.add(mist);
+}
+const wind = new THREE.Vector2(2.4, -1.0);
+function updateClouds(t) {
+  if (!clouds) return;
+  const g = clouds.geometry, O = g.attributes.aOrigin.array, P = g.attributes.aPar.array, S = g.attributes.aSeed.array;
+  const list = [], cam = camera.position;
+  cloudDefs.forEach((c, i) => {
+    const wrap = (v) => ((v + 7000) % 14000 + 14000) % 14000 - 7000;
+    const cx = wrap(c.x + wind.x * 3 * t), cz = wrap(c.z + wind.y * 3 * t);
+    const edge = sstep(7000, 5600, Math.max(Math.abs(cx), Math.abs(cz)));
+    U.uClouds.value[i].set(cx, cz, c.r * 0.95, 0.42 * edge);
+    c.puffs.forEach((p, k) => {
+      const x = cx + p[0], y = c.y + p[1], z = cz + p[2];
+      list.push([(x - cam.x) ** 2 + (y - cam.y) ** 2 + (z - cam.z) ** 2, x, y, z, p[3], 0.6 * edge, p[4], (i * 7 + k) * 0.137 % 1]);
+    });
+  });
+  list.sort((a, b) => b[0] - a[0]);
+  list.forEach((p, k) => { O[k * 3] = p[1]; O[k * 3 + 1] = p[2]; O[k * 3 + 2] = p[3]; P[k * 4] = p[4]; P[k * 4 + 1] = p[5]; P[k * 4 + 2] = p[6]; S[k * 4] = p[7]; });
+  g.attributes.aOrigin.needsUpdate = g.attributes.aPar.needsUpdate = g.attributes.aSeed.needsUpdate = true;
+}
+
+// ───────────────────────── bóng núi nướng sẵn (cho vùng ngoài phạm vi shadow map)
+const bakedData = new Uint8Array(BAKE * BAKE);
+const bakedTex = new THREE.DataTexture(bakedData, BAKE, BAKE, THREE.RedFormat, THREE.UnsignedByteType);
+bakedTex.magFilter = bakedTex.minFilter = THREE.LinearFilter;
+U.uBaked.value = bakedTex;
+function bakeShadows() {
+  if (!HG) return;
+  const sd = sunDir, hor = Math.hypot(sd.x, sd.z) || 1e-6, dx = sd.x / hor, dz = sd.z / hor;
+  if (sd.y <= 0.005) { bakedData.fill(0); bakedTex.needsUpdate = true; return; }
+  const tanE = sd.y / hor, cs = WORLD / BAKE;
+  for (let j = 0; j < BAKE; j++) for (let i = 0; i < BAKE; i++) {
+    const x0 = -HALF + (i + 0.5) * cs, z0 = -HALF + (j + 0.5) * cs, h0 = Math.max(sampleH(x0, z0), 0) + 3;
+    let vis = 1, s = cs * 0.6, d = s;
+    while (d < 12000) {
+      const ry = h0 + d * tanE;
+      if (ry > maxH) break;
+      const th = sampleH(x0 + dx * d, z0 + dz * d);
+      const k = (ry - th) / (d * 0.035);
+      if (k < vis) { vis = k; if (vis <= 0) { vis = 0; break; } }
+      d += s; s = Math.min(s * 1.06, 110);
+    }
+    bakedData[j * BAKE + i] = clamp(vis, 0, 1) * 255;
+  }
+  bakedTex.needsUpdate = true;
+}
+
+// ───────────────────────── camera bay tự do
+const ctl = { tx: 0, tz: 900, yaw: 0, pitch: 0.4, dist: 2700 };
+const cur = { ...ctl, ty: 0 };
+const keys = new Set();
+const ptrs = new Map();
+let dragMode = 0, lastX = 0, lastY = 0, pinch = null;
+const cv = renderer.domElement;
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+cv.addEventListener('pointerdown', (e) => {
+  cv.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), my: (a.y + b.y) / 2 }; dragMode = 0; return; }
+  dragMode = e.button === 0 && !e.shiftKey ? 1 : 2; lastX = e.clientX; lastY = e.clientY;
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 2 && pinch) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x), my = (a.y + b.y) / 2;
+    ctl.dist = clamp(ctl.dist * pinch.d / Math.max(d, 1), 25, 9000);
+    ctl.yaw -= ang - pinch.ang; ctl.pitch = clamp(ctl.pitch + (my - pinch.my) * 0.004, 0.06, 1.52);
+    pinch = { d, ang, my }; return;
+  }
+  const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+  if (dragMode === 1) {
+    const wpp = 2 * ctl.dist * Math.tan(camera.fov * Math.PI / 360) / innerHeight;
+    const fx = -Math.sin(ctl.yaw), fz = -Math.cos(ctl.yaw), rx = Math.cos(ctl.yaw), rz = -Math.sin(ctl.yaw);
+    const k = 1 / Math.max(Math.sin(ctl.pitch), 0.35);
+    ctl.tx += -rx * dx * wpp + fx * dy * wpp * k; ctl.tz += -rz * dx * wpp + fz * dy * wpp * k;
+  } else if (dragMode === 2) {
+    ctl.yaw -= dx * 0.005; ctl.pitch = clamp(ctl.pitch + dy * 0.004, 0.06, 1.52);
+  }
+});
+const endPtr = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) dragMode = 0; };
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+cv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dy = e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+  const nd = clamp(ctl.dist * Math.exp(dy * 0.0011), 25, 9000);
+  ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const o = ray.ray.origin, d = ray.ray.direction;
+  if (d.y < -0.02) {
+    const t = (cur.ty - o.y) / d.y, hx = o.x + d.x * t, hz = o.z + d.z * t;
+    const k = 1 - nd / ctl.dist;
+    ctl.tx += (hx - ctl.tx) * k; ctl.tz += (hz - ctl.tz) * k;
+  }
+  ctl.dist = nd;
+}, { passive: false });
+addEventListener('keydown', (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') keys.add(e.code); });
+addEventListener('keyup', (e) => keys.delete(e.code));
+function updateCamera(dt) {
+  const sp = ctl.dist * 0.7 * dt, fx = -Math.sin(ctl.yaw), fz = -Math.cos(ctl.yaw), rx = Math.cos(ctl.yaw), rz = -Math.sin(ctl.yaw);
+  if (keys.has('KeyW') || keys.has('ArrowUp')) { ctl.tx += fx * sp; ctl.tz += fz * sp; }
+  if (keys.has('KeyS') || keys.has('ArrowDown')) { ctl.tx -= fx * sp; ctl.tz -= fz * sp; }
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) { ctl.tx -= rx * sp; ctl.tz -= rz * sp; }
+  if (keys.has('KeyD') || keys.has('ArrowRight')) { ctl.tx += rx * sp; ctl.tz += rz * sp; }
+  if (keys.has('KeyQ')) ctl.yaw += 1.2 * dt;
+  if (keys.has('KeyE')) ctl.yaw -= 1.2 * dt;
+  if (keys.has('KeyR')) ctl.dist = clamp(ctl.dist * Math.exp(-1.5 * dt), 25, 9000);
+  if (keys.has('KeyF')) ctl.dist = clamp(ctl.dist * Math.exp(1.5 * dt), 25, 9000);
+  ctl.tx = clamp(ctl.tx, -3400, 3400); ctl.tz = clamp(ctl.tz, -3400, 3400);
+  const k = 1 - Math.exp(-dt * 9);
+  for (const p of ['tx', 'tz', 'yaw', 'pitch', 'dist']) cur[p] += (ctl[p] - cur[p]) * k;
+  cur.ty += (Math.max(sampleH(cur.tx, cur.tz), 0) - cur.ty) * k;
+  const cp = Math.cos(cur.pitch);
+  camera.position.set(cur.tx + Math.sin(cur.yaw) * cp * cur.dist, cur.ty + Math.sin(cur.pitch) * cur.dist, cur.tz + Math.cos(cur.yaw) * cp * cur.dist);
+  const gh = Math.max(sampleH(camera.position.x, camera.position.z), 0) + 8;
+  if (camera.position.y < gh) camera.position.y = gh;
+  camera.lookAt(cur.tx, cur.ty, cur.tz);
+  camera.near = clamp(cur.dist * 0.004, 0.5, 30); camera.far = 60000;
+  camera.updateProjectionMatrix();
+}
+
+// ───────────────────────── LOD, bóng đổ theo camera
+function updateLOD() {
+  const cam = camera.position;
+  let tris = 0;
+  for (const c of chunks) {
+    const s = CH * CELL;
+    const dx = Math.max(c.x0 - cam.x, 0, cam.x - (c.x0 + s)), dz = Math.max(c.z0 - cam.z, 0, cam.z - (c.z0 + s));
+    const dy = Math.max(c.minY - cam.y, 0, cam.y - c.maxY);
+    const d = Math.hypot(dx, dy, dz);
+    const lod = d < 800 ? 0 : d < 1900 ? 1 : d < 3800 ? 2 : 3;
+    if (lod !== c.lod) { c.lods.forEach((m, i) => (m.visible = i === lod)); c.lod = lod; }
+    const fr = (d < 600 ? 1 : d < 1400 ? 0.45 : d < 2800 ? 0.2 : 0.08);
+    for (const it of c.inst) {
+      let f = it.kind === 'tree' ? fr * Q.trees : it.kind === 'bush' ? (d < 1200 ? fr : 0) : (d < 2200 ? Math.max(fr, 0.4) : 0.15);
+      it.mesh.count = Math.round(it.n * f);
+      it.mesh.visible = it.mesh.count > 0;
+      it.mesh.castShadow = it.kind !== 'bush' && d < shadowHalf * 1.4;
+    }
+  }
+  return tris;
+}
+let shadowHalf = 1000;
+function updateShadow() {
+  shadowHalf = clamp(cur.dist * 0.8, 140, 3000);
+  const tex = 2 * shadowHalf / Q.shadow;
+  const cx = Math.round(cur.tx / tex) * tex, cz = Math.round(cur.tz / tex) * tex;
+  const cy = cur.ty;
+  sun.target.position.set(cx, cy, cz);
+  sun.position.set(cx + sunDir.x * 7000, cy + sunDir.y * 7000, cz + sunDir.z * 7000);
+  const sc = sun.shadow.camera;
+  sc.left = -shadowHalf; sc.right = shadowHalf; sc.top = shadowHalf; sc.bottom = -shadowHalf;
+  sc.near = 100; sc.far = 15000; sc.updateProjectionMatrix();
+  sun.shadow.bias = -0.0003; sun.shadow.normalBias = tex * 1.6;
+  U.uShadowC.value.set(cx, cy, cz, shadowHalf);
+}
+
+// ───────────────────────── UI
+const hourEl = document.getElementById('hour');
+let bakeTimer = 0;
+hourEl.addEventListener('input', () => {
+  applyTime(+hourEl.value);
+  clearTimeout(bakeTimer); bakeTimer = setTimeout(bakeShadows, 60);
+});
+document.getElementById('regen').addEventListener('click', () => {
+  const s = (Math.random() * 1e6) | 0; history.replaceState(null, '', `#seed=${s}`); generate(s);
+});
+const chk = (id, fn) => { const el = document.getElementById(id); el.addEventListener('change', () => fn(el.checked)); fn(el.checked); };
+chk('cClouds', (v) => { U.uCloudOn.value = v ? 1 : 0; if (clouds) clouds.visible = v; });
+chk('cSmoke', (v) => { if (smoke) smoke.visible = v; });
+chk('cMist', (v) => { if (mist) mist.visible = v; });
+chk('cBorder', (v) => { U.uBorder.value = v ? 1 : 0; });
+document.getElementById('qual').addEventListener('change', (e) => applyQuality(+e.target.value));
+addEventListener('resize', resize);
+
+// ───────────────────────── vòng lặp
+applyQuality(1); resize(); applyTime(16.5);
+const seed0 = +(location.hash.match(/seed=(\d+)/) || [])[1] || 20261;
+await generate(seed0);
+const clock = new THREE.Clock();
+let fpsAcc = 0, fpsN = 0, fpsT = 0;
+const statsEl = document.getElementById('stats');
+window.__cam = ctl; window.__cur = cur; window.__U = U; window.__chunks = chunks; window.__setHour = (h) => { hourEl.value = h; applyTime(h); bakeShadows(); };
+function loop() {
+  const dt = STILL ? 1 : Math.min(clock.getDelta(), 0.1), t = STILL ? clock.elapsedTime : clock.elapsedTime;
+  U.uTime.value = t;
+  updateCamera(dt);
+  updateShadow();
+  updateLOD();
+  updateClouds(t);
+  sky.position.copy(camera.position);
+  renderer.render(scene, camera);
+  fpsAcc += dt; fpsN++;
+  if (t - fpsT > 0.5) {
+    const info = renderer.info.render;
+    statsEl.textContent = `${Math.round(fpsN / fpsAcc)} fps · ${info.calls} lệnh vẽ · ${(info.triangles / 1e6).toFixed(2)} tr tam giác`;
+    fpsAcc = 0; fpsN = 0; fpsT = t;
+  }
+  if (!STILL) requestAnimationFrame(loop);
+}
+window.__render = (t = 10) => { cur.ty = Math.max(sampleH(ctl.tx, ctl.tz), 0); clock.elapsedTime = t; for (let i = 0; i < 3; i++) { clock.getDelta(); loop(); } return renderer.info.render.triangles; };
+if (!STILL) loop();
+</script>
+</body>
+</html>

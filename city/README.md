@@ -293,6 +293,37 @@ Nút 🇻🇳 trên thanh trên cùng (bật sẵn cho thành phố mới; bản
   - Trên mỗi cửa xả có nhà tời.
   - Nhà điều hành mái xanh ở vai đập.
 
+## Cảnh quan 3D thử nghiệm (`landscape.html`)
+
+Một trang riêng, chưa có gameplay: chỉ địa hình, nước, núi và hiệu ứng môi trường. Mở `city/landscape.html`; trang dùng `vendor/three.module.min.js`, thiếu thì tải three.js r160 từ CDN.
+
+- **Địa hình 6×6 km** (bản đồ 4×4 km ở giữa, bật "Ranh giới 4 km" để thấy), lưới 768×768 ô 7,8 m. Vòng núi xa tới 16 km làm đường chân trời.
+- **Núi** dùng ridged multifractal 7 lớp trên không gian làm cong. Có khối núi lớn ở tần thấp và gò, mỏm ở tần cao. Núi thấp dần về phía sông và quanh hồ.
+- **Xói mòn thủy lực**: 150.000 giọt nước, chỉ chạy ở đồi núi, độ sâu khe giới hạn mềm cho ra rãnh chữ V. Đường nước chảy và chỗ bồi tích được giữ lại để tô màu.
+- **Chất liệu trong shader**: tô theo độ cao, độ dốc, độ cong và dòng chảy.
+  - Cỏ xanh nhiều tông, cỏ khô vàng nâu, đất trọc.
+  - Đá xám có vệt dọc và tầng ngang khi dốc trên khoảng 40°.
+  - Sỏi ở chân vách, cát và cát ướt ở bờ, lối mòn đất.
+  - Tuyết chỉ nằm trong khe trên cao.
+  - Gần camera thêm vân lồi lõm.
+- **Nước**: một mặt phẳng ở cao độ 0 cho sông, cù lao và hồ trong thung lũng có vách đá.
+  - Màu xanh ngọc chỗ nông, xanh lam chỗ sâu, đọc theo bản đồ độ sâu.
+  - Ba lớp gợn sóng động, phản chiếu trời, lấp lánh nắng, dải bọt ở mép bờ.
+- **Rừng**: khoảng 120.000 cây và bụi gồm 4 kiểu cây, cùng 3 kiểu đá, dùng InstancedMesh theo từng mảnh 1 km.
+  - Ở xa chỉ vẽ một phần số cây.
+  - Cây dày ở vùng thấp, ẩm và chân núi, thưa dần lên cao.
+  - Không có cây trên vách dốc hay dưới nước.
+- **LOD**: 36 mảnh địa hình, mỗi mảnh có 4 mức chi tiết theo khoảng cách. Mép mảnh có "váy" che khe nối.
+- **Không khí**:
+  - Khói nhà máy và hơi tháp làm mát là hạt tính trên GPU: bay lên, nở to và nghiêng theo gió.
+  - Sương mù khí quyển ngả lam, loãng dần theo độ cao. Sương thung lũng dày buổi sáng.
+  - Mây trôi và bóng mây lướt trên mặt đất.
+- **Ánh sáng theo giờ** (thanh trượt 5:30–19:00):
+  - Mặt trời ấm, bóng mềm (shadow map đi theo camera).
+  - Bóng núi xa được tính sẵn trên CPU.
+  - Phía khuất sáng ngả lam tím.
+- **Tạo địa hình mới** đổi mã ngẫu nhiên (`#seed=…` trên URL). Chất lượng Thấp/Vừa/Cao đổi độ phân giải, cỡ shadow map và mật độ cây.
+
 ## Mã nguồn
 
 | File | Việc |
