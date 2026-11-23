@@ -2,7 +2,7 @@
 // Đường là một graph (nút giao + đoạn đường cong Bezier bậc 2); ô đất theo lưới N x N.
 // Người dân, doanh nghiệp (people.js), xe cộ (traffic.js) và giao thông công cộng (transit.js) cắm vào vòng lặp ở đây.
 import {
-  MK, N, T, HALF, LAND, LT, HOUR_SEC, RATE, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
+  MK, N, T, HALF, LAND, LT, HOUR_SEC, upkeepRate, idx, inMap, cellOf, cellCenter, clamp, ZDEF, RAW, MAX_LEVEL, resCap, jobCap, utilUse, reqEdu, garbageLimit,
   MAP_SIZES, CELL_NEW, ROADS, pointAt, BRIDGE_MULT, BRIDGES, buildHours, LINES, sameLevel, roadLvl, lvlH, LIFT, DEPOT_FREE, SERVICES, MODULES, moduleCost, moduleUpkeep, svcVal, TECH, START_POINTS, LAND_PRICE, MILESTONES, LOANS, MAX_LOANS, BANKRUPT_AT, BANKRUPT_DAYS,
   WATER_LEVEL, TERRA, TERRA_COST, TERRA_STEP, TERRA_LEVEL_STEP, TERRA_MIN, TERRA_MAX, CANAL_BED,
   mulberry32, hash2, vnoise, makeField, MAPS, setMapSize, distSeg, nearestOnEdge, TRANSIT,
@@ -2258,6 +2258,7 @@ export function recalc(c) {
   for (const sv of c.services) { const d = SERVICES[sv.type]; depots += d.depot || 0; if (d.graves) { graves += d.graves; used += sv.fill || 0; } cremate += d.cremate || 0; cells += d.cells || 0; }
   Object.assign(s, { depotCap: DEPOT_FREE + depots, graves, gravesUsed: used, cremate, prisonCap: cells, prisoners: Math.round(c.prisoners), research: c.research });
   exp.power += lineUp.power; exp.water += lineUp.pipe; exp.transit += transitUpkeep(c) * kT;
+  const RATE = upkeepRate(c); // phí duy trì tăng dần theo dân số
   for (const k in exp) exp[k] = Math.round(exp[k] * RATE);
   exp.transit += c.rail ? railUpkeep(c) : 0; // bảo trì đường ray (theo ngày)
   exp.park += beachCount(c) * BEACH.upkeep + decorUpkeep(c) + fallsCount(c) * FALLS.upkeep; // thác nước: giữ nước chảy, dọn rêu // giữ vệ sinh, cứu hộ bãi biển; chăm cây, cỏ, hoa (theo ngày)
@@ -2302,6 +2303,7 @@ const BUDGET_NAME = { roads: ['🛣️', 'Đường sá, cầu'], power: ['⚡',
  * xếp từ đắt tới rẻ. Mỗi mục: { icon, name, cost, note?, x?, z? } (x, z: toạ độ thế giới để camera bay tới).
  */
 export function expenseItems(c) {
+  const RATE = upkeepRate(c);
   const groups = {};
   for (const k in BUDGET_NAME) groups[k] = { key: k, icon: BUDGET_NAME[k][0], name: BUDGET_NAME[k][1], total: c.stats.exp?.[k] || 0, items: [] };
   const byType = {}, kT = budgetK(c, 'transport'); // phí nhân theo mức chi từng ngành, khớp recalc

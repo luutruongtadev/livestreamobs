@@ -2929,7 +2929,7 @@ test('city: chính quyền giữ quy hoạch, CEO phản ứng thuế, mặc c�
     // 8. lưu / nạp giữ biên niên, nhà máy đình chỉ, ưu đãi; chạy tiếp không lệch sổ
     const back = S.deserialize(JSON.parse(JSON.stringify(S.serialize(c))));
     assert.equal(back.chain.log.length, c.chain.log.length);
-    assert.ok(back.halted[big] === 1 && back.corp.list.find((x) => x.id === q.id).brk && back.chain.id.key === c.chain.id.key);
+    assert.ok((!c.level[big] || back.halted[big] === 1) && back.corp.list.find((x) => x.id === q.id).brk && back.chain.id.key === c.chain.id.key); // nhà máy bị đình chỉ có thể đã phá sản trong lúc chạy (tuỳ diễn biến): ô trống thì không còn cờ đình chỉ để lưu
     LG.resetLedger(c); run(c, 24 * 3); // test đã gán thẳng quỹ công ty ở trên: chốt sổ lại rồi mới đo
     const k = LG.checkLedger(c); assert.ok(Math.abs(k.drift) < Math.max(1, Math.abs(k.base) * 1e-5), `lệch ${k.drift}`);
     // 9. gateway: CEO mặc cả trong khung (số ngoài khung bị ép lại), tình huống nhận đúng tên doanh nghiệp thật

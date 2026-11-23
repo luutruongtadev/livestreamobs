@@ -17,7 +17,14 @@ export function setMapSize(n, t = T) {
   return N;
 }
 export const HOUR_SEC = 5; // một giờ trong game dài bao nhiêu giây ở tốc độ 1 (một ngày = 2 phút)
-export const RATE = 10; // hệ số quy phí "mỗi kỳ" cũ sang "mỗi ngày". Đo bằng người chơi ảo 80 ngày: ở 6 thu gấp 2,4 lần chi, ngân sách hút cạn tiền của thế giới bên ngoài (xuất khẩu, văn phòng, du lịch teo dần); ở 10 đầu game phải tính toán, giữa game dư vừa phải. Phí bảo trì trả cho doanh nghiệp trong thành phố nên tiền quay vòng
+/**
+ * Hệ số quy phí duy trì "mỗi kỳ" cũ sang "mỗi ngày", tăng dần theo dân số: RATE_MIN khi dưới UPKEEP_POP[0] dân (đầu game dễ thở,
+ * người mới không phá sản sớm), lên RATE_MAX từ UPKEEP_POP[1] dân. Đo bằng người chơi ảo 80 ngày: phí cố định 6 thì thu gấp 2,4 lần chi,
+ * ngân sách hút cạn tiền của thế giới bên ngoài; 10 thì thành phố lớn phải tính toán. Phí trả cho doanh nghiệp trong thành phố nên tiền quay vòng.
+ */
+export const RATE_MIN = 6, RATE_MAX = 10, UPKEEP_POP = [400, 2000];
+export const RATE = RATE_MAX; // mức cao nhất (giữ tên cũ cho chỗ cần một con số cố định)
+export const upkeepRate = (c) => { const p = c && c.pp ? c.pp.count : 0; return RATE_MIN + (RATE_MAX - RATE_MIN) * clamp((p - UPKEEP_POP[0]) / (UPKEEP_POP[1] - UPKEEP_POP[0]), 0, 1); };
 
 export const idx = (x, y) => y * N + x;
 export const inMap = (x, y) => x >= 0 && y >= 0 && x < N && y < N;

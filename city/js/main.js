@@ -82,7 +82,7 @@ function toolInfo(id) {
   const d = S.SERVICES[id];
   const extra = [d.students && `${d.students} chỗ học`, d.trucks && `${d.trucks} xe`, d.ambulances && `${d.ambulances} xe cứu thương`, d.hearses && `${d.hearses} xe tang`, d.graves && `${d.graves} phần mộ`, d.cremate && `${d.cremate} người / ngày`, d.cells && `${d.cells} chỗ giam`, d.depot && `+${d.depot} xe buýt / tàu điện`, d.spots && `${d.spots} chỗ đỗ`, d.power && `⚡ ${d.power}`, d.water && `💧 ${d.water}`, d.sewage && `🕳️ ${d.sewage}`, d.trash && `🗑️ ${d.trash}`, d.radius && `bán kính ${d.radius} ô`].filter(Boolean).join(' · ');
   const lock = S.isUnlocked(city, id) ? '' : ` · 🔒 ${S.lockText(d, city)}`;
-  return { kind: 'svc', svc: id, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> (${d.size}×${d.size}) · ${money(d.cost)} · phí ${fmt(d.upkeep * S.RATE)} ₫/ngày${extra ? ' · ' + extra : ''} · ${d.desc}${d.unique ? ' · chỉ xây một cái' : ''}${lock}` };
+  return { kind: 'svc', svc: id, icon: d.icon, label: d.name, desc: `<b>${d.name}</b> (${d.size}×${d.size}) · ${money(d.cost)} · phí ${fmt(d.upkeep * S.upkeepRate(city))} ₫/ngày${extra ? ' · ' + extra : ''} · ${d.desc}${d.unique ? ' · chỉ xây một cái' : ''}${lock}` };
 }
 
 // ───────────────────────── lưu / tải ─────────────────────────
@@ -897,7 +897,7 @@ function showInfo(tile) {
     const sv = c.services[c.occ[i] - 1], d = S.SERVICES[sv.type];
     const val = (k) => S.svcVal(sv, k), up = d.upkeep + (sv.mods || []).reduce((n, m) => n + S.moduleUpkeep(sv.type, m), 0);
     title = `${d.icon} ${d.name}`;
-    add('Phí duy trì', `${fmt(up * S.RATE)} ₫/ngày`);
+    add('Phí duy trì', `${fmt(up * S.upkeepRate(city))} ₫/ngày`);
     if (d.power) add('Công suất điện', val('power'));
     if (sv.type === 'hydro') add('Thân đập', sv.dam ? `dài ${sv.dam.cells.length} ô · cột nước ${sv.dam.head} m · lưu lượng ${sv.dam.q.toFixed(1)} · ${S.seasonFlow(c) > 1 ? 'mùa nước lớn ↑' : S.seasonFlow(c) < 1 ? 'mùa khô ↓' : 'nước bình thường'}` : '✖ không chắn được sông ở chỗ này');
     if (d.water) add('Công suất nước', val('water'));
@@ -947,7 +947,7 @@ function showInfo(tile) {
     const d = S.ROADS[edge.type], load = S.edgeLoad(c, edge);
     title = `${d.icon} ${d.name}`;
     add('Chiều dài', `${(edge.len / S.T).toFixed(1)} ô`);
-    add('Bảo trì', `${fmt(edge.len * d.upkeep * S.RATE)} ₫/ngày`);
+    add('Bảo trì', `${fmt(edge.len * d.upkeep * S.upkeepRate(city))} ₫/ngày`);
     add('Mức đông xe', load > 0.7 ? '🔴 kẹt' : load > 0.35 ? '🟡 đông' : '🟢 thoáng');
     const wear = edge.wear || 0;
     add('Mặt đường', `${wear > 0.6 ? '🔴 hư hỏng nặng' : wear > 0.3 ? '🟡 xuống cấp' : '🟢 tốt'} (${Math.round(wear * 100)}% mòn) · dễ tai nạn hơn khi mòn, trạm 🚧 bảo trì sửa dần`);
@@ -957,7 +957,7 @@ function showInfo(tile) {
     if (edge.dban) add('Quận', `🚚 cấm xe tải nặng (Quận ${edge.dban})`);
     if (edge.bump) add('Gờ giảm tốc', `〰️ có · xe chạy còn ${Math.round(S.BUMP_SLOW * 100)}% tốc độ`);
     add('Nút giao hai đầu', [edge.a, edge.b].map((n) => { const nd = c.nodes.get(n); return `${c.adj.get(n).length} nhánh${c.traffic.signals.has(n) ? ' 🚦' : ''}${nd.ctl === 2 ? ' 🛑' : ''}${nd.rb ? ' ⭕' : ''}`; }).join(' · '));
-    { const wl = S.bridgeLen(city, edge); if (wl >= 4) { const B = S.BRIDGES[S.bridgeOf(edge)]; add('Cầu', `${B.icon} ${B.name} · ${Math.round(wl)} m qua sông · phí ${fmt(Math.round(wl * B.upkeep * S.RATE))} ₫/ngày (đổi kiểu: công cụ Đường → 🌉 Đổi cầu)`); } }
+    { const wl = S.bridgeLen(city, edge); if (wl >= 4) { const B = S.BRIDGES[S.bridgeOf(edge)]; add('Cầu', `${B.icon} ${B.name} · ${Math.round(wl)} m qua sông · phí ${fmt(Math.round(wl * B.upkeep * S.upkeepRate(city)))} ₫/ngày (đổi kiểu: công cụ Đường → 🌉 Đổi cầu)`); } }
     if (d.elevated) { const lv = S.roadLvl(edge.type); add('Tầng', lv < 0 ? 'Hầm chui: chìm dưới mặt đất, đường bên trên bắc qua' : lv > 1 ? 'Cầu tầng 2: bắc qua cả cầu tầng 1 lẫn đường dưới đất' : 'Trên cao: bắc qua đường dưới, không có nhà hai bên'); }
   } else if (c.water[i]) { title = c.fishery && c.fishery[i] ? '🎣 Ngư trường' : '🌊 Mặt nước'; if (c.fishery && c.fishery[i]) add('Ngư trường', 'Tàu cá của các bến cá trong ' + S.FISHERY.reach + ' ô ra đây đánh bắt; nước càng sạch càng nhiều cá'); add('Ô nhiễm nước', `${Math.round(c.waterPol[i] * 100)}%`); const fv = S.flowAt(c, i); add('Dòng chảy', `${S.flowName(fv)} (${Math.round(fv * 100)}%)${S.seasonFlow(c) > 1 ? ' · mùa nước lớn' : S.seasonFlow(c) < 1 ? ' · mùa khô, nước cạn' : ''}${c.damCell && c.damCell[i] ? ' · 🏞️ thân đập thuỷ điện' : ''}`); }
   else {
@@ -1237,7 +1237,7 @@ function renderExpenses(force) {
     bb.append(el('h4', null, `🚧 Đang xây dựng (${sites.length})`));
     for (const sv of sites) {
       const d = S.SERVICES[sv.type], done = 1 - sv.build / sv.buildTot, pg = el('span', 'pg'), f = el('i'); f.style.width = `${Math.round(done * 100)}%`; pg.append(f);
-      bb.append(expRow({ icon: d.icon, name: d.name, note: `${Math.round(done * 100)}% · xong sau ${sv.build} giờ · đã chi ${money(d.cost)}`, cost: d.upkeep * S.RATE, x: (sv.x + d.size / 2) * S.T - S.HALF, z: (sv.y + d.size / 2) * S.T - S.HALF }, pg));
+      bb.append(expRow({ icon: d.icon, name: d.name, note: `${Math.round(done * 100)}% · xong sau ${sv.build} giờ · đã chi ${money(d.cost)}`, cost: d.upkeep * S.upkeepRate(city), x: (sv.x + d.size / 2) * S.T - S.HALF, z: (sv.y + d.size / 2) * S.T - S.HALF }, pg));
     }
   }
   // dòng tiền: tóm tắt ngắn, chi tiết ở cửa sổ 💸
@@ -2317,7 +2317,7 @@ function renderDistBuild(c, d, q, body) {
     const ch = el('div', 'chat'), D0 = S.SERVICES[p.type];
     if (p.status === 'think') ch.append(el('div', 'them', `… ${q.chair} đang cân nhắc xây gì cho quận`));
     else {
-      ch.append(el('div', 'them', `✋ Xin xây ${D0.icon} ${D0.name} (${money(p.cost)}, vận hành ${money(p.upkeep || S.buildUpkeep(p.type))}/ngày): ${p.why}`));
+      ch.append(el('div', 'them', `✋ Xin xây ${D0.icon} ${D0.name} (${money(p.cost)}, vận hành ${money(p.upkeep || S.buildUpkeep(p.type, city))}/ngày): ${p.why}`));
       const row = el('div'); row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
       const yes = el('button', 'mini acc', '✅ Duyệt'), no = el('button', 'mini', '❌ Bác'), look = el('button', 'mini', '👁️ Xem chỗ');
       yes.disabled = p.cost > c.money;

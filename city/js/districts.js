@@ -5,7 +5,7 @@
 // công cộng nhỏ bằng quỹ xây dựng (chủ tịch chọn loại, game chọn chỗ phủ nhiều dân thiếu nhất, không phá nhà). LLM (qua /api/city/ai, kind 'district')
 // chỉ chọn mức chương trình, viết lời nhận lệnh, báo cáo và chọn phương án; game ép mọi thứ vào khung và tự tính hậu quả.
 // Không có LLM thì dùng kế hoạch, báo cáo, lựa chọn dự phòng bên dưới.
-import { MK, N, clamp, jobCap, resCap, SERVICES, RATE, ZDEF, RAW, PRODUCTS, productAt } from './base.js';
+import { MK, N, clamp, jobCap, resCap, SERVICES, upkeepRate, ZDEF, RAW, PRODUCTS, productAt } from './base.js';
 import { DILEMMAS, decide, cleanText } from './council.js';
 import { stormSeason } from './seasons.js';
 import { world } from './ledger.js';
@@ -484,10 +484,10 @@ export function setBuildCap(c, d, v) {
 }
 
 /** Quỹ xây dựng đã tiêu trong 7 ngày gần nhất (tiền xây + phí vận hành của công trình quận trong những ngày đó). */
-export const buildSpent = (c, q) => (q.builds || []).reduce((s, b) => s + (b.day > c.day - 7 ? b.cost : 0) + (BUILDS.includes(b.type) ? buildUpkeep(b.type) * clamp(c.day - b.day, 0, 7) : 0), 0);
+export const buildSpent = (c, q) => (q.builds || []).reduce((s, b) => s + (b.day > c.day - 7 ? b.cost : 0) + (BUILDS.includes(b.type) ? buildUpkeep(b.type, c) * clamp(c.day - b.day, 0, 7) : 0), 0);
 
 /** Phí vận hành mỗi ngày của một công trình quận. */
-export const buildUpkeep = (t) => Math.round(SERVICES[t].upkeep * RATE);
+export const buildUpkeep = (t, c) => Math.round(SERVICES[t].upkeep * upkeepRate(c));
 
 /**
  * Các công trình quận d xây được lúc này: [{ type, need, gain, cost, upkeep, x, y }]. Quỹ 7 ngày phải đủ cả tiền xây lẫn
@@ -498,7 +498,7 @@ export function buildCands(c, d) {
   if (!q || !c.fn || !c.fn.distBuildPlan) return out;
   const left = q.bcap * PERSONAS[q.persona].spend - buildSpent(c, q), st = c.stats || {}, net = (st.income || 0) - (st.expense || 0);
   for (const t of BUILDS) {
-    const cost = SERVICES[t].cost, up = buildUpkeep(t);
+    const cost = SERVICES[t].cost, up = buildUpkeep(t, c);
     if (cost + up * 7 > left || cost > c.money - BUILD_RESERVE || (!c.sandbox && net - up < 0)) continue; // chế độ Open tiền vô hạn
     if (q.nope && q.nope[t] > c.day) continue; // thị trưởng vừa bác loại này
     const p = c.fn.distBuildPlan(c, d, t);
