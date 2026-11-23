@@ -2,7 +2,7 @@
 // (hoặc nối sang ga khác, nối tiếp một đường ray có sẵn). Ray giữ độ dốc nhỏ: gặp núi thì khoét hầm, gặp sông, thung lũng thì
 // bắc cầu, chỗ đồi thấp thì xẻ đất (hạ mặt đất hai bên ray) hoặc đắp nền. Ga có đường ray thông ra cửa khẩu đón tàu liên vận:
 // du khách, người tới định cư, thu tiền vé; hàng xuất khẩu qua biên được giá hơn; thành phố hút dân hơn.
-import { N, T, HALF, idx, inMap, clamp, cellOf, SERVICES, TERRA_COST, resCap } from './base.js';
+import { N, T, HALF, idx, inMap, clamp, cellOf, SERVICES, TERRA_COST, resCap, ROADS, roadLvl, nearestOnEdge } from './base.js';
 import { cityPay } from './ledger.js';
 
 export const RAIL = {
@@ -465,4 +465,67 @@ export function trainsAt(c, t) {
     else if (v < 2 * run + DWELL) out.push({ route: st.route, s: L - (v - run - DWELL) * SPEED, dir: -1, freight });
   });
   return out;
+}
+
+
+// ───────────────────────── đường ngang (ray cắt đường bộ cùng mặt đất) ─────────────────────────
+
+/** Dài đoàn tàu (m), quãng báo trước khi tàu tới (m), quãng giữ rào sau khi đuôi tàu qua (m). */
+export const XING = { train: 80, warn: 95, clear: 15 };
+
+/**
+ * Các đường ngang: chỗ ray chạy trên mặt đất cắt một đoạn đường bộ mặt đất. Mỗi mục { x, z, y (mặt ray), edge (id), along (m từ đầu a),
+ * line (id), rx, rz (hướng ray) }. Lưu tạm theo phiên bản ray + đường (c._railX), đường đổi thì sim gọi xóa.
+ */
+export function railCrossings(c) {
+  if (!c.rail || !c.rail.lines.length) return [];
+  const key = `${c.rail.ver}|${c._roadVer || 0}`;
+  if (c._railX && c._railX.key === key) return c._railX.list;
+  const list = [], roads = [...c.edges.values()].filter((e) => roadLvl(e.type) === 0 && !ROADS[e.type].elevated);
+  const box = roads.map((e) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (let k = 0; k < e.pts.length; k += 2) { x0 = Math.min(x0, e.pts[k]); x1 = Math.max(x1, e.pts[k]); z0 = Math.min(z0, e.pts[k + 1]); z1 = Math.max(z1, e.pts[k + 1]); } return [x0, z0, x1, z1]; });
+  for (const l of c.rail.lines) {
+    const geo = lineGeo(l), P = geo.pts, K = l.kinds;
+    for (let k = 1; k < geo.n; k++) {
+      if (K[k] !== 'g' || K[k - 1] !== 'g') continue; // cầu, hầm: không cắt đường bộ
+      const ax = P[k * 2 - 2], az = P[k * 2 - 1], bx = P[k * 2], bz = P[k * 2 + 1];
+      roads.forEach((e, ri) => {
+        const bb = box[ri];
+        if (Math.max(ax, bx) < bb[0] - 1 || Math.min(ax, bx) > bb[2] + 1 || Math.max(az, bz) < bb[1] - 1 || Math.min(az, bz) > bb[3] + 1) return;
+        for (let q = 2; q < e.pts.length; q += 2) {
+          const cx = e.pts[q - 2], cz = e.pts[q - 1], dx = e.pts[q], dz = e.pts[q + 1];
+          const den = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx);
+          if (Math.abs(den) < 1e-9) continue;
+          const t = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / den, u = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / den;
+          if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+          const x = ax + (bx - ax) * t, z = az + (bz - az) * t, rl = Math.hypot(bx - ax, bz - az) || 1;
+          if (list.some((o) => o.edge === e.id && Math.hypot(o.x - x, o.z - z) < 6)) continue;
+          list.push({ x, z, y: l.ys[k - 1] + (l.ys[k] - l.ys[k - 1]) * t, edge: e.id, along: nearestOnEdge(e, x, z).along, line: l.id, rx: (bx - ax) / rl, rz: (bz - az) / rl });
+        }
+      });
+    }
+  }
+  c._railX = { key, list };
+  return list;
+}
+
+const xingS = new WeakMap(); // tuyến tàu → vị trí (m dọc tuyến) của từng đường ngang trên tuyến
+/** Đường ngang nào đang đóng rào ở thời điểm t: có tàu sắp tới (trong XING.warn m), đang đi qua, hoặc đuôi tàu chưa qua quá XING.clear m. */
+export function crossingsClosed(c, t, list = railCrossings(c)) {
+  const shut = new Set();
+  if (!list.length) return shut;
+  for (const tr of trainsAt(c, t)) {
+    const R = tr.route;
+    let ss = xingS.get(R);
+    if (!ss || ss.n !== list.length || ss.key !== c._railX.key) { // chiếu từng đường ngang lên tuyến (cách ray dưới 2,5 m)
+      ss = { n: list.length, key: c._railX.key, s: list.map((x) => { let best = -1, bd = 2.5; for (let k = 1; k < R.cum.length; k++) { const ax = R.pts[k * 2 - 2], az = R.pts[k * 2 - 1], bx = R.pts[k * 2], bz = R.pts[k * 2 + 1], l2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1, f = clamp(((x.x - ax) * (bx - ax) + (x.z - az) * (bz - az)) / l2, 0, 1), d = Math.hypot(ax + (bx - ax) * f - x.x, az + (bz - az) * f - x.z); if (d < bd) { bd = d; best = R.cum[k - 1] + f * (R.cum[k] - R.cum[k - 1]); } } return best; }) };
+      xingS.set(R, ss);
+    }
+    list.forEach((x, i) => {
+      const s = ss.s[i];
+      if (s < 0) return;
+      const ahead = (s - tr.s) * tr.dir; // > 0: đường ngang ở phía trước đầu tàu
+      if (tr.stop ? Math.abs(ahead) < XING.train * 0.5 : ahead > -(XING.train + XING.clear) && ahead < XING.warn) shut.add(i);
+    });
+  }
+  return shut;
 }

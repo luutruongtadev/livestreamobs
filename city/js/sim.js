@@ -42,7 +42,7 @@ export { bizKind, wageAt, rentAt, incomeOf, tierOf, rentDay, isTro, TRO_RENT, RE
 export { shipRoutes, syncFerries, ferryPoint, stepFerries, canalToSea, landInfo, islandAttract, fareK } from './ships.js';
 export { lunar, FESTIVALS, FEST_SCALE, VENUES, festivalNow, upcomingFestivals, canOrganize, organize, festMul, festHappy, fireworksAt, stormSeason, tideNow, flooded, MONTH_DAYS, YEAR_DAYS } from './seasons.js';
 export { BEACH, beachOk, seaInfo, beachCount } from './beach.js';
-export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS } from './rail.js';
+export { RAIL, railPath, railGates, stationEnds, railSnap, lineGeo, railNet, linkedStations, railBonus, railUpkeep, railStats, trainsAt, TRAIN_HOURS, railCrossings, crossingsClosed, XING } from './rail.js';
 export { computeFlow, flowAt, flowName, planDam, damPower, damSpan, cliffDrop, fallGeom, seasonFlow, DAM_MAX, reservoirLevel } from './hydro.js';
 export { solveWater, rainK } from './water.js';
 export { FISHERY, fisheryOk, fisheryMul, fisheryCount, fisheryAreas } from './fishery.js';
@@ -84,8 +84,12 @@ export function heightFn(c) {
     if (M.mask) far = M.mask(gx, gy, ctx);
     else { far = clamp((Math.hypot(gx - sx, gy - sy) - 40) / 18, 0, 1); far = far * far * (3 - 2 * far); }
     if (!far) return 0;
-    const r = clamp((vnoise(gx * 0.045, gy * 0.045, seed + 51) - 0.5 + (M.cover || 0)) / 0.3, 0, 1);
-    return 38 * M.mount * r * r * (3 - 2 * r) * far * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
+    const r = clamp((vnoise(gx * 0.045, gy * 0.045, seed + 51) - 0.5 + (M.cover || 0)) / 0.3, 0, 1), base = 38 * M.mount * r * r * (3 - 2 * r) * far;
+    if (c.tgen >= 3) { // bản đồ đời 3: sống núi, khe rãnh (nhiễu gợn) thay cho vòm tròn trơn
+      const rg = (fq, sd) => { const v = 1 - Math.abs(2 * vnoise(gx * fq, gy * fq, seed + sd) - 1); return v * v; };
+      return base * (0.45 + 0.6 * rg(0.1, 57) + 0.3 * rg(0.22, 59) - 0.12 * vnoise(gx * 0.33, gy * 0.33, seed + 61));
+    }
+    return base * (0.75 + 0.25 * vnoise(gx * 0.21, gy * 0.21, seed + 53));
   };
   const height = (gx, gy) => {
     const wn = isWater0(gx - 1, gy - 1) + isWater0(gx, gy - 1) + isWater0(gx - 1, gy) + isWater0(gx, gy);
@@ -384,7 +388,7 @@ export function terraformDone(c) {
 export function newCity(seed = (Math.random() * 1e9) | 0, opts = {}) {
   setMapSize(opts.size || 96, opts.cell || 10);
   const c = {
-    v: 4, tgen: 2, seed, name: 'Phố Mới', style: 'vn', map: MAPS[opts.map] ? opts.map : 'river',
+    v: 4, tgen: 3, seed, name: 'Phố Mới', style: 'vn', map: MAPS[opts.map] ? opts.map : 'river',
     water: new Uint8Array(N * N), tree: new Uint8Array(N * N),
     zone: new Uint8Array(N * N), level: new Uint8Array(N * N), variant: new Uint8Array(N * N), dir: new Uint8Array(N * N),
     nodes: new Map(), edges: new Map(), nextId: 1, lines: [], rings: [],
@@ -433,7 +437,7 @@ export function mapPreview(seed, kind, size) {
   const prev = N;
   setMapSize(size);
   try {
-    const c = { seed, map: MAPS[kind] ? kind : 'river', tgen: 2, water: new Uint8Array(N * N) };
+    const c = { seed, map: MAPS[kind] ? kind : 'river', tgen: 3, water: new Uint8Array(N * N) };
     const f = makeField(seed, c.map);
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (f(x + 0.5, y + 0.5) < 0.15) c.water[idx(x, y)] = 1;
     c.start = { x: pickStart(c), y: 7 };
@@ -640,8 +644,19 @@ function attach(c) {
   for (const s of c.services) if (!s.uid) s.uid = c.nextId++;
   initTraffic(c); initPeople(c); initTransit(c); initIncidents(c);
   makeTerrain(c);
+  if (c.tgen >= 3) forestMountains(c);
   rebuildOcc(c);
   return c;
+}
+
+/** Bản đồ đời 3: rừng phủ sườn núi (núi Việt Nam phần lớn có rừng); vách quá dốc thưa cây hơn. Chỉ chạy khi tạo thành phố mới. */
+function forestMountains(c) {
+  const hf = heightFn(c);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = idx(x, y), m = hf.mount(x + 0.5, y + 0.5);
+    if (c.water[i] || m < 3 || Math.abs(x - c.start.x) + y < 12) continue;
+    if (hash2(x, y, c.seed + 77) < (c.steep[i] ? 0.35 : 0.8) * clamp((m - 3) / 6, 0.3, 1)) c.tree[i] = 1;
+  }
 }
 
 function rebuildOcc(c) {
@@ -1275,6 +1290,7 @@ export function removeRoad(c, edgeId) {
 
 /** Gọi sau mọi thay đổi của graph đường. */
 export function roadsChanged(c) {
+  c._roadVer = (c._roadVer || 0) + 1; // đường ngang (rail.js) tính lại theo phiên bản đường
   rebuildAdj(c);
   for (const [id, list] of c.adj) if (!list.length) { c.nodes.delete(id); c.adj.delete(id); }
   rebuildRoadCells(c);
@@ -2593,7 +2609,7 @@ function deserializeAt(o) {
   const ms = clamp(o.milestone | 0, 0, MILESTONES.length);
   const mods = (s) => (Array.isArray(s.mods) ? [...new Set(s.mods)].filter((m) => MODULES[m] && MODULES[m].for.includes(s.type)) : []);
   const c = {
-    v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 2), style: o.style === 'vn' ? 'vn' : 'classic', // bản lưu cũ giữ kiểu nhà cũ
+    v: 4, tgen: open ? 1 : clamp(o.tgen | 0, 1, 3), style: o.style === 'vn' ? 'vn' : 'classic', // bản lưu cũ giữ kiểu nhà cũ
     devTree: o.devTree ? 1 : 0, tech: new Set(open ? [] : (o.tech || []).filter((t) => TECH[t])),
     points: open ? START_POINTS + MILESTONES.slice(0, ms).reduce((n, m) => n + m.points, 0) : clamp(o.points | 0, 0, 999),
     owned: new Uint8Array(LT * LT).fill(1), map: MAPS[o.map] ? o.map : 'river', // bỏ mua đất: bản lưu cũ cũng mở cả bản đồ

@@ -632,9 +632,8 @@ test('city: thiên tai — lốc xoáy phá nhà, hầm trú ẩn giảm thươn
     d.inc.weather = 'dry'; d.inc.wUntil = 1e9;
     let seed = -1;
     for (let i = 0; i < S.N * S.N && seed < 0; i++) { const x = i % S.N, y = (i / S.N) | 0; if (x > 3 && y > 3 && x < S.N - 4 && y < S.N - 4 && [-1, 0, 1].every((dy) => [-1, 0, 1].every((dx) => d.tree[S.idx(x + dx, y + dy)]))) seed = i; }
-    if (watch) d.cover.watch.fill(1);
     for (const j of [seed, seed + 1, seed - 1, seed + S.N]) d.inc.wild[j] = 6;
-    run(d, 24);
+    for (let h = 0; h < 24; h++) { if (watch) d.cover.watch.fill(1); S.tick(d); } // vùng phủ tháp canh tính lại 3 giờ một lần: giữ phủ suốt lượt thử
     return d.inc.total.burned + S.wildCount(d);
   };
   assert.ok(burn(false) > burn(true), 'tháp canh lửa kìm đám cháy rừng');
@@ -1562,6 +1561,69 @@ test('trang trí: cây xanh, thảm cỏ, lối đi bộ, bồn hoa tô theo ô;
   assert.ok(!c.decor[(y + 1) * S.N + x + 1], 'làm đường qua thì mất trang trí');
   assert.ok(S.paintDecor(c, x, y, x + 3, y + 3, null, { erase: true }).ok);
   assert.equal(S.decorCount(c).total, 0);
+});
+
+test('địa hình đời 3: núi có sống, khe (gồ ghề hơn đời 2), rừng phủ núi; bản lưu đời 2 giữ nguyên cao độ', () => {
+  const c3 = S.newCity(4242, { map: 'valley' }); assert.equal(c3.tgen, 3, 'bản đồ mới là đời 3');
+  const c2 = S.newCity(4242, { map: 'valley' }); c2.tgen = 2;
+  const h3 = S.heightFn(c3), h2 = S.heightFn(c2);
+  let r2 = 0, r3 = 0, n = 0, forest = 0, mcells = 0;
+  for (let y = 1; y < S.N - 1; y++) for (let x = 1; x < S.N - 1; x++) {
+    if (h3.mount(x, y) < 6) continue;
+    const lap = (h) => Math.abs(4 * h.mount(x, y) - h.mount(x + 1, y) - h.mount(x - 1, y) - h.mount(x, y + 1) - h.mount(x, y - 1));
+    r3 += lap(h3); r2 += lap(h2); n++;
+  }
+  assert.ok(n > 50 && r3 > r2 * 1.3, `núi đời 3 gồ ghề hơn (${(r3 / n).toFixed(2)} so với ${(r2 / n).toFixed(2)})`);
+  for (let i = 0; i < S.N * S.N; i++) if (!c3.water[i] && h3.mount((i % S.N) + 0.5, ((i / S.N) | 0) + 0.5) > 6) { mcells++; if (c3.tree[i]) forest++; }
+  assert.ok(forest > mcells * 0.4, 'rừng phủ núi');
+  const old = JSON.parse(JSON.stringify(S.serialize(c3))); old.tgen = 2;
+  const back = S.deserialize(old);
+  assert.equal(back.tgen, 2, 'bản lưu đời 2 giữ đời 2');
+  let gx = 0, gy = 0, best = -1; for (let y = 1; y < S.N; y++) for (let x = 1; x < S.N; x++) { const m = h3.mount(x, y); if (m > best) { best = m; gx = x; gy = y; } }
+  const k = gy * (S.N + 1) + gx;
+  assert.ok(Math.abs(back.hv[k] - h2.height(gx, gy)) < 1e-3 && Math.abs(c3.hv[k] - h3.height(gx, gy)) < 1e-3 && Math.abs(h2.height(gx, gy) - h3.height(gx, gy)) > 0.5, 'đỉnh núi: bản lưu đời 2 theo cao độ đời 2');
+});
+
+test('đường ngang: ray cắt đường bộ có rào chắn, xe dừng trước rào khi tàu tới, rào mở thì đi tiếp', async () => {
+  const T = await import('../city/js/traffic.js');
+  const c = S.newCity(7, { map: 'valley' }); S.enableSandbox(c);
+  road(c, c.start.x, 7, c.start.x, 30);
+  let ok = false;
+  for (let y = 3; y < 30 && !ok; y++) for (let x = c.start.x - 4; x <= c.start.x + 4 && !ok; x++) ok = S.placeService(c, 'train', x, y).ok;
+  const st = c.services.find((s) => s.type === 'train'); delete st.build;
+  const route = (g, e) => { const a = S.railSnap(c, e.x, e.z), b = S.railSnap(c, g.x, g.z); return [[a.x, a.z, e.x + e.dir[0] * 90, e.z + e.dir[1] * 90, g.x + g.dir[0] * 90, g.z + g.dir[1] * 90, b.x, b.z], { a, b }]; };
+  let built = null;
+  for (const g of S.railGates(c)) for (const e of S.stationEnds(c, st)) { if (built) break; const [pts, ab] = route(g, e); const r = S.buildRail(c, pts, { ...ab, dry: true }); if (r.ok && r.kinds.split('').filter((k) => k === 'g').length > 30) built = S.buildRail(c, pts, ab); }
+  assert.ok(built && built.ok, 'có ray');
+  const l = c.rail.lines[0], geo = S.lineGeo(l);
+  let made = false;
+  for (let k = 20; k < geo.n - 20 && !made; k += 3) {
+    if (l.kinds[k] !== 'g' || l.kinds[k - 6] !== 'g' || l.kinds[k + 6] !== 'g') continue;
+    const x = geo.pts[k * 2], z = geo.pts[k * 2 + 1], dx = geo.pts[k * 2 + 2] - geo.pts[k * 2 - 2], dz = geo.pts[k * 2 + 3] - geo.pts[k * 2 - 1], dl = Math.hypot(dx, dz), nx = -dz / dl, nz = dx / dl;
+    made = S.buildRoad(c, { a: S.snapPoint(c, x - nx * 45, z - nz * 45, { type: 'small' }), b: S.snapPoint(c, x + nx * 45, z + nz * 45, { type: 'small' }), type: 'small' }).ok;
+  }
+  assert.ok(made, 'đường bộ cắt ngang ray');
+  const xs = S.railCrossings(c);
+  assert.equal(xs.length, 1, 'một đường ngang');
+  const x = xs[0], e = c.edges.get(x.edge);
+  let tShut = -1, tOpen = -1;
+  for (let t = 0; t < 4000 && (tShut < 0 || tOpen < 0); t += 0.5) { const a = S.crossingsClosed(c, t, xs).size, b = S.crossingsClosed(c, t + 9, xs).size; if (tShut < 0 && a && b) tShut = t; if (tOpen < 0 && !a && !S.crossingsClosed(c, t + 12, xs).size) tOpen = t; }
+  assert.ok(tShut >= 0 && tOpen >= 0, 'có lúc đóng, có lúc mở');
+  const setT = (t) => { c.hour = Math.floor(t / S.HOUR_SEC); c.clock = t - c.hour * S.HOUR_SEC; };
+  // xe chạy về phía đường ngang từ cách 40 m
+  const back = x.along > 42, from = { edge: e, along: back ? x.along - 40 : x.along + 40 }, to = { edge: e, along: back ? Math.min(e.len - 1, x.along + 25) : Math.max(1, x.along - 25) };
+  c.traffic.vehicles = [];
+  setT(tShut);
+  const v = T.spawnVehicle(c, 'car', from, to, { t: 'test' });
+  assert.ok(v);
+  const sx = v.fwd ? x.along : e.len - x.along;
+  for (let k = 0; k < 40; k++) T.stepTraffic(c, 0.25);
+  assert.ok(v.s + v.len / 2 < sx - 2, `rào đóng: xe dừng trước rào (đầu xe ${(v.s + v.len / 2).toFixed(1)}, đường ngang ${sx.toFixed(1)})`);
+  assert.ok(v.v < 0.5, 'xe đứng yên');
+  setT(tOpen);
+  c.onArrive = () => {};
+  for (let k = 0; k < 40 && c.traffic.vehicles.includes(v); k++) T.stepTraffic(c, 0.25);
+  assert.ok(!c.traffic.vehicles.includes(v) || v.s > sx, 'rào mở: xe đi qua đường ngang');
 });
 
 test('đường sắt: cửa khẩu ở mép bản đồ, ray từ ga ra cửa khẩu (hầm qua núi, cầu qua sông), ga thông ra cửa khẩu đón tàu liên vận; lưu / nạp; san ủi dỡ ray', () => {

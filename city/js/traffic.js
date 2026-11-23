@@ -1,6 +1,7 @@
 // Phố Mới — giao thông thật trên graph đường: tìm đường theo thời gian đi (có tính xe đang đông),
 // xe bám làn, giữ khoảng cách, đổi làn, dừng đèn đỏ / nhường ở ngã ba, kẹt xe tự nhiên khi đường đầy.
-import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt, roadLvl, cellOf, N } from './base.js';
+import { ROADS, nearestOnEdge, cellX, cellZ, clamp, pointAt, roadLvl, cellOf, N, HOUR_SEC } from './base.js';
+import { railCrossings, crossingsClosed } from './rail.js';
 
 export const VKIND = {
   car: { len: 3.4, speed: 24 },
@@ -375,12 +376,16 @@ export function stepTraffic(c, dt) {
   }
   const done = [], stuck = [];
   let sum = 0, cnt = 0;
+  // đường ngang đang hạ rào (có tàu tới gần / đang qua): xe dừng trước rào
+  const xs = c.rail && c.rail.lines.length ? railCrossings(c) : [], shut = xs.length ? crossingsClosed(c, c.hour * HOUR_SEC + (c.clock || 0), xs) : null, xOn = new Map();
+  if (shut && shut.size) xs.forEach((x, i) => { if (shut.has(i)) { const a = xOn.get(x.edge) || []; a.push(x.along); xOn.set(x.edge, a); } });
   for (const v of tr.vehicles) {
     if (v.hold > 0) { v.hold -= dt; v.v = 0; continue; }
     const L = v.e.len, last = v.pi === v.steps.length - 1, vmax = baseSpeed(v.e, v.kind) * (v.vmul || 1);
     const arr = lanes.get(laneKey(v.e, v.fwd, v.lane));
     let gap = Infinity;
     for (const o of arr) if (o !== v && o.s > v.s && (!v.emergency || o.wreck || o.emergency)) gap = Math.min(gap, o.s - v.s - (o.len + v.len) / 2); // xe khẩn cấp lách qua xe thường
+    if (xOn.size && xOn.has(v.e.id)) for (const al of xOn.get(v.e.id)) { const sx = v.fwd ? al : L - al, d = sx - v.s - v.len / 2 - 4.5; if (d > -2.5 && sx - v.s < 45) gap = Math.min(gap, Math.max(0, d)); } // đầu xe chưa lên đường ngang: dừng trước rào
     if (last) gap = Math.min(gap, v.endS - v.s + 1);
     else if (!v.granted) {
       const gate = Math.max(0.5, L - GATE), dg = gate - v.s;
