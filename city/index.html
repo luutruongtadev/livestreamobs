@@ -7,45 +7,210 @@
 <meta name="robots" content="noindex">
 <style>
   :root {
-    --bg: rgba(15, 22, 32, .82); --bg2: rgba(255, 255, 255, .07); --line: rgba(255, 255, 255, .1); --txt: #eef4f8; --dim: #9db0c0;
-    --acc: #5cc8ff; --acc2: #2f9fe0; --ink: #04253a; --gold: #ffc857; --good: #62d98b; --bad: #ff7262; --topH: 84px;
+    /* "Phố đêm": bề mặt "mực tàu" than ấm trong mờ, đèn lồng vàng là màu chọn, ngọc bích cho tiến độ, đỏ son cho sự cố */
+    --ui-bg: rgba(17, 22, 24, .80); --ui-bg-2: rgba(13, 17, 19, .93); --ui-raise: rgba(255, 246, 230, .06); --ui-hover: rgba(255, 246, 230, .12); --ui-line: rgba(255, 240, 215, .11);
+    --ui-text: #f4efe4; --ui-dim: #a7b1ab;
+    --ui-gold: #f3b43f; --ui-gold-2: #d88f24; --ui-on-gold: #2a1a03; --ui-jade: #3cc6a3; --ui-good: #79d27c; --ui-bad: #f2604c; --ui-warn: #ffcb57;
+    --r-xs: 6px; --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+    --blur: blur(16px) saturate(1.25); --sh-1: 0 2px 8px rgba(0, 0, 0, .28); --sh-2: 0 14px 34px rgba(0, 0, 0, .38); --hl: inset 0 1px 0 rgba(255, 255, 255, .07);
+    --s1: 4px; --s2: 6px; --s3: 8px; --s4: 12px; --s5: 16px; --s6: 24px;
+    --fs-xs: 10.5px; --fs-sm: 12px; --fs-md: 13.5px; --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
+    --top-btn: 38px; --cat: 42px; --cat-gap: 2px; --asset-w: 82px; --asset-h: 92px;
+    --side-w: 340px; --info-w: 330px; --left-w: 336px;
+    --t-fast: 120ms; --t-med: 180ms; --t-slow: 260ms; --ease: cubic-bezier(.2, .8, .2, 1);
+    --barH: 58px; --topH: 58px; --dockH: 76px; --leftH: 330px; /* layout() đo lại */
+    /* tên cũ: các luật chưa đổi vẫn chạy */
+    --bg: var(--ui-bg); --bg2: var(--ui-raise); --line: var(--ui-line); --txt: var(--ui-text); --dim: var(--ui-dim);
+    --acc: var(--ui-gold); --acc2: var(--ui-gold-2); --ink: var(--ui-on-gold); --gold: var(--ui-warn); --good: var(--ui-good); --bad: var(--ui-bad);
   }
+  [hidden] { display: none !important; } /* .chip/.tb đặt display riêng: thuộc tính hidden vẫn phải thắng */
+  :focus-visible { outline: 2px solid var(--ui-jade); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc6ea; color: var(--txt); font: 14px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc6ea; color: var(--ui-text); font: 13.5px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif; user-select: none; -webkit-user-select: none; }
   canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  .panel { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(14px) saturate(1.35); -webkit-backdrop-filter: blur(14px) saturate(1.35); box-shadow: 0 10px 30px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255, 255, 255, .06); }
+  .panel { background: var(--ui-bg); border: 1px solid var(--ui-line); border-radius: var(--r-lg); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--sh-2), var(--hl); }
   button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
   button:disabled { opacity: .4; cursor: default; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border-radius: 4px; }
-
-  /* thanh trên: chỉ số thành phố bên trái, tốc độ và các bảng bên phải */
-  #top { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: stretch; pointer-events: none; flex-wrap: wrap; z-index: 3; }
-  #top > * { pointer-events: auto; }
-  .stat { padding: 5px 11px 5px 9px; display: grid; grid-template-columns: auto auto; column-gap: 7px; align-items: center; min-width: 0; }
-  .stat .ico { grid-row: 1 / span 2; font-size: 19px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .4)); }
-  .stat b { font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.2; }
-  .stat .sub, .stat small { font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--dim); }
-  .stat.name { grid-template-columns: auto; padding-left: 12px; border-left: 3px solid var(--acc); }
-  .stat small { letter-spacing: .05em; text-transform: uppercase; }
-  .pos { color: var(--good) !important; } .neg { color: var(--bad) !important; }
-  #cityname { font-size: 16px; font-weight: 700; background: none; border: 0; color: inherit; width: 124px; padding: 0; outline: none; user-select: text; -webkit-user-select: text; }
-  #demand { padding: 6px 9px; display: flex; gap: 5px; align-items: flex-end; }
-  #demand .bar { width: 12px; height: 34px; background: rgba(255, 255, 255, .08); border-radius: 4px; position: relative; overflow: hidden; }
-  #demand .bar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 4px; transition: height .4s; }
-  #demand .col { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9.5px; color: var(--dim); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(255, 246, 230, .18); border-radius: 4px; }
+  .pos { color: var(--ui-good) !important; } .neg { color: var(--ui-bad) !important; }
   .spacer { flex: 1; }
-  .btns { display: flex; padding: 4px; gap: 2px; align-items: center; }
-  .btns button { height: 38px; min-width: 34px; padding: 0 7px; border-radius: 10px; font-size: 15px; transition: background .12s, transform .12s; }
-  .btns button:hover { background: rgba(255, 255, 255, .12); transform: translateY(-1px); }
-  .btns button.on { background: linear-gradient(180deg, var(--acc), var(--acc2)); color: var(--ink); box-shadow: 0 2px 10px rgba(92, 200, 255, .35); }
+  .vsep { width: 1px; align-self: stretch; margin: 6px 3px; background: var(--ui-line); flex: none; }
 
-  /* thanh công cụ dưới */
-  #bottom { position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); max-width: calc(100vw - 16px); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
-  #hint { pointer-events: none; padding: 6px 16px; font-size: 13px; min-height: 32px; max-width: min(100%, 980px); text-align: center; border-radius: 999px; }
-  #hint b { color: var(--gold); }
-  .bar { pointer-events: auto; display: flex; gap: 4px; padding: 6px; overflow-x: auto; max-width: 100%; border-radius: 18px; }
-  #sub { background: rgba(22, 32, 46, .9); }
-  #sub:empty { display: none; }
+  /* ── thanh trên: trái là các bảng của thành phố, phải là hộp thư, cảnh báo và nút hệ thống ── */
+  #top { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: flex-start; pointer-events: none; z-index: 5; }
+  #top > * { pointer-events: auto; }
+  .tgroup { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--r-md); }
+  #menuItems { display: contents; }
+  .tb { position: relative; height: var(--top-btn); min-width: var(--top-btn); padding: 0 7px; border-radius: var(--r-sm); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 18px; line-height: 1; transition: background var(--t-fast); }
+  .tb:hover { background: var(--ui-hover); }
+  .tb.on { background: var(--ui-gold); color: var(--ui-on-gold); box-shadow: 0 2px 10px rgba(243, 180, 63, .35); }
+  .tb .cap { font-size: 11px; font-weight: 700; color: var(--ui-dim); white-space: nowrap; }
+  .tb.on .cap { color: var(--ui-on-gold); }
+  .badge { position: absolute; top: 1px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--ui-jade); color: #04241b; font: 700 10px/16px system-ui, sans-serif; text-align: center; white-space: nowrap; pointer-events: none; }
+  .badge:empty, .cap:empty { display: none; }
+  .badge.red { background: var(--ui-bad); color: #fff; } .badge.gold { background: var(--ui-gold); color: var(--ui-on-gold); }
+  #bDev.on #devPts { background: var(--ui-on-gold); color: var(--ui-gold); }
+  .only-narrow { display: none; }
+  .chip { height: 32px; margin-top: 7px; padding: 0 10px; border-radius: var(--r-pill); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .chip:hover { background: var(--ui-bg-2); }
+  .chip b { color: var(--ui-jade); }
+
+  /* ── cảnh báo (phải, dưới thanh trên) và thông báo (giữa) ── */
+  #alerts { position: fixed; top: var(--topH); right: 8px; width: 300px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; z-index: 2; }
+  #alerts.off { display: none; }
+  .alert { padding: 7px 10px 7px 12px; font-size: 12.5px; border-radius: var(--r-sm); border-left: 3px solid var(--ui-warn); background: var(--ui-bg); }
+  .alert.bad { border-left-color: var(--ui-bad); }
+  #toasts { position: fixed; top: var(--topH); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 7; }
+  .toast { padding: 10px 20px; text-align: center; border-color: rgba(243, 180, 63, .45); max-width: min(520px, calc(100vw - 32px)); animation: pop .35s var(--ease); }
+  .toast h3 { margin: 0 0 2px; font-size: var(--fs-xl); color: var(--ui-gold); }
+  @keyframes pop { from { transform: translateY(-12px) scale(.94); opacity: 0; } }
+
+  /* ── bảng bên (ghim phải), bảng ô đang xem và lớp xem (ghim trái), cửa sổ lớn (giữa) ── */
+  .side { position: fixed; top: var(--topH); right: 8px; width: var(--side-w); max-height: calc(100vh - var(--topH) - var(--dockH) - 8px); overflow-y: auto; padding: 0 14px 12px; z-index: 4; display: none; }
+  .side.show { display: block; animation: slideR var(--t-med) var(--ease); }
+  @keyframes slideR { from { transform: translateX(12px); opacity: 0; } }
+  @keyframes slideL { from { transform: translateX(-12px); opacity: 0; } }
+  .side h3 { position: sticky; top: 0; z-index: 1; margin: 0 -14px 8px; padding: 10px 10px 8px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: var(--fs-lg); background: var(--ui-bg-2); border-bottom: 1px solid var(--ui-line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .side h3 button { flex: none; font-size: 15px; width: 28px; height: 28px; border-radius: var(--r-xs); color: var(--ui-dim); }
+  .side h3 button:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .side h4 { margin: 14px 0 6px; font-size: 11px; color: var(--ui-jade); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+  .ptabs { display: flex; gap: 3px; flex-wrap: wrap; margin: 0 0 8px; }
+  .ptabs button { padding: 5px 9px; border-radius: var(--r-pill); font-size: 12px; background: var(--ui-raise); transition: background var(--t-fast); }
+  .ptabs button:hover { background: var(--ui-hover); }
+  .ptabs button.on { background: var(--ui-gold); color: var(--ui-on-gold); font-weight: 600; }
+  .pane { display: none; } .pane.on { display: block; }
+  .pane > h4:first-child { margin-top: 6px; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .row > span:first-child { color: var(--ui-dim); }
+  input[type=range] { width: 100%; accent-color: var(--ui-gold); margin: 0 0 6px; }
+  #info, #layers { left: 8px; right: auto; animation-name: slideL; }
+  #info { width: var(--info-w); max-height: calc(100vh - var(--topH) - var(--leftH) - 8px); }
+  #info h3 > span:first-child { min-width: 0; }
+  .iact { display: flex; gap: 2px; flex: none; }
+  .needs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  .needs li { padding: 2px 8px; border-radius: var(--r-pill); font-size: 12px; background: rgba(242, 96, 76, .16); color: #ffb1a5; }
+  .needs li.ok { background: rgba(121, 210, 124, .16); color: #bdf0bf; }
+  #layers { width: 300px; max-height: calc(100vh - var(--topH) - var(--leftH) - 8px); }
+  #layers.show ~ #info { display: none; }
+  #layerList { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .lay { border-radius: var(--r-sm); padding: 5px 2px 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--ui-raise); transition: background var(--t-fast); }
+  .lay span { font-size: 18px; line-height: 1.1; }
+  .lay small { font-size: 10.5px; color: var(--ui-dim); white-space: nowrap; }
+  .lay:hover { background: var(--ui-hover); }
+  .lay.on { background: var(--ui-gold); box-shadow: 0 2px 10px rgba(243, 180, 63, .3); }
+  .lay.on small { color: var(--ui-on-gold); font-weight: 600; }
+  .side.win { left: 50%; right: auto; top: calc(var(--topH) + 4px); transform: translateX(-50%); width: min(1120px, calc(100vw - 24px)); max-height: calc(100vh - var(--topH) - var(--dockH) - 8px); z-index: 6; }
+  .side.win.show { animation: none; }
+  .side.win.peek { display: none; }
+  .side.win h3 span { display: flex; gap: 2px; }
+  /* bảng bên phải đang mở: dời dải công cụ sang trái, ẩn cảnh báo (trình duyệt cũ không có :has() thì chỉ bị che một phần) */
+  body:has(.side.show:not(.win):not(#info):not(#layers)) #above { margin-right: calc(var(--side-w) + 8px); }
+  body:has(.side.show:not(.win):not(#info):not(#layers)) #alerts { display: none; }
+
+  /* ── dưới: cột trái (bản đồ nhỏ + thẻ thành phố) | giữa (gợi ý, tuỳ chọn, bảng công trình) | thanh công cụ ── */
+  #bottom { position: fixed; left: 8px; right: 8px; bottom: 8px; display: grid; grid-template-columns: var(--left-w) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 8px; row-gap: 6px; align-items: end; pointer-events: none; z-index: 3; }
+  #bottom > * { pointer-events: auto; }
+  #left { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 8px; align-self: end; pointer-events: none; min-width: 0; }
+  #left > * { pointer-events: auto; }
+  #mini { position: relative; align-self: flex-start; padding: 5px; line-height: 0; border-radius: var(--r-md); }
+  #mini.off { display: none; }
+  #minimap { width: 150px; height: 150px; border-radius: var(--r-xs); display: block; cursor: crosshair; touch-action: none; }
+  #mini small { position: absolute; left: 11px; top: 9px; font-size: 10px; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
+
+  #status { padding: 9px 12px; display: flex; flex-direction: column; gap: 6px; border-radius: var(--r-lg); min-width: 0; }
+  #status .nm { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  #cityname { font: 700 var(--fs-lg) inherit; font-family: inherit; background: none; border: 0; color: inherit; width: 118px; min-width: 0; padding: 0; outline: none; user-select: text; -webkit-user-select: text; text-overflow: ellipsis; }
+  #cityname:focus { box-shadow: 0 1px 0 var(--ui-jade); }
+  #rank { padding: 1px 7px; border-radius: var(--r-pill); background: rgba(60, 198, 163, .16); color: var(--ui-jade); font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #happy { margin-left: auto; font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .xprow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0; border-radius: var(--r-xs); }
+  .xprow:hover .xp { background: rgba(255, 255, 255, .18); }
+  #xpTxt { color: var(--ui-dim); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .xp { display: block; flex: 1; height: 6px; border-radius: var(--r-pill); background: rgba(255, 255, 255, .1); overflow: hidden; transition: background var(--t-fast); }
+  .xp i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--ui-jade), #8ee3c8); transition: width .5s var(--ease); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; align-items: center; min-width: 0; padding: 4px 6px; border-radius: var(--r-sm); }
+  .stat[role=button] { cursor: pointer; } .stat[role=button]:hover { background: var(--ui-hover); }
+  .stat .ico { grid-row: 1 / span 2; font-size: 18px; line-height: 1; }
+  .stat b { font-size: var(--fs-lg); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; }
+  .stat .sub { font-size: 11px; color: var(--ui-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .clock { display: flex; align-items: center; gap: 8px; }
+  #dateBox { flex: 1; min-width: 0; font-size: 12px; color: var(--ui-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 3px 6px; border-radius: var(--r-xs); cursor: pointer; }
+  #dateBox:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .speedseg { display: flex; flex: none; padding: 2px; gap: 2px; border-radius: var(--r-sm); background: rgba(0, 0, 0, .25); }
+  .speedseg button { width: 28px; height: 24px; border-radius: 7px; font-size: 11px; letter-spacing: -2px; color: var(--ui-dim); transition: background var(--t-fast); }
+  .speedseg button:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .speedseg button.on { background: var(--ui-gold); color: var(--ui-on-gold); }
+
+  #above { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; pointer-events: none; }
+  #above > * { pointer-events: auto; max-width: 100%; }
+  #hint { padding: 6px 14px; font-size: 12.5px; max-width: min(100%, 820px); text-align: center; border-radius: var(--r-md); pointer-events: none; }
+  #hint b { color: var(--ui-gold); }
+  #optRow { display: flex; gap: 6px; align-items: stretch; max-width: 100%; min-width: 0; }
+  #optRow:has(> #opts:empty):has(> #elev:empty) { display: none; }
+  #opts { flex: 0 1 auto; min-width: 0; } #elev { flex: none; }
+  .tbar { display: flex; gap: var(--cat-gap); padding: 5px; overflow-x: auto; overflow-y: hidden; border-radius: var(--r-md); scrollbar-width: thin; }
+  .tbar:empty, #sub:empty { display: none; }
+  .olab { align-self: center; flex: none; padding: 0 4px 0 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-dim); writing-mode: vertical-rl; transform: rotate(180deg); }
+  .olab:not(:first-child) { margin-left: 4px; border-right: 1px solid var(--ui-line); }
+
+  /* nút công cụ: .cat ở thanh dưới, .asset trong bảng công trình, .mode trong dải tuỳ chọn */
+  .tool { flex: none; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: var(--r-sm); transition: background var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast); }
+  .tool:hover { background: var(--ui-hover); }
+  .tool span { font-size: 18px; line-height: 1.1; }
+  .tool small { font-size: 10px; color: var(--ui-dim); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .tool .dot { position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35); }
+  .tool.locked { opacity: .45; }
+  .tool.locked::after { content: "🔒"; position: absolute; right: 4px; top: 3px; font-size: 11px; }
+  .mode { min-width: 54px; height: 46px; padding: 0 5px; }
+  .mode.on { background: rgba(243, 180, 63, .18); box-shadow: inset 0 0 0 1px var(--ui-gold); }
+  .mode.on small { color: var(--ui-text); }
+  .mode kbd { position: absolute; top: 2px; right: 3px; font: 600 9px/1 ui-monospace, monospace; color: var(--ui-dim); }
+  .mode span.brush { color: var(--ui-dim); height: 27px; display: flex; align-items: center; }
+  .mode.on span.brush { color: var(--ui-gold); }
+
+  #sub { display: flex; flex-direction: column; width: max-content; max-width: min(100%, 940px); padding: 0; overflow: hidden; border-radius: var(--r-lg); background: var(--ui-bg-2); animation: up var(--t-med) var(--ease); }
+  @keyframes up { from { transform: translateY(8px); opacity: 0; } }
+  .ahead { display: flex; align-items: center; gap: 6px; padding: 6px 6px 0 12px; min-width: 0; }
+  .ahead > b { font-size: var(--fs-md); margin-right: 6px; white-space: nowrap; }
+  .atabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
+  .atab { padding: 4px 10px; border-radius: var(--r-pill); font-size: 12px; color: var(--ui-dim); white-space: nowrap; transition: background var(--t-fast); }
+  .atab:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .atab.on { background: var(--ui-raise); color: var(--ui-text); box-shadow: inset 0 -2px 0 var(--ui-gold); }
+  .aclose { width: 26px; height: 26px; border-radius: var(--r-xs); color: var(--ui-dim); flex: none; }
+  .aclose:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .acards { display: flex; gap: 6px; padding: 8px; overflow-x: auto; scrollbar-width: thin; }
+  .asset { width: var(--asset-w); height: var(--asset-h); padding: 6px 4px 5px; justify-content: flex-start; background: var(--ui-raise); border: 1px solid transparent; }
+  .asset span { font-size: 28px; height: 34px; display: flex; align-items: center; }
+  .asset small { font-size: 10.5px; color: var(--ui-text); white-space: normal; text-align: center; line-height: 1.15; height: 2.3em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .asset .cost { margin-top: auto; font: 600 10px/1 system-ui, sans-serif; color: var(--ui-gold); font-style: normal; font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .asset:hover { transform: translateY(-2px); }
+  .asset.on { background: rgba(243, 180, 63, .16); border-color: var(--ui-gold); }
+  .asset.new::before { content: ""; position: absolute; right: 5px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-jade); }
+
+  #dockbar { grid-column: 2; grid-row: 2; justify-self: center; display: flex; align-items: center; gap: 4px; padding: 5px 6px; max-width: 100%; min-width: 0; border-radius: var(--r-lg); }
+  #demand { display: flex; gap: 4px; align-items: flex-end; padding: 0 6px 0 4px; flex: none; }
+  #demand .col { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; color: var(--ui-dim); }
+  #demand .dbar { width: 9px; height: 30px; border-radius: 3px; background: rgba(255, 255, 255, .1); position: relative; overflow: hidden; }
+  #demand .dbar i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 3px; transition: height .4s; }
+  #tools { padding: 0; min-width: 0; }
+  .cat { width: var(--cat); height: var(--cat); }
+  .cat span { font-size: 22px; }
+  .cat small { display: none; }
+  .cat.on { background: var(--ui-gold); box-shadow: 0 3px 12px rgba(243, 180, 63, .4); }
+  .cat.on small { color: var(--ui-on-gold); font-weight: 600; }
+  .cat.open { background: var(--ui-hover); box-shadow: inset 0 -3px 0 var(--ui-gold); }
+  .cat kbd { position: absolute; right: 3px; bottom: 2px; font: 600 9px/1 ui-monospace, monospace; color: var(--ui-dim); }
+  .cat.on kbd { color: var(--ui-on-gold); }
+  .cat.new::before { content: ""; position: absolute; right: 4px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ui-jade); }
+  .cat.end { margin-left: 8px; }
+  .cat.end::after { content: ""; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 1px; background: var(--ui-line); }
+
+  /* ẩn giao diện để chụp ảnh (phím U) */
+  body.noui #top, body.noui #bottom, body.noui #alerts, body.noui .side { display: none !important; }
+
+  /* ── nội dung trong các bảng ── */
   .tree { margin: 6px 0 10px; padding: 6px 8px; border-radius: 12px; background: rgba(255, 255, 255, .04); }
   .treeH { font-weight: 700; margin-bottom: 4px; }
   .tnode { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 3px 0; border-radius: 999px; position: relative; }
@@ -55,49 +220,10 @@
   .tnode small { color: var(--dim); font-size: 11px; }
   .tnode button { flex: none; }
   .tnode.done .tdot { background: #4caf50; box-shadow: 0 0 0 3px #2f7d32; }
-  .tnode.ok .tdot { background: #2f6fb0; box-shadow: 0 0 0 3px #5cc8ff; }
-  .tnode.ok { background: rgba(92, 200, 255, .1); }
+  .tnode.ok .tdot { background: #1f7f68; box-shadow: 0 0 0 3px var(--ui-jade); }
+  .tnode.ok { background: rgba(60, 198, 163, .1); }
   .tnode:not(.done):not(.ok) { opacity: .7; }
-  .tnode[style*="margin-left"]:not([style*="margin-left: 0px"])::before { content: ""; position: absolute; left: -12px; top: -8px; width: 10px; height: 23px; border-left: 2px solid #5cc8ff66; border-bottom: 2px solid #5cc8ff66; border-bottom-left-radius: 6px; }
-  #elev { background: rgba(22, 32, 46, .9); padding: 4px; border-radius: 14px; }
-  #elev:empty { display: none; }
-  #elev .tool { width: auto; min-width: 54px; height: 44px; padding: 0 8px; flex-direction: row; gap: 6px; }
-  #elev .tool span { font-size: 18px; }
-  #elev .tool small { font-size: 12px; max-width: none; }
-  .bar .sep { width: 1px; background: var(--line); margin: 6px 4px; flex: none; }
-  .tool { flex: none; width: 62px; height: 60px; border-radius: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; position: relative; transition: background .12s, transform .12s, box-shadow .12s; }
-  .tool span { font-size: 24px; line-height: 1.1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
-  .tool span.brush { color: var(--dim); filter: none; height: 28px; display: flex; align-items: center; }
-  .tool small { font-size: 9.5px; color: var(--dim); white-space: nowrap; max-width: 60px; overflow: hidden; text-overflow: ellipsis; }
-  .tool:hover { background: rgba(255, 255, 255, .11); transform: translateY(-2px); }
-  .tool.on { background: linear-gradient(180deg, var(--acc), var(--acc2)); box-shadow: 0 4px 14px rgba(92, 200, 255, .4); }
-  .tool.on small { color: var(--ink); font-weight: 600; }
-  .tool.open { background: rgba(255, 255, 255, .15); box-shadow: inset 0 -3px 0 var(--acc); }
-  .tool.locked { opacity: .38; }
-  .tool.locked::after { content: "🔒"; position: absolute; right: 3px; top: 2px; font-size: 11px; }
-  .tool .dot { position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .35); }
-  .tool.mode { width: 58px; }
-  .tool.mode.on { background: rgba(92, 200, 255, .22); outline: 1px solid var(--acc); box-shadow: none; }
-  .tool.mode.on small { color: var(--txt); }
-  .tool.mode.on span.brush { color: var(--acc); }
-
-  #alerts { position: fixed; left: 8px; top: var(--topH); display: flex; flex-direction: column; gap: 5px; pointer-events: none; max-width: 330px; z-index: 2; }
-  .alert { padding: 6px 12px; font-size: 12.5px; border-left: 3px solid var(--gold); border-radius: 10px; background: rgba(15, 22, 32, .72); }
-  .alert.bad { border-left-color: var(--bad); }
-  #toasts { position: fixed; left: 50%; top: var(--topH); transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; z-index: 5; }
-  .toast { padding: 11px 22px; text-align: center; animation: pop .35s ease-out; border-color: rgba(92, 200, 255, .55); }
-  .toast h3 { margin: 0 0 2px; font-size: 18px; color: var(--gold); }
-  @keyframes pop { from { transform: translateY(-12px) scale(.9); opacity: 0; } }
-
-  .side { position: fixed; right: 8px; top: var(--topH); width: 304px; padding: 14px 16px; display: none; max-height: calc(100vh - var(--topH) - 300px); min-height: 180px; overflow-y: auto; z-index: 4; }
-  .side.show { display: block; animation: slide .18s ease-out; }
-  @keyframes slide { from { transform: translateX(14px); opacity: 0; } }
-  .side h3 { margin: 0 0 10px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
-  .side h3 button { font-size: 15px; color: var(--dim); width: 26px; height: 26px; border-radius: 8px; }
-  .side h3 button:hover { background: rgba(255, 255, 255, .12); color: var(--txt); }
-  .side h4 { margin: 14px 0 6px; font-size: 11.5px; color: var(--acc); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-  .row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
-  .row > span:first-child { color: var(--dim); }
+  .tnode[style*="margin-left"]:not([style*="margin-left: 0px"])::before { content: ""; position: absolute; left: -12px; top: -8px; width: 10px; height: 23px; border-left: 2px solid rgba(60, 198, 163, .4); border-bottom: 2px solid rgba(60, 198, 163, .4); border-bottom-left-radius: 6px; }
   .policy .row { align-items: center; font-size: 12.5px; } .policy .mini { padding: 1px 7px; }
   .cloudLogin { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; } .cloudLogin input { flex: 1 1 120px; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,.25); color: inherit; font: inherit; }
   .exg { border-radius: 8px; margin: 2px -6px; }
@@ -114,58 +240,23 @@
   .exi .pg { width: 46px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; } .exi .pg i { display: block; height: 100%; background: #f2b33d; }
   .row.total { border-top: 1px solid var(--line); margin-top: 5px; padding-top: 7px; font-weight: 700; }
   .meter { height: 8px; background: rgba(255, 255, 255, .1); border-radius: 4px; overflow: hidden; margin: 3px 0 9px; }
-  .meter i { display: block; height: 100%; background: linear-gradient(90deg, #3fbf7a, var(--good)); border-radius: 4px; transition: width .4s; }
+  .meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--ui-jade), var(--ui-good)); border-radius: 4px; transition: width .4s; }
   .meter i.over { background: var(--bad); }
-  input[type=range] { width: 100%; accent-color: var(--acc); margin: 0 0 6px; }
-  .mini { background: rgba(255, 255, 255, .1); border-radius: 8px; padding: 5px 10px; font-size: 13px; transition: background .12s; }
-  .mini:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+  .mini { background: rgba(255, 246, 230, .1); border-radius: var(--r-xs); padding: 5px 10px; font-size: 13px; transition: background .12s; }
+  .mini:hover:not(:disabled) { background: rgba(255, 246, 230, .2); }
   .mini.acc { background: linear-gradient(180deg, var(--acc), var(--acc2)); color: var(--ink); font-weight: 600; }
   .slot { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
   .slot div { flex: 1; min-width: 0; }
   .slot small { color: var(--dim); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .needs { margin: 6px 0 0; padding: 0; list-style: none; }
-  .needs li { padding: 2px 0; color: var(--bad); }
-  .needs li.ok { color: var(--good); }
-  #info { top: auto; bottom: 158px; right: auto; left: 8px; max-height: calc(100vh - var(--topH) - 330px); }
   #devBody .slot small, #iBody .slot small { white-space: normal; }
   #devBody .note { display: block; color: var(--dim); margin: 2px 0 4px; }
-  #devPts { color: var(--gold); font-size: 11px; font-weight: 700; margin-left: 1px; }
-  #bDev.on #devPts { color: var(--ink); }
-
-  /* bảng chọn lớp xem */
-  #layers { width: 304px; padding: 12px; min-height: 0; }
-  #layerList { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .lay { border-radius: 10px; padding: 7px 2px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--bg2); transition: background .12s; }
-  .lay span { font-size: 20px; line-height: 1.1; }
-  .lay small { font-size: 10.5px; color: var(--dim); white-space: nowrap; }
-  .lay:hover { background: rgba(255, 255, 255, .15); }
-  .lay.on { background: linear-gradient(180deg, var(--acc), var(--acc2)); }
-  .lay.on small { color: var(--ink); font-weight: 600; }
-
-  /* bản đồ nhỏ */
-  #mini { position: fixed; right: 8px; bottom: 8px; padding: 6px; z-index: 3; line-height: 0; }
-  #minimap { width: 176px; height: 176px; border-radius: 9px; cursor: crosshair; touch-action: none; display: block; }
-  #mini small { position: absolute; left: 12px; top: 10px; font-size: 10px; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
-
-  .modal { position: fixed; inset: 0; background: rgba(8, 13, 20, .6); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .modal { position: fixed; inset: 0; background: rgba(8, 10, 10, .62); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .modal.show { display: flex; }
   .modal .panel.wide { max-width: 900px; width: min(900px, 96vw); }
   .mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
-  #bFest { position: fixed; left: 8px; bottom: 156px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
-  #bFest span { font-size: 12px; font-weight: 700; }
-  #bFest span:empty { display: none; }
-  #bDist { position: fixed; left: 8px; bottom: 208px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
-  #bCorp { position: fixed; left: 8px; bottom: 260px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
-  #bCorp span { font-size: 12px; font-weight: 700; }
-  #bChron { position: fixed; left: 8px; bottom: 312px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
-  #bChron span { font-size: 12px; font-weight: 700; }
-  #bChron span:empty { display: none; }
   .chronEv { padding: 6px 0; border-bottom: 1px solid rgba(127, 127, 127, 0.18); font-size: 12px; }
   .chronEv .why { display: block; opacity: 0.75; margin-left: 14px; }
   .chronEv button { margin-left: 4px; }
-  #bCorp span:empty { display: none; }
-  #bDist span { font-size: 12px; font-weight: 700; }
-  #bDist span:empty { display: none; }
   .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
   .tabs button.on, .seg button.on { background: linear-gradient(180deg, var(--acc), var(--acc2)); color: var(--ink); font-weight: 600; }
   .seg { display: flex; gap: 4px; margin: 6px 0; }
@@ -177,10 +268,6 @@
   .prog .nm { flex: 1; }
   .prog .lv { letter-spacing: 1px; color: var(--acc); }
   .prog button { width: 24px; padding: 2px 0; }
-  .side.win { left: 50%; right: auto; top: calc(var(--topH) + 4px); transform: translateX(-50%); width: min(1120px, calc(100vw - 24px)); max-height: calc(100vh - var(--topH) - 70px); z-index: 6; }
-  .side.win.show { animation: none; }
-  .side.win.peek { display: none; }
-  .side.win h3 span { display: flex; gap: 2px; }
   .lgtab { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
   .lgtab th, .lgtab td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .lgtab th:nth-child(2), .lgtab td:nth-child(2) { text-align: left; white-space: normal; }
@@ -197,14 +284,11 @@
   .dover td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, .05); white-space: nowrap; }
   .dover tr.row1 { cursor: pointer; }
   .dover tr.row1:hover td { background: rgba(255, 255, 255, .05); }
-  .dover tr.on td { background: rgba(92, 200, 255, .14); }
+  .dover tr.on td { background: rgba(243, 180, 63, .14); }
   .dcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
   .dcols > div > h4:first-child { margin-top: 4px; }
   @media (max-width: 900px) { .dcols { grid-template-columns: 1fr; } .dover .wide { display: none; } }
-  #bInbox { position: fixed; left: 8px; bottom: 104px; z-index: 3; padding: 8px 12px; border-radius: 14px; font-size: 18px; cursor: pointer; color: inherit; }
-  #bInbox span { font-size: 12px; font-weight: 700; background: var(--bad); color: #fff; border-radius: 999px; padding: 1px 6px; vertical-align: top; }
-  #bInbox span:empty { display: none; }
-  .card { background: rgba(255, 255, 255, .06); border-radius: 12px; padding: 10px 12px; margin: 8px 0; }
+  .card { background: var(--ui-raise); border-radius: var(--r-md); padding: 10px 12px; margin: 8px 0; }
   .card p { margin: 6px 0; line-height: 1.45; }
   .card .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .card .opts button { text-align: left; }
@@ -212,7 +296,7 @@
   .chat { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
   .chat div { padding: 6px 10px; border-radius: 10px; max-width: 88%; line-height: 1.4; font-size: 13px; }
   .chat .them { background: rgba(255, 255, 255, .08); align-self: flex-start; }
-  .chat .us { background: rgba(70, 140, 236, .35); align-self: flex-end; }
+  .chat .us { background: rgba(60, 198, 163, .28); align-self: flex-end; }
   .offer { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; margin: 6px 0; }
   .stars { color: var(--gold); letter-spacing: 1px; }
   .mapcard { background: rgba(255, 255, 255, .06); border: 2px solid transparent; border-radius: 12px; padding: 8px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
@@ -231,53 +315,100 @@
   .modal kbd { background: rgba(255, 255, 255, .12); border-radius: 5px; padding: 1px 6px; font: 12px ui-monospace, monospace; }
   .modal .keys { color: var(--dim); font-size: 13px; }
   .cta { background: linear-gradient(180deg, var(--acc), var(--acc2)); color: var(--ink); font-weight: 700; padding: 10px 22px; border-radius: 10px; margin-top: 12px; }
-  .cta.ghost { background: rgba(255, 255, 255, .1); color: var(--txt); font-weight: 500; margin-left: 6px; }
-  @media (max-width: 1180px) { #mini { bottom: 152px; } #minimap { width: 132px; height: 132px; } }
-  @media (max-width: 760px) { .stat { padding: 5px 9px; } .stat .ico { font-size: 17px; } .stat b { font-size: 14px; } #cityname { width: 100px; font-size: 14px; } #mini { display: none; } .side { max-height: calc(100vh - var(--topH) - 170px); } }
+  .cta.ghost { background: var(--ui-hover); color: var(--txt); font-weight: 500; margin-left: 6px; }
+
+  /* ── màn hình rộng: hiện nhãn dưới biểu tượng nhóm công cụ ── */
+  @media (min-width: 1560px) { :root { --cat: 54px; } .cat small { display: block; font-size: 9.5px; } .cat span { font-size: 20px; } }
+  /* ── 1101–1239: gọn hơn ── */
+  @media (max-width: 1239px) { :root { --cat: 40px; --left-w: 292px; } #minimap { width: 128px; height: 128px; } }
+  /* ── ≤1100: thẻ thành phố lên dưới thanh trên, không có bản đồ nhỏ, thanh công cụ trải hết bề ngang ── */
+  @media (max-width: 1100px) {
+    #bottom { grid-template-columns: minmax(0, 1fr); }
+    #left { position: fixed; top: var(--barH); left: 8px; right: 8px; align-items: flex-start; }
+    #mini, #bMini { display: none; }
+    #status { width: min(100%, 460px); }
+    #above, #dockbar { grid-column: 1; }
+    #dockbar { justify-self: stretch; }
+    #tools { flex: 1; }
+    #layerChip { display: none; }
+  }
+  /* ── ≤900: các bảng thành phố gom vào nút ☰ (lưới có nhãn) ── */
+  @media (max-width: 900px) {
+    .only-narrow { display: inline-flex; }
+    #menuItems { display: none; }
+    #menu { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--ui-bg-2); } /* backdrop-filter sẽ giam ô thả xuống (position: fixed) trong #menu */
+    #menu.open #bMenu { background: var(--ui-hover); }
+    #menu.open #menuItems { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 4px; position: fixed; top: var(--barH); left: 8px; right: 8px; max-width: 520px; padding: 8px; background: var(--ui-bg-2); border: 1px solid var(--ui-line); border-radius: var(--r-lg); box-shadow: var(--sh-2); z-index: 9; }
+    #menu.open #menuItems .tb { flex-direction: column; height: 58px; font-size: 20px; gap: 2px; }
+    #menu.open #menuItems .tb::after { content: attr(data-label); font-size: 10px; color: var(--ui-dim); }
+    #menu.open #menuItems .tb.on::after { color: var(--ui-on-gold); }
+    #menu.open #menuItems .tb .cap { position: absolute; top: 2px; left: 4px; font-size: 9.5px; }
+    #menu.open .vsep { display: none; }
+    #sys .vsep { display: none; }
+  }
+  /* ── ≤640 (điện thoại): bảng thành tấm trượt từ dưới lên, cảnh báo thu gọn, thẻ công trình nhỏ hơn ── */
+  @media (max-width: 640px) {
+    :root { --asset-w: 70px; --asset-h: 82px; }
+    #alerts { left: 8px; right: 8px; width: auto; z-index: 6; }
+    .side, .side.win, #info, #layers { left: 8px; right: 8px; width: auto; top: auto; bottom: var(--dockH); transform: none; max-height: calc(100vh - var(--topH) - var(--dockH) - 8px); }
+    .side.show { animation-name: up; }
+    body:has(.side.show:not(#info)) #info { display: none; }
+    body:has(.side.show) #above { display: none; }
+    body:has(.side.show:not(#info)) #alerts { display: none; }
+    .asset span { font-size: 24px; height: 28px; }
+    #hint { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; border-bottom: 6px solid transparent; } /* viền trong suốt thay lề dưới: dòng thứ ba không lộ ra */
+    #sys { gap: 0; } #sys .tb { min-width: 34px; padding: 0 5px; }
+  }
+  /* ── màn thấp (điện thoại nằm ngang) ── */
+  @media (max-height: 520px) {
+    #status { flex-direction: row; align-items: center; gap: 8px; padding: 5px 8px; }
+    #status .nm, #status .xprow, #dateBox, #jobs, #net { display: none; }
+    #status .stats { display: flex; gap: 6px; }
+    #status .stat { grid-template-columns: auto auto; padding: 2px 4px; }
+    #hint { display: none; }
+    :root { --asset-h: 62px; }
+    .asset .cost, .asset small { display: none; }
+    .mode { height: 38px; } .mode small { display: none; } #elev .mode small { display: block; }
+  }
 </style>
 </head>
 <body>
 <canvas id="view"></canvas>
 
-<div id="top">
-  <div class="panel stat name"><input id="cityname" maxlength="24" spellcheck="false" aria-label="Tên thành phố"><small id="rank">Vùng đất mới</small></div>
-  <div class="panel stat" title="Dân số và việc làm"><span class="ico">👥</span><b id="pop">0</b><span class="sub" id="jobs"></span></div>
-  <div class="panel stat" id="moneyStat" role="button" tabindex="0" style="cursor:pointer" title="Bấm để mở bảng ngân sách: thu chi, chi tiết từng khoản, dòng tiền (nút 📊)"><span class="ico">💰</span><b id="money">0</b><span class="sub" id="net"></span></div>
-  <div class="panel stat" id="dateBox" style="cursor:pointer" title="Mức hài lòng của dân, giờ, ngày âm lịch, lễ hội và thời tiết · bấm để mở 🎎 lễ hội và mùa mưa bão"><span class="ico">❤️</span><b id="happy">–</b><span class="sub" id="date"></span></div>
-  <div class="panel" id="demand" title="Nhu cầu: nhà ở / thương mại / công nghiệp / văn phòng">
-    <div class="col"><div class="bar"><i id="dr" style="background:#46c85a"></i></div>Dân</div>
-    <div class="col"><div class="bar"><i id="dc" style="background:#468cec"></i></div>TM</div>
-    <div class="col"><div class="bar"><i id="di" style="background:#f0be32"></i></div>CN</div>
-    <div class="col"><div class="bar"><i id="do" style="background:#9a6be0"></i></div>VP</div>
-  </div>
+<header id="top">
+  <nav class="panel tgroup" id="menu" aria-label="Bảng thành phố">
+    <button class="tb only-narrow" id="bMenu" title="Các bảng của thành phố" aria-label="Các bảng">☰</button>
+    <div id="menuItems">
+      <button class="tb" id="bLayer" data-label="Lớp xem" title="Lớp xem (phím L hoặc I): quy hoạch, giao thông, giá đất, ô nhiễm, rác, dịch vụ, tội phạm, tài nguyên, điện, nước">🗺️</button>
+      <button class="tb" id="bDev" data-label="Phát triển" title="Phát triển (phím P): tiêu điểm để mở khu tài nguyên, module, công trình biểu tượng">🔬<sup class="badge gold" id="devPts"></sup></button>
+      <button class="tb" id="bBudget" data-label="Ngân sách" title="Ngân sách, thuế, vay nợ (phím Z)">📊</button>
+      <button class="tb" id="bFlows" data-label="Dòng tiền" title="Dòng tiền: tiền vào / ra thành phố, vòng tiền bên trong, ví của ngân sách, dân, doanh nghiệp và thế giới bên ngoài">💸</button>
+      <button class="tb" id="bCity" data-label="Dân cư" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe (phím V)">👥</button>
+      <i class="vsep"></i>
+      <button class="tb" id="bDist" data-label="Quận" title="Quận và chủ tịch quận: tự làm, giao việc hay để chủ tịch tự chủ">🏙️<span class="badge" id="distN"></span></button>
+      <button class="tb" id="bCorp" data-label="Tập đoàn" title="Tập đoàn: các công ty do AI điều hành, đề xuất xin đất, cam kết việc làm, lịch sử">🏢<span class="badge" id="corpN"></span></button>
+      <button class="tb" id="bChron" data-label="Biên niên" title="Biên niên thành phố: bản sắc kinh tế và chuỗi sự kiện có nguyên nhân (mất việc, đứt nguồn hàng, nhà ở công nhân, tranh đất, đổi thuế…)">📜<span class="badge" id="chronN"></span></button>
+      <button class="tb" id="bFest" data-label="Lễ hội" title="Lễ hội và mùa mưa bão: lịch âm, tổ chức lễ hội, bão, ngập (cũng mở được bằng cách bấm vào ô ngày giờ)">🎎<span class="cap" id="festN"></span></button>
+      <button class="tb" id="bLeague" data-label="Nhóm" title="Nhóm cạnh tranh: thi với thành phố của người chơi khác (dân, khách, giá chợ chia chung)">🏆</button>
+    </div>
+  </nav>
+  <button class="panel chip" id="layerChip" hidden title="Đang bật lớp xem · bấm để tắt"></button>
   <div class="spacer"></div>
-  <div class="panel btns" id="speed">
-    <button data-s="0" title="Tạm dừng (Space)">⏸</button>
-    <button data-s="1" title="Tốc độ 1 (phím 1)">▶</button>
-    <button data-s="2" title="Tốc độ 2 (phím 2)">▶▶</button>
-    <button data-s="4" title="Tốc độ 3 (phím 3)">▶▶▶</button>
+  <div class="panel tgroup" id="sys">
+    <button class="tb" id="bInbox" title="Hộp thư thị trưởng: việc cần quyết, đàm phán, đánh giá của du khách">📨<span class="badge red" id="inboxN"></span></button>
+    <button class="tb" id="bAlerts" title="Cảnh báo và gợi ý (bấm để ẩn / hiện)">🔔<span class="badge" id="alertN"></span></button>
+    <i class="vsep"></i>
+    <button class="tb" id="bNight" title="Chu kỳ ngày đêm (phím N): trời tối dần theo giờ trong game, phố lên đèn">🌙</button>
+    <button class="tb" id="bStyle" title="Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy">🇻🇳</button>
+    <button class="tb" id="bMini" title="Bản đồ nhỏ: bật / tắt">🧭</button>
+    <button class="tb" id="bSave" title="Lưu và tải">💾</button>
+    <button class="tb" id="bHelp" title="Hướng dẫn">❓</button>
   </div>
-  <div class="panel btns">
-    <button id="bBudget" title="Ngân sách, thuế, vay nợ">📊</button>
-    <button id="bFlows" title="Dòng tiền: tiền vào / ra thành phố, vòng tiền bên trong, ví của ngân sách, dân, doanh nghiệp và thế giới bên ngoài">💸</button>
-    <button id="bCity" title="Dân cư, việc làm, đi lại, doanh nghiệp, tuyến xe">👥</button>
-    <button id="bDev" title="Phát triển: tiêu điểm để mở khu tài nguyên, module, công trình biểu tượng">🔬<sup id="devPts"></sup></button>
-    <button id="bLayer" title="Lớp xem (phím L): quy hoạch, giao thông, giá đất, ô nhiễm, rác, dịch vụ, tội phạm, tài nguyên, điện, nước">🗺️</button>
-    <button id="bNight" title="Chu kỳ ngày đêm (phím N): trời tối dần theo giờ trong game, phố lên đèn">🌙</button>
-    <button id="bStyle" title="Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy">🇻🇳</button>
-    <button id="bLeague" title="Nhóm cạnh tranh: thi với thành phố của người chơi khác (dân, khách, giá chợ chia chung)">🏆</button>
-    <button id="bSave" title="Lưu và tải">💾</button>
-    <button id="bHelp" title="Hướng dẫn">❓</button>
-  </div>
-</div>
+</header>
 
 <div id="alerts"></div>
 <div id="toasts"></div>
 
-<button class="panel" id="bFest" title="Lễ hội và mùa mưa bão: lịch âm, tổ chức lễ hội, bão, ngập (cũng mở được bằng cách bấm vào ô ngày giờ trên cùng)">🎎 <span id="festN"></span></button>
-<button class="panel" id="bDist" title="Quận và chủ tịch quận: tự làm, giao việc hay để chủ tịch tự chủ">🏙️ <span id="distN"></span></button>
-<button class="panel" id="bCorp" title="Tập đoàn: các công ty do AI điều hành, đề xuất xin đất, cam kết việc làm, lịch sử">🏢 <span id="corpN"></span></button>
-<button class="panel" id="bChron" title="Biên niên thành phố: bản sắc kinh tế và chuỗi sự kiện có nguyên nhân (mất việc, đứt nguồn hàng, nhà ở công nhân, tranh đất, đổi thuế…)">📜 <span id="chronN"></span></button>
 <div class="panel side win" id="chron">
   <h3>📜 Biên niên thành phố <span><button data-close>✕</button></span></h3>
   <div id="chronBody"></div>
@@ -293,7 +424,6 @@
   <div id="distTabs" style="overflow-x:auto"></div>
   <div id="distBody"></div>
 </div>
-<button class="panel" id="bInbox" title="Hộp thư thị trưởng: việc cần quyết, đàm phán, đánh giá của du khách">📨 <span id="inboxN"></span></button>
 <div class="panel side" id="inbox">
   <h3>📨 Hộp thư thị trưởng <button data-close>✕</button></h3>
   <div id="inboxAi" class="sub"></div>
@@ -323,62 +453,88 @@
 
 <div class="panel side" id="budget">
   <h3>Ngân sách mỗi ngày <button data-close>✕</button></h3>
-  <div class="row"><span>🏠 Thuế dân cư</span><b id="taxRv"></b></div><input type="range" id="taxR" min="1" max="20" step="1" aria-label="Thuế dân cư">
-  <div class="row"><span>🏬 Thuế thương mại</span><b id="taxCv"></b></div><input type="range" id="taxC" min="1" max="20" step="1" aria-label="Thuế thương mại">
-  <div class="row"><span>🏭 Thuế công nghiệp</span><b id="taxIv"></b></div><input type="range" id="taxI" min="1" max="20" step="1" aria-label="Thuế công nghiệp">
-  <div class="row"><span>Tổng thu 24 giờ qua</span><span id="bInc" class="pos"></span></div>
-  <div class="row"><span>Trong đó tiền vé</span><span id="bFare" class="pos"></span></div>
-  <div class="row"><span>Trong đó tiền phòng khách sạn</span><span id="bRoom" class="pos"></span></div>
-  <div class="row"><span>Tổng chi mỗi ngày</span><span id="bExp" class="neg"></span></div>
-  <div id="expList"></div>
-  <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
-  <h4>Tốn nhiều nhất</h4>
-  <div id="expTop"></div>
-  <div id="buildBox"></div>
-  <h4>Dòng tiền</h4>
-  <div id="flowBox"></div>
-  <button class="mini acc" id="bFlowsOpen">💸 Mở cửa sổ dòng tiền</button>
-  <h4>Mức chi theo ngành</h4>
-  <div id="sectors"></div>
-  <h4>Du lịch</h4>
-  <div id="tourBox"></div>
-  <div class="row"><span>🛎️ Giá phòng mỗi đêm</span><b id="roomFeeV"></b></div>
-  <input type="range" id="roomFee" min="0" max="40" step="1" aria-label="Giá phòng khách sạn">
-  <h4>Khách quốc tế ✈️ 🚢</h4>
-  <div id="intlBox"></div>
-  <div class="row"><span>🛂 Chính sách thị thực</span><b id="visaV"></b></div>
-  <div id="visaBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"></div>
-  <div class="row"><span>📣 Quảng bá du lịch quốc tế</span><b id="promoV"></b></div>
-  <div id="promoBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"></div>
-  <div class="row"><span>🛬 Phí hạ cánh / cập cảng mỗi khách</span><b id="intlFeeV"></b></div>
-  <input type="range" id="intlFee" min="0" max="30" step="1" aria-label="Phí hạ cánh mỗi khách">
-  <div id="intlNext"></div>
-  <h4>Giá thị trường bên ngoài (nhập, xuất khẩu)</h4>
-  <div id="mktNews" class="row"></div>
-  <canvas id="mktChart" width="300" height="160" style="width:100%;height:auto"></canvas>
-  <div id="mktLegend"></div>
-  <h4 id="loanH">Vay nợ</h4>
-  <div id="loans"></div>
-  <h4>Hạ tầng (đã nối mạng)</h4>
-  <div class="row"><span>⚡ Điện</span><span id="pTxt"></span></div><div class="meter"><i id="pBar"></i></div>
-  <div class="row"><span>💧 Nước sạch</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
-  <div class="row"><span>🕳️ Thoát nước</span><span id="sTxt"></span></div><div class="meter"><i id="sBar"></i></div>
-  <div class="row"><span>🗑️ Rác</span><span id="tTxt"></span></div><div class="meter"><i id="tBar"></i></div>
+  <nav class="ptabs" aria-label="Các mục ngân sách"><button data-pane="tong">Tổng quan</button><button data-pane="thue">Thuế</button><button data-pane="nganh">Ngành</button><button data-pane="dong">Dòng tiền</button><button data-pane="dulich">Du lịch</button><button data-pane="tt">Thị trường</button><button data-pane="vay" id="tabLoans">Vay nợ</button><button data-pane="ht">Hạ tầng</button></nav>
+  <section class="pane" data-pane="tong">
+    <div class="row"><span>Tổng thu 24 giờ qua</span><span id="bInc" class="pos"></span></div>
+    <div class="row"><span>Trong đó tiền vé</span><span id="bFare" class="pos"></span></div>
+    <div class="row"><span>Trong đó tiền phòng khách sạn</span><span id="bRoom" class="pos"></span></div>
+    <div class="row"><span>Tổng chi mỗi ngày</span><span id="bExp" class="neg"></span></div>
+    <div id="expList"></div>
+    <div class="row total"><span>Cân đối</span><span id="bNet"></span></div>
+    <h4>Tốn nhiều nhất</h4>
+    <div id="expTop"></div>
+    <div id="buildBox"></div>
+  </section>
+  <section class="pane" data-pane="thue">
+    <div class="row"><span>🏠 Thuế dân cư</span><b id="taxRv"></b></div><input type="range" id="taxR" min="1" max="20" step="1" aria-label="Thuế dân cư">
+    <div class="row"><span>🏬 Thuế thương mại</span><b id="taxCv"></b></div><input type="range" id="taxC" min="1" max="20" step="1" aria-label="Thuế thương mại">
+    <div class="row"><span>🏭 Thuế công nghiệp</span><b id="taxIv"></b></div><input type="range" id="taxI" min="1" max="20" step="1" aria-label="Thuế công nghiệp">
+  </section>
+  <section class="pane" data-pane="nganh">
+    <h4>Mức chi theo ngành</h4>
+    <div id="sectors"></div>
+  </section>
+  <section class="pane" data-pane="dong">
+    <h4>Dòng tiền</h4>
+    <div id="flowBox"></div>
+    <button class="mini acc" id="bFlowsOpen">💸 Mở cửa sổ dòng tiền</button>
+  </section>
+  <section class="pane" data-pane="dulich">
+    <h4>Du lịch</h4>
+    <div id="tourBox"></div>
+    <div class="row"><span>🛎️ Giá phòng mỗi đêm</span><b id="roomFeeV"></b></div>
+    <input type="range" id="roomFee" min="0" max="40" step="1" aria-label="Giá phòng khách sạn">
+    <h4>Khách quốc tế ✈️ 🚢</h4>
+    <div id="intlBox"></div>
+    <div class="row"><span>🛂 Chính sách thị thực</span><b id="visaV"></b></div>
+    <div id="visaBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"></div>
+    <div class="row"><span>📣 Quảng bá du lịch quốc tế</span><b id="promoV"></b></div>
+    <div id="promoBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0"></div>
+    <div class="row"><span>🛬 Phí hạ cánh / cập cảng mỗi khách</span><b id="intlFeeV"></b></div>
+    <input type="range" id="intlFee" min="0" max="30" step="1" aria-label="Phí hạ cánh mỗi khách">
+    <div id="intlNext"></div>
+  </section>
+  <section class="pane" data-pane="tt">
+    <h4>Giá thị trường bên ngoài (nhập, xuất khẩu)</h4>
+    <div id="mktNews" class="row"></div>
+    <canvas id="mktChart" width="300" height="160" style="width:100%;height:auto"></canvas>
+    <div id="mktLegend"></div>
+  </section>
+  <section class="pane" data-pane="vay">
+    <h4 id="loanH">Vay nợ</h4>
+    <div id="loans"></div>
+  </section>
+  <section class="pane" data-pane="ht">
+    <h4>Hạ tầng (đã nối mạng)</h4>
+    <div class="row"><span>⚡ Điện</span><span id="pTxt"></span></div><div class="meter"><i id="pBar"></i></div>
+    <div class="row"><span>💧 Nước sạch</span><span id="wTxt"></span></div><div class="meter"><i id="wBar"></i></div>
+    <div class="row"><span>🕳️ Thoát nước</span><span id="sTxt"></span></div><div class="meter"><i id="sBar"></i></div>
+    <div class="row"><span>🗑️ Rác</span><span id="tTxt"></span></div><div class="meter"><i id="tBar"></i></div>
+  </section>
 </div>
 
 <div class="panel side" id="people">
   <h3>Dân cư và kinh tế <button data-close>✕</button></h3>
-  <div id="pBody"></div>
-  <h4>Giao thông công cộng</h4>
-  <div class="row"><span>Giá vé</span><b id="fareV"></b></div>
-  <input type="range" id="fare" min="0" max="8" step="1" aria-label="Giá vé">
-  <div class="row"><span>Vé tàu khách</span><b id="ferryFareV"></b></div>
-  <input type="range" id="ferryFare" min="0" max="20" step="1" aria-label="Giá vé tàu khách">
-  <div id="pLines"></div>
-  <h4>🛵 Đường phố và xe cộ</h4>
-  <div id="streetBox"></div>
-  <h4>Thử thiên tai</h4>
-  <div class="row" id="disasters"><button class="mini" data-dis="tornado">🌪️ Lốc xoáy</button><button class="mini" data-dis="hail">🌨️ Bão đá</button><button class="mini" data-dis="wildfire">🔥 Cháy rừng</button></div>
+  <nav class="ptabs" aria-label="Các mục dân cư"><button data-pane="dan">Dân cư</button><button data-pane="xe">Xe công cộng</button><button data-pane="pho">Đường phố</button><button data-pane="thientai">Thiên tai</button></nav>
+  <section class="pane" data-pane="dan">
+    <div id="pBody"></div>
+  </section>
+  <section class="pane" data-pane="xe">
+    <h4>Giao thông công cộng</h4>
+    <div class="row"><span>Giá vé</span><b id="fareV"></b></div>
+    <input type="range" id="fare" min="0" max="8" step="1" aria-label="Giá vé">
+    <div class="row"><span>Vé tàu khách</span><b id="ferryFareV"></b></div>
+    <input type="range" id="ferryFare" min="0" max="20" step="1" aria-label="Giá vé tàu khách">
+    <div id="pLines"></div>
+  </section>
+  <section class="pane" data-pane="pho">
+    <h4>🛵 Đường phố và xe cộ</h4>
+    <div id="streetBox"></div>
+  </section>
+  <section class="pane" data-pane="thientai">
+    <h4>Thử thiên tai</h4>
+    <div class="row" id="disasters"><button class="mini" data-dis="tornado">🌪️ Lốc xoáy</button><button class="mini" data-dis="hail">🌨️ Bão đá</button><button class="mini" data-dis="wildfire">🔥 Cháy rừng</button></div>
+  </section>
 </div>
 
 <div class="panel side" id="dev">
@@ -411,17 +567,41 @@
 </div>
 
 <div class="panel side" id="info">
-  <h3><span id="iTitle">Ô đất</span> <button data-close>✕</button></h3>
+  <h3><span id="iTitle">Ô đất</span> <span class="iact"><button id="iFocus" title="Đưa camera tới đây">🎯</button><button data-close title="Đóng (Esc)">✕</button></span></h3>
   <div id="iBody"></div>
 </div>
 
-<div class="panel" id="mini" title="Bản đồ nhỏ: bấm hoặc kéo để tới chỗ đó"><small>Bản đồ</small><canvas id="minimap" width="192" height="192"></canvas></div>
-
 <div id="bottom">
-  <div class="panel" id="hint"></div>
-  <div class="panel bar" id="elev"></div>
-  <div class="panel bar" id="sub"></div>
-  <div class="panel bar" id="tools"></div>
+  <div id="left">
+    <div class="panel" id="mini" title="Bản đồ nhỏ: bấm hoặc kéo để tới chỗ đó"><small>Bản đồ</small><canvas id="minimap" width="192" height="192"></canvas></div>
+    <section class="panel" id="status" aria-label="Thành phố">
+      <div class="nm"><input id="cityname" maxlength="24" spellcheck="false" aria-label="Tên thành phố"><small id="rank">Vùng đất mới</small><b id="happy" title="Mức hài lòng của dân">–</b></div>
+      <button class="xprow" id="progBox" title="Tiến độ tới mốc dân số kế tiếp · bấm để mở 🔬 Phát triển"><span class="xp"><i id="xpBar"></i></span><small id="xpTxt"></small></button>
+      <div class="stats">
+        <div class="stat" id="moneyStat" role="button" tabindex="0" title="Bấm để mở bảng ngân sách: thu chi, chi tiết từng khoản, dòng tiền (nút 📊)"><span class="ico">💰</span><b id="money">0</b><span class="sub" id="net"></span></div>
+        <div class="stat" id="popStat" title="Dân số và việc làm"><span class="ico">👥</span><b id="pop">0</b><span class="sub" id="jobs"></span></div>
+      </div>
+      <div class="clock">
+        <div id="dateBox" role="button" tabindex="0" title="Giờ, ngày âm lịch, lễ hội và thời tiết · bấm để mở 🎎 lễ hội và mùa mưa bão"><span id="date"></span></div>
+        <div class="speedseg" id="speed"><button data-s="0" title="Tạm dừng (Space)" aria-label="Tạm dừng">❚❚</button><button data-s="1" title="Tốc độ 1 (phím 1)" aria-label="Tốc độ 1">▶</button><button data-s="2" title="Tốc độ 2 (phím 2)" aria-label="Tốc độ 2">▶▶</button><button data-s="4" title="Tốc độ 3 (phím 3)" aria-label="Tốc độ 3">▶▶▶</button></div>
+      </div>
+    </section>
+  </div>
+  <div id="above">
+    <div class="panel" id="hint"></div>
+    <div id="optRow"><div class="panel tbar" id="opts"></div><div class="panel tbar" id="elev"></div></div>
+    <div class="panel" id="sub"></div>
+  </div>
+  <div class="panel" id="dockbar">
+    <div id="demand" title="Nhu cầu: nhà ở / thương mại / công nghiệp / văn phòng">
+      <div class="col"><div class="dbar"><i id="dr" style="background:#46c85a"></i></div>Dân</div>
+      <div class="col"><div class="dbar"><i id="dc" style="background:#468cec"></i></div>TM</div>
+      <div class="col"><div class="dbar"><i id="di" style="background:#f0be32"></i></div>CN</div>
+      <div class="col"><div class="dbar"><i id="do" style="background:#9a6be0"></i></div>VP</div>
+    </div>
+    <i class="vsep"></i>
+    <nav class="tbar" id="tools" aria-label="Công cụ xây dựng"></nav>
+  </div>
 </div>
 
 <div class="modal" id="maps">
@@ -455,7 +635,7 @@
     </ol>
     <div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to · bấm bản đồ nhỏ để tới nơi ·
-      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · <kbd>M</kbd> di chuyển · <kbd>T</kbd> địa hình · <kbd>[</kbd><kbd>]</kbd> cỡ cọ · <kbd>L</kbd> lớp xem · <kbd>N</kbd> ngày đêm · chuột phải hoặc <kbd>Esc</kbd> để bỏ.
+      <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · <kbd>M</kbd> di chuyển · <kbd>T</kbd> địa hình · <kbd>[</kbd><kbd>]</kbd> cỡ cọ · <kbd>L</kbd> hoặc <kbd>I</kbd> lớp xem · <kbd>P</kbd> phát triển · <kbd>Z</kbd> ngân sách · <kbd>V</kbd> dân cư · <kbd>N</kbd> ngày đêm · <kbd>U</kbd> ẩn / hiện giao diện · chuột phải hoặc <kbd>Esc</kbd> để bỏ (bấm <kbd>Esc</kbd> lần nữa để đóng bảng đang mở).
       Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
