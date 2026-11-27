@@ -1926,14 +1926,26 @@ function bindUi() {
     if (!e.target.closest('#menu')) $('menu').classList.remove('open');
     if (!e.target.closest('#sys')) $('sys').classList.remove('open');
   }, true);
+  /** Toàn màn hình rồi khoá hướng ngang; trả về true nếu khoá được. iPhone (mọi trình duyệt) không cho trang web làm cả hai. */
   const goFull = async () => {
-    const d = document.documentElement;
-    try { if (!document.fullscreenElement) await (d.requestFullscreen || d.webkitRequestFullscreen).call(d, { navigationUI: 'hide' }); } catch { /* iPhone Safari: không có toàn màn hình cho trang */ }
-    try { await screen.orientation.lock('landscape'); } catch { /* trình duyệt không cho khoá hướng */ }
+    const d = document.documentElement, req = d.requestFullscreen || d.webkitRequestFullscreen;
+    try { if (req && !document.fullscreenElement && !document.webkitFullscreenElement) await req.call(d, { navigationUI: 'hide' }); } catch { /* không cho toàn màn hình */ }
+    try { await screen.orientation.lock('landscape'); return true; } catch { return false; } // cần đang toàn màn hình (Android); iOS luôn từ chối
   };
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  /** Trình duyệt không tự xoay được: thay nút bằng hướng dẫn xoay tay. */
+  const rotateHelp = () => {
+    const m = $('rotMsg'); m.className = 'how'; m.textContent = '';
+    m.append(isIOS ? 'iPhone không cho trang web tự xoay màn hình. Hãy:' : 'Trình duyệt này không cho trang web tự xoay. Hãy:', el('br'),
+      '1. Tắt ', el('b', null, isIOS ? 'Khoá hướng dọc' : 'Khoá xoay màn hình'), isIOS ? ' (vuốt xuống từ góc phải trên → biểu tượng ổ khoá 🔒)' : ' (kéo thanh thông báo xuống → Tự động xoay)', el('br'),
+      '2. Xoay ngang điện thoại, game tự đổi sang bố cục ngang.');
+    $('rotFull').hidden = true;
+  };
+  if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) $('bFull').hidden = true; // iPhone: nút ⛶ không làm gì được
+  if ($('bFull').hidden || !screen.orientation?.lock) rotateHelp(); // biết trước là không được (iPhone): hiện hướng dẫn luôn
   $('bFull').addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen?.(); else goFull(); });
   document.addEventListener('fullscreenchange', () => $('bFull').classList.toggle('on', !!document.fullscreenElement));
-  $('rotFull').addEventListener('click', goFull);
+  $('rotFull').addEventListener('click', async () => { if (!(await goFull())) rotateHelp(); });
   $('rotSkip').addEventListener('click', () => document.body.classList.add('portrait-ok'));
   const pref = (k, def) => { try { const v = localStorage.getItem(KEY + k); return v ? v === '1' : def; } catch { return def; } };
   const savePref = (k, on) => { try { localStorage.setItem(KEY + k, on ? '1' : '0'); } catch { /* bỏ qua */ } };

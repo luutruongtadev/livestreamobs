@@ -388,6 +388,8 @@
   #rotate small { color: var(--ui-dim); max-width: 280px; line-height: 1.45; }
   #rotate .cta { margin: 6px 0 0; width: min(290px, 100%); }
   #rotate .cta.ghost { margin: 0; }
+  #rotate small.how { color: var(--ui-text); text-align: left; background: var(--ui-raise); border: 1px solid var(--ui-line); border-radius: var(--r-md); padding: 10px 14px; max-width: 320px; }
+  #rotate small.how b { font-size: inherit; color: var(--ui-gold); }
   @media (orientation: portrait) and (pointer: coarse) and (max-width: 700px) { body:not(.portrait-ok) #rotate { display: flex; } }
 
   /* ── điện thoại nằm ngang (màn thấp): bố cục kiểu game mobile
@@ -564,7 +566,7 @@
 <div id="rotate" role="dialog" aria-label="Xoay ngang điện thoại">
   <div class="phone" aria-hidden="true">📱</div>
   <b>Xoay ngang điện thoại để chơi</b>
-  <small>Màn hình ngang cho bản đồ rộng hơn và các nút dễ bấm hơn</small>
+  <small id="rotMsg">Màn hình ngang cho bản đồ rộng hơn và các nút dễ bấm hơn</small>
   <button class="cta" id="rotFull">⛶ Toàn màn hình + xoay ngang</button>
   <button class="cta ghost" id="rotSkip">Vẫn chơi màn dọc</button>
 </div>
