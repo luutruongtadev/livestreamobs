@@ -1,20 +1,210 @@
 {
-  "note": "Nguồn giá thật. Mỗi nguồn là một trang danh mục hoặc API JSON của siêu thị; phần server tải về, bóc tên + giá + ảnh (JSON-LD, __NEXT_DATA__, JSON nhúng, API). Thêm / sửa nguồn bằng biến môi trường CHONGIA_SOURCES (cùng dạng mảng này) mà không cần sửa file. category để trống thì tự đoán theo tên.",
+  "note": "Nguồn giá thật. Mặc định: API danh mục công khai của WinMart (tên, giá, giá khuyến mãi, ảnh sản phẩm thật; storeCode 1535 = giá tại một siêu thị WinMart). Thêm / sửa nguồn bằng biến môi trường CHONGIA_SOURCES (cùng dạng mảng này) mà không cần sửa file. Bộ bóc giá cũng đọc được trang HTML có JSON-LD / __NEXT_DATA__ / JSON nhúng. category để trống thì tự đoán theo tên.",
   "sources": [
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/sua-tuoi", "category": "sua" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/mi", "category": "do-kho" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-mam", "category": "gia-vi" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/dau-an", "category": "gia-vi" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-ngot", "category": "do-uong" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/bia", "category": "do-uong" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/banh-snack", "category": "banh-keo" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-giat", "category": "hoa-pham" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/trai-cay-tuoi-ngon", "category": "rau-cu" },
-    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/thit-heo", "category": "tuoi-song" },
-    { "store": "WinMart", "url": "https://winmart.vn/categories/sua-cac-loai-c02" },
-    { "store": "WinMart", "url": "https://winmart.vn/categories/do-uong-c06" },
-    { "store": "WinMart", "url": "https://winmart.vn/categories/banh-keo-c07" },
-    { "store": "Co.op Online", "url": "https://cooponline.vn/c/sua-cac-loai" },
-    { "store": "Lotte Mart", "url": "https://www.lottemart.vn/vi-nsg/category/sua-and-san-pham-tu-sua" }
+    {
+      "store": "WinMart",
+      "category": "sua",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=sua-tuoi--c0133&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "sua",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=sua-hat-sua-dau--c0134&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "sua",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=bo-sua-pho-mai--c0138&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "sua",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=sua-dac--c01161&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "sua",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=sua-chua-vang-sua--c01169&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=mi--c01145&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=pho-bun--c01147&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=mien-hu-tiu-banh-canh--c01148&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=chao--c01146&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=gao-nong-san-kho--c0120&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=ngu-coc-yen-mach--c0122&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-kho",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=thuc-pham-dong-hop--c0123&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=dau-an--c01149&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-mam-nuoc-cham--c01150&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=duong--c01151&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-tuong--c01152&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=hat-nem--c01153&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "gia-vi",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=tuong-cac-loai--c01154&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "tuoi-song",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=thit--c0111&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "tuoi-song",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=hai-san--c0113&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "tuoi-song",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=trung--c01165&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "tuoi-song",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=dau-hu--c01138&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "tuoi-song",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=xuc-xich-thit-nguoi--c0156&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "rau-cu",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=rau-la--c01167&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "rau-cu",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=cu-qua--c01168&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "rau-cu",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=trai-cay-tuoi--c01173&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-uong",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=ca-phe--c01162&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-uong",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-suoi--c01163&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-uong",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-ngot--c01164&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "do-uong",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=tra-cac-loai-khac--c0141&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "banh-keo",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=banh-xop-banh-quy--c0127&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "banh-keo",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=keo-chocolate--c0128&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "banh-keo",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=banh-snack--c0129&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "banh-keo",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=hat-trai-cay-say-kho--c0130&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-giat--c01140&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-xa--c01144&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-rua-chen--c01142&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=nuoc-lau-san-lau-kinh--c01141&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=cham-soc-rang-mieng--c0147&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=cham-soc-toc--c0145&storeCode=1535&storeGroupCode=1998"
+    },
+    {
+      "store": "WinMart",
+      "category": "hoa-pham",
+      "url": "https://api-crownx.winmart.vn/it/api/web/v3/item/category?orderByDesc=true&pageNumber=1&pageSize=60&slug=khan-giay-khan-uot--c0151&storeCode=1535&storeGroupCode=1998"
+    }
   ]
 }

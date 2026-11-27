@@ -44,6 +44,7 @@ export class PriceGame extends Emitter {
     this.now = ctx.now;
     const seed = ctx.data?.products;
     this.categories = seed?.categories && typeof seed.categories === 'object' ? seed.categories : {};
+    this.seedAsOf = typeof seed?.asOf === 'string' ? seed.asOf.slice(0, 10) : null; // ngày lấy giá của bộ hàng dự phòng
     this.seed = (Array.isArray(seed?.items) ? seed.items : []).map((x) => cleanItem(x)).filter(Boolean);
     if (!this.seed.length) this.seed = [cleanItem({ id: 's0', name: 'Mì gói tôm chua cay', unit: 'gói 75g', price: 4500, category: 'do-kho', emoji: '🍜', tier: 1 })];
     this.live = []; // hàng có giá thật từ siêu thị (phần server)
@@ -262,6 +263,7 @@ export class PriceGame extends Emitter {
   }
 
   newShow() {
+    this.loadCatalog(); // mỗi chương trình mới hỏi lại kho giá (server tự làm mới theo chu kỳ)
     this.showNo++;
     this.roundNo = 0;
     this.showPoints = {};
@@ -403,7 +405,7 @@ export class PriceGame extends Emitter {
       phaseMs: Math.max(1, this.phaseMs || 1),
       show: this.showNo, round: this.roundNo, rounds: this.s.roundsPerShow,
       mode: r.mode, rule: this.s.rule, exactPercent: this.s.exactPercent, allowChange: !!this.s.allowChange,
-      item: { id: it.id, name: it.name, unit: it.unit, emoji: it.emoji, image: it.image, store: it.store, live: it.live, updatedAt: it.updatedAt, category: it.category, categoryName: this.categories[it.category] || '', onSale: !!it.listPrice },
+      item: { id: it.id, name: it.name, unit: it.unit, emoji: it.emoji, image: it.image, store: it.store, live: it.live, updatedAt: it.updatedAt, category: it.category, categoryName: this.categories[it.category] || '', onSale: !!it.listPrice, asOf: it.live ? null : this.seedAsOf },
       mask: open || r.digits ? this.maskPrice(open) : null, // chưa lộ chữ số nào → không cho biết giá dài mấy chữ số
       price: open ? it.price : null,
       listPrice: open ? it.listPrice : null,

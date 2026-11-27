@@ -9,7 +9,7 @@ const NAME_KEYS = ['name', 'productName', 'product_name', 'displayName', 'itemNa
 const SALE_KEYS = ['salePrice', 'sale_price', 'priceSale', 'sellingPrice', 'selling_price', 'finalPrice', 'final_price', 'specialPrice', 'special_price', 'promotionPrice', 'promoPrice', 'discountPrice', 'price_sale', 'lowPrice', 'currentPrice', 'sysPrice'];
 const LIST_KEYS = ['price', 'Price', 'basePrice', 'regularPrice', 'originalPrice', 'original_price', 'listPrice', 'list_price', 'marketPrice', 'retailPrice', 'unitPrice', 'amount'];
 const IMAGE_KEYS = ['image', 'imageUrl', 'image_url', 'imageURL', 'thumbnail', 'thumbnailUrl', 'thumb', 'avatar', 'mediaUrl', 'media_url', 'img', 'picture', 'photo', 'images', 'imageList', 'medias'];
-const UNIT_KEYS = ['unit', 'unitName', 'unit_name', 'uom', 'uomName', 'netUnitValue', 'packing', 'quantityText', 'size', 'weight'];
+const UNIT_KEYS = ['unitName', 'unit_name', 'uomName', 'unit', 'netUnitValue', 'packing', 'quantityText', 'size', 'weight', 'uom'];
 const URL_KEYS = ['url', 'link', 'href', 'slug', 'seoUrl', 'productUrl'];
 export const PRICE_MIN = 1000;
 export const PRICE_MAX = 50_000_000;
@@ -43,10 +43,18 @@ const clean = (s) => String(s ?? '').replace(/<[^>]*>/g, ' ').replace(/&amp;/g, 
 
 /** Quy cách trong tên: ưu tiên dung tích / khối lượng ("Sữa tươi 1L" → "1L"), không có thì số lượng ("Trứng gà hộp 10 quả" → "hộp 10 quả"). */
 export function unitFromName(name) {
-  const size = /(\d+(?:[.,]\d+)?\s?(?:ml|l|lít|g|gr|gram|kg)(?![\p{L}\d])(?:\s*x\s*\d+)?)/iu.exec(name);
-  if (size) return size[1].trim();
-  const pack = /((?:lốc|thùng|hộp|gói|chai|lon|túi|bịch|vỉ|khay|hũ|bình|cây|bó|lọ)\s*\d+\s*[\p{L}]+|\d+\s?(?:cuộn|miếng|viên|quả|trái|gói|tờ|túi|chai|lon|hộp)(?![\p{L}]))/iu.exec(name);
-  return pack ? pack[1].trim() : '';
+  const SIZE = '\\d+(?:[.,]\\d+)?\\s?(?:ml|l|lít|g|gr|gram|kg)(?![\\p{L}\\d])';
+  const CONT = '(?:hộp|chai|lon|gói|túi|bịch|hũ|lọ|bình|vỉ|khay|ly|cây|thanh|cuộn)';
+  // "(25g*12)", "180ml x 4" → "12 × 25g"
+  const multi = new RegExp(`(${SIZE})\\s*[x*×]\\s*(\\d+)(?![\\d\\p{L}])`, 'iu').exec(name);
+  if (multi) return `${multi[2]} × ${multi[1]}`;
+  const size = new RegExp(`(${SIZE})`, 'iu').exec(name)?.[1];
+  // "lốc 4 hộp", "thùng 48 lon", "vỉ 2 cây", "bịch 46 gói"
+  const pack = new RegExp(`((?:lốc|thùng|hộp|gói|bịch|túi|vỉ|khay|hũ|lọ|bó|set|combo)\\s*\\d+(?![\\d.,]|\\s?(?:ml|l|lít|g|gr|gram|kg)(?![\\p{L}\\d]))\\s*(?:${CONT.slice(3, -1)}|cái|quả|trái|miếng|viên|tờ|cuộn|túi|gói|bịch)?)`, 'iu').exec(name)?.[1]?.trim();
+  if (pack && size) return `${pack} × ${size}`;
+  if (size) return new RegExp(`(${CONT}\\s+${SIZE})`, 'iu').exec(name)?.[1] || size; // "hộp 1 lít"
+  if (pack) return pack;
+  return new RegExp(`(\\d+\\s?(?:cuộn|miếng|viên|quả|trái|gói|tờ|túi|chai|lon|hộp))(?![\\p{L}])`, 'iu').exec(name)?.[1]?.trim() || '';
 }
 
 /** Một object có giống sản phẩm không → { name, price, listPrice, image, unit, url } | null. */
@@ -70,9 +78,16 @@ export function asProduct(o, base) {
   if (o.isActive === false || o.active === false || o.status === 'inactive') return null;
   let image = null;
   for (const k of IMAGE_KEYS) { image = absUrl(firstString(o[k]), base); if (image) break; }
-  let unit = '';
-  for (const k of UNIT_KEYS) if (typeof o[k] === 'string' && o[k].trim() && o[k].length <= 40) { unit = clean(o[k]); break; }
-  if (!unit) unit = unitFromName(name);
+  // quy cách trong tên ("hộp 1 lít", "lốc 4 hộp x 180ml") rõ hơn đơn vị tính của hệ thống; bỏ mã nội bộ kiểu "G4", "HOP"
+  let unit = unitFromName(name);
+  if (!unit) for (const k of UNIT_KEYS) if (typeof o[k] === 'string' && o[k].trim() && o[k].length <= 40 && !/^[A-Z0-9_]{1,5}$/.test(o[k].trim())) { unit = clean(o[k]); break; }
+  // giá tính theo đơn vị bán (vd thùng 24 chai) mà tên chỉ ghi "chai 500ml" → ghi rõ "Thùng 24 × chai 500ml"
+  const qty = Number(o.quantityPerUnit ?? o.packSize ?? o.packQuantity);
+  if (qty > 1 && Number.isInteger(qty) && !new RegExp(`(?:^|\\D)${qty}\\s*(?:hộp|chai|lon|gói|túi|bịch|hũ|lọ|ly|cây|thanh|cuộn|quả|trái|miếng|cái|viên|tờ)`, 'iu').test(name)) {
+    const uom = String(o.uomName ?? o.unitName ?? '');
+    const word = /lốc/i.test(uom) ? 'Lốc' : /thùng/i.test(uom) ? 'Thùng' : /^[\p{L}]+/u.exec(uom)?.[0] || 'Lốc';
+    unit = `${word} ${qty}${unit ? ` × ${unit}` : ''}`;
+  }
   let url = null;
   for (const k of URL_KEYS) if (typeof o[k] === 'string') { url = absUrl(o[k], base); if (url) break; }
   return { name, price, listPrice: list && list > price ? list : null, image, unit, url };

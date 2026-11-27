@@ -163,7 +163,9 @@ test('toPrice / quy cách / đoán ngành hàng', () => {
   assert.equal(toPrice(36000), 36000);
   assert.equal(toPrice('liên hệ'), null);
   assert.equal(unitFromName('Sữa tươi Vinamilk có đường 1L'), '1L');
-  assert.equal(unitFromName('Thùng 24 lon bia Tiger 330ml'), '330ml');
+  assert.equal(unitFromName('Thùng 24 lon nước ngọt 330ml'), 'Thùng 24 lon × 330ml');
+  assert.equal(unitFromName('Sữa tươi Vinamilk hộp 1 lít'), 'hộp 1 lít');
+  assert.equal(unitFromName('Sữa Cô gái Hà Lan lốc 4 hộp x 180ml'), 'lốc 4 hộp × 180ml');
   assert.equal(guessKind('Nước mắm Nam Ngư 500ml').category, 'gia-vi');
   assert.equal(guessKind('Bia Saigon lon').emoji, '🍺');
 });
@@ -190,7 +192,16 @@ test('bóc sản phẩm từ JSON-LD, __NEXT_DATA__, JSON nhúng, API, thẻ met
   assert.equal(extractProducts(flight, 'https://s/')[0].name, 'Coca-Cola lon 320ml');
 
   const api = JSON.stringify({ data: { items: [{ name: 'Trứng gà hộp 10 quả', price: 33000, mediaUrl: 'https://m/e.jpg', uomName: 'Hộp' }] } });
-  assert.deepEqual(extractProducts(api, 'https://api.x/').map((x) => [x.name, x.price, x.unit]), [['Trứng gà hộp 10 quả', 33000, 'Hộp']]);
+  assert.deepEqual(extractProducts(api, 'https://api.x/').map((x) => [x.name, x.price, x.unit]), [['Trứng gà hộp 10 quả', 33000, 'hộp 10 quả']]);
+  // API WinMart: giá theo đơn vị bán (thùng 24) dù tên chỉ ghi "chai 500ml"; giá khuyến mãi < giá gốc
+  const wm = JSON.stringify({ data: { items: [
+    { name: 'Nước uống Dasani chai 500ml', price: 120000, salePrice: 75000, uomName: 'Thùng', uom: 'T', quantityPerUnit: 24, mediaUrl: 'https://s3-hcmc02.higiocloud.vn/a.jpg' },
+    { name: 'Sữa tươi Vinamilk hộp 1 lít', price: 42000, salePrice: 42000, uomName: 'Hộp', uom: 'HOP', quantityPerUnit: 1, mediaUrl: 'https://s3-hcmc02.higiocloud.vn/b.jpg' },
+  ] } });
+  assert.deepEqual(extractProducts(wm, 'https://api-crownx.winmart.vn/').map((x) => [x.price, x.listPrice, x.unit, x.image]), [
+    [75000, 120000, 'Thùng 24 × chai 500ml', 'https://s3-hcmc02.higiocloud.vn/a.jpg'],
+    [42000, null, 'hộp 1 lít', 'https://s3-hcmc02.higiocloud.vn/b.jpg'],
+  ]);
 
   const meta = '<meta property="og:title" content="Dầu ăn Neptune 1L"><meta property="product:price:amount" content="58000">';
   assert.equal(extractProducts(meta, 'https://s/')[0].price, 58000);

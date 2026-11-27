@@ -1,7 +1,7 @@
 # 🛒 Hãy chọn giá đúng (`chongia`)
 
 Gameshow đoán giá hàng siêu thị cho TikTok Live. Mỗi vòng hiện một món hàng: tên, quy cách, ảnh, siêu thị bán.
-Người xem gõ giá vào bình luận. Giá lấy tự động từ trang web siêu thị (phần server). Chưa lấy được thì dùng bộ **giá tham khảo** soạn sẵn (`data/products.json`, 113 món, đã làm tròn).
+Người xem gõ giá vào bình luận. Giá và **ảnh sản phẩm thật** lấy tự động từ API công khai của WinMart (phần server, khoảng 1.500 món, làm mới 12 giờ / lần). Chưa lấy được thì dùng bộ dự phòng `data/products.json`: 208 món WinMart với giá + ảnh thật chụp ngày 27/11/2026.
 
 ## Luật chơi
 1. **Vòng đoán giá:** gõ số tiền vào bình luận. Bỏ qua câu dài (nói chuyện). Các cách gõ được nhận:
@@ -67,9 +67,12 @@ Lúc đang đoán, nhãn giá chỉ hiện `???đ`: người xem không biết g
 - **Tắt tải giá thật:** `CHONGIA_LIVE=0`.
 - **Op cho overlay:** `catalog({ categories })`, `refresh()`, `status()`. `status()` cho biết từng nguồn có lấy được không, bao nhiêu món, lỗi gì.
 
-> ⚠️ Các URL mặc định trong `data/sources.json` chưa được thử với site thật (môi trường phát triển chặn mạng ra các site này). Lần đầu chạy, xem log gateway (`[chongia] … sản phẩm từ x/y nguồn`) hoặc gọi op `status`. Nguồn nào báo lỗi thì mở trang danh mục tương ứng trên trình duyệt, copy URL đúng vào `CHONGIA_SOURCES`. Site chặn máy chủ hoặc chỉ nạp giá bằng JavaScript sau khi tải trang thì dùng URL API mà trang đó gọi (xem tab Network). Bộ bóc giá đọc được JSON API.
+> Nguồn mặc định: 41 danh mục của API công khai WinMart (`api-crownx.winmart.vn/it/api/web/v3/item/category`, `storeCode=1535`), đã chạy thử ngày 27/11/2026: 1.564 sản phẩm, 41/41 nguồn thành công, gần như món nào cũng có ảnh (`s3-hcmc02.higiocloud.vn`). Danh mục bia bị bỏ vì TikTok hạn chế nội dung rượu bia.
+> - Giá WinMart tính theo **đơn vị bán** (`uomName` × `quantityPerUnit`): tên ghi "chai 500ml" nhưng bán cả thùng 24 thì quy cách hiện "Thùng 24 × chai 500ml" để người chơi không đoán nhầm.
+> - Trang Bách Hóa Xanh chặn máy chủ (đóng kết nối), nên không có trong nguồn mặc định.
+> - Overlay nạp ảnh trực tiếp từ CDN của siêu thị, nên máy chạy OBS cần có mạng ra các host đó.
 
-Thẻ sản phẩm ghi rõ nguồn giá: "🏪 *Tên siêu thị* · Giá thật lấy tự động · cập nhật *x giờ trước*", hoặc "📋 Giá tham khảo".
+Thẻ sản phẩm ghi rõ nguồn giá: "🏪 WinMart · Giá thật lấy tự động · cập nhật *x giờ trước*", hoặc "🏪 WinMart · Giá WinMart ngày 27/11/2026" với hàng dự phòng.
 
 ## Cài đặt chính
 `mode`, `rule`, `source` (`auto` · `live` · `mix` · `seed`), `categories` (lọc ngành hàng), `askSeconds`, `choiceSeconds`, `revealSeconds`, `roundsPerShow`, `summarySeconds`, `exactPercent`, `allowChange`, `basePoints`, `showLeaderboard`.

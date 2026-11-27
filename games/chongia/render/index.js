@@ -144,7 +144,8 @@ export function mount(el, { canvas, options = {} } = {}) {
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
     rr(x, y, w, h, 34); ctx.fillStyle = C.card; ctx.fill(); ctx.restore();
     // vùng ảnh
-    const ix = x + 30, iy = y + 70, iw = w - 60, ih = 340;
+    const lines = wrap(it.name, 44, 900, w - 80, 2);
+    const ix = x + 30, iy = y + 70, iw = w - 60, ih = lines.length > 1 ? 290 : 340; // tên 2 dòng → ảnh thấp lại cho đủ chỗ
     const bgk = ctx.createRadialGradient(ix + iw / 2, iy + ih / 2, 20, ix + iw / 2, iy + ih / 2, iw / 2);
     bgk.addColorStop(0, '#fff8e1'); bgk.addColorStop(1, '#f6ecff');
     rr(ix, iy, iw, ih, 24); ctx.fillStyle = bgk; ctx.fill();
@@ -159,10 +160,10 @@ export function mount(el, { canvas, options = {} } = {}) {
       text(it.emoji || '🛒', ix + iw / 2, iy + ih / 2 - 10 + bob, 230, C.ink, 400);
     }
     // nhãn trên: cửa hàng · ngành hàng
-    const store = it.live ? `🏪 ${it.store || 'Siêu thị'}` : '📋 Giá tham khảo';
+    const store = it.live || it.store ? `🏪 ${it.store || 'Siêu thị'}` : '📋 Giá tham khảo';
     const sw = measure(store, 24, 800) + 36;
-    rr(x + 30, y + 18, sw, 42, 21); ctx.fillStyle = it.live ? '#e0f2fe' : '#f3e8ff'; ctx.fill();
-    text(store, x + 30 + sw / 2, y + 40, 24, it.live ? '#075985' : '#6b21a8', 800);
+    rr(x + 30, y + 18, sw, 42, 21); ctx.fillStyle = it.store ? '#e0f2fe' : '#f3e8ff'; ctx.fill();
+    text(store, x + 30 + sw / 2, y + 40, 24, it.store ? '#075985' : '#6b21a8', 800);
     if (it.categoryName) { const cw = measure(it.categoryName, 22, 700) + 32; rr(x + w - 120 - cw, y + 18, cw, 42, 21); ctx.fillStyle = "#fef3c7"; ctx.fill(); text(it.categoryName, x + w - 120 - cw / 2, y + 40, 22, '#92400e', 700); }
     if (it.onSale) { // tem khuyến mãi
       ctx.save(); ctx.translate(ix + iw - 70, iy + 70); ctx.rotate(-0.25);
@@ -171,11 +172,11 @@ export function mount(el, { canvas, options = {} } = {}) {
     }
     if (S.jackpot) { ctx.save(); ctx.translate(ix + 90, iy + 60); ctx.rotate(-0.12); rr(-80, -26, 160, 52, 14); ctx.fillStyle = C.gold; ctx.fill(); text('💰 ×3 ĐIỂM', 0, 2, 24, '#7c2d12', 900); ctx.restore(); }
     // tên + quy cách
-    const lines = wrap(it.name, 44, 900, w - 80, 2);
     const ny = iy + ih + 22 + (lines.length === 1 ? 26 : 0);
     lines.forEach((l, i) => text(l, x + w / 2, ny + 24 + i * 52, 44, C.ink, 900));
     if (it.unit) { const uy = ny + 24 + lines.length * 52 - 4; const uw = measure(it.unit, 28, 700) + 40; rr(x + w / 2 - uw / 2, uy - 20, uw, 42, 21); ctx.fillStyle = '#ede9fe'; ctx.fill(); text(it.unit, x + w / 2, uy + 1, 28, '#5b21b6', 700); }
-    const note = it.live ? `Giá thật lấy tự động · cập nhật ${ago(it.updatedAt || S.catalog?.updatedAt)}` : 'Giá bán lẻ phổ biến tại siêu thị (đã làm tròn)';
+    const day = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+    const note = it.live ? `Giá thật lấy tự động · cập nhật ${ago(it.updatedAt || S.catalog?.updatedAt)}` : it.store && it.asOf ? `Giá ${it.store} ngày ${day(it.asOf)}` : 'Giá bán lẻ phổ biến tại siêu thị (đã làm tròn)';
     text(note, x + w / 2, y + h - 22, 19, C.faint, 600);
     ctx.restore();
     // đồng hồ tròn góc phải trên
