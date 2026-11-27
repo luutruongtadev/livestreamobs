@@ -219,6 +219,16 @@
   .cat.end::after { content: ""; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 1px; background: var(--ui-line); }
 
   /* ẩn giao diện để chụp ảnh (phím U) */
+  /* đi bộ: ẩn thanh công cụ xây dựng, hiện nút thoát và cần điều khiển */
+  #walkUI { display: none; }
+  body.walking #walkUI { display: block; }
+  body.walking #bottom, body.walking .side, body.walking #layerChip, body.walking #hint { display: none !important; }
+  #walkExit { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sb)); padding: 10px 18px; border-radius: 999px; font-size: 15px; font-weight: 650; cursor: pointer; }
+  .walkKeys { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(68px + var(--sb)); padding: 6px 12px; border-radius: 8px; font-size: 13px; white-space: nowrap; opacity: .85; pointer-events: none; }
+  #joy { display: none; position: fixed; z-index: 6; left: calc(28px + var(--sl)); bottom: calc(28px + var(--sb)); width: 130px; height: 130px; border-radius: 50%; background: rgba(20, 28, 36, .32); border: 2px solid rgba(255, 255, 255, .45); touch-action: none; }
+  #joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); pointer-events: none; }
+  #joy.run i { background: #ffc83a; }
+  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } }
   body.noui #top, body.noui #bottom, body.noui #alerts, body.noui .side { display: none !important; }
 
   /* ── nội dung trong các bảng ── */
@@ -544,6 +554,7 @@
   <button class="panel chip" id="layerChip" hidden title="Đang bật lớp xem · bấm để tắt"></button>
   <div class="spacer"></div>
   <div class="panel tgroup" id="sys">
+    <button class="tb" id="bWalk" data-label="Đi bộ" title="Đi bộ (phím K): thả một nhân vật xuống phố ở giữa màn hình rồi tự đi lại, xem thành phố tận mắt">🚶</button>
     <button class="tb" id="bInbox" title="Hộp thư thị trưởng: việc cần quyết, đàm phán, đánh giá của du khách">📨<span class="badge red" id="inboxN"></span></button>
     <button class="tb" id="bAlerts" title="Cảnh báo và gợi ý (bấm để ẩn / hiện)">🔔<span class="badge" id="alertN"></span></button>
     <button class="tb only-compact" id="bSave2" title="Lưu và tải" aria-label="Lưu và tải">💾</button>
@@ -732,6 +743,11 @@
   <div id="iBody"></div>
 </div>
 
+<div id="walkUI" aria-label="Đang đi bộ">
+  <button class="panel" id="walkExit" title="Thôi đi bộ, quay về xây dựng (Esc)">✕ Thôi đi bộ</button>
+  <div class="walkKeys panel">WASD / ← ↑ → ↓ đi · Shift chạy · kéo chuột xoay · Esc thoát</div>
+  <div id="joy" aria-hidden="true"><i id="joyKnob"></i></div>
+</div>
 <div id="bottom">
   <div id="left">
     <div class="panel" id="mini" title="Bản đồ nhỏ: bấm hoặc kéo để tới chỗ đó"><small>Bản đồ</small><canvas id="minimap" width="192" height="192"></canvas></div>

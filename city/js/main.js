@@ -1573,8 +1573,76 @@ function setSpeed(v) { speed = v; if (v) updateHud.lastSpeed = v; updateHud(true
 
 // ───────────────────────── chuột, bàn phím ─────────────────────────
 
+// ── đi bộ: thả một nhân vật xuống phố, điều khiển bằng WASD / cần điều khiển, camera bám sau lưng ──
+const walk = { on: false, joy: { x: 0, y: 0, run: false } };
+function walkStart() {
+  if (walk.on) return;
+  const r = view.canvas.getBoundingClientRect(), p = view.groundPoint(r.left + r.width / 2, r.top + r.height / 2) || { x: view.cam.x, z: view.cam.z };
+  let spot = null; // chỗ đứng được gần tâm màn hình nhất: dò vòng xoắn ra ngoài, lượt đầu tránh ô có cây (tán cây che camera)
+  const treeAt = (x, z) => { const i = S.cellOf(x), j = S.cellOf(z); return i >= 0 && j >= 0 && i < S.N && j < S.N && city.tree[j * S.N + i]; };
+  for (const avoidTree of [true, false]) {
+    for (let rad = 0; rad <= 120 && !spot; rad += 2) {
+      const n = Math.max(1, Math.round(rad * 1.5));
+      for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2, x = p.x + Math.cos(a) * rad, z = p.z + Math.sin(a) * rad; if ((!avoidTree || !treeAt(x, z)) && view.avatarGround(x, z) !== null) { spot = { x, z }; break; } }
+    }
+    if (spot) break;
+  }
+  if (!spot || !view.avatarDrop(spot.x, spot.z)) { toast('Không có chỗ đứng quanh đây: kéo bản đồ tới chỗ có đường hoặc đất trống rồi thử lại'); return; }
+  setTool('info'); $('info').classList.remove('show');
+  walk.on = true; document.body.classList.add('walking'); $('bWalk').classList.add('on');
+  toast(matchMedia('(pointer: coarse)').matches ? 'Kéo cần bên trái để đi (đẩy hết cỡ để chạy) · vuốt màn hình để xoay · chụm hai ngón để xa gần' : 'WASD hoặc phím mũi tên để đi · giữ Shift để chạy · kéo chuột để xoay · lăn chuột để xa gần · Esc để thôi', '🚶 Đang đi bộ');
+}
+function walkStop() {
+  if (!walk.on) return;
+  walk.on = false; walk.joy.x = walk.joy.y = 0;
+  view.avatarLeave();
+  document.body.classList.remove('walking'); $('bWalk').classList.remove('on');
+  $('joyKnob').style.transform = '';
+}
+function bindWalk() {
+  $('bWalk').addEventListener('click', () => (walk.on ? walkStop() : walkStart()));
+  $('walkExit').addEventListener('click', walkStop);
+  const cv = view.canvas, pts = new Map();
+  let pinch = 0;
+  // khi đang đi bộ, chặn mọi thao tác xây dựng trên canvas: kéo một ngón / chuột = xoay camera, chụm hai ngón = xa gần
+  const stop = (e) => { e.stopImmediatePropagation(); e.preventDefault(); };
+  const spread = () => { const [a, b] = [...pts.values()]; return Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)); };
+  cv.addEventListener('pointerdown', (e) => {
+    if (!walk.on) return; stop(e);
+    try { cv.setPointerCapture(e.pointerId); } catch { /* bỏ qua */ }
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) pinch = spread();
+  }, true);
+  cv.addEventListener('pointermove', (e) => {
+    if (!walk.on) return; stop(e);
+    const t = pts.get(e.pointerId); if (!t) return;
+    const dx = e.clientX - t.x, dy = e.clientY - t.y; t.x = e.clientX; t.y = e.clientY;
+    if (pts.size >= 2) { const d = spread(); view.zoom(pinch / d); pinch = d; return; }
+    view.rotate(-dx * 0.006, dy * 0.004);
+  }, true);
+  const up = (e) => { if (!walk.on) return; stop(e); pts.delete(e.pointerId); if (pts.size === 2) pinch = spread(); };
+  cv.addEventListener('pointerup', up, true); cv.addEventListener('pointercancel', up, true);
+  cv.addEventListener('contextmenu', (e) => { if (walk.on) e.preventDefault(); });
+  // cần điều khiển ảo (màn hình cảm ứng)
+  const joy = $('joy'), knob = $('joyKnob');
+  let jid = null;
+  const jset = (e) => {
+    const r = joy.getBoundingClientRect(), R = r.width / 2;
+    let x = (e.clientX - r.left - R) / R, y = (e.clientY - r.top - R) / R;
+    const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+    walk.joy.x = x; walk.joy.y = y; walk.joy.run = l > 0.92;
+    knob.style.transform = `translate(${x * R * 0.6}px, ${y * R * 0.6}px)`;
+    joy.classList.toggle('run', walk.joy.run);
+  };
+  joy.addEventListener('pointerdown', (e) => { e.preventDefault(); jid = e.pointerId; try { joy.setPointerCapture(jid); } catch { /* bỏ qua */ } jset(e); });
+  joy.addEventListener('pointermove', (e) => { if (e.pointerId === jid) jset(e); });
+  const jend = (e) => { if (e.pointerId !== jid) return; jid = null; walk.joy.x = walk.joy.y = 0; walk.joy.run = false; knob.style.transform = ''; joy.classList.remove('run'); };
+  joy.addEventListener('pointerup', jend); joy.addEventListener('pointercancel', jend);
+}
+
 function bindInput() {
   const cv = view.canvas;
+  bindWalk();
   let rot = null, grab = null, downAt = null;
   const isDrawTool = () => { const k = toolInfo(tool).kind; return k === 'road' || k === 'line' || k === 'transit' || k === 'rail'; };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1761,6 +1829,17 @@ function bindInput() {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     keys.add(k);
+    if (walk.on) { // đang đi bộ: phím di chuyển dành cho nhân vật, không đổi công cụ xây dựng
+      if (k === 'escape' && ($('modal').classList.contains('show') || $('menu').classList.contains('open') || $('sys').classList.contains('open'))) { $('modal').classList.remove('show'); $('menu').classList.remove('open'); $('sys').classList.remove('open'); return; }
+      if (k === 'escape' || k === 'k') { walkStop(); return; }
+      if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : updateHud.lastSpeed || 1); }
+      else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
+      else if (k === 'n') toggleNight();
+      else if (k === 'u') document.body.classList.toggle('noui');
+      else if (k.startsWith('arrow')) e.preventDefault();
+      return;
+    }
+    if (k === 'k') { walkStart(); return; }
     if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : updateHud.lastSpeed || 1); }
     else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
     else if (k === 'escape') { // lần lượt: hộp hướng dẫn → menu ☰ → nét đang vẽ → công cụ đang cầm → bảng đang mở
@@ -2672,6 +2751,7 @@ function startCity(c) {
     if (r.ran || r.skipped) setTimeout(() => toast(`🏆 Đã chạy bù ${Math.round(r.ran / 24)} ngày vắng mặt${r.skipped ? `, bỏ qua ${Math.round(r.skipped / 24)} ngày (vắng quá ${Lg.CATCHUP_MAX_DAYS} ngày)` : ''}`), 400);
     setTimeout(() => leagueSync(true), 0);
   }
+  walkStop();
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('ferryFare').value = c.transit.ferryFare ?? 4; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
@@ -2687,14 +2767,17 @@ function startCity(c) {
 function frame(now) {
   const dt = Math.min(0.1, (now - (frame.last || now)) / 1000);
   frame.last = now;
-  // di chuyển bằng bàn phím
-  const mv = view.cam.dist * dt * 0.9;
+  // di chuyển bằng bàn phím (đang đi bộ thì phím điều khiển nhân vật)
+  const mv = walk.on ? 1 : view.cam.dist * dt * 0.9;
   let dx = 0, dz = 0;
   if (keys.has('a') || keys.has('arrowleft')) dx -= mv;
   if (keys.has('d') || keys.has('arrowright')) dx += mv;
   if (keys.has('w') || keys.has('arrowup')) dz -= mv;
   if (keys.has('s') || keys.has('arrowdown')) dz += mv;
-  if (dx || dz) view.pan(dx, dz);
+  if (walk.on) {
+    if (!view.avatar) walkStop(); // thành phố khác vừa nạp
+    else { const j = walk.joy; view.avatarMove(dt, dx + j.x, -dz - j.y, keys.has('shift') || j.run); }
+  } else if (dx || dz) view.pan(dx, dz);
   if (keys.has('q')) view.rotate(dt * 1.4, 0);
   if (keys.has('e')) view.rotate(-dt * 1.4, 0);
 

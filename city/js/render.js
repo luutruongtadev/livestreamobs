@@ -62,6 +62,8 @@ const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3
 // Dáng đi cho mô hình tĩnh (không xương): shader xoay phần chân quanh hông, phần tay quanh vai, theo pha riêng của từng cá thể.
 // Pha (aGait.x) lấy từ quãng đường đã đi nên chân không trượt; biên độ (aGait.y) = 0 thì đứng yên. mode 0 = người, 1 = chó (4 chân chéo).
 const GAIT_TAU = Math.PI * 2;
+const AVATAR_SCALE = 1.25; // như người đi bộ
+const CAM_BUILD = { d0: 45, d1: 1100, p0: 0.3, p1: 1.45 }, CAM_WALK = { d0: 5, d1: 70, p0: 0.05, p1: 1.3 }; // giới hạn camera: xây dựng / đi bộ
 function gaitMaterial(mat, o) {
   const m = mat.clone();
   m.customProgramCacheKey = () => 'gait' + o.mode;
@@ -905,6 +907,14 @@ export class View {
     this.shipT = 0;
     this.pedVariants = []; // người dựng từ mô hình Meshy, nạp xong thì thế dần người hộp
     this.animalMesh = null; // chó thả rông, nạp xong mới có
+    this.avatar = null; // nhân vật người chơi thả xuống đi bộ: { x, z, y, yaw, gp, run, moving }
+    this.camLim = CAM_BUILD;
+    this.avatarMesh = this._inst(pedGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), 1, true); // người hộp, có mô hình Meshy thì thay
+    { // mũi tên vàng lơ lửng trên đầu cho dễ thấy mình ở đâu
+      const g = new THREE.ConeGeometry(0.32, 0.55, 4); g.rotateX(Math.PI); g.translate(0, 0.27, 0);
+      this.avatarMark = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffc83a, fog: false }));
+      this.avatarMark.visible = false; this.scene.add(this.avatarMark);
+    }
     this.animals = [];
     this._loadCrowdModels();
     this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.14, 0.55, 1.14), new THREE.MeshBasicMaterial(), 800); // bóng đèn tín hiệu ló ra khỏi hộp đèn
@@ -1017,6 +1027,11 @@ export class View {
       load(pm.file).then((gltf) => {
         const { geo, mat, H, HX } = this._normalizeGltf(gltf, pm.foot);
         const gm = gaitMaterial(mat, { H, HX, piv: 0.5, mode: 0 });
+        if (pm.file === 'ped_man.glb') { // nhân vật người chơi: một bản riêng, có dáng đi
+          const old = this.avatarMesh; this.scene.remove(old); old.dispose();
+          this.avatarMesh = this._inst(this._gaitGeo(geo.clone(), 1), gm, 1, true);
+          this.avatarH = H * AVATAR_SCALE;
+        }
         this.pedVariants.push(this._inst(this._gaitGeo(geo, MAX_PEDS), gm, MAX_PEDS, true));
       }).catch(() => {});
     }
@@ -1372,14 +1387,101 @@ export class View {
 
   pan(dx, dz) { const c = this.cam, cs = Math.cos(c.yaw), sn = Math.sin(c.yaw); this.panWorld(dx * cs + dz * sn, -dx * sn + dz * cs); }
   panWorld(dx, dz) { const c = this.cam; c.x = Math.max(-HALF, Math.min(HALF, c.x + dx)); c.z = Math.max(-HALF, Math.min(HALF, c.z + dz)); }
-  rotate(dyaw, dpitch) { const c = this.cam; c.yaw += dyaw; c.pitch = Math.max(0.3, Math.min(1.45, c.pitch + dpitch)); }
-  zoom(f) { const c = this.cam; c.dist = Math.max(45, Math.min(1100, c.dist * f)); }
+  rotate(dyaw, dpitch) { const c = this.cam, L = this.camLim; c.yaw += dyaw; c.pitch = Math.max(L.p0, Math.min(L.p1, c.pitch + dpitch)); }
+  zoom(f) { const c = this.cam, L = this.camLim; c.dist = Math.max(L.d0, Math.min(L.d1, c.dist * f)); }
+
+  /** Mặt đường mặt đất (kể cả cầu qua sông) dưới điểm (x, z): độ cao mặt đường, không có đường thì null. */
+  _avatarRoad(x, z) {
+    let best = null;
+    for (const e of this.city.edges.values()) {
+      if (e.ch || roadLvl(e.type) !== 0 || ROADS[e.type].elevated) continue;
+      if (Math.hypot(e.pts[0] - x, e.pts[1] - z) > e.len + 20) continue; // xa hẳn: bỏ qua khỏi tính
+      const r = nearestOnEdge(e, x, z);
+      if (r.d > ROADS[e.type].w / 2 + 0.6) continue;
+      const y = this.roadY(x, z) + this.waterLift(e, r.along);
+      if (best === null || y > best) best = y;
+    }
+    return best;
+  }
+
+  /** Nhân vật đứng được ở (x, z) không: trả độ cao chỗ đứng, hay null nếu vướng nhà, công trình, nước, mép bản đồ. */
+  avatarGround(x, z) {
+    const c = this.city, i = Math.floor((x + HALF) / T), j = Math.floor((z + HALF) / T);
+    if (i < 0 || j < 0 || i >= N || j >= N) return null;
+    const k = j * N + i, road = this._avatarRoad(x, z);
+    if (road !== null) return road;
+    if (c.road[k]) return this.roadY(x, z);
+    if (c.water[k]) return null;
+    if (c.level[k]) return null; // nhà trên ô quy hoạch
+    if (c.occ[k]) { const s = c.services[c.occ[k] - 1]; if (!s || !SERVICES[s.type] || SERVICES[s.type].cover !== 'park') return null; } // đi vào được công viên, quảng trường
+    if (c.damCell && c.damCell[k]) return null;
+    return Math.max(heightAt(c, x, z), WATER_Y) + 0.03;
+  }
+
+  /** Thả nhân vật ở (x, z); trả false nếu chỗ đó không đứng được. */
+  avatarDrop(x, z, yaw = this.cam.yaw + Math.PI) {
+    const y = this.avatarGround(x, z);
+    if (y === null) return false;
+    if (!this.avatar) { this._camBuild = { ...this.cam }; this.camLim = CAM_WALK; this.cam.dist = 16; this.cam.pitch = 0.32; }
+    this.avatar = { x, z, y, yaw, gp: 0, run: false, moving: false };
+    return true;
+  }
+
+  avatarLeave() {
+    if (!this.avatar) return;
+    const a = this.avatar, b = this._camBuild;
+    this.avatar = null; this.camLim = CAM_BUILD;
+    Object.assign(this.cam, b || {}, { x: a.x, z: a.z }); // quay về góc nhìn xây dựng ngay chỗ nhân vật đứng
+    this.avatarMesh.count = 0; this.avatarMark.visible = false;
+  }
+
+  /**
+   * Đi theo hướng camera: mx sang phải, mz tiến tới (cỡ -1..1). Vướng thì trượt dọc theo vật cản (thử từng trục).
+   * Đi bộ 4,5 m/s, chạy 11 m/s (thời gian thật, không theo tốc độ mô phỏng).
+   */
+  avatarMove(dt, mx, mz, run) {
+    const a = this.avatar; if (!a) return;
+    const len = Math.hypot(mx, mz);
+    a.moving = len > 0.05; a.run = run;
+    if (!a.moving) return;
+    if (len > 1) { mx /= len; mz /= len; }
+    const yw = this.cam.yaw, cs = Math.cos(yw), sn = Math.sin(yw), v = (run ? 11 : 4.5) * dt;
+    const vx = (mx * cs - mz * sn) * v, vz = (-mx * sn - mz * cs) * v;
+    const climb = (y) => y !== null && y - a.y < 1.2 + v; // không leo vách dựng đứng (taluy, tường)
+    let y = this.avatarGround(a.x + vx, a.z + vz), nx = a.x + vx, nz = a.z + vz;
+    if (!climb(y)) { y = this.avatarGround(a.x + vx, a.z); nx = a.x + vx; nz = a.z; }
+    if (!climb(y)) { y = this.avatarGround(a.x, a.z + vz); nx = a.x; nz = a.z + vz; }
+    const want = Math.atan2(vx, vz);
+    let d = want - a.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    a.yaw += d * Math.min(1, dt * 12);
+    if (!climb(y)) return;
+    a.gp += Math.hypot(nx - a.x, nz - a.z);
+    a.x = nx; a.z = nz; a.y = y;
+  }
+
+  _avatarDraw() {
+    const a = this.avatar, mesh = this.avatarMesh;
+    if (!a) { if (mesh.count) mesh.count = 0; this.avatarMark.visible = false; return; }
+    const y = this.avatarGround(a.x, a.z); if (y !== null) a.y += (y - a.y) * 0.5; // nhà mới mọc dưới chân: vẫn giữ độ cao cũ
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a.yaw);
+    const bob = a.moving ? 1 + Math.sin(a.gp * (a.run ? 2.4 : 4.8)) * 0.03 : 1;
+    m.compose(new THREE.Vector3(a.x, a.y + 0.08, a.z), q, new THREE.Vector3(AVATAR_SCALE, AVATAR_SCALE * bob, AVATAR_SCALE));
+    mesh.setMatrixAt(0, m); mesh.count = 1; mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor || !mesh.geometry.userData.gait) { mesh.setColorAt(0, new THREE.Color(0xff8a3d)); mesh.instanceColor.needsUpdate = true; } // người hộp: áo cam
+    const ga = mesh.geometry.userData.gait;
+    if (ga) { ga[0] = a.gp * GAIT_TAU / (a.run ? 2.2 : 1.3); ga[1] = a.moving ? (a.run ? 0.7 : 0.45) : 0; mesh.geometry.attributes.aGait.needsUpdate = true; }
+    const mk = this.avatarMark; mk.visible = true;
+    mk.position.set(a.x, a.y + (this.avatarH || 2.2) + 0.5 + Math.sin(this.time * 3) * 0.12, a.z); mk.rotation.y = this.time * 1.5;
+  }
 
   _camera(dt = 0) {
     const c = this.cam, cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
-    const ty = Math.max(0, heightAt(this.city, c.x, c.z));
-    c.y += (ty - c.y) * (dt ? Math.min(1, dt * 6) : 1);
+    const av = this.avatar;
+    if (av) { c.x = av.x; c.z = av.z; } // đang đi bộ: camera bám theo nhân vật, nhìn vào ngang ngực
+    const ty = av ? av.y + 1.3 : Math.max(0, heightAt(this.city, c.x, c.z));
+    c.y += (ty - c.y) * (dt ? Math.min(1, dt * (av ? 14 : 6)) : 1);
     this.camera.position.set(c.x + Math.sin(c.yaw) * cp * c.dist, c.y + sp * c.dist, c.z + Math.cos(c.yaw) * cp * c.dist);
+    if (av) { const P = this.camera.position, g = Math.max(heightAt(this.city, P.x, P.z), WATER_Y) + 0.8; if (P.y < g) P.y = g; } // không chui xuống đất khi nhìn sát
     this.camera.lookAt(c.x, c.y, c.z);
     const size = Math.max(140, Math.min(520, c.dist * 0.95)), sc = this.sun.shadow.camera;
     this.sun.target.position.set(c.x, c.y, c.z);
@@ -4404,6 +4506,7 @@ export class View {
     this._movers(simDt);
     this._strollers(simDt);
     this._life(dt);
+    this._avatarDraw();
     if (this.fallsGroup) { const day = (c.hour % 24) >= 7 && (c.hour % 24) <= 17; for (const o of this.fallsGroup.children) { if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); } else if (o.userData.rainbow) { o.visible = day; o.quaternion.copy(this.camera.quaternion); } } }
     if (this.hydroGroup) for (const o of this.hydroGroup.children) if (o.userData.mist) { const u = o.userData.mist, k = 1 + Math.sin(this.time * 2.2 + u.ph) * 0.18; o.scale.set(u.r * k, u.r * 0.6 * k, u.r * k); }
     this._railTrains();
