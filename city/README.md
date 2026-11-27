@@ -324,6 +324,13 @@ Một trang riêng, chưa có gameplay: chỉ địa hình, nước, núi và hi
   - Phía khuất sáng ngả lam tím.
 - **Tạo địa hình mới** đổi mã ngẫu nhiên (`#seed=…` trên URL). Chất lượng Thấp/Vừa/Cao đổi độ phân giải, cỡ shadow map và mật độ cây.
 
+## Chơi trên điện thoại (nằm ngang)
+
+- **Bố cục màn thấp** (cao ≤ 540 px, nằm ngang): hàng trên gồm ☰ (các bảng thành phố, lưới có nhãn), thẻ 💰 tiền · 👥 dân · tốc độ; bên phải 📨 🔔 💾 và ⚙️ (ngày đêm, kiểu Việt, toàn màn hình, hướng dẫn). Dưới đáy là thanh nhóm công cụ; mở một nhóm thì ngăn kéo công trình hiện thành **một hàng** (thẻ nhóm bên trái, ✕ bên phải). Tuỳ chọn của công cụ (kiểu vẽ đường, cầu, cọ địa hình, độ cao) là **lưới dọc sát mép phải**, trong tầm ngón cái. Bảng mở thành tấm bên phải cao hết màn; ô đang xem, lớp xem ở bên trái. Chừa chỗ tai thỏ / thanh vuốt (safe area).
+- **Cử chỉ:** một ngón như chuột trái (công cụ 🖐️ thì kéo để đi, chạm để xem ô; công cụ vẽ thì kéo để vẽ đường, tô quy hoạch); **hai ngón** kéo để đi, chụm / mở để phóng to, xoay để xoay bản đồ (điểm giữa hai ngón đứng yên dưới tay); **ba ngón** kéo dọc để nghiêng. Ngón đầu chờ 110 ms trước khi hành động, nên đặt ngón thứ hai để zoom không làm xây nhầm.
+- **Chạm hai lần để đặt** công trình đặt một lần (dịch vụ, mua đất): chạm lần đầu hiện bóng xem trước, kéo để dời bóng, chạm lại đúng chỗ đó mới đặt và trừ tiền.
+- Cầm dọc thì có màn mời xoay ngang (nút toàn màn hình + khoá hướng ngang, hoặc vẫn chơi dọc với bố cục cũ).
+
 ## Mã nguồn
 
 | File | Việc |

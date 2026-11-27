@@ -1578,8 +1578,8 @@ function bindInput() {
   let rot = null, grab = null, downAt = null;
   const isDrawTool = () => { const k = toolInfo(tool).kind; return k === 'road' || k === 'line' || k === 'transit' || k === 'rail'; };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
-  cv.addEventListener('pointerdown', (e) => {
-    cv.setPointerCapture(e.pointerId);
+  const downH = (e) => {
+    try { cv.setPointerCapture(e.pointerId); } catch { /* ngón đã nhấc (chạm nhanh) */ }
     downAt = { x: e.clientX, y: e.clientY, moved: false };
     if (e.button === 2 || e.button === 1) { rot = { x: e.clientX, y: e.clientY }; return; }
     if (e.button !== 0) return;
@@ -1641,8 +1641,8 @@ function bindInput() {
     }
     drag = { from: hover, to: hover };
     updatePreview();
-  });
-  cv.addEventListener('pointermove', (e) => {
+  };
+  const moveH = (e) => {
     if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8) downAt.moved = true;
     if (rot) { view.rotate(-(e.clientX - rot.x) * 0.006, (e.clientY - rot.y) * 0.004); rot = { x: e.clientX, y: e.clientY }; return; }
     if (grab) {
@@ -1654,8 +1654,8 @@ function bindInput() {
     if (!isDrawTool() && h && hover && h.x === hover.x && h.y === hover.y) { hover = h; return; }
     hover = h;
     updatePreview();
-  });
-  cv.addEventListener('pointerup', (e) => {
+  };
+  const upH = (e) => {
     if (rot) {
       rot = null;
       if (e.button === 2 && downAt && !downAt.moved) { if (moving) { cancelDraw(); renderHint(); } else if (draw && draw.stops && draw.stops.length >= 2) finishTransit(); else if (draw && draw.rail) finishRail(null); else if (draw) { cancelDraw(); renderHint(); } else if (tool !== 'info') setTool('info'); }
@@ -1665,9 +1665,95 @@ function bindInput() {
     if (drag) commitDrag();
     else if (e.button === 0 && isDrawTool() && downAt && downAt.moved && downAt.started && draw) { hover = view.pick(e.clientX, e.clientY); drawClick(true); } // kéo-thả = điểm đầu + điểm cuối
     downAt = null;
+  };
+
+  // ── cảm ứng: một ngón như chuột trái; hai ngón kéo / chụm / xoay; ba ngón kéo dọc để nghiêng ──
+  // Ngón đầu tiên chờ một chút (TAP_WAIT) trước khi hành động: nếu ngón thứ hai chạm theo thì đó là cử chỉ camera, không xây nhầm.
+  const TAP_WAIT = 110, touches = new Map();
+  let pend = null, gest = null, armed = null, armTipped = false;
+  const plain = (e) => ({ clientX: e.clientX, clientY: e.clientY, button: 0, pointerId: e.pointerId });
+  const flush = () => { if (!pend) return; const p = pend; pend = null; clearTimeout(p.t); downH(p.e); };
+  // công trình đặt một lần (dịch vụ, mua đất): chạm lần đầu chỉ hiện bóng xem trước, chạm lại đúng ô đó mới đặt
+  const confirmTool = () => !!S.SERVICES[tool] || tool === 'land';
+  /** Ngón thứ hai chạm khi ngón đầu đã bắt đầu thao tác: bỏ thao tác đó (kéo quy hoạch, nét địa hình, nét đường vừa bắt đầu). */
+  const abortSingle = () => {
+    grab = null; rot = null;
+    if (drag) { drag = null; view.setPreview(null); }
+    endStroke();
+    if (downAt && downAt.started && draw) { cancelDraw(); renderHint(); }
+    downAt = null;
+  };
+  const gState = () => {
+    const [a, b, c] = [...touches.values()];
+    const s = { n: touches.size, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, d: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+    if (c) s.my3 = (a.y + b.y + c.y) / 3;
+    return s;
+  };
+  const syncCam = () => { view._camera(); view.camera.updateMatrixWorld(); };
+  const gStart = () => { const s = gState(); syncCam(); s.anchor = view.groundPoint(s.mx, s.my); gest = s; };
+  const gMove = () => {
+    const s = gState();
+    if (s.n >= 3) { // ba ngón: nghiêng
+      if (gest.my3 != null) view.rotate(0, (s.my3 - gest.my3) * 0.005);
+      gest.my3 = s.my3; return;
+    }
+    let da = s.ang - gest.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+    view.zoom(gest.d / s.d);
+    view.rotate(da, 0);
+    gest.d = s.d; gest.ang = s.ang;
+    if (gest.anchor) { // giữ điểm đất dưới tâm hai ngón đứng yên dưới tay
+      syncCam();
+      const p = view.groundPoint(s.mx, s.my);
+      if (p) { view.panWorld(gest.anchor.x - p.x, gest.anchor.z - p.z); syncCam(); }
+    }
+  };
+  const tapConfirm = (e) => { // chạm (không kéo) khi đang cầm công trình đặt một lần
+    const h = view.pick(e.clientX, e.clientY);
+    if (!h) return;
+    if (armed && armed.x === h.x && armed.y === h.y) { armed = null; downH(plain(e)); upH(plain(e)); return; }
+    armed = h; hover = h; updatePreview();
+    if (!armTipped) { armTipped = true; toast('Chạm lần nữa vào chỗ đó để đặt · kéo bóng công trình để dời'); }
+  };
+
+  cv.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') { downH(e); return; }
+    e.preventDefault();
+    cv.setPointerCapture(e.pointerId);
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+    if (touches.size >= 2) {
+      if (pend) { clearTimeout(pend.t); pend = null; } else if (!gest) abortSingle();
+      if (touches.size === 2 || !gest) gStart(); else { gest.n = touches.size; gest.my3 = gState().my3; }
+      return;
+    }
+    if (gest) return;
+    if (confirmTool()) { pend = { e: plain(e), t: 0, confirm: true }; return; }
+    pend = { e: plain(e), t: setTimeout(flush, TAP_WAIT) };
   });
-  cv.addEventListener('pointercancel', () => { rot = grab = drag = null; endStroke(); view.setPreview(null); });
-  cv.addEventListener('pointerleave', () => { if (!drag && !draw && !stroke) { hover = null; view.setPreview(null); view.setGhost(null); view.setMarker(null); } });
+  cv.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'touch') { moveH(e); return; }
+    const t = touches.get(e.pointerId); if (!t) return;
+    t.x = e.clientX; t.y = e.clientY;
+    if (gest) { if (touches.size >= 2) gMove(); return; }
+    const far = Math.hypot(t.x - t.x0, t.y - t.y0) > 10;
+    if (pend && pend.confirm) { if (far) { pend.moved = true; armed = null; moveH(e); } return; } // kéo bóng công trình đi chỗ khác
+    if (pend) { if (!far) return; flush(); }
+    moveH(e);
+  });
+  const touchEnd = (e, cancel) => {
+    if (!touches.delete(e.pointerId)) return;
+    if (gest) { // nhấc ngón trong cử chỉ: còn hai ngón thì đo lại, hết ngón thì xong
+      if (touches.size >= 2) gStart(); else if (!touches.size) gest = null; else { gest = null; touches.clear(); }
+      return;
+    }
+    if (pend && pend.confirm) { const p = pend; pend = null; if (cancel) return; if (p.moved) { armed = hover; if (!armTipped) { armTipped = true; toast('Chạm vào bóng công trình để đặt'); } } else tapConfirm(e); return; }
+    if (cancel) { pend && clearTimeout(pend.t); pend = null; rot = grab = drag = null; endStroke(); view.setPreview(null); downAt = null; return; }
+    flush();
+    upH(plain(e));
+  };
+  cv.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') touchEnd(e, false); else upH(e); });
+  cv.addEventListener('pointercancel', (e) => { if (e.pointerType === 'touch') { touchEnd(e, true); return; } rot = grab = drag = null; endStroke(); view.setPreview(null); });
+  cv.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false }); // chặn phóng to trang, kéo làm mới của trình duyệt
+  cv.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; if (!drag && !draw && !stroke) { hover = null; view.setPreview(null); view.setGhost(null); view.setMarker(null); } });
   cv.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom(Math.exp(Math.max(-120, Math.min(120, e.deltaY)) * 0.0014)); }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
@@ -1679,7 +1765,7 @@ function bindInput() {
     else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
     else if (k === 'escape') { // lần lượt: hộp hướng dẫn → menu ☰ → nét đang vẽ → công cụ đang cầm → bảng đang mở
       if ($('modal').classList.contains('show')) { $('modal').classList.remove('show'); return; }
-      if ($('menu').classList.contains('open')) { $('menu').classList.remove('open'); return; }
+      if ($('menu').classList.contains('open') || $('sys').classList.contains('open')) { $('menu').classList.remove('open'); $('sys').classList.remove('open'); return; }
       if (seatPick != null) { seatPick = null; renderDist(true); }
       else if (drag) { drag = null; view.setPreview(null); renderHint(); }
       else if (draw || moving) { cancelDraw(); renderHint(); }
@@ -1830,8 +1916,25 @@ function bindUi() {
   $('bFest').addEventListener('click', () => openSide('fest'));
   $('bNight').addEventListener('click', toggleNight);
   // thanh trên: menu ☰ (màn hẹp), bật tắt cảnh báo và bản đồ nhỏ (nhớ qua lần mở sau), nhãn lớp xem
-  $('bMenu').addEventListener('click', () => $('menu').classList.toggle('open'));
+  $('bMenu').addEventListener('click', () => { $('sys').classList.remove('open'); $('menu').classList.toggle('open'); });
   $('menuItems').addEventListener('click', (e) => { if (e.target.closest('button')) $('menu').classList.remove('open'); });
+  // điện thoại nằm ngang: ⚙️ gom ngày đêm, kiểu Việt, toàn màn hình, hướng dẫn; 💾 hiện riêng
+  $('bMore').addEventListener('click', () => { $('menu').classList.remove('open'); $('sys').classList.toggle('open'); });
+  $('sysMore').addEventListener('click', (e) => { if (e.target.closest('button')) $('sys').classList.remove('open'); });
+  $('bSave2').addEventListener('click', () => $('bSave').click());
+  document.addEventListener('pointerdown', (e) => { // chạm ra ngoài thì đóng ô thả xuống
+    if (!e.target.closest('#menu')) $('menu').classList.remove('open');
+    if (!e.target.closest('#sys')) $('sys').classList.remove('open');
+  }, true);
+  const goFull = async () => {
+    const d = document.documentElement;
+    try { if (!document.fullscreenElement) await (d.requestFullscreen || d.webkitRequestFullscreen).call(d, { navigationUI: 'hide' }); } catch { /* iPhone Safari: không có toàn màn hình cho trang */ }
+    try { await screen.orientation.lock('landscape'); } catch { /* trình duyệt không cho khoá hướng */ }
+  };
+  $('bFull').addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen?.(); else goFull(); });
+  document.addEventListener('fullscreenchange', () => $('bFull').classList.toggle('on', !!document.fullscreenElement));
+  $('rotFull').addEventListener('click', goFull);
+  $('rotSkip').addEventListener('click', () => document.body.classList.add('portrait-ok'));
   const pref = (k, def) => { try { const v = localStorage.getItem(KEY + k); return v ? v === '1' : def; } catch { return def; } };
   const savePref = (k, on) => { try { localStorage.setItem(KEY + k, on ? '1' : '0'); } catch { /* bỏ qua */ } };
   const setAlerts = (on, save) => { $('alerts').classList.toggle('off', !on); $('bAlerts').classList.toggle('on', on); if (save) savePref('alerts', on); };

@@ -2,7 +2,10 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111618">
 <title>Phố Mới — xây thành phố</title>
 <meta name="robots" content="noindex">
 <style>
@@ -19,6 +22,8 @@
     --side-w: 340px; --info-w: 330px; --left-w: 336px;
     --t-fast: 120ms; --t-med: 180ms; --t-slow: 260ms; --ease: cubic-bezier(.2, .8, .2, 1);
     --barH: 58px; --topH: 58px; --dockH: 76px; --leftH: 330px; /* layout() đo lại */
+    --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); --sb: env(safe-area-inset-bottom, 0px); --st: env(safe-area-inset-top, 0px); /* tai thỏ, thanh vuốt của điện thoại */
+    --gap: 8px;
     /* tên cũ: các luật chưa đổi vẫn chạy */
     --bg: var(--ui-bg); --bg2: var(--ui-raise); --line: var(--ui-line); --txt: var(--ui-text); --dim: var(--ui-dim);
     --acc: var(--ui-gold); --acc2: var(--ui-gold-2); --ink: var(--ui-on-gold); --gold: var(--ui-warn); --good: var(--ui-good); --bad: var(--ui-bad);
@@ -30,7 +35,13 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc6ea; color: var(--ui-text); font: 13.5px/1.35 "Segoe UI", system-ui, -apple-system, Roboto, "Noto Sans", sans-serif; user-select: none; -webkit-user-select: none; }
   canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   .panel { background: var(--ui-bg); border: 1px solid var(--ui-line); border-radius: var(--r-lg); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--sh-2), var(--hl); }
-  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  body { -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+  button:active:not(:disabled) { transform: scale(.94); }
+  #sysMore { display: contents; }
+  .tb.only-compact, .tb.touch-only { display: none; } /* .tb đặt display riêng: cần độ ưu tiên cao hơn */
+  @media (pointer: coarse) { .tb.touch-only { display: inline-flex; } }
+  @media (hover: none) { .asset:hover { transform: none; } .tool:hover, .tb:hover { background: none; } .tb.on:hover { background: var(--ui-gold); } }
   button:disabled { opacity: .4; cursor: default; }
   ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(255, 246, 230, .18); border-radius: 4px; }
   .pos { color: var(--ui-good) !important; } .neg { color: var(--ui-bad) !important; }
@@ -38,7 +49,7 @@
   .vsep { width: 1px; align-self: stretch; margin: 6px 3px; background: var(--ui-line); flex: none; }
 
   /* ── thanh trên: trái là các bảng của thành phố, phải là hộp thư, cảnh báo và nút hệ thống ── */
-  #top { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: flex-start; pointer-events: none; z-index: 5; }
+  #top { position: fixed; top: calc(var(--gap) + var(--st)); left: calc(var(--gap) + var(--sl)); right: calc(var(--gap) + var(--sr)); display: flex; gap: 8px; align-items: flex-start; pointer-events: none; z-index: 5; }
   #top > * { pointer-events: auto; }
   .tgroup { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--r-md); }
   #menuItems { display: contents; }
@@ -109,7 +120,7 @@
   body:has(.side.show:not(.win):not(#info):not(#layers)) #alerts { display: none; }
 
   /* ── dưới: cột trái (bản đồ nhỏ + thẻ thành phố) | giữa (gợi ý, tuỳ chọn, bảng công trình) | thanh công cụ ── */
-  #bottom { position: fixed; left: 8px; right: 8px; bottom: 8px; display: grid; grid-template-columns: var(--left-w) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 8px; row-gap: 6px; align-items: end; pointer-events: none; z-index: 3; }
+  #bottom { position: fixed; left: calc(var(--gap) + var(--sl)); right: calc(var(--gap) + var(--sr)); bottom: calc(var(--gap) + var(--sb)); display: grid; grid-template-columns: var(--left-w) minmax(0, 1fr); grid-template-rows: 1fr auto; column-gap: 8px; row-gap: 6px; align-items: end; pointer-events: none; z-index: 3; }
   #bottom > * { pointer-events: auto; }
   #left { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 8px; align-self: end; pointer-events: none; min-width: 0; }
   #left > * { pointer-events: auto; }
@@ -359,16 +370,154 @@
     #hint { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; border-bottom: 6px solid transparent; } /* viền trong suốt thay lề dưới: dòng thứ ba không lộ ra */
     #sys { gap: 0; } #sys .tb { min-width: 34px; padding: 0 5px; }
   }
-  /* ── màn thấp (điện thoại nằm ngang) ── */
-  @media (max-height: 520px) {
-    #status { flex-direction: row; align-items: center; gap: 8px; padding: 5px 8px; }
+  /* ── màn hình cảm ứng: bỏ chú thích phím tắt, hiện hướng dẫn cử chỉ ── */
+  .touchkeys { display: none; }
+  @media (pointer: coarse) {
+    kbd { display: none !important; }
+    .modal .keys { display: none; }
+    .touchkeys { display: block; color: var(--ui-dim); font-size: 13px; }
+    input[type=range] { height: 28px; }
+    .mini { padding: 8px 12px; }
+  }
+
+  /* ── cầm dọc trên điện thoại: mời xoay ngang (vẫn cho chơi dọc nếu muốn) ── */
+  #rotate { position: fixed; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; background: radial-gradient(circle at 50% 38%, #213033, #0b0f10 70%); }
+  #rotate .phone { font-size: 58px; line-height: 1; margin-bottom: 8px; animation: tilt 2.4s var(--ease) infinite; }
+  @keyframes tilt { 0%, 20% { transform: rotate(0); } 50%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+  #rotate b { font-size: 19px; }
+  #rotate small { color: var(--ui-dim); max-width: 280px; line-height: 1.45; }
+  #rotate .cta { margin: 6px 0 0; width: min(290px, 100%); }
+  #rotate .cta.ghost { margin: 0; }
+  @media (orientation: portrait) and (pointer: coarse) and (max-width: 700px) { body:not(.portrait-ok) #rotate { display: flex; } }
+
+  /* ── điện thoại nằm ngang (màn thấp): bố cục kiểu game mobile
+     · trên: ☰ | thẻ tiền · dân · tốc độ ............ 📨 🔔 💾 ⚙️
+     · phải: dải tuỳ chọn công cụ (kiểu vẽ, cầu, cọ, độ cao) dạng lưới dọc, trong tầm ngón cái
+     · dưới: thanh nhóm công cụ, ngăn kéo công trình một hàng (thẻ bên trái, nút ✕ bên phải)
+     · bảng mở thành tấm bên phải cao hết màn, cửa sổ lớn trải hết bề ngang ── */
+  @media (max-height: 540px) and (orientation: landscape) {
+    :root { --gap: 6px; --top-btn: 40px; --cat: 42px; --asset-w: 64px; --asset-h: 66px; --side-w: min(380px, 46vw); --mode-w: 46px; }
+    .only-narrow, .tb.only-compact { display: inline-flex; }
+    .vsep { display: none; }
+
+    /* thanh trên: ☰ và ⚙️ mở lưới có nhãn */
+    #top { gap: 6px; }
+    .tgroup { padding: 3px; gap: 1px; }
+    #menu, #sys { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--ui-bg-2); } /* backdrop-filter sẽ giam ô thả xuống (position: fixed) */
+    #menuItems { display: none; }
+    #sysMore { display: none; }
+    #sysMore #bSave, #bMini { display: none; }
+    #menu.open #bMenu, #sys.open #bMore { background: var(--ui-hover); }
+    #menu.open #menuItems, #sys.open #sysMore { display: grid; gap: 4px; position: fixed; top: var(--barH); width: max-content; max-width: none; padding: 8px; background: var(--ui-bg-2); border: 1px solid var(--ui-line); border-radius: var(--r-lg); box-shadow: var(--sh-2); z-index: 9; animation: up var(--t-med) var(--ease); }
+    #menu.open #menuItems { left: calc(var(--gap) + var(--sl)); right: auto; grid-template-columns: repeat(5, 74px); }
+    #sys.open #sysMore { right: calc(var(--gap) + var(--sr)); grid-template-columns: repeat(2, 82px); }
+    :is(#menuItems, #sysMore) .tb { flex-direction: column; height: 60px; font-size: 21px; gap: 3px; }
+    :is(#menuItems, #sysMore) .tb::after { content: attr(data-label); font-size: 10px; color: var(--ui-dim); white-space: nowrap; }
+    :is(#menuItems, #sysMore) .tb.on::after { color: var(--ui-on-gold); }
+    #menuItems .tb .cap { position: absolute; top: 3px; left: 5px; font-size: 9.5px; }
+    #menuItems .badge { top: 3px; right: 6px; }
+    #sys .tb { min-width: 40px; padding: 0 6px; }
+
+    /* thẻ thành phố: nằm cùng hàng với ☰, chỉ giữ tiền, dân, tốc độ */
+    #mini { display: none; }
+    #bottom { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
+    #left { position: fixed; top: calc(var(--gap) + var(--st)); left: calc(var(--gap) + var(--sl) + 54px); right: auto; align-items: flex-start; }
+    #status { flex-direction: row; align-items: center; gap: 2px; height: 48px; padding: 3px 3px 3px 6px; border-radius: var(--r-md); }
     #status .nm, #status .xprow, #dateBox, #jobs, #net { display: none; }
-    #status .stats { display: flex; gap: 6px; }
-    #status .stat { grid-template-columns: auto auto; padding: 2px 4px; }
+    #status .stats { display: flex; gap: 0; }
+    #status .stat { display: flex; align-items: center; gap: 5px; height: 40px; padding: 0 8px 0 6px; }
+    #status .stat .ico { font-size: 17px; }
+    #status .stat b { font-size: 14.5px; }
+    #status .stat + .stat { border-left: 1px solid var(--ui-line); border-radius: 0; }
+    .clock { gap: 0; }
+    .speedseg { padding: 2px; border-radius: var(--r-sm); }
+    .speedseg button { width: 34px; height: 36px; font-size: 11px; }
+
+    /* cảnh báo, thông báo: nhỏ, không che bản đồ */
+    #alerts { top: var(--topH); right: calc(var(--gap) + var(--sr)); left: auto; width: 236px; gap: 4px; }
+    .alert { padding: 5px 8px 5px 10px; font-size: 11.5px; }
+    .alert:nth-child(n+3) { display: none; }
+    body:has(#opts:not(:empty)) #alerts { display: none; }
+    #toasts { top: var(--topH); gap: 4px; }
+    .toast { padding: 6px 14px; font-size: 12.5px; max-width: min(440px, 60vw); }
+    .toast h3 { font-size: 14.5px; }
+
+    /* thanh nhóm công cụ dưới đáy */
+    #above, #dockbar { grid-column: 1; }
+    #dockbar { justify-self: center; padding: 3px; gap: 2px; max-width: 100%; }
+    #demand { padding: 0 6px 0 6px; gap: 3px; border-right: 1px solid var(--ui-line); margin-right: 2px; }
+    #demand .dbar { width: 7px; height: 24px; }
+    #demand .col { font-size: 8px; }
+    #tools { flex: 0 1 auto; padding: 0; gap: 1px; scrollbar-width: none; }
+    #tools::-webkit-scrollbar { display: none; }
+    .cat span { font-size: 21px; }
+    .cat.end { margin-left: 7px; }
+    .cat.end::after { left: -5px; }
+    .cat.on, .cat.open { transform: translateY(-1px); }
+
+    /* ngăn kéo công trình: một hàng — thẻ nhóm | các công trình | ✕ */
     #hint { display: none; }
-    :root { --asset-h: 62px; }
-    .asset .cost, .asset small { display: none; }
-    .mode { height: 38px; } .mode small { display: none; } #elev .mode small { display: block; }
+    #above { gap: 4px; }
+    #sub { flex-direction: row; align-items: stretch; max-width: 100%; border-radius: var(--r-lg); }
+    .ahead { display: contents; }
+    .ahead > b, .ahead > .spacer { display: none; }
+    .atabs { flex: none; flex-direction: column; justify-content: center; gap: 2px; padding: 5px; overflow-x: hidden; overflow-y: auto; max-height: calc(var(--asset-h) + 10px); border-right: 1px solid var(--ui-line); }
+    .atab { flex: none; min-height: 24px; padding: 0 10px; font-size: 11px; text-align: left; border-radius: var(--r-xs); }
+    .atab.on { box-shadow: inset 3px 0 0 var(--ui-gold); }
+    .acards { order: 1; flex: 0 1 auto; min-width: 0; padding: 5px; gap: 4px; scrollbar-width: none; scroll-snap-type: x proximity; }
+    .acards::-webkit-scrollbar { display: none; }
+    .asset { padding: 5px 3px 4px; scroll-snap-align: start; }
+    .asset span { font-size: 22px; height: 26px; }
+    .asset small { display: block; height: auto; font-size: 9.5px; white-space: nowrap; text-overflow: ellipsis; max-width: 100%; }
+    .asset .cost { font-size: 9.5px; }
+    .aclose { order: 2; align-self: stretch; width: 38px; height: auto; border-left: 1px solid var(--ui-line); border-radius: 0 var(--r-lg) var(--r-lg) 0; font-size: 15px; }
+
+    /* dải tuỳ chọn: lưới dọc 3 cột sát mép phải */
+    #optRow { position: fixed; right: calc(var(--gap) + var(--sr)); top: var(--topH); bottom: var(--dockH); flex-direction: column; justify-content: flex-end; gap: 4px; max-width: none; pointer-events: none; }
+    #optRow > * { pointer-events: auto; }
+    #optRow .tbar { display: grid; grid-template-columns: repeat(3, var(--mode-w)); gap: 3px; padding: 4px; overflow-x: hidden; overflow-y: auto; flex: 0 1 auto; min-height: 0; }
+    #elev { flex: none; }
+    .olab { display: none; }
+    .mode { width: var(--mode-w); min-width: 0; height: 40px; padding: 0 2px; gap: 0; }
+    .mode span { font-size: 16px; }
+    .mode small, #elev .mode small { display: block; font-size: 8.5px; }
+    .mode span.brush { height: 21px; transform: scale(.72); }
+    #optRow .tbar:empty { display: none; }
+    body:has(#opts:not(:empty)) #above { padding-right: calc(3 * var(--mode-w) + 22px); }
+
+    /* bảng: tấm bên phải cao hết màn; ô đang xem và lớp xem bên trái; cửa sổ lớn trải ngang */
+    .side { top: var(--topH); bottom: auto; right: calc(var(--gap) + var(--sr)); left: auto; width: var(--side-w); max-height: calc(100vh - var(--topH) - var(--gap) - var(--sb)); max-height: calc(100dvh - var(--topH) - var(--gap) - var(--sb)); padding: 0 12px 10px; z-index: 6; transform: none; }
+    .side.show { animation-name: slideR; }
+    .side h3 { margin: 0 -12px 6px; padding: 4px 4px 4px 12px; font-size: 14px; }
+    .side h3 button { width: 38px; height: 38px; font-size: 16px; }
+    .ptabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-bottom: 6px; }
+    .ptabs button { flex: none; padding: 7px 11px; }
+    #info, #layers { left: calc(var(--gap) + var(--sl)); right: auto; max-height: calc(100vh - var(--topH) - var(--dockH)); max-height: calc(100dvh - var(--topH) - var(--dockH)); }
+    #info, #layers { animation-name: slideL; }
+    #info { width: min(310px, 42vw); }
+    #layers { width: min(320px, 44vw); }
+    #layerList { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .lay { padding: 6px 2px 5px; }
+    .side.win { left: calc(var(--gap) + var(--sl)); right: calc(var(--gap) + var(--sr)); width: auto; transform: none; z-index: 7; }
+    .side.win.show { animation: up var(--t-med) var(--ease); }
+    body:has(.side.show:not(.win):not(#info):not(#layers)) #above { margin-right: calc(var(--side-w) + 8px); }
+    body:has(.side.show:not(.win):not(#info):not(#layers)) #optRow { display: none; }
+
+    /* hộp hướng dẫn, chọn bản đồ */
+    .modal { padding: 8px; }
+    .modal .panel { padding: 14px 20px; max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+    .modal h2 { font-size: 19px; }
+    .modal ol { margin: 6px 0; }
+    .modal li { margin: 3px 0; font-size: 12.5px; }
+    .cta { padding: 10px 18px; margin-top: 8px; }
+    .mapgrid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 8px 0; }
+  }
+  /* màn rất thấp (≤ 380px: điện thoại Android nằm ngang): ô nhỏ thêm một chút */
+  @media (max-height: 380px) and (orientation: landscape) {
+    :root { --cat: 40px; --asset-w: 60px; --asset-h: 62px; --mode-w: 42px; }
+    .asset span { font-size: 20px; height: 23px; }
+    #demand .col { font-size: 0; } #demand .dbar { height: 30px; }
+    .mode { height: 36px; }
   }
 </style>
 </head>
@@ -397,16 +546,28 @@
   <div class="panel tgroup" id="sys">
     <button class="tb" id="bInbox" title="Hộp thư thị trưởng: việc cần quyết, đàm phán, đánh giá của du khách">📨<span class="badge red" id="inboxN"></span></button>
     <button class="tb" id="bAlerts" title="Cảnh báo và gợi ý (bấm để ẩn / hiện)">🔔<span class="badge" id="alertN"></span></button>
+    <button class="tb only-compact" id="bSave2" title="Lưu và tải" aria-label="Lưu và tải">💾</button>
+    <button class="tb only-compact" id="bMore" title="Tuỳ chọn khác" aria-label="Tuỳ chọn khác">⚙️</button>
     <i class="vsep"></i>
-    <button class="tb" id="bNight" title="Chu kỳ ngày đêm (phím N): trời tối dần theo giờ trong game, phố lên đèn">🌙</button>
-    <button class="tb" id="bStyle" title="Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy">🇻🇳</button>
-    <button class="tb" id="bMini" title="Bản đồ nhỏ: bật / tắt">🧭</button>
-    <button class="tb" id="bSave" title="Lưu và tải">💾</button>
-    <button class="tb" id="bHelp" title="Hướng dẫn">❓</button>
+    <div id="sysMore">
+      <button class="tb" id="bNight" data-label="Ngày đêm" title="Chu kỳ ngày đêm (phím N): trời tối dần theo giờ trong game, phố lên đèn">🌙</button>
+      <button class="tb" id="bStyle" data-label="Kiểu Việt" title="Phong cách Việt Nam: nhà ống, biển hiệu, cột điện, xe đẩy, cây dừa, xe máy">🇻🇳</button>
+      <button class="tb" id="bMini" data-label="Bản đồ nhỏ" title="Bản đồ nhỏ: bật / tắt">🧭</button>
+      <button class="tb touch-only" id="bFull" data-label="Toàn màn hình" title="Toàn màn hình, khoá màn hình nằm ngang">⛶</button>
+      <button class="tb" id="bSave" data-label="Lưu / tải" title="Lưu và tải">💾</button>
+      <button class="tb" id="bHelp" data-label="Hướng dẫn" title="Hướng dẫn">❓</button>
+    </div>
   </div>
 </header>
 
 <div id="alerts"></div>
+<div id="rotate" role="dialog" aria-label="Xoay ngang điện thoại">
+  <div class="phone" aria-hidden="true">📱</div>
+  <b>Xoay ngang điện thoại để chơi</b>
+  <small>Màn hình ngang cho bản đồ rộng hơn và các nút dễ bấm hơn</small>
+  <button class="cta" id="rotFull">⛶ Toàn màn hình + xoay ngang</button>
+  <button class="cta ghost" id="rotSkip">Vẫn chơi màn dọc</button>
+</div>
 <div id="toasts"></div>
 
 <div class="panel side win" id="chron">
@@ -637,6 +798,11 @@
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> di chuyển · <kbd>Q</kbd><kbd>E</kbd> hoặc giữ chuột phải để xoay và nghiêng · lăn chuột để phóng to · bấm bản đồ nhỏ để tới nơi ·
       <kbd>Space</kbd> tạm dừng · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> tốc độ · <kbd>R</kbd> đường · <kbd>C</kbd> thẳng / cong · <kbd>G</kbd> bám lưới · <kbd>B</kbd> san ủi · <kbd>M</kbd> di chuyển · <kbd>T</kbd> địa hình · <kbd>[</kbd><kbd>]</kbd> cỡ cọ · <kbd>L</kbd> hoặc <kbd>I</kbd> lớp xem · <kbd>P</kbd> phát triển · <kbd>Z</kbd> ngân sách · <kbd>V</kbd> dân cư · <kbd>N</kbd> ngày đêm · <kbd>U</kbd> ẩn / hiện giao diện · chuột phải hoặc <kbd>Esc</kbd> để bỏ (bấm <kbd>Esc</kbd> lần nữa để đóng bảng đang mở).
       Game tự lưu trong trình duyệt này.
+    </div>
+    <div class="touchkeys">
+      👆 <b>Một ngón</b>: kéo để đi quanh bản đồ (công cụ 🖐️ Xem), kéo để vẽ đường, tô quy hoạch · chạm một lần để xem trước công trình, <b>chạm lần nữa</b> để đặt ·
+      ✌️ <b>Hai ngón</b>: kéo để di chuyển, chụm / mở để phóng to, xoay để xoay bản đồ · 🤟 <b>Ba ngón</b> kéo lên xuống để nghiêng ·
+      nút ✕ hoặc 🖐️ để bỏ công cụ đang cầm. Game tự lưu trong trình duyệt này.
     </div>
     <button class="cta" id="mStart">Bắt đầu xây</button>
     <button class="cta ghost" id="mMaps">🗺️ Chọn bản đồ khác</button>
