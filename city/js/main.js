@@ -4,6 +4,7 @@ import { ledgerSummary, worldReserve, worldK } from './ledger.js';
 import * as Cloud from './cloud.js';
 import * as Lg from './league.js';
 import { View, DCOL, corpRGB } from './render.js';
+import * as Deeds from './deeds.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -1574,7 +1575,7 @@ function setSpeed(v) { speed = v; if (v) updateHud.lastSpeed = v; updateHud(true
 // ───────────────────────── chuột, bàn phím ─────────────────────────
 
 // ── đi bộ: thả một nhân vật xuống phố, điều khiển bằng WASD / cần điều khiển, camera bám sau lưng ──
-const walk = { on: false, joy: { x: 0, y: 0, run: false } };
+const walk = { on: false, joy: { x: 0, y: 0, run: false }, opts: [], sig: '', scanAt: 0, chan: null, knock: 0 };
 function walkStart() {
   if (walk.on) return;
   const r = view.canvas.getBoundingClientRect(), p = view.groundPoint(r.left + r.width / 2, r.top + r.height / 2) || { x: view.cam.x, z: view.cam.z };
@@ -1594,11 +1595,90 @@ function walkStart() {
 }
 function walkStop() {
   if (!walk.on) return;
-  walk.on = false; walk.joy.x = walk.joy.y = 0;
+  walk.on = false; walk.joy.x = walk.joy.y = 0; walk.chan = null; walk.opts = []; walk.sig = ''; $('walkNav').hidden = true;
+  $('walkAct').innerHTML = ''; $('walkCard').hidden = true; $('info').classList.remove('show');
   view.avatarLeave();
   document.body.classList.remove('walking'); $('bWalk').classList.remove('on');
   $('joyKnob').style.transform = '';
 }
+/**
+ * Việc làm được quanh nhân vật (quét 4 lần mỗi giây): việc tốt (dập lửa, bắt cướp, dọn rác), hỏi chuyện người đi bộ
+ * gần nhất, gõ cửa nhà phía trước, xem công trình phía trước. Nút đầu tiên bấm bằng phím E.
+ */
+function walkScan() {
+  const a = view.avatar, c = city, T = S.T, opts = [];
+  for (const d of Deeds.deedsNear(c, a.x, a.z).slice(0, 2)) { const D = Deeds.DEED[d.kind]; opts.push({ id: `d${d.kind}${d.cell}`, icon: D.icon, label: D.verb, deed: d, secs: D.secs, hot: true }); }
+  let best = null, bd = 4.5; // người đi bộ trong 4,5 m
+  for (const w of c.traffic.peds) { if (w.rx == null || !w.cb || w.cb.t !== 'cit') continue; const d = Math.hypot(w.rx - a.x, w.rz - a.z); if (d < bd && c.pp.alive[w.cb.id] && c.pp.gen[w.cb.id] === w.cb.gen) { bd = d; best = w; } }
+  if (best) opts.push({ id: `p${best.cb.id}`, icon: '💬', label: 'Hỏi chuyện', person: best.cb.id, purpose: best.cb.purpose });
+  for (const r of [0.6, 1.1]) { // ô phía trước mặt (nhân vật đứng sát nhà thì ô đó bị chặn, nhìn thẳng vào nó)
+    const fx = a.x + Math.sin(a.yaw) * T * r, fz = a.z + Math.cos(a.yaw) * T * r, x = S.cellOf(fx), y = S.cellOf(fz);
+    if (!S.inMap(x, y)) continue;
+    const i = y * S.N + x, name = Deeds.placeLabel(c, i);
+    if (!name) continue;
+    if (c.level[i] && c.resCount[i] > 0) opts.push({ id: `k${i}`, icon: '👋', label: 'Gõ cửa', knock: i });
+    opts.push({ id: `v${i}`, icon: '🔍', label: `Xem ${name.replace(/^\S+\s/, '')}`, view: { x, y, wx: S.cellCenter(x), wz: S.cellCenter(y) } });
+    break;
+  }
+  walk.opts = opts.slice(0, 4);
+  { // việc gần nhất ngoài tầm tay: chỉ hướng và khoảng cách (mũi tên theo hướng camera)
+    let tgt = null, td = Infinity;
+    const consider = (i, icon, what) => { const d = Math.hypot(S.cellX(i) - a.x, S.cellZ(i) - a.z); if (d < td) { td = d; tgt = { i, icon, what }; } };
+    for (let i = 0; i < S.N * S.N; i++) if (c.fire[i]) consider(i, '🔥', 'Đám cháy');
+    if (!tgt) for (const r of c.inc.robberies) consider(r.cell, '🚨', 'Vụ cướp');
+    const nav = $('walkNav');
+    if (!tgt || td < T * 1.7) nav.hidden = true;
+    else {
+      const vx = S.cellX(tgt.i) - a.x, vz = S.cellZ(tgt.i) - a.z, yw = view.cam.yaw;
+      const ang = Math.atan2(vx * Math.cos(yw) - vz * Math.sin(yw), -vx * Math.sin(yw) - vz * Math.cos(yw));
+      nav.textContent = `${tgt.icon} ${tgt.what} cách ${fmt(td)} m ${['⬆', '↗', '➡', '↘', '⬇', '↙', '⬅', '↖'][((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]}`;
+      nav.hidden = false;
+    }
+  }
+  const sig = walk.opts.map((o) => o.id).join('|');
+  if (sig === walk.sig) return;
+  walk.sig = sig;
+  const box = $('walkAct'); box.innerHTML = '';
+  walk.opts.forEach((o, k) => {
+    const b = document.createElement('button');
+    b.className = 'panel wact' + (o.hot ? ' hot' : '');
+    b.innerHTML = `<span>${o.icon}</span> ${esc(o.label)}${k === 0 ? ' <kbd>E</kbd>' : ''}<i></i>`;
+    b.addEventListener('click', () => walkDo(o));
+    o.el = b; box.append(b);
+  });
+}
+function walkDo(o) {
+  if (!o || walk.chan) return;
+  const c = city;
+  if (o.deed) { walk.chan = { o, t: 0, x: view.avatar.x, z: view.avatar.z }; return; } // giữ yên vài giây
+  if (o.view) { $('walkCard').hidden = true; showInfo(o.view); return; }
+  let id = o.person, purpose = o.purpose;
+  if (o.knock != null) { const ids = Deeds.residentsOf(c, o.knock); if (!ids.length) { toast('Không có ai ở nhà'); return; } id = ids[walk.knock++ % ids.length]; purpose = null; }
+  const p = Deeds.personCard(c, id, purpose);
+  $('info').classList.remove('show');
+  const card = $('walkCard');
+  card.innerHTML = `<button class="wclose" title="Đóng (Esc)">✕</button><h3>${p.mood} ${esc(p.name)}</h3>
+    <blockquote>${p.says.map((t) => `<p>“${esc(t)}”</p>`).join('')}</blockquote>
+    ${p.rows.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
+    <div class="row"><span>Mức vui</span><span><b>${p.happy}</b>/100</span></div>`;
+  card.querySelector('.wclose').onclick = () => { card.hidden = true; };
+  card.hidden = false;
+}
+function walkTick(dt, now) {
+  if (now - walk.scanAt > 250) { walk.scanAt = now; walkScan(); }
+  const ch = walk.chan;
+  if (!ch) return;
+  const a = view.avatar, o = ch.o, bar = o.el && o.el.querySelector('i');
+  if (Math.hypot(a.x - ch.x, a.z - ch.z) > 1.5 || !Deeds.deedValid(city, o.deed)) { walk.chan = null; if (bar) bar.style.width = '0'; return; } // đi chỗ khác hay việc đã xong thì thôi
+  ch.t += dt;
+  if (bar) bar.style.width = `${Math.min(100, (ch.t / o.secs) * 100)}%`;
+  if (ch.t < o.secs) return;
+  walk.chan = null; walk.sig = '';
+  const r = Deeds.doDeed(city, o.deed);
+  toast(r.ok ? `${r.text}${r.reward ? ` · thưởng ${money(r.reward)}` : ' · hôm nay đã nhận đủ thưởng'}` : r.text, r.ok ? `${Deeds.DEED[o.deed.kind].icon} Việc tốt` : undefined);
+  if (r.ok) { city.dirty.zones = true; updateHud(true); }
+}
+
 function bindWalk() {
   $('bWalk').addEventListener('click', () => (walk.on ? walkStop() : walkStart()));
   $('walkExit').addEventListener('click', walkStop);
@@ -1831,7 +1911,10 @@ function bindInput() {
     keys.add(k);
     if (walk.on) { // đang đi bộ: phím di chuyển dành cho nhân vật, không đổi công cụ xây dựng
       if (k === 'escape' && ($('modal').classList.contains('show') || $('menu').classList.contains('open') || $('sys').classList.contains('open'))) { $('modal').classList.remove('show'); $('menu').classList.remove('open'); $('sys').classList.remove('open'); return; }
+      if (k === 'escape' && !$('walkCard').hidden) { $('walkCard').hidden = true; return; }
+      if (k === 'escape' && $('info').classList.contains('show')) { $('info').classList.remove('show'); return; }
       if (k === 'escape' || k === 'k') { walkStop(); return; }
+      if (k === 'e') { walkDo(walk.opts[0]); return; }
       if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : updateHud.lastSpeed || 1); }
       else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
       else if (k === 'n') toggleNight();
@@ -2776,7 +2859,7 @@ function frame(now) {
   if (keys.has('s') || keys.has('arrowdown')) dz += mv;
   if (walk.on) {
     if (!view.avatar) walkStop(); // thành phố khác vừa nạp
-    else { const j = walk.joy; view.avatarMove(dt, dx + j.x, -dz - j.y, keys.has('shift') || j.run); }
+    else { const j = walk.joy; if (!walk.chan) view.avatarMove(dt, dx + j.x, -dz - j.y, keys.has('shift') || j.run); else view.avatarMove(dt, 0, 0, false); walkTick(dt, now); }
   } else if (dx || dz) view.pan(dx, dz);
   if (keys.has('q')) view.rotate(dt * 1.4, 0);
   if (keys.has('e')) view.rotate(-dt * 1.4, 0);

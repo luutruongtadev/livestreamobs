@@ -222,13 +222,28 @@
   /* đi bộ: ẩn thanh công cụ xây dựng, hiện nút thoát và cần điều khiển */
   #walkUI { display: none; }
   body.walking #walkUI { display: block; }
-  body.walking #bottom, body.walking .side, body.walking #layerChip, body.walking #hint { display: none !important; }
+  body.walking #bottom, body.walking .side:not(#info), body.walking #layerChip, body.walking #hint { display: none !important; }
+  #walkAct { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(108px + var(--sb)); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .wact { position: relative; overflow: hidden; padding: 9px 16px; border-radius: 999px; font-size: 15px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .wact.hot { box-shadow: 0 0 0 2px #ffc83a; }
+  .wact kbd { font: 600 11px/1 system-ui, sans-serif; padding: 3px 5px; border-radius: 4px; background: rgba(127, 127, 127, .25); }
+  .wact i { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: #ffc83a; }
+  #walkCard { position: fixed; z-index: 7; top: calc(70px + var(--st)); left: calc(12px + var(--sl)); width: min(320px, calc(100vw - 24px)); max-height: calc(100vh - 200px); overflow: auto; padding: 12px 14px; border-radius: 12px; font-size: 13px; }
+  #walkCard[hidden] { display: none; }
+  #walkNav { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(70px + var(--st)); padding: 7px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; pointer-events: none; box-shadow: 0 0 0 2px #ff6a3d; }
+  #walkNav[hidden] { display: none; }
+  #walkCard h3 { margin: 0 24px 6px 0; font-size: 16px; }
+  #walkCard blockquote { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid #ffc83a; font-style: italic; }
+  #walkCard blockquote p { margin: 2px 0; }
+  #walkCard .row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+  #walkCard .row span:last-child { text-align: right; }
+  #walkCard .wclose { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; background: transparent; color: inherit; border: 0; font-size: 15px; }
   #walkExit { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--sb)); padding: 10px 18px; border-radius: 999px; font-size: 15px; font-weight: 650; cursor: pointer; }
   .walkKeys { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(68px + var(--sb)); padding: 6px 12px; border-radius: 8px; font-size: 13px; white-space: nowrap; opacity: .85; pointer-events: none; }
   #joy { display: none; position: fixed; z-index: 6; left: calc(28px + var(--sl)); bottom: calc(28px + var(--sb)); width: 130px; height: 130px; border-radius: 50%; background: rgba(20, 28, 36, .32); border: 2px solid rgba(255, 255, 255, .45); touch-action: none; }
   #joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); pointer-events: none; }
   #joy.run i { background: #ffc83a; }
-  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } }
+  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } #walkAct { left: auto; transform: none; right: calc(20px + var(--sr)); bottom: calc(72px + var(--sb)); align-items: flex-end; } .wact kbd { display: none; } #walkCard { top: calc(62px + var(--st)); left: calc(176px + var(--sl)); width: min(300px, calc(100vw - 420px)); max-height: calc(100vh - 130px - var(--st) - var(--sb)); } #walkNav { top: auto; bottom: calc(22px + var(--sb)); } }
   body.noui #top, body.noui #bottom, body.noui #alerts, body.noui .side { display: none !important; }
 
   /* ── nội dung trong các bảng ── */
@@ -745,8 +760,11 @@
 
 <div id="walkUI" aria-label="Đang đi bộ">
   <button class="panel" id="walkExit" title="Thôi đi bộ, quay về xây dựng (Esc)">✕ Thôi đi bộ</button>
-  <div class="walkKeys panel">WASD / ← ↑ → ↓ đi · Shift chạy · kéo chuột xoay · Esc thoát</div>
+  <div class="walkKeys panel">WASD / ← ↑ → ↓ đi · Shift chạy · E làm việc · kéo chuột xoay · Esc thoát</div>
   <div id="joy" aria-hidden="true"><i id="joyKnob"></i></div>
+  <div id="walkAct"></div>
+  <div class="panel" id="walkNav" hidden></div>
+  <div class="panel" id="walkCard" hidden></div>
 </div>
 <div id="bottom">
   <div id="left">
