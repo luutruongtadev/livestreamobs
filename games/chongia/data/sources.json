@@ -1,0 +1,20 @@
+{
+  "note": "Nguồn giá thật. Mỗi nguồn là một trang danh mục hoặc API JSON của siêu thị; phần server tải về, bóc tên + giá + ảnh (JSON-LD, __NEXT_DATA__, JSON nhúng, API). Thêm / sửa nguồn bằng biến môi trường CHONGIA_SOURCES (cùng dạng mảng này) mà không cần sửa file. category để trống thì tự đoán theo tên.",
+  "sources": [
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/sua-tuoi", "category": "sua" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/mi", "category": "do-kho" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-mam", "category": "gia-vi" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/dau-an", "category": "gia-vi" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-ngot", "category": "do-uong" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/bia", "category": "do-uong" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/banh-snack", "category": "banh-keo" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/nuoc-giat", "category": "hoa-pham" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/trai-cay-tuoi-ngon", "category": "rau-cu" },
+    { "store": "Bách Hóa Xanh", "url": "https://www.bachhoaxanh.com/thit-heo", "category": "tuoi-song" },
+    { "store": "WinMart", "url": "https://winmart.vn/categories/sua-cac-loai-c02" },
+    { "store": "WinMart", "url": "https://winmart.vn/categories/do-uong-c06" },
+    { "store": "WinMart", "url": "https://winmart.vn/categories/banh-keo-c07" },
+    { "store": "Co.op Online", "url": "https://cooponline.vn/c/sua-cac-loai" },
+    { "store": "Lotte Mart", "url": "https://www.lottemart.vn/vi-nsg/category/sua-and-san-pham-tu-sua" }
+  ]
+}

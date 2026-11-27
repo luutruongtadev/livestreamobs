@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": { "type": "string", "title": "Kiểu vòng chơi", "enum": ["mix", "guess", "choice"], "enumNames": ["Xen kẽ (đoán giá + chọn A/B/C/D)", "Chỉ đoán giá (gõ số tiền)", "Chỉ chọn giá A/B/C/D"], "default": "mix" },
+    "rule": { "type": "string", "title": "Luật thắng vòng đoán giá", "enum": ["closest", "not-over"], "enumNames": ["Gần giá thật nhất", "Gần nhất mà không vượt quá giá thật"], "default": "closest" },
+    "source": { "type": "string", "title": "Nguồn giá", "enum": ["auto", "live", "mix", "seed"], "enumNames": ["Tự động: giá thật từ siêu thị, thiếu thì dùng giá tham khảo", "Chỉ giá thật (chưa lấy được thì tạm dùng giá tham khảo)", "Trộn giá thật + giá tham khảo", "Chỉ giá tham khảo soạn sẵn"], "default": "auto" },
+    "categories": { "type": "array", "title": "Ngành hàng (để trống = tất cả)", "items": { "type": "string", "enum": ["sua", "do-kho", "gia-vi", "tuoi-song", "rau-cu", "do-uong", "banh-keo", "hoa-pham"] }, "uniqueItems": true, "default": [] },
+    "askSeconds": { "type": "integer", "title": "Thời gian đoán giá (giây)", "minimum": 10, "maximum": 180, "default": 30 },
+    "choiceSeconds": { "type": "integer", "title": "Thời gian chọn A/B/C/D (giây)", "minimum": 8, "maximum": 120, "default": 20 },
+    "revealSeconds": { "type": "integer", "title": "Thời gian công bố giá (giây)", "minimum": 4, "maximum": 30, "default": 10 },
+    "roundsPerShow": { "type": "integer", "title": "Số vòng mỗi chương trình", "minimum": 3, "maximum": 50, "default": 10 },
+    "summarySeconds": { "type": "integer", "title": "Thời gian tổng kết chương trình (giây)", "minimum": 5, "maximum": 40, "default": 12 },
+    "exactPercent": { "type": "number", "title": "Lệch trong bao nhiêu % thì tính ĐÚNG GIÁ", "minimum": 0, "maximum": 10, "default": 2 },
+    "allowChange": { "type": "boolean", "title": "Cho đổi giá đã đoán (tính lần cuối)", "default": false },
+    "basePoints": { "type": "integer", "title": "Điểm cho người thắng vòng", "minimum": 10, "maximum": 1000, "default": 100 },
+    "showLeaderboard": { "type": "boolean", "title": "Hiện bảng xếp hạng", "default": true }
+  }
+}

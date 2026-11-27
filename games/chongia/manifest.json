@@ -1,0 +1,171 @@
+{
+  "id": "chongia",
+  "name": "Hãy chọn giá đúng",
+  "description": "Gameshow đoán giá hàng siêu thị: mỗi vòng hiện một món hàng (giá thật lấy tự động từ siêu thị, hoặc giá tham khảo soạn sẵn), người xem gõ giá vào bình luận. Gần giá thật nhất thắng; vòng A/B/C/D thì chọn nhanh để ăn điểm. Quà để gợi ý khoảng giá, lộ chữ số, thêm giờ, nhân đôi điểm.",
+  "version": "1.0.0",
+  "sdk": "^1.0.0",
+  "status": "beta",
+  "category": "trivia",
+  "thumbnail": "assets/thumb.svg",
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "inputs": [
+    "comment"
+  ],
+  "restore": "full",
+  "server": true,
+  "secrets": [
+    "CHONGIA_SOURCES",
+    "CHONGIA_REFRESH_HOURS",
+    "CHONGIA_LIVE"
+  ],
+  "data": {
+    "products": "data/products.json"
+  },
+  "actions": [
+    {
+      "id": "hint",
+      "label": "Gợi ý khoảng giá (vòng A/B/C/D: loại 1 đáp án sai)",
+      "icon": "🎯",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Rose"
+        },
+        {
+          "type": "like",
+          "every": 500
+        }
+      ]
+    },
+    {
+      "id": "digit",
+      "label": "Lộ chữ số đầu của giá",
+      "icon": "🔢",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Doughnut"
+        }
+      ]
+    },
+    {
+      "id": "time",
+      "label": "+10 giây",
+      "icon": "⏱️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Finger Heart"
+        },
+        {
+          "type": "follow"
+        }
+      ]
+    },
+    {
+      "id": "double",
+      "label": "×2 điểm vòng này cho người tặng",
+      "icon": "✖️",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Ice Cream Cone"
+        }
+      ]
+    },
+    {
+      "id": "jackpot",
+      "label": "Vòng SIÊU SALE: ×3 điểm cả phòng",
+      "icon": "💰",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Hand Hearts"
+        }
+      ]
+    },
+    {
+      "id": "skip",
+      "label": "Đổi món hàng khác",
+      "icon": "🔄",
+      "defaultTriggers": [
+        {
+          "type": "gift",
+          "giftName": "Perfume"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "id": "next",
+      "label": "Sang bước tiếp (công bố giá / vòng sau)"
+    },
+    {
+      "id": "skip",
+      "label": "Đổi món hàng"
+    },
+    {
+      "id": "new-show",
+      "label": "Chương trình mới"
+    },
+    {
+      "id": "refresh-prices",
+      "label": "Cập nhật giá siêu thị ngay"
+    },
+    {
+      "id": "clear-board",
+      "label": "Xoá bảng xếp hạng"
+    }
+  ],
+  "events": [
+    {
+      "id": "exact",
+      "label": "Có người đoán ĐÚNG GIÁ",
+      "fx": "cg_reveal",
+      "where": {
+        "exact": true
+      }
+    },
+    {
+      "id": "nobody",
+      "label": "Không ai trúng",
+      "fx": "cg_reveal",
+      "where": {
+        "hit": false
+      }
+    },
+    {
+      "id": "summary",
+      "label": "Tổng kết chương trình",
+      "fx": "cg_summary"
+    }
+  ],
+  "panels": [
+    {
+      "id": "board",
+      "label": "Bảng xếp hạng",
+      "icon": "🏆",
+      "rect": {
+        "x": 40,
+        "y": 1490,
+        "w": 560,
+        "h": 330
+      }
+    },
+    {
+      "id": "gifts",
+      "label": "Bảng quà",
+      "icon": "🎁",
+      "rect": {
+        "x": 620,
+        "y": 1490,
+        "w": 420,
+        "h": 330
+      }
+    }
+  ]
+}

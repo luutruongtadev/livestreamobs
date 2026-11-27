@@ -1,0 +1,1033 @@
+{
+ "note": "Giá tham khảo tại siêu thị Việt Nam (đã làm tròn). Dùng khi chưa lấy được giá thật từ siêu thị.",
+ "asOf": "2026-11",
+ "categories": {
+  "sua": "Sữa & bơ sữa",
+  "do-kho": "Gạo, mì & đồ khô",
+  "gia-vi": "Gia vị",
+  "tuoi-song": "Thịt, cá & trứng",
+  "rau-cu": "Rau củ & trái cây",
+  "do-uong": "Đồ uống",
+  "banh-keo": "Bánh kẹo & ăn vặt",
+  "hoa-pham": "Hoá phẩm & vệ sinh"
+ },
+ "items": [
+  {
+   "id": "s001",
+   "name": "Sữa tươi tiệt trùng Vinamilk có đường",
+   "unit": "hộp 1 lít",
+   "price": 36000,
+   "category": "sua",
+   "emoji": "🥛",
+   "tier": 1
+  },
+  {
+   "id": "s002",
+   "name": "Sữa tươi TH true MILK ít đường",
+   "unit": "lốc 4 hộp 180ml",
+   "price": 33000,
+   "category": "sua",
+   "emoji": "🥛",
+   "tier": 1
+  },
+  {
+   "id": "s003",
+   "name": "Sữa chua ăn Vinamilk có đường",
+   "unit": "lốc 4 hộp 100g",
+   "price": 24000,
+   "category": "sua",
+   "emoji": "🍶",
+   "tier": 1
+  },
+  {
+   "id": "s004",
+   "name": "Sữa đặc Ông Thọ trắng",
+   "unit": "lon 380g",
+   "price": 27000,
+   "category": "sua",
+   "emoji": "🥫",
+   "tier": 1
+  },
+  {
+   "id": "s005",
+   "name": "Sữa đậu nành Fami nguyên chất",
+   "unit": "lốc 6 hộp 200ml",
+   "price": 30000,
+   "category": "sua",
+   "emoji": "🥛",
+   "tier": 2
+  },
+  {
+   "id": "s006",
+   "name": "Phô mai Con Bò Cười",
+   "unit": "hộp 8 miếng 120g",
+   "price": 36000,
+   "category": "sua",
+   "emoji": "🧀",
+   "tier": 2
+  },
+  {
+   "id": "s007",
+   "name": "Sữa chua uống Yakult",
+   "unit": "lốc 5 chai 65ml",
+   "price": 28000,
+   "category": "sua",
+   "emoji": "🧃",
+   "tier": 2
+  },
+  {
+   "id": "s008",
+   "name": "Sữa bột Ensure Gold hương vani",
+   "unit": "lon 800g",
+   "price": 915000,
+   "category": "sua",
+   "emoji": "🥫",
+   "tier": 3
+  },
+  {
+   "id": "s009",
+   "name": "Bơ lạt Anchor",
+   "unit": "thỏi 227g",
+   "price": 95000,
+   "category": "sua",
+   "emoji": "🧈",
+   "tier": 3
+  },
+  {
+   "id": "s010",
+   "name": "Kem Merino Celano vani",
+   "unit": "hộp 450ml",
+   "price": 59000,
+   "category": "sua",
+   "emoji": "🍨",
+   "tier": 2
+  },
+  {
+   "id": "s011",
+   "name": "Gạo ST25",
+   "unit": "túi 5kg",
+   "price": 185000,
+   "category": "do-kho",
+   "emoji": "🍚",
+   "tier": 2
+  },
+  {
+   "id": "s012",
+   "name": "Gạo thơm Jasmine",
+   "unit": "túi 5kg",
+   "price": 115000,
+   "category": "do-kho",
+   "emoji": "🍚",
+   "tier": 2
+  },
+  {
+   "id": "s013",
+   "name": "Mì Hảo Hảo tôm chua cay",
+   "unit": "gói 75g",
+   "price": 4500,
+   "category": "do-kho",
+   "emoji": "🍜",
+   "tier": 1
+  },
+  {
+   "id": "s014",
+   "name": "Mì Hảo Hảo tôm chua cay",
+   "unit": "thùng 30 gói",
+   "price": 125000,
+   "category": "do-kho",
+   "emoji": "📦",
+   "tier": 2
+  },
+  {
+   "id": "s015",
+   "name": "Mì Omachi xốt bò hầm",
+   "unit": "gói 80g",
+   "price": 8500,
+   "category": "do-kho",
+   "emoji": "🍜",
+   "tier": 1
+  },
+  {
+   "id": "s016",
+   "name": "Phở bò ăn liền Vifon",
+   "unit": "gói 65g",
+   "price": 8000,
+   "category": "do-kho",
+   "emoji": "🍜",
+   "tier": 2
+  },
+  {
+   "id": "s017",
+   "name": "Miến dong Phú Hương",
+   "unit": "gói 210g",
+   "price": 30000,
+   "category": "do-kho",
+   "emoji": "🍝",
+   "tier": 3
+  },
+  {
+   "id": "s018",
+   "name": "Bún khô Safoco",
+   "unit": "gói 300g",
+   "price": 18000,
+   "category": "do-kho",
+   "emoji": "🍝",
+   "tier": 3
+  },
+  {
+   "id": "s019",
+   "name": "Nui xoắn Meizan",
+   "unit": "gói 400g",
+   "price": 22000,
+   "category": "do-kho",
+   "emoji": "🍝",
+   "tier": 3
+  },
+  {
+   "id": "s020",
+   "name": "Bột mì đa dụng Meizan",
+   "unit": "gói 1kg",
+   "price": 26000,
+   "category": "do-kho",
+   "emoji": "🌾",
+   "tier": 3
+  },
+  {
+   "id": "s021",
+   "name": "Yến mạch cán dẹt Quaker",
+   "unit": "hộp 600g",
+   "price": 89000,
+   "category": "do-kho",
+   "emoji": "🥣",
+   "tier": 3
+  },
+  {
+   "id": "s022",
+   "name": "Ngũ cốc Nestlé Koko Krunch",
+   "unit": "hộp 330g",
+   "price": 79000,
+   "category": "do-kho",
+   "emoji": "🥣",
+   "tier": 3
+  },
+  {
+   "id": "s023",
+   "name": "Cháo tươi Cây Thị thịt bằm",
+   "unit": "gói 260g",
+   "price": 18000,
+   "category": "do-kho",
+   "emoji": "🥣",
+   "tier": 2
+  },
+  {
+   "id": "s024",
+   "name": "Nước mắm Nam Ngư",
+   "unit": "chai 500ml",
+   "price": 40000,
+   "category": "gia-vi",
+   "emoji": "🫙",
+   "tier": 1
+  },
+  {
+   "id": "s025",
+   "name": "Nước tương Chinsu",
+   "unit": "chai 500ml",
+   "price": 23000,
+   "category": "gia-vi",
+   "emoji": "🫙",
+   "tier": 2
+  },
+  {
+   "id": "s026",
+   "name": "Tương ớt Chinsu",
+   "unit": "chai 250g",
+   "price": 15000,
+   "category": "gia-vi",
+   "emoji": "🌶️",
+   "tier": 1
+  },
+  {
+   "id": "s027",
+   "name": "Dầu ăn Neptune Gold",
+   "unit": "chai 1 lít",
+   "price": 58000,
+   "category": "gia-vi",
+   "emoji": "🫗",
+   "tier": 2
+  },
+  {
+   "id": "s028",
+   "name": "Dầu ăn Simply đậu nành",
+   "unit": "chai 2 lít",
+   "price": 115000,
+   "category": "gia-vi",
+   "emoji": "🫗",
+   "tier": 2
+  },
+  {
+   "id": "s029",
+   "name": "Hạt nêm Knorr thịt thăn, xương ống",
+   "unit": "gói 400g",
+   "price": 42000,
+   "category": "gia-vi",
+   "emoji": "🧂",
+   "tier": 2
+  },
+  {
+   "id": "s030",
+   "name": "Bột ngọt Ajinomoto",
+   "unit": "gói 400g",
+   "price": 34000,
+   "category": "gia-vi",
+   "emoji": "🧂",
+   "tier": 2
+  },
+  {
+   "id": "s031",
+   "name": "Đường tinh luyện Biên Hoà",
+   "unit": "túi 1kg",
+   "price": 30000,
+   "category": "gia-vi",
+   "emoji": "🍬",
+   "tier": 2
+  },
+  {
+   "id": "s032",
+   "name": "Muối i-ốt Bạc Liêu",
+   "unit": "gói 500g",
+   "price": 6000,
+   "category": "gia-vi",
+   "emoji": "🧂",
+   "tier": 1
+  },
+  {
+   "id": "s033",
+   "name": "Tiêu đen xay",
+   "unit": "hũ 50g",
+   "price": 22000,
+   "category": "gia-vi",
+   "emoji": "🫙",
+   "tier": 3
+  },
+  {
+   "id": "s034",
+   "name": "Dầu hào Maggi",
+   "unit": "chai 350g",
+   "price": 28000,
+   "category": "gia-vi",
+   "emoji": "🫙",
+   "tier": 2
+  },
+  {
+   "id": "s035",
+   "name": "Tương cà Cholimex",
+   "unit": "chai 270g",
+   "price": 14000,
+   "category": "gia-vi",
+   "emoji": "🍅",
+   "tier": 2
+  },
+  {
+   "id": "s036",
+   "name": "Mayonnaise Aji-mayo",
+   "unit": "chai 260g",
+   "price": 32000,
+   "category": "gia-vi",
+   "emoji": "🫙",
+   "tier": 3
+  },
+  {
+   "id": "s037",
+   "name": "Trứng gà tươi",
+   "unit": "hộp 10 quả",
+   "price": 33000,
+   "category": "tuoi-song",
+   "emoji": "🥚",
+   "tier": 1
+  },
+  {
+   "id": "s038",
+   "name": "Trứng vịt",
+   "unit": "hộp 10 quả",
+   "price": 38000,
+   "category": "tuoi-song",
+   "emoji": "🥚",
+   "tier": 2
+  },
+  {
+   "id": "s039",
+   "name": "Thịt ba rọi heo",
+   "unit": "khay 500g",
+   "price": 85000,
+   "category": "tuoi-song",
+   "emoji": "🥓",
+   "tier": 2
+  },
+  {
+   "id": "s040",
+   "name": "Thịt nạc dăm heo",
+   "unit": "khay 500g",
+   "price": 72000,
+   "category": "tuoi-song",
+   "emoji": "🥩",
+   "tier": 2
+  },
+  {
+   "id": "s041",
+   "name": "Sườn non heo",
+   "unit": "khay 500g",
+   "price": 110000,
+   "category": "tuoi-song",
+   "emoji": "🍖",
+   "tier": 3
+  },
+  {
+   "id": "s042",
+   "name": "Thịt bò thăn Úc",
+   "unit": "khay 250g",
+   "price": 145000,
+   "category": "tuoi-song",
+   "emoji": "🥩",
+   "tier": 3
+  },
+  {
+   "id": "s043",
+   "name": "Đùi gà góc tư",
+   "unit": "khay 1kg",
+   "price": 69000,
+   "category": "tuoi-song",
+   "emoji": "🍗",
+   "tier": 2
+  },
+  {
+   "id": "s044",
+   "name": "Cánh gà",
+   "unit": "khay 500g",
+   "price": 62000,
+   "category": "tuoi-song",
+   "emoji": "🍗",
+   "tier": 2
+  },
+  {
+   "id": "s045",
+   "name": "Cá basa phi lê",
+   "unit": "khay 500g",
+   "price": 48000,
+   "category": "tuoi-song",
+   "emoji": "🐟",
+   "tier": 2
+  },
+  {
+   "id": "s046",
+   "name": "Cá hồi phi lê Na Uy",
+   "unit": "khay 300g",
+   "price": 215000,
+   "category": "tuoi-song",
+   "emoji": "🐟",
+   "tier": 3
+  },
+  {
+   "id": "s047",
+   "name": "Tôm thẻ tươi",
+   "unit": "khay 500g",
+   "price": 135000,
+   "category": "tuoi-song",
+   "emoji": "🦐",
+   "tier": 3
+  },
+  {
+   "id": "s048",
+   "name": "Mực ống tươi",
+   "unit": "khay 500g",
+   "price": 160000,
+   "category": "tuoi-song",
+   "emoji": "🦑",
+   "tier": 3
+  },
+  {
+   "id": "s049",
+   "name": "Chả lụa",
+   "unit": "cây 500g",
+   "price": 95000,
+   "category": "tuoi-song",
+   "emoji": "🍥",
+   "tier": 2
+  },
+  {
+   "id": "s050",
+   "name": "Xúc xích tiệt trùng Vissan",
+   "unit": "gói 5 cây 175g",
+   "price": 26000,
+   "category": "tuoi-song",
+   "emoji": "🌭",
+   "tier": 1
+  },
+  {
+   "id": "s051",
+   "name": "Đậu hũ non",
+   "unit": "hộp 300g",
+   "price": 9000,
+   "category": "tuoi-song",
+   "emoji": "⬜",
+   "tier": 1
+  },
+  {
+   "id": "s052",
+   "name": "Cà chua",
+   "unit": "túi 500g",
+   "price": 18000,
+   "category": "rau-cu",
+   "emoji": "🍅",
+   "tier": 1
+  },
+  {
+   "id": "s053",
+   "name": "Khoai tây",
+   "unit": "túi 1kg",
+   "price": 32000,
+   "category": "rau-cu",
+   "emoji": "🥔",
+   "tier": 2
+  },
+  {
+   "id": "s054",
+   "name": "Cà rốt Đà Lạt",
+   "unit": "túi 500g",
+   "price": 15000,
+   "category": "rau-cu",
+   "emoji": "🥕",
+   "tier": 1
+  },
+  {
+   "id": "s055",
+   "name": "Hành tây",
+   "unit": "túi 500g",
+   "price": 16000,
+   "category": "rau-cu",
+   "emoji": "🧅",
+   "tier": 2
+  },
+  {
+   "id": "s056",
+   "name": "Bắp cải trắng",
+   "unit": "1 bắp ~1kg",
+   "price": 18000,
+   "category": "rau-cu",
+   "emoji": "🥬",
+   "tier": 2
+  },
+  {
+   "id": "s057",
+   "name": "Rau muống",
+   "unit": "bó 500g",
+   "price": 12000,
+   "category": "rau-cu",
+   "emoji": "🥬",
+   "tier": 1
+  },
+  {
+   "id": "s058",
+   "name": "Xà lách lô lô xanh",
+   "unit": "túi 300g",
+   "price": 22000,
+   "category": "rau-cu",
+   "emoji": "🥗",
+   "tier": 2
+  },
+  {
+   "id": "s059",
+   "name": "Bông cải xanh",
+   "unit": "1 bông ~500g",
+   "price": 35000,
+   "category": "rau-cu",
+   "emoji": "🥦",
+   "tier": 2
+  },
+  {
+   "id": "s060",
+   "name": "Tỏi Lý Sơn",
+   "unit": "túi 200g",
+   "price": 45000,
+   "category": "rau-cu",
+   "emoji": "🧄",
+   "tier": 3
+  },
+  {
+   "id": "s061",
+   "name": "Chuối già Nam Mỹ",
+   "unit": "nải ~1kg",
+   "price": 28000,
+   "category": "rau-cu",
+   "emoji": "🍌",
+   "tier": 1
+  },
+  {
+   "id": "s062",
+   "name": "Táo Envy New Zealand",
+   "unit": "túi 1kg",
+   "price": 145000,
+   "category": "rau-cu",
+   "emoji": "🍎",
+   "tier": 3
+  },
+  {
+   "id": "s063",
+   "name": "Cam sành",
+   "unit": "túi 1kg",
+   "price": 30000,
+   "category": "rau-cu",
+   "emoji": "🍊",
+   "tier": 2
+  },
+  {
+   "id": "s064",
+   "name": "Nho xanh không hạt Úc",
+   "unit": "hộp 500g",
+   "price": 125000,
+   "category": "rau-cu",
+   "emoji": "🍇",
+   "tier": 3
+  },
+  {
+   "id": "s065",
+   "name": "Dưa hấu không hạt",
+   "unit": "1 quả ~2kg",
+   "price": 38000,
+   "category": "rau-cu",
+   "emoji": "🍉",
+   "tier": 2
+  },
+  {
+   "id": "s066",
+   "name": "Xoài cát Hoà Lộc",
+   "unit": "túi 1kg",
+   "price": 75000,
+   "category": "rau-cu",
+   "emoji": "🥭",
+   "tier": 3
+  },
+  {
+   "id": "s067",
+   "name": "Bơ sáp",
+   "unit": "túi 1kg",
+   "price": 55000,
+   "category": "rau-cu",
+   "emoji": "🥑",
+   "tier": 2
+  },
+  {
+   "id": "s068",
+   "name": "Thanh long ruột đỏ",
+   "unit": "túi 1kg",
+   "price": 35000,
+   "category": "rau-cu",
+   "emoji": "🐉",
+   "tier": 2
+  },
+  {
+   "id": "s069",
+   "name": "Sầu riêng Ri6",
+   "unit": "1 quả ~2kg",
+   "price": 240000,
+   "category": "rau-cu",
+   "emoji": "🌰",
+   "tier": 3
+  },
+  {
+   "id": "s070",
+   "name": "Nước suối Aquafina",
+   "unit": "chai 500ml",
+   "price": 5500,
+   "category": "do-uong",
+   "emoji": "💧",
+   "tier": 1
+  },
+  {
+   "id": "s071",
+   "name": "Nước suối La Vie",
+   "unit": "thùng 24 chai 500ml",
+   "price": 105000,
+   "category": "do-uong",
+   "emoji": "📦",
+   "tier": 2
+  },
+  {
+   "id": "s072",
+   "name": "Coca-Cola",
+   "unit": "lon 320ml",
+   "price": 10000,
+   "category": "do-uong",
+   "emoji": "🥤",
+   "tier": 1
+  },
+  {
+   "id": "s073",
+   "name": "Pepsi",
+   "unit": "lốc 6 lon 320ml",
+   "price": 58000,
+   "category": "do-uong",
+   "emoji": "🥤",
+   "tier": 1
+  },
+  {
+   "id": "s074",
+   "name": "Trà xanh Không Độ",
+   "unit": "chai 455ml",
+   "price": 10000,
+   "category": "do-uong",
+   "emoji": "🍵",
+   "tier": 1
+  },
+  {
+   "id": "s075",
+   "name": "Trà Ô Long Tea+ Plus",
+   "unit": "chai 450ml",
+   "price": 10500,
+   "category": "do-uong",
+   "emoji": "🍵",
+   "tier": 2
+  },
+  {
+   "id": "s076",
+   "name": "Nước tăng lực Red Bull",
+   "unit": "lon 250ml",
+   "price": 12000,
+   "category": "do-uong",
+   "emoji": "⚡",
+   "tier": 1
+  },
+  {
+   "id": "s077",
+   "name": "Sting dâu",
+   "unit": "chai 330ml",
+   "price": 10000,
+   "category": "do-uong",
+   "emoji": "⚡",
+   "tier": 1
+  },
+  {
+   "id": "s078",
+   "name": "Bia Tiger",
+   "unit": "lon 330ml",
+   "price": 19000,
+   "category": "do-uong",
+   "emoji": "🍺",
+   "tier": 1
+  },
+  {
+   "id": "s079",
+   "name": "Bia Heineken",
+   "unit": "thùng 24 lon 330ml",
+   "price": 455000,
+   "category": "do-uong",
+   "emoji": "🍺",
+   "tier": 3
+  },
+  {
+   "id": "s080",
+   "name": "Cà phê G7 3in1",
+   "unit": "hộp 21 gói",
+   "price": 62000,
+   "category": "do-uong",
+   "emoji": "☕",
+   "tier": 2
+  },
+  {
+   "id": "s081",
+   "name": "Cà phê hoà tan Nescafé 3in1",
+   "unit": "bịch 46 gói",
+   "price": 120000,
+   "category": "do-uong",
+   "emoji": "☕",
+   "tier": 3
+  },
+  {
+   "id": "s082",
+   "name": "Cà phê rang xay Trung Nguyên Sáng Tạo 1",
+   "unit": "gói 340g",
+   "price": 85000,
+   "category": "do-uong",
+   "emoji": "☕",
+   "tier": 3
+  },
+  {
+   "id": "s083",
+   "name": "Nước ép cam Vfresh",
+   "unit": "hộp 1 lít",
+   "price": 42000,
+   "category": "do-uong",
+   "emoji": "🧃",
+   "tier": 2
+  },
+  {
+   "id": "s084",
+   "name": "Nước dừa Cocoxim",
+   "unit": "hộp 1 lít",
+   "price": 45000,
+   "category": "do-uong",
+   "emoji": "🥥",
+   "tier": 3
+  },
+  {
+   "id": "s085",
+   "name": "Trà túi lọc Lipton nhãn vàng",
+   "unit": "hộp 25 túi",
+   "price": 36000,
+   "category": "do-uong",
+   "emoji": "🍵",
+   "tier": 2
+  },
+  {
+   "id": "s086",
+   "name": "Bánh Chocopie Orion",
+   "unit": "hộp 12 cái",
+   "price": 58000,
+   "category": "banh-keo",
+   "emoji": "🍫",
+   "tier": 1
+  },
+  {
+   "id": "s087",
+   "name": "Bánh quy Cosy Marie",
+   "unit": "gói 432g",
+   "price": 45000,
+   "category": "banh-keo",
+   "emoji": "🍪",
+   "tier": 2
+  },
+  {
+   "id": "s088",
+   "name": "Snack khoai tây Lay's vị tự nhiên",
+   "unit": "gói 95g",
+   "price": 23000,
+   "category": "banh-keo",
+   "emoji": "🥔",
+   "tier": 1
+  },
+  {
+   "id": "s089",
+   "name": "Snack Poca bò lúc lắc",
+   "unit": "gói 54g",
+   "price": 12000,
+   "category": "banh-keo",
+   "emoji": "🍿",
+   "tier": 1
+  },
+  {
+   "id": "s090",
+   "name": "Bánh gạo One One vị ngọt",
+   "unit": "gói 150g",
+   "price": 23000,
+   "category": "banh-keo",
+   "emoji": "🍘",
+   "tier": 2
+  },
+  {
+   "id": "s091",
+   "name": "Kẹo dẻo Haribo Goldbears",
+   "unit": "gói 80g",
+   "price": 28000,
+   "category": "banh-keo",
+   "emoji": "🐻",
+   "tier": 2
+  },
+  {
+   "id": "s092",
+   "name": "Socola KitKat 4 thanh",
+   "unit": "thanh 35g",
+   "price": 17000,
+   "category": "banh-keo",
+   "emoji": "🍫",
+   "tier": 2
+  },
+  {
+   "id": "s093",
+   "name": "Kẹo cao su Doublemint",
+   "unit": "vỉ 9 thanh",
+   "price": 9000,
+   "category": "banh-keo",
+   "emoji": "🍬",
+   "tier": 2
+  },
+  {
+   "id": "s094",
+   "name": "Bánh mì sandwich Kinh Đô",
+   "unit": "gói 270g",
+   "price": 22000,
+   "category": "banh-keo",
+   "emoji": "🍞",
+   "tier": 2
+  },
+  {
+   "id": "s095",
+   "name": "Hạt điều rang muối",
+   "unit": "hũ 500g",
+   "price": 165000,
+   "category": "banh-keo",
+   "emoji": "🥜",
+   "tier": 3
+  },
+  {
+   "id": "s096",
+   "name": "Rong biển ăn liền",
+   "unit": "lốc 3 gói 15g",
+   "price": 30000,
+   "category": "banh-keo",
+   "emoji": "🌿",
+   "tier": 3
+  },
+  {
+   "id": "s097",
+   "name": "Bánh Oreo vani",
+   "unit": "gói 133g",
+   "price": 19000,
+   "category": "banh-keo",
+   "emoji": "🍪",
+   "tier": 1
+  },
+  {
+   "id": "s098",
+   "name": "Nước giặt OMO Matic cửa trước",
+   "unit": "túi 3,6kg",
+   "price": 235000,
+   "category": "hoa-pham",
+   "emoji": "🧺",
+   "tier": 3
+  },
+  {
+   "id": "s099",
+   "name": "Bột giặt Tide",
+   "unit": "túi 2,25kg",
+   "price": 115000,
+   "category": "hoa-pham",
+   "emoji": "🧺",
+   "tier": 3
+  },
+  {
+   "id": "s100",
+   "name": "Nước rửa chén Sunlight chanh",
+   "unit": "chai 750g",
+   "price": 30000,
+   "category": "hoa-pham",
+   "emoji": "🧴",
+   "tier": 1
+  },
+  {
+   "id": "s101",
+   "name": "Nước xả vải Comfort",
+   "unit": "túi 3,2 lít",
+   "price": 175000,
+   "category": "hoa-pham",
+   "emoji": "🧴",
+   "tier": 3
+  },
+  {
+   "id": "s102",
+   "name": "Nước lau sàn Sunlight",
+   "unit": "chai 1kg",
+   "price": 32000,
+   "category": "hoa-pham",
+   "emoji": "🧽",
+   "tier": 2
+  },
+  {
+   "id": "s103",
+   "name": "Giấy vệ sinh Pulppy",
+   "unit": "lốc 10 cuộn",
+   "price": 85000,
+   "category": "hoa-pham",
+   "emoji": "🧻",
+   "tier": 2
+  },
+  {
+   "id": "s104",
+   "name": "Khăn giấy rút Tempo",
+   "unit": "gói 90 tờ",
+   "price": 22000,
+   "category": "hoa-pham",
+   "emoji": "🧻",
+   "tier": 2
+  },
+  {
+   "id": "s105",
+   "name": "Kem đánh răng P/S than hoạt tính",
+   "unit": "tuýp 180g",
+   "price": 38000,
+   "category": "hoa-pham",
+   "emoji": "🪥",
+   "tier": 2
+  },
+  {
+   "id": "s106",
+   "name": "Bàn chải đánh răng Colgate",
+   "unit": "vỉ 2 cây",
+   "price": 35000,
+   "category": "hoa-pham",
+   "emoji": "🪥",
+   "tier": 2
+  },
+  {
+   "id": "s107",
+   "name": "Dầu gội Clear mát lạnh",
+   "unit": "chai 630g",
+   "price": 185000,
+   "category": "hoa-pham",
+   "emoji": "🧴",
+   "tier": 3
+  },
+  {
+   "id": "s108",
+   "name": "Sữa tắm Lifebuoy",
+   "unit": "chai 800g",
+   "price": 155000,
+   "category": "hoa-pham",
+   "emoji": "🧴",
+   "tier": 3
+  },
+  {
+   "id": "s109",
+   "name": "Xà phòng cục Lifebuoy",
+   "unit": "bánh 90g",
+   "price": 16000,
+   "category": "hoa-pham",
+   "emoji": "🧼",
+   "tier": 1
+  },
+  {
+   "id": "s110",
+   "name": "Tã quần Bobby size L",
+   "unit": "gói 68 miếng",
+   "price": 365000,
+   "category": "hoa-pham",
+   "emoji": "👶",
+   "tier": 3
+  },
+  {
+   "id": "s111",
+   "name": "Băng keo trong",
+   "unit": "cuộn 100 yard",
+   "price": 15000,
+   "category": "hoa-pham",
+   "emoji": "📦",
+   "tier": 3
+  },
+  {
+   "id": "s112",
+   "name": "Pin tiểu AA Energizer",
+   "unit": "vỉ 2 viên",
+   "price": 32000,
+   "category": "hoa-pham",
+   "emoji": "🔋",
+   "tier": 2
+  },
+  {
+   "id": "s113",
+   "name": "Túi đựng rác tự huỷ",
+   "unit": "cuộn 3 túi lớn",
+   "price": 25000,
+   "category": "hoa-pham",
+   "emoji": "🗑️",
+   "tier": 2
+  }
+ ]
+}
