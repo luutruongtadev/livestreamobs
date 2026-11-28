@@ -234,6 +234,22 @@
   #walkNav[hidden] { display: none; }
   #gtaHud { position: fixed; z-index: 6; left: calc(12px + var(--sl)); bottom: calc(16px + var(--sb)); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; pointer-events: none; }
   #gtaHud[hidden] { display: none; }
+  #questLog { position: fixed; z-index: 6; left: calc(12px + var(--sl)); bottom: calc(56px + var(--sb)); width: min(330px, calc(100vw - 24px)); padding: 8px 10px; border-radius: 10px; font-size: 12.5px; display: flex; flex-direction: column; gap: 4px; }
+  #questLog[hidden] { display: none; }
+  body.walking:has(#questLog:not([hidden])) .walkKeys { display: none; } /* sổ việc chiếm góc trái: bỏ dòng hướng dẫn phím */
+  #questLog button { text-align: left; padding: 5px 8px; border-radius: 7px; border: 0; background: rgba(127, 127, 127, .14); color: inherit; font: inherit; cursor: pointer; }
+  #questLog button.on { box-shadow: inset 3px 0 0 #ffc83a; background: rgba(255, 200, 58, .16); }
+  #walkCard .qoffer { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 200, 58, .14); }
+  #walkCard .qoffer p { margin: 4px 0; font-style: italic; }
+  #walkCard .qbtn { display: flex; gap: 8px; margin-top: 6px; }
+  #walkCard .qbtn button, .npcSay button { padding: 6px 12px; border-radius: 7px; border: 0; cursor: pointer; font: inherit; font-weight: 600; background: #ffc83a; color: #1c1a16; }
+  #walkCard .qbtn .qno { background: rgba(127, 127, 127, .25); color: inherit; }
+  .npcChat { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
+  .npcChat p { margin: 0; padding: 5px 9px; border-radius: 10px; max-width: 85%; }
+  .npcChat .me { align-self: flex-end; background: rgba(74, 140, 236, .3); }
+  .npcChat .npc { align-self: flex-start; background: rgba(127, 127, 127, .2); }
+  .npcSay { display: flex; gap: 6px; margin-top: 8px; }
+  .npcSay input { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 7px; border: 1px solid rgba(127, 127, 127, .4); background: transparent; color: inherit; font: inherit; }
   #walkCard h3 { margin: 0 24px 6px 0; font-size: 16px; }
   #walkCard blockquote { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid #ffc83a; font-style: italic; }
   #walkCard blockquote p { margin: 2px 0; }
@@ -245,7 +261,7 @@
   #joy { display: none; position: fixed; z-index: 6; left: calc(28px + var(--sl)); bottom: calc(28px + var(--sb)); width: 130px; height: 130px; border-radius: 50%; background: rgba(20, 28, 36, .32); border: 2px solid rgba(255, 255, 255, .45); touch-action: none; }
   #joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); pointer-events: none; }
   #joy.run i { background: #ffc83a; }
-  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } #walkAct { left: auto; transform: none; right: calc(20px + var(--sr)); bottom: calc(72px + var(--sb)); align-items: flex-end; } .wact kbd { display: none; } #walkCard { top: calc(62px + var(--st)); left: calc(176px + var(--sl)); width: min(300px, calc(100vw - 420px)); max-height: calc(100vh - 130px - var(--st) - var(--sb)); } #walkNav { top: auto; bottom: calc(22px + var(--sb)); } #gtaHud { bottom: auto; top: calc(62px + var(--st)); font-size: 13px; } }
+  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } #walkAct { left: auto; transform: none; right: calc(20px + var(--sr)); bottom: calc(72px + var(--sb)); align-items: flex-end; } .wact kbd { display: none; } #walkCard { top: calc(62px + var(--st)); left: calc(176px + var(--sl)); width: min(300px, calc(100vw - 420px)); max-height: calc(100vh - 130px - var(--st) - var(--sb)); } #walkNav { top: auto; bottom: calc(22px + var(--sb)); } #gtaHud { bottom: auto; top: calc(62px + var(--st)); font-size: 13px; } #questLog { bottom: auto; top: calc(96px + var(--st)); width: 150px; font-size: 11px; } #questLog button { padding: 3px 6px; } }
   body.noui #top, body.noui #bottom, body.noui #alerts, body.noui .side { display: none !important; }
 
   /* ── nội dung trong các bảng ── */
@@ -767,6 +783,7 @@
   <div id="walkAct"></div>
   <div class="panel" id="walkNav" hidden></div>
   <div class="panel" id="gtaHud" hidden></div>
+  <div class="panel" id="questLog" hidden></div>
   <div class="panel" id="walkCard" hidden></div>
 </div>
 <div id="bottom">

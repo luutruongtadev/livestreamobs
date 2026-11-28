@@ -6,6 +6,7 @@ import * as Lg from './league.js';
 import { View, DCOL, corpRGB } from './render.js';
 import * as Deeds from './deeds.js';
 import { createGta } from './mayhem.js';
+import * as Quests from './quests.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -1599,13 +1600,15 @@ function walkStart() {
     for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]]) { const x = a.x + dx, z = a.z + dz, y = view.avatarGround(x, z); if (y !== null) { view.parkedVeh.push({ x, z, y, yaw: a.yaw, veh: { id: -1, kind: 'moto', look: 'scooter', color: 0.58, mine: true, hp: 100 } }); break; } }
   }
   walk.on = true; document.body.classList.add('walking'); $('bWalk').classList.add('on');
+  renderQuests();
   toast(matchMedia('(pointer: coarse)').matches ? 'Kéo cần bên trái để đi (đẩy hết cỡ để chạy) · vuốt màn hình để xoay · chụm hai ngón để xa gần' : 'WASD hoặc phím mũi tên để đi · giữ Shift để chạy · kéo chuột để xoay · lăn chuột để xa gần · Esc để thôi', '🚶 Đang đi bộ');
 }
 function walkStop() {
   if (!walk.on) return;
   walk.on = false; walk.joy.x = walk.joy.y = 0; walk.chan = null; walk.opts = []; walk.sig = ''; $('walkNav').hidden = true; $('gtaHud').hidden = true;
   if (gta) gta.reset();
-  $('walkAct').innerHTML = ''; $('walkCard').hidden = true; $('info').classList.remove('show');
+  $('walkAct').innerHTML = ''; $('walkCard').hidden = true; $('info').classList.remove('show'); $('questLog').hidden = true;
+  { const n = Quests.questState(city).length; if (n) setTimeout(() => toast(`Còn ${n} việc dân nhờ: ${Quests.questState(city).map((q) => q.title.toLowerCase()).join('; ')}`, '📋 Nhớ nhé'), 600); }
   view.avatarLeave();
   document.body.classList.remove('walking'); $('bWalk').classList.remove('on');
   $('joyKnob').style.transform = '';
@@ -1643,7 +1646,8 @@ function walkOpts(list) {
     const consider = (i, icon, what) => { const d = Math.hypot(S.cellX(i) - a.x, S.cellZ(i) - a.z); if (d < td) { td = d; tgt = { i, icon, what }; } };
     for (let i = 0; i < S.N * S.N; i++) if (c.fire[i]) consider(i, '🔥', 'Đám cháy');
     if (!tgt) for (const r of c.inc.robberies) consider(r.cell, '🚨', 'Vụ cướp');
-    const nav = $('walkNav'), tx = gta.navTarget();
+    const nav = $('walkNav'), tx = gta.navTarget() || questNav();
+    if (!gta.g.taxi) { const qn = questNav(); if (qn) view.setBeacon(qn.x, qn.z, qn.ride ? 0x4ad07a : 0xffc83a); else view.setBeacon(null); }
     if (tx) { td = Math.hypot(tx.x - a.x, tx.z - a.z); tgt = { x: tx.x, z: tx.z, icon: tx.icon, what: tx.text }; }
     else if (tgt) { tgt.x = S.cellX(tgt.i); tgt.z = S.cellZ(tgt.i); }
     if (!tgt || (!tx && td < T * 1.7)) nav.hidden = true;
@@ -1674,15 +1678,91 @@ function walkDo(o) {
   if (o.view) { $('walkCard').hidden = true; showInfo(o.view); return; }
   let id = o.person, purpose = o.purpose;
   if (o.knock != null) { const ids = Deeds.residentsOf(c, o.knock); if (!ids.length) { toast('Không có ai ở nhà'); return; } id = ids[walk.knock++ % ids.length]; purpose = null; }
-  const p = Deeds.personCard(c, id, purpose);
+  openPerson(id, purpose);
+}
+
+/**
+ * Thẻ người dân khi gặp ngoài phố: thông tin, lời than, lời nhờ (nhiệm vụ, quests.js) và ô trò chuyện.
+ * Trò chuyện: Claude đóng vai người dân (/api/city/ai, kind 'npc'); không có AI thì trả lời theo mẫu từ lời than thật.
+ */
+function openPerson(id, purpose) {
+  const c = city, p = Deeds.personCard(c, id, purpose), offer = Quests.questOffer(c, id), mine = Quests.questState(c).find((q) => q.pid === id && q.gen === c.pp.gen[id]);
   $('info').classList.remove('show');
-  const card = $('walkCard');
+  const card = $('walkCard'), chat = [];
   card.innerHTML = `<button class="wclose" title="Đóng (Esc)">✕</button><h3>${p.mood} ${esc(p.name)}</h3>
     <blockquote>${p.says.map((t) => `<p>“${esc(t)}”</p>`).join('')}</blockquote>
+    ${offer ? `<div class="qoffer"><b>${Quests.QUESTS[offer.kind].icon} Nhờ thị trưởng: ${esc(offer.title)}</b><p>“${esc(offer.plea)}”</p>
+      <small>Hạn ${Quests.QUESTS[offer.kind].days} ngày${Quests.QUESTS[offer.kind].needVeh ? ' · cần xe' : ''} · xong thì uy tín +${Quests.QUESTS[offer.kind].rep}</small>
+      <div class="qbtn"><button class="qyes">✅ Nhận việc</button><button class="qno">Để sau</button></div></div>` : ''}
+    ${mine ? `<div class="qoffer"><b>📋 Đang làm giúp: ${esc(mine.title)}</b><p>“Trông cả vào thị trưởng đấy!”</p></div>` : ''}
     ${p.rows.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
-    <div class="row"><span>Mức vui</span><span><b>${p.happy}</b>/100</span></div>`;
+    <div class="row"><span>Mức vui</span><span><b>${p.happy}</b>/100</span></div>
+    <div class="npcChat"></div>
+    <form class="npcSay"><input maxlength="200" placeholder="Nói với ${esc(p.name.split(' ').pop())}…" aria-label="Nói với người dân"><button>Gửi</button></form>`;
   card.querySelector('.wclose').onclick = () => { card.hidden = true; };
+  if (offer) {
+    card.querySelector('.qyes').onclick = () => {
+      const r = Quests.acceptQuest(c, id, offer);
+      toast(r.ok ? `${Quests.QUESTS[offer.kind].icon} ${offer.title}${Quests.QUESTS[offer.kind].needVeh ? ' · lấy xe rồi tới đón' : ''}` : r.reason, r.ok ? '📋 Đã nhận việc' : undefined);
+      if (r.ok) { renderQuests(); openPerson(id, purpose); }
+    };
+    card.querySelector('.qno').onclick = () => card.querySelector('.qoffer').remove();
+  }
+  const box = card.querySelector('.npcChat'), form = card.querySelector('.npcSay'), inp = form.querySelector('input');
+  const line = (who, text) => { const d = document.createElement('p'); d.className = who; d.textContent = text; box.append(d); box.scrollTop = box.scrollHeight; card.scrollTop = card.scrollHeight; return d; };
+  inp.addEventListener('keydown', (e) => e.stopPropagation()); // gõ chữ không điều khiển nhân vật
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const text = inp.value.trim(); if (!text) return;
+    inp.value = ''; line('me', text); chat.push({ from: 'us', text });
+    const wait = line('npc', '…');
+    const quest = offer && !Quests.questState(c).some((q) => q.pid === id) ? { title: offer.title, plea: offer.plea } : mine ? { title: mine.title, accepted: true } : null;
+    const r = await aiCall('npc', { city: citySummary(c, S), person: { name: p.name, female: p.female, age: p.age, happy: p.happy, says: p.says, facts: p.rows.map(([k, v]) => `${k}: ${v}`), quest }, chat });
+    const reply = (r && r.reply) || npcFallback(p, offer, text);
+    wait.textContent = reply; chat.push({ from: 'npc', text: reply });
+  };
   card.hidden = false;
+}
+/** Trả lời soạn sẵn khi không có AI: chào, cảm ơn, hoặc nhắc lại điều đang lo. */
+function npcFallback(p, offer, text) {
+  const t = text.toLowerCase(), me = p.age < 18 ? 'cháu' : 'tôi';
+  if (/chào|xin chào|hello|hi\b/.test(t)) return `Chào thị trưởng! Hiếm khi thấy thị trưởng đi bộ ngoài phố thế này.`;
+  if (/cảm ơn|cám ơn/.test(t)) return 'Có gì đâu, thị trưởng nhớ tới dân là quý rồi.';
+  if (/khoẻ|khỏe|thế nào|ra sao|ổn không/.test(t)) return p.happy >= 60 ? `Dạo này ${me} ổn, cảm ơn thị trưởng hỏi thăm.` : `Cũng không ổn lắm. ${p.says[0] || ''}`;
+  if (offer) return `${offer.plea} Thị trưởng giúp ${me} nhé?`;
+  return p.says[Math.floor(Math.random() * p.says.length)] || 'Vâng, thị trưởng cứ làm tốt là dân ủng hộ.';
+}
+
+/** Sổ nhiệm vụ khi đi bộ (góc trái); bấm một dòng để chọn việc chỉ hướng. */
+function renderQuests() {
+  const el = $('questLog'), list = Quests.questState(city);
+  el.hidden = !walk.on || !list.length;
+  if (el.hidden) return;
+  if (!list.some((q) => q.uid === walk.qSel)) walk.qSel = list[0] && list[0].uid;
+  el.innerHTML = `<b>📋 Việc dân nhờ</b>${list.map((q) => `<button data-q="${esc(q.uid)}" class="${q.uid === walk.qSel ? 'on' : ''}">${esc(Quests.questLine(city, q))}</button>`).join('')}`;
+  el.querySelectorAll('button').forEach((b) => { b.onclick = () => { walk.qSel = b.dataset.q; renderQuests(); }; });
+}
+/** Chấm nhiệm vụ mỗi giây (cả lúc xây dựng): báo xong / trễ hạn / đón khách. */
+function questsTick(now) {
+  if (now - (questsTick.at || 0) < 1000 || !city.quests || !city.quests.length) return;
+  questsTick.at = now;
+  const a = walk.on ? view.avatar : null;
+  for (const ev of Quests.questTick(city, { avatar: a })) {
+    const q = ev.q, Q = Quests.QUESTS[q.kind];
+    if (ev.type === 'done') toast(`${q.name} cảm ơn thị trưởng · uy tín +${Q.rep}${ev.tip ? ` · boa ${money(ev.tip)} vào ngân sách` : ''}`, `✅ Xong việc: ${q.title}`);
+    else if (ev.type === 'fail') toast(`${q.name} thất vọng vì quá hạn · uy tín −0,5`, `⌛ Trễ hạn: ${q.title}`);
+    else if (ev.type === 'pick') toast(`${q.name} đã lên xe: chở tới cột sáng xanh`);
+    else if (ev.type === 'drop') toast(`${q.name} xuống xe đứng chờ: quay lại đón`);
+    else if (ev.type === 'gone') toast(`${q.name} đã chuyển đi nơi khác, việc nhờ bị huỷ`);
+    updateHud(true);
+  }
+  renderQuests();
+}
+/** Điểm chỉ hướng của việc đang chọn (đón / trả người ốm, đống rác). */
+function questNav() {
+  const list = Quests.questState(city), q = list.find((o) => o.uid === walk.qSel) || list[0];
+  const t = q && Quests.questTarget(city, q);
+  return t ? { x: t.x, z: t.z, icon: Quests.QUESTS[q.kind].icon, text: t.text, ride: q.kind === 'ride' && q.stage } : null;
 }
 function walkTick(dt, now) {
   gta.tick(dt);
@@ -2856,6 +2936,7 @@ function startCity(c) {
     setTimeout(() => leagueSync(true), 0);
   }
   walkStop();
+  Quests.unpackQuests(c, c.quests); // kiểm lại nhiệm vụ trong bản lưu
   view.setCity(c);
   $('bStyle').classList.toggle('on', c.style === 'vn');
   $('cityname').value = c.name; $('fare').value = c.transit.fare; $('ferryFare').value = c.transit.ferryFare ?? 4; $('taxR').value = c.tax.r; $('taxC').value = c.tax.c; $('taxI').value = c.tax.i;
@@ -2930,6 +3011,7 @@ function frame(now) {
   }
   if (n && city.hour % 3 === 0) city.dirty.zones = true;
   if (n) renderCity(false);
+  questsTick(now);
   view.update(dt, dt * speed);
   updateHud(false);
   drawMinimap(now);
