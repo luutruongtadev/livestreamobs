@@ -2200,9 +2200,12 @@ export const netFlag = (sup, use, i, day) => (sup <= 0 ? 0 : use <= sup ? 1 : ha
 
 /** Mỗi điểm thuế dân cư trên 9% trừ bấy nhiêu điểm vui (trước đây 3: thuế 12% làm dân bỏ đi hàng loạt). */
 export const TAX_MOOD = 1.5;
+/** Uy tín thị trưởng (chế độ đi bộ): việc tốt cộng, quậy phá trừ; cộng thẳng vào hài lòng của mọi nhà, mỗi ngày phai bớt. */
+export const MAYOR_REP = { min: 12, max: 5, fade: 0.85 };
 export function cellHappy(c, i) {
   const needs = [], pop = c.pp.count;
-  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * TAX_MOOD + c.bonus.happy + distFx(c, i, 'culture') * 2.5;
+  let h = 40 + c.landValue[i] * 0.5 - (c.tax.r - 9) * TAX_MOOD + c.bonus.happy + distFx(c, i, 'culture') * 2.5 + (c.mayorRep || 0);
+  if ((c.mayorRep || 0) <= -2) needs.push('Thị trưởng gây rối ngoài đường, mất uy tín');
   if (flooded(c, i)) { h -= 18; needs.push('🌊 Nhà đang bị ngập nước'); }
   if (c.alley && c.alley[i]) { h -= 3; needs.push('Nhà trong hẻm chật chội'); }
   if (c.pOk[i] !== 1) { h -= 30; needs.push(c.pOk[i] ? 'Điện chập chờn' : 'Không có điện'); }
@@ -2478,7 +2481,7 @@ function hourTick(c) {
   cityTake(c, 'tax', c.hourInc.r + c.hourInc.c + c.hourInc.i); c.hourInc.r = c.hourInc.c = c.hourInc.i = 0; // thuế: phần đã trừ thật của dân, doanh nghiệp; thuế phát sinh sau đây (thầu bảo trì) sang giờ sau mới thu
   cityGet(c, 'rooms', rooms * worldK(c)); // khách ngoài thành phố trả: thế giới nghèo thì trả ít
   { const lp = (s.exp.loans || 0) / 24; cityPay(c, 'loanPay', lp); cityPay(c, 'upkeep', s.expense / 24 - lp); }
-  if (h === 0) { issueDay(c); ledgerDay(c); W.ruralDay(c); reserveDay(c); reportDay(c); }
+  if (h === 0) { issueDay(c); ledgerDay(c); W.ruralDay(c); reserveDay(c); reportDay(c); if (c.mayorRep) { c.mayorRep *= MAYOR_REP.fade; if (Math.abs(c.mayorRep) < 0.05) c.mayorRep = 0; } }
   if (h === 0) { W.marketDay(c); W.tourismDay(c); W.intlDay(c); if (c.street) streetDay(c); if (c.rail) railDay(c); chainDay(c); } // chainDay: chuỗi sự kiện nhân quả, giá thuê theo khu, bản sắc kinh tế
   if (h === 0 || (c.inc && c.inc.weather !== c._wWeather)) { // mùa mưa / khô, trời bão: ao hồ do đào đắp đầy lên hoặc cạn bớt
     c._wWeather = c.inc && c.inc.weather;
@@ -2550,7 +2553,7 @@ export function serialize(c) {
   for (let k = 0; k < c.terra.length; k++) if (c.terra[k]) terra.push(k, c.terra[k]);
   return {
     v: 4, n: N, map: c.map, tgen: c.tgen, style: c.style, seed: c.seed, name: c.name, money: Math.round(c.money), ...(c.popl ? { rural: c.popl.rural, abroad: c.popl.abroad } : {}), hour: c.hour, tax: c.tax, milestone: c.milestone, start: c.start,
-    loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners),
+    loans: c.loans, debtHours: c.debtHours, over: c.over, nextId: c.nextId, research: r1(c.research), prisoners: Math.round(c.prisoners), ...(c.mayorRep ? { mayorRep: r1(c.mayorRep) } : {}),
     apv: 1, cell: T, tech: [...c.tech], points: c.points, devTree: c.devTree ? 1 : 0, sandbox: c.sandbox ? 1 : 0, econ: packEcon(c), season: packSeason(c), used: packReserve(c), ledger: packLedger(c), league: packLeague(c), council: packCouncil(c), dist: packDistricts(c), corp: packCorp(c), chain: packChain(c), retail: packRetail(c), street: packStreet(c), rail: packRail(c), beach: packBeach(c), decor: packDecor(c), falls: packFalls(c), fishery: packFishery(c), owned: b64(c.owned), weather: [c.inc.weather, c.inc.wUntil],
     nodes: [...c.nodes.values()].map((n) => (n.h != null ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0, Math.round(n.h * 100) / 100] : n.ctl || n.rb ? [n.id, r1(n.x), r1(n.z), n.ctl | 0, n.rb | 0] : [n.id, r1(n.x), r1(n.z)])),
     edges: [...c.edges.values()].map((e) => {
@@ -2617,7 +2620,7 @@ function deserializeAt(o) {
     tax: { r: clamp(num(o.tax?.r, 9), 1, 20), c: clamp(num(o.tax?.c, 9), 1, 20), i: clamp(num(o.tax?.i, 9), 1, 20) },
     start: { x: clamp(o.start?.x | 0, 0, N - 1), y: clamp(o.start?.y | 0, 0, N - 1) },
     loans: old ? [] : (o.loans || []).slice(0, MAX_LOANS).map((l) => { const h = Math.round(num(l.h, num(l.left, 0) * 24)); return { amount: num(l.amount, 0), daily: num(l.daily, 0), left: h / 24, h }; }), // bản lưu cũ chỉ có số ngày lẻ
-    debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)),
+    debtHours: o.debtHours | 0, over: !!o.over, nextId: Math.max(1, o.nextId | 0), research: clamp(num(o.research, 0), 0, 100), prisoners: Math.max(0, num(o.prisoners, 0)), mayorRep: clamp(num(o.mayorRep, 0), -MAYOR_REP.min, MAYOR_REP.max),
     nodes: new Map(), edges: new Map(), water: new Uint8Array(N * N), rings: (o.rings || []).map((g) => ({ x: num(g[0], 0), z: num(g[1], 0) })),
     lines: (o.lines || []).filter((l) => LINES[l[0]]).map((l) => ({ kind: l[0], ax: num(l[1], 0), az: num(l[2], 0), bx: num(l[3], 0), bz: num(l[4], 0) })),
     services: (o.services || []).filter((s) => SERVICES[s.type] && inMap(s.x | 0, s.y | 0) && inMap((s.x | 0) + SERVICES[s.type].size - 1, (s.y | 0) + SERVICES[s.type].size - 1)).map((s) => ({ type: s.type, x: s.x | 0, y: s.y | 0, dir: s.dir & 3, mods: mods(s), ...(SERVICES[s.type].graves ? { fill: clamp(num(s.fill, 0), 0, SERVICES[s.type].graves) } : {}), ...(s.build > 0 ? { buildTot: clamp(s.buildTot | 0, 1, 99), build: clamp(s.build | 0, 1, clamp(s.buildTot | 0, 1, 99)) } : {}), ...(s.sea && s.type === 'ferry' ? { sea: 1 } : {}), ...(s.dq ? { dq: String(s.dq).slice(0, 12), dby: String(s.dby || '').slice(0, 40) } : {}), ...(s.type === 'hydro' && s.dam && Array.isArray(s.dam.cells) && s.dam.cells.length && s.dam.cells.length <= 17 && s.dam.cells.every((i) => Number.isInteger(i) && i >= 0 && i < N * N) ? { dam: { cells: s.dam.cells.slice(), head: clamp(num(s.dam.head, 8), 8, 36), q: clamp(num(s.dam.q, 0), 0, 30) } } : {}) })),

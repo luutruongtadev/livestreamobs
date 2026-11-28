@@ -2,6 +2,7 @@
 // Chỉ đọc / sửa trạng thái mô phỏng có sẵn (c.fire, c.inc.robberies, c.garbage, c.pp); tiền thưởng đi qua sổ cái (dòng 'deed').
 import { N, T, ZDEF, SERVICES, EDU_NAME, garbageLimit, cellX, cellZ } from './base.js';
 import { cityGet } from './ledger.js';
+import { MAYOR_REP } from './sim.js';
 import { incomeOf, rentDay, ST } from './people.js';
 import { bizName, placeName } from './chain.js';
 import { TIER_CFG, burden } from './tiers.js';
@@ -62,6 +63,7 @@ export function doDeed(c, d) {
   st.n[d.kind]++;
   const reward = Math.max(0, Math.min(D.reward, DEED_DAY_CAP - st.got));
   if (reward) { cityGet(c, 'deed', reward); st.got += reward; }
+  c.mayorRep = Math.min(MAYOR_REP.max, (c.mayorRep || 0) + 0.3); // việc tốt: dân quý thị trưởng hơn
   const where = bldName(c, d.cell);
   const text = d.kind === 'fire' ? `Đã dập tắt đám cháy (${where})` : d.kind === 'rob' ? 'Đã tóm được kẻ cướp, giao cho công an' : `Đã dọn sạch đống rác (${where})`;
   return { ok: true, text, reward };

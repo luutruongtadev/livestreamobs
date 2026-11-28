@@ -5,6 +5,7 @@ import * as Cloud from './cloud.js';
 import * as Lg from './league.js';
 import { View, DCOL, corpRGB } from './render.js';
 import * as Deeds from './deeds.js';
+import { createGta } from './mayhem.js';
 import { aiCall, aiOnline, aiEnabled, setAiEnabled, citySummary } from './ai.js';
 
 const KEY = 'phomoi.v2.';
@@ -1575,6 +1576,7 @@ function setSpeed(v) { speed = v; if (v) updateHud.lastSpeed = v; updateHud(true
 // ───────────────────────── chuột, bàn phím ─────────────────────────
 
 // ── đi bộ: thả một nhân vật xuống phố, điều khiển bằng WASD / cần điều khiển, camera bám sau lưng ──
+let gta = null; // cướp xe, truy nã, chở khách (mayhem.js): tạo khi đã có view
 const walk = { on: false, joy: { x: 0, y: 0, run: false }, opts: [], sig: '', scanAt: 0, chan: null, knock: 0 };
 function walkStart() {
   if (walk.on) return;
@@ -1590,12 +1592,19 @@ function walkStart() {
   }
   if (!spot || !view.avatarDrop(spot.x, spot.z)) { toast('Không có chỗ đứng quanh đây: kéo bản đồ tới chỗ có đường hoặc đất trống rồi thử lại'); return; }
   setTool('info'); $('info').classList.remove('show');
+  if (!gta) { gta = createGta({ view, getCity: () => city, toast, money }); window.__gta = gta; } // window: tiện thử nghiệm
+  gta.reset();
+  { // xe máy của thị trưởng đỗ ngay cạnh chỗ thả
+    const a = view.avatar;
+    for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]]) { const x = a.x + dx, z = a.z + dz, y = view.avatarGround(x, z); if (y !== null) { view.parkedVeh.push({ x, z, y, yaw: a.yaw, veh: { id: -1, kind: 'moto', look: 'scooter', color: 0.58, mine: true, hp: 100 } }); break; } }
+  }
   walk.on = true; document.body.classList.add('walking'); $('bWalk').classList.add('on');
   toast(matchMedia('(pointer: coarse)').matches ? 'Kéo cần bên trái để đi (đẩy hết cỡ để chạy) · vuốt màn hình để xoay · chụm hai ngón để xa gần' : 'WASD hoặc phím mũi tên để đi · giữ Shift để chạy · kéo chuột để xoay · lăn chuột để xa gần · Esc để thôi', '🚶 Đang đi bộ');
 }
 function walkStop() {
   if (!walk.on) return;
-  walk.on = false; walk.joy.x = walk.joy.y = 0; walk.chan = null; walk.opts = []; walk.sig = ''; $('walkNav').hidden = true;
+  walk.on = false; walk.joy.x = walk.joy.y = 0; walk.chan = null; walk.opts = []; walk.sig = ''; $('walkNav').hidden = true; $('gtaHud').hidden = true;
+  if (gta) gta.reset();
   $('walkAct').innerHTML = ''; $('walkCard').hidden = true; $('info').classList.remove('show');
   view.avatarLeave();
   document.body.classList.remove('walking'); $('bWalk').classList.remove('on');
@@ -1607,6 +1616,8 @@ function walkStop() {
  */
 function walkScan() {
   const a = view.avatar, c = city, T = S.T, opts = [];
+  if (a.veh) { walkOpts(gta.driveOpts()); return; } // đang lái: chỉ có nút xe
+  opts.push(...gta.vehicleOpts());
   for (const d of Deeds.deedsNear(c, a.x, a.z).slice(0, 2)) { const D = Deeds.DEED[d.kind]; opts.push({ id: `d${d.kind}${d.cell}`, icon: D.icon, label: D.verb, deed: d, secs: D.secs, hot: true }); }
   let best = null, bd = 4.5; // người đi bộ trong 4,5 m
   for (const w of c.traffic.peds) { if (w.rx == null || !w.cb || w.cb.t !== 'cit') continue; const d = Math.hypot(w.rx - a.x, w.rz - a.z); if (d < bd && c.pp.alive[w.cb.id] && c.pp.gen[w.cb.id] === w.cb.gen) { bd = d; best = w; } }
@@ -1620,29 +1631,37 @@ function walkScan() {
     opts.push({ id: `v${i}`, icon: '🔍', label: `Xem ${name.replace(/^\S+\s/, '')}`, view: { x, y, wx: S.cellCenter(x), wz: S.cellCenter(y) } });
     break;
   }
-  walk.opts = opts.slice(0, 4);
+  walkOpts(opts.slice(0, 4));
+}
+/** Vẽ lại các nút việc (chỉ khi danh sách đổi) và dòng chỉ hướng. */
+function walkOpts(list) {
+  const a = view.avatar, c = city, T = S.T;
+  let firstE = true;
+  for (const o of list) { if (o.key === 'F') continue; if (firstE) { o.key = 'E'; firstE = false; } }
   { // việc gần nhất ngoài tầm tay: chỉ hướng và khoảng cách (mũi tên theo hướng camera)
     let tgt = null, td = Infinity;
     const consider = (i, icon, what) => { const d = Math.hypot(S.cellX(i) - a.x, S.cellZ(i) - a.z); if (d < td) { td = d; tgt = { i, icon, what }; } };
     for (let i = 0; i < S.N * S.N; i++) if (c.fire[i]) consider(i, '🔥', 'Đám cháy');
     if (!tgt) for (const r of c.inc.robberies) consider(r.cell, '🚨', 'Vụ cướp');
-    const nav = $('walkNav');
-    if (!tgt || td < T * 1.7) nav.hidden = true;
+    const nav = $('walkNav'), tx = gta.navTarget();
+    if (tx) { td = Math.hypot(tx.x - a.x, tx.z - a.z); tgt = { x: tx.x, z: tx.z, icon: tx.icon, what: tx.text }; }
+    else if (tgt) { tgt.x = S.cellX(tgt.i); tgt.z = S.cellZ(tgt.i); }
+    if (!tgt || (!tx && td < T * 1.7)) nav.hidden = true;
     else {
-      const vx = S.cellX(tgt.i) - a.x, vz = S.cellZ(tgt.i) - a.z, yw = view.cam.yaw;
+      const vx = tgt.x - a.x, vz = tgt.z - a.z, yw = view.cam.yaw;
       const ang = Math.atan2(vx * Math.cos(yw) - vz * Math.sin(yw), -vx * Math.sin(yw) - vz * Math.cos(yw));
-      nav.textContent = `${tgt.icon} ${tgt.what} cách ${fmt(td)} m ${['⬆', '↗', '➡', '↘', '⬇', '↙', '⬅', '↖'][((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]}`;
+      nav.textContent = `${tgt.icon} ${tgt.what}${tx ? ' ·' : ''} cách ${fmt(td)} m ${['⬆', '↗', '➡', '↘', '⬇', '↙', '⬅', '↖'][((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8]}`;
       nav.hidden = false;
     }
   }
-  const sig = walk.opts.map((o) => o.id).join('|');
-  if (sig === walk.sig) return;
-  walk.sig = sig;
+  const sig = list.map((o) => o.id).join('|');
+  if (sig === walk.sig) return; // giữ nguyên nút cũ (nút đang chạy thanh tiến độ)
+  walk.sig = sig; walk.opts = list;
   const box = $('walkAct'); box.innerHTML = '';
-  walk.opts.forEach((o, k) => {
+  walk.opts.forEach((o) => {
     const b = document.createElement('button');
     b.className = 'panel wact' + (o.hot ? ' hot' : '');
-    b.innerHTML = `<span>${o.icon}</span> ${esc(o.label)}${k === 0 ? ' <kbd>E</kbd>' : ''}<i></i>`;
+    b.innerHTML = `<span>${o.icon}</span> ${esc(o.label)}${o.key ? ` <kbd>${o.key}</kbd>` : ''}<i></i>`;
     b.addEventListener('click', () => walkDo(o));
     o.el = b; box.append(b);
   });
@@ -1650,6 +1669,7 @@ function walkScan() {
 function walkDo(o) {
   if (!o || walk.chan) return;
   const c = city;
+  if (gta.act(o)) { walk.sig = ''; walkScan(); return; }
   if (o.deed) { walk.chan = { o, t: 0, x: view.avatar.x, z: view.avatar.z }; return; } // giữ yên vài giây
   if (o.view) { $('walkCard').hidden = true; showInfo(o.view); return; }
   let id = o.person, purpose = o.purpose;
@@ -1665,7 +1685,8 @@ function walkDo(o) {
   card.hidden = false;
 }
 function walkTick(dt, now) {
-  if (now - walk.scanAt > 250) { walk.scanAt = now; walkScan(); }
+  gta.tick(dt);
+  if (now - walk.scanAt > 250) { walk.scanAt = now; walkScan(); const h = gta.hud(), el = $('gtaHud'); el.textContent = h; el.hidden = !h; }
   const ch = walk.chan;
   if (!ch) return;
   const a = view.avatar, o = ch.o, bar = o.el && o.el.querySelector('i');
@@ -1914,7 +1935,7 @@ function bindInput() {
       if (k === 'escape' && !$('walkCard').hidden) { $('walkCard').hidden = true; return; }
       if (k === 'escape' && $('info').classList.contains('show')) { $('info').classList.remove('show'); return; }
       if (k === 'escape' || k === 'k') { walkStop(); return; }
-      if (k === 'e') { walkDo(walk.opts[0]); return; }
+      if (k === 'e' || k === 'f') { walkDo(walk.opts.find((o) => o.key === k.toUpperCase())); return; }
       if (k === ' ') { e.preventDefault(); setSpeed(speed ? 0 : updateHud.lastSpeed || 1); }
       else if (k === '1' || k === '2' || k === '3') setSpeed([1, 2, 4][+k - 1]);
       else if (k === 'n') toggleNight();
@@ -2859,7 +2880,12 @@ function frame(now) {
   if (keys.has('s') || keys.has('arrowdown')) dz += mv;
   if (walk.on) {
     if (!view.avatar) walkStop(); // thành phố khác vừa nạp
-    else { const j = walk.joy; if (!walk.chan) view.avatarMove(dt, dx + j.x, -dz - j.y, keys.has('shift') || j.run); else view.avatarMove(dt, 0, 0, false); walkTick(dt, now); }
+    else {
+      const j = walk.joy;
+      if (view.avatar.veh) gta.onHit(view.avatarDrive(dt, S.clamp(-dz - j.y, -1, 1), S.clamp(-dx - j.x, -1, 1)));
+      else if (!walk.chan) view.avatarMove(dt, dx + j.x, -dz - j.y, keys.has('shift') || j.run); else view.avatarMove(dt, 0, 0, false);
+      walkTick(dt, now);
+    }
   } else if (dx || dz) view.pan(dx, dz);
   if (keys.has('q')) view.rotate(dt * 1.4, 0);
   if (keys.has('e')) view.rotate(-dt * 1.4, 0);

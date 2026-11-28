@@ -63,6 +63,9 @@ const ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI]; // hướng đường (0..3
 // Pha (aGait.x) lấy từ quãng đường đã đi nên chân không trượt; biên độ (aGait.y) = 0 thì đứng yên. mode 0 = người, 1 = chó (4 chân chéo).
 const GAIT_TAU = Math.PI * 2;
 const AVATAR_SCALE = 1.25; // như người đi bộ
+/** Lái xe khi đi bộ (cướp được hoặc xe của thị trưởng): tốc độ tối đa m/s trên đường, gia tốc, phanh, độ bẻ lái. Ra khỏi đường chỉ chạy 35%. */
+export const DRIVE = { moto: { vmax: 24, acc: 9, brake: 18, turn: 2.6 }, car: { vmax: 30, acc: 8, brake: 16, turn: 1.9 }, truck: { vmax: 21, acc: 4.5, brake: 10, turn: 1.3 } };
+const DRIVE_PAL = [0xe9e9e9, 0x2d3640, 0xc0392b, 0x2f6fb0, 0xd8b93a, 0x8a949c, 0x3d8a5a, 0xf2f2f2];
 const CAM_BUILD = { d0: 45, d1: 1100, p0: 0.3, p1: 1.45 }, CAM_WALK = { d0: 5, d1: 70, p0: 0.05, p1: 1.3 }; // giới hạn camera: xây dựng / đi bộ
 function gaitMaterial(mat, o) {
   const m = mat.clone();
@@ -915,6 +918,12 @@ export class View {
       this.avatarMark = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffc83a, fog: false }));
       this.avatarMark.visible = false; this.scene.add(this.avatarMark);
     }
+    this.parkedVeh = []; // xe đỗ bên đường người chơi lên được: xe của thị trưởng, xe cướp được rồi bỏ lại
+    { // cột sáng đánh dấu điểm đón / trả khách
+      const g = new THREE.CylinderGeometry(1.6, 1.6, 60, 20, 1, true); g.translate(0, 30, 0);
+      this.beacon = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffc83a, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      this.beacon.visible = false; this.scene.add(this.beacon);
+    }
     this.animals = [];
     this._loadCrowdModels();
     this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.14, 0.55, 1.14), new THREE.MeshBasicMaterial(), 800); // bóng đèn tín hiệu ló ra khỏi hộp đèn
@@ -1387,7 +1396,7 @@ export class View {
 
   pan(dx, dz) { const c = this.cam, cs = Math.cos(c.yaw), sn = Math.sin(c.yaw); this.panWorld(dx * cs + dz * sn, -dx * sn + dz * cs); }
   panWorld(dx, dz) { const c = this.cam; c.x = Math.max(-HALF, Math.min(HALF, c.x + dx)); c.z = Math.max(-HALF, Math.min(HALF, c.z + dz)); }
-  rotate(dyaw, dpitch) { const c = this.cam, L = this.camLim; c.yaw += dyaw; c.pitch = Math.max(L.p0, Math.min(L.p1, c.pitch + dpitch)); }
+  rotate(dyaw, dpitch) { this.manualRotAt = this.time; const c = this.cam, L = this.camLim; c.yaw += dyaw; c.pitch = Math.max(L.p0, Math.min(L.p1, c.pitch + dpitch)); }
   zoom(f) { const c = this.cam, L = this.camLim; c.dist = Math.max(L.d0, Math.min(L.d1, c.dist * f)); }
 
   /** Mặt đường mặt đất (kể cả cầu qua sông) dưới điểm (x, z): độ cao mặt đường, không có đường thì null. */
@@ -1432,7 +1441,7 @@ export class View {
     const a = this.avatar, b = this._camBuild;
     this.avatar = null; this.camLim = CAM_BUILD;
     Object.assign(this.cam, b || {}, { x: a.x, z: a.z }); // quay về góc nhìn xây dựng ngay chỗ nhân vật đứng
-    this.avatarMesh.count = 0; this.avatarMark.visible = false;
+    this.avatarMesh.count = 0; this.avatarMark.visible = false; this.parkedVeh = []; this.beacon.visible = false;
   }
 
   /**
@@ -1459,10 +1468,83 @@ export class View {
     a.x = nx; a.z = nz; a.y = y;
   }
 
+  /** Toạ độ vẽ của xe trong giao thông (v.rx, v.rz do _vehicles nội suy). */
+  vehiclesNear(x, z, r) {
+    const out = [];
+    for (const v of this.city.traffic.vehicles) if (v.rx != null && Math.hypot(v.rx - x, v.rz - z) < r) out.push(v);
+    return out;
+  }
+
+  /** Đặt / bỏ cột sáng đánh dấu (null = ẩn). */
+  setBeacon(x, z, color = 0xffc83a) {
+    if (x == null) { this.beacon.visible = false; return; }
+    this.beacon.visible = true; this.beacon.material.color.set(color);
+    this.beacon.position.set(x, Math.max(heightAt(this.city, x, z), WATER_Y), z);
+  }
+
+  /** Lên xe: veh = { kind: 'moto' | 'car' | 'truck', look, color, id }. */
+  avatarMount(veh) {
+    const a = this.avatar; if (!a) return;
+    a.veh = veh; a.speed = 0; a.moving = false;
+    this.cam.dist = veh.kind === 'moto' ? 14 : 20; this.cam.pitch = 0.3;
+  }
+  /** Xuống xe: xe đỗ lại bên cạnh, người bước ra phía tay trái. Trả về xe vừa xuống. */
+  avatarDismount() {
+    const a = this.avatar; if (!a || !a.veh) return null;
+    const v = a.veh; a.veh = null; a.speed = 0;
+    this.parkedVeh.push({ x: a.x, z: a.z, y: a.y, yaw: a.yaw, veh: v });
+    if (this.parkedVeh.length > 6) this.parkedVeh.splice(this.parkedVeh.findIndex((p) => !p.veh.mine), 1); // giữ xe của thị trưởng
+    for (const side of [1, -1]) { const x = a.x + Math.cos(a.yaw) * 2.2 * side, z = a.z - Math.sin(a.yaw) * 2.2 * side, y = this.avatarGround(x, z); if (y !== null) { a.x = x; a.z = z; a.y = y; break; } }
+    this.cam.dist = 16;
+    return v;
+  }
+
+  /**
+   * Lái xe: throttle -1..1 (lùi / ga), steer -1..1 (dương = bẻ trái). Trả về va chạm khung hình này:
+   * { hit: 'wall', impact } khi đâm nhà / vách, { hit: 'veh', v, impact } khi đâm xe khác (impact = tốc độ lúc đâm, m/s).
+   */
+  avatarDrive(dt, throttle, steer) {
+    const a = this.avatar; if (!a || !a.veh) return null;
+    const D = DRIVE[a.veh.kind] || DRIVE.car, c = this.city;
+    const onRoad = this._avatarRoad(a.x, a.z) !== null || c.road[Math.floor((a.z + HALF) / T) * N + Math.floor((a.x + HALF) / T)];
+    const vmax = D.vmax * (onRoad ? 1 : 0.35);
+    if (throttle > 0.05) a.speed += (a.speed < 0 ? D.brake : D.acc) * throttle * dt;
+    else if (throttle < -0.05) a.speed -= (a.speed > 0 ? D.brake : D.acc * 0.6) * -throttle * dt;
+    else a.speed *= Math.max(0, 1 - dt * 0.9); // nhả ga: trôi chậm dần
+    a.speed = clamp(a.speed, -7, vmax + Math.max(0, a.speed - vmax) * 0.9); // ra khỏi đường: giảm dần chứ không khựng
+    if (Math.abs(a.speed) > vmax) a.speed *= Math.max(0, 1 - dt * 2.5);
+    a.yaw += steer * D.turn * dt * clamp(Math.abs(a.speed) / 7, 0, 1) * Math.sign(a.speed || 1);
+    a.moving = Math.abs(a.speed) > 0.3;
+    if (!a.moving) return null;
+    const nx = a.x + Math.sin(a.yaw) * a.speed * dt, nz = a.z + Math.cos(a.yaw) * a.speed * dt, y = this.avatarGround(nx, nz);
+    if (y === null || y - a.y > 1.2) { const impact = Math.abs(a.speed); a.speed = -a.speed * 0.25; return { hit: 'wall', impact }; }
+    const R = a.veh.kind === 'moto' ? 1.4 : a.veh.kind === 'truck' ? 3.4 : 2.4;
+    for (const o of this.vehiclesNear(nx, nz, R + 3)) {
+      const rr = R + (o.len || 3.4) / 2 * 0.8;
+      if (Math.hypot(o.rx - nx, o.rz - nz) > rr || Math.hypot(o.rx - a.x, o.rz - a.z) < Math.hypot(o.rx - nx, o.rz - nz)) continue; // chỉ tính khi đang lao vào xe đó
+      const impact = Math.abs(a.speed); a.speed *= -0.2;
+      return { hit: 'veh', v: o, impact };
+    }
+    a.x = nx; a.z = nz; a.y += (y - a.y) * 0.6; a.gp += Math.abs(a.speed) * dt;
+    return null;
+  }
+
+  /** Màu thân xe cho xe người chơi / xe đỗ (giống _vehicles). */
+  _vehCol(v, col) {
+    if (v.kind === 'moto') return v.look === 'shipper' ? col.set(v.color < 0.5 ? 0x1fae54 : 0xee5a2d) : col.setHSL(v.color, 0.6, 0.5);
+    if (v.look === 'taxi') return col.set(v.color < 0.5 ? 0xf2c230 : 0x2aa37a);
+    return col.set(DRIVE_PAL[(v.color * DRIVE_PAL.length) | 0]);
+  }
+
   _avatarDraw() {
     const a = this.avatar, mesh = this.avatarMesh;
     if (!a) { if (mesh.count) mesh.count = 0; this.avatarMark.visible = false; return; }
     const y = this.avatarGround(a.x, a.z); if (y !== null) a.y += (y - a.y) * 0.5; // nhà mới mọc dưới chân: vẫn giữ độ cao cũ
+    if (a.veh) { // đang lái: xe vẽ trong _vehicles (xe máy Meshy có sẵn người lái)
+      mesh.count = 0; const mk = this.avatarMark; mk.visible = true;
+      mk.position.set(a.x, a.y + (a.veh.kind === 'moto' ? 2.6 : a.veh.kind === 'truck' ? 4.6 : 3) + Math.sin(this.time * 3) * 0.12, a.z); mk.rotation.y = this.time * 1.5;
+      return;
+    }
     const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a.yaw);
     const bob = a.moving ? 1 + Math.sin(a.gp * (a.run ? 2.4 : 4.8)) * 0.03 : 1;
     m.compose(new THREE.Vector3(a.x, a.y + 0.08, a.z), q, new THREE.Vector3(AVATAR_SCALE, AVATAR_SCALE * bob, AVATAR_SCALE));
@@ -1478,6 +1560,10 @@ export class View {
     const c = this.cam, cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     const av = this.avatar;
     if (av) { c.x = av.x; c.z = av.z; } // đang đi bộ: camera bám theo nhân vật, nhìn vào ngang ngực
+    if (av && av.veh && dt && Math.abs(av.speed) > 3 && this.time - (this.manualRotAt || -9) > 1.5) { // đang lái: camera tự vòng ra sau đuôi xe
+      let d = av.yaw + Math.PI - c.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+      c.yaw += d * Math.min(1, dt * 2.2);
+    }
     const ty = av ? av.y + 1.3 : Math.max(0, heightAt(this.city, c.x, c.z));
     c.y += (ty - c.y) * (dt ? Math.min(1, dt * (av ? 14 : 6)) : 1);
     this.camera.position.set(c.x + Math.sin(c.yaw) * cp * c.dist, c.y + sp * c.dist, c.z + Math.cos(c.yaw) * cp * c.dist);
@@ -4142,6 +4228,15 @@ export class View {
       else if (v.kind === 'tram') { if (nt < MAX_BUS) { this.tramMesh.setMatrixAt(nt, m); this.tramMesh.setColorAt(nt++, col.setHSL(v.color, 0.7, 0.5)); } }
       else if (FIX[v.kind]) put(look, MAX_BIG, col.set(FIX[v.kind]));
       else put(look, MAX_BIG, v.wreck ? col.set(0x4a4a4a) : look === 'container' ? col.set(CONT[(v.id * 7 + ((v.color * 100) | 0)) % CONT.length]) : look === 'tanker' ? col.set(0xf4f4f4) : look === 'boxtruck' || look === 'deliveryvan' || look === 'reefer' ? col.setHSL(v.color, 0.25, 0.78) : col.setHSL(v.color, 0.5, 0.55));
+    }
+    { // xe người chơi đang lái và các xe đỗ bên đường
+      const list = this.parkedVeh.map((pk) => [pk.veh, pk.x, pk.y, pk.z, pk.yaw]), av = this.avatar;
+      if (av && av.veh) list.push([av.veh, av.x, av.y, av.z, av.yaw]);
+      for (const [vv, x, y, z, yaw] of list) {
+        v_ = { id: vv.id, wreck: false };
+        p.set(x, y + 0.06, z); q.setFromAxisAngle(up, yaw); m.compose(p, q, s.set(1, 1, 1));
+        put(vv.look || vv.kind, vv.kind === 'moto' ? MAX_MOTO : vv.kind === 'car' ? MAX_CARS : MAX_BIG, this._vehCol(vv, col));
+      }
     }
     // tàu metro 3 toa chạy trên ray cao, vạch sơn theo màu tuyến
     let nm = 0;

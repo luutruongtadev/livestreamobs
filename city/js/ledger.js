@@ -49,6 +49,7 @@ export const FLOWS = {
   corpBuild: ['Tập đoàn thuê ngoài xây nhà máy', 'private'],
   corpLoan: ['Tập đoàn vay, trả nợ và lãi ngân hàng', 'private'],
   deed: ['Thưởng việc tốt khi đi bộ (dập lửa, bắt cướp, dọn rác)', 'city'],
+  mayorFine: ['Thị trưởng bị công an phạt', 'city'],
 };
 /** Dòng tiền chảy bên trong thành phố (chỉ đếm khối lượng, không đổi tổng). */
 export const INNER = { wage: 'Lương trả cho dân', shop: 'Dân mua sắm, ăn uống', supply: 'Doanh nghiệp mua hàng của nhau', rent: 'Tiền nhà dân trả chủ nhà', tax: 'Thuế, thuế nhà đất về ngân sách', procure: 'Ngân sách, chủ nhà, doanh nghiệp thuê doanh nghiệp trong thành phố (xây, bảo trì, dịch vụ)', dividend: 'Doanh nghiệp chia lợi nhuận cho dân', tariff: 'Thuế nhập khẩu hàng của thành phố khác về ngân sách', corpLand: 'Công ty nộp phí đất cho ngân sách', corpInfra: 'Công ty nộp phí hạ tầng nước thải cho ngân sách', corpSme: 'Ngân sách hỗ trợ vốn doanh nghiệp nhỏ được bảo hộ', logistics: 'Công ty trả phí lưu kho cho kho bãi của mình' };

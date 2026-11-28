@@ -232,6 +232,8 @@
   #walkCard[hidden] { display: none; }
   #walkNav { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(70px + var(--st)); padding: 7px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; pointer-events: none; box-shadow: 0 0 0 2px #ff6a3d; }
   #walkNav[hidden] { display: none; }
+  #gtaHud { position: fixed; z-index: 6; left: calc(12px + var(--sl)); bottom: calc(16px + var(--sb)); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; pointer-events: none; }
+  #gtaHud[hidden] { display: none; }
   #walkCard h3 { margin: 0 24px 6px 0; font-size: 16px; }
   #walkCard blockquote { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid #ffc83a; font-style: italic; }
   #walkCard blockquote p { margin: 2px 0; }
@@ -243,7 +245,7 @@
   #joy { display: none; position: fixed; z-index: 6; left: calc(28px + var(--sl)); bottom: calc(28px + var(--sb)); width: 130px; height: 130px; border-radius: 50%; background: rgba(20, 28, 36, .32); border: 2px solid rgba(255, 255, 255, .45); touch-action: none; }
   #joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); pointer-events: none; }
   #joy.run i { background: #ffc83a; }
-  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } #walkAct { left: auto; transform: none; right: calc(20px + var(--sr)); bottom: calc(72px + var(--sb)); align-items: flex-end; } .wact kbd { display: none; } #walkCard { top: calc(62px + var(--st)); left: calc(176px + var(--sl)); width: min(300px, calc(100vw - 420px)); max-height: calc(100vh - 130px - var(--st) - var(--sb)); } #walkNav { top: auto; bottom: calc(22px + var(--sb)); } }
+  @media (pointer: coarse) { #joy { display: block; } .walkKeys { display: none; } #walkExit { left: auto; right: calc(20px + var(--sr)); transform: none; } #walkAct { left: auto; transform: none; right: calc(20px + var(--sr)); bottom: calc(72px + var(--sb)); align-items: flex-end; } .wact kbd { display: none; } #walkCard { top: calc(62px + var(--st)); left: calc(176px + var(--sl)); width: min(300px, calc(100vw - 420px)); max-height: calc(100vh - 130px - var(--st) - var(--sb)); } #walkNav { top: auto; bottom: calc(22px + var(--sb)); } #gtaHud { bottom: auto; top: calc(62px + var(--st)); font-size: 13px; } }
   body.noui #top, body.noui #bottom, body.noui #alerts, body.noui .side { display: none !important; }
 
   /* ── nội dung trong các bảng ── */
@@ -760,10 +762,11 @@
 
 <div id="walkUI" aria-label="Đang đi bộ">
   <button class="panel" id="walkExit" title="Thôi đi bộ, quay về xây dựng (Esc)">✕ Thôi đi bộ</button>
-  <div class="walkKeys panel">WASD / ← ↑ → ↓ đi · Shift chạy · E làm việc · kéo chuột xoay · Esc thoát</div>
+  <div class="walkKeys panel">WASD / ← ↑ → ↓ đi, lái · Shift chạy · E làm việc · F lên / xuống, cướp xe · kéo chuột xoay · Esc thoát</div>
   <div id="joy" aria-hidden="true"><i id="joyKnob"></i></div>
   <div id="walkAct"></div>
   <div class="panel" id="walkNav" hidden></div>
+  <div class="panel" id="gtaHud" hidden></div>
   <div class="panel" id="walkCard" hidden></div>
 </div>
 <div id="bottom">
